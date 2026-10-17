@@ -1,0 +1,13 @@
+interface:
+  display_name: "配置机器人视频工作室"
+  short_description: "检查 ChatCut 和本地依赖，试听男声，保存机器人短视频的制作偏好"
+  default_prompt: "使用 $setup-robot-video 配置机器人视频插件并让我试听合适的中文男声。"
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "chatcut"
+      description: "已安装并通过 OAuth 登录的 ChatCut Hosted MCP"
+      transport: "streamable_http"
+      url: "https://api.chatcut.io/api/external-mcp/mcp"
+policy:
+  allow_implicit_invocation: true

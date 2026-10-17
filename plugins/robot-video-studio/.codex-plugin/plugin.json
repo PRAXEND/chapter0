@@ -1,0 +1,19 @@
+{
+  "name": "robot-video-studio",
+  "version": "0.1.4",
+  "description": "机器人热点选题、素材收集与 ChatCut 中文竖屏视频制作。",
+  "skills": "./skills/",
+  "requires_local_executor": true,
+  "interface": {
+    "displayName": "Robot Video Studio",
+    "shortDescription": "机器人热点选题、素材收集与 ChatCut 竖屏视频制作",
+    "category": "Creativity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "帮我制作一期 90 秒的机器人热点视频，先给我几个选题。"
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "robot-video-studio",
+  "version": "0.1.4",
+  "description": "从机器人热点选题到中文竖屏成片：核实来源、获取短片段，并通过已连接的 ChatCut 完成可编辑剪辑、配音、字幕和导出。",
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "interface": {
+        "displayName": "Robot Video Studio",
+        "shortDescription": "机器人热点选题、素材收集与 ChatCut 竖屏视频制作",
+        "longDescription": "选题确认后，制作 60–120 秒中文机器人视频。依赖单独安装并登录的 ChatCut；支持来源追溯、音色配置、断点续做、局部修改和成片检查。首版支持 macOS Codex，不包含发布功能。",
+        "category": "Creativity",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "defaultPrompt": [
+          "帮我制作一期 90 秒的机器人热点视频，先给我几个选题。"
+        ]
+      }
+    }
+  }
+}
