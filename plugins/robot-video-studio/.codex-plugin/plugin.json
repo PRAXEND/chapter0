@@ -1,6 +1,6 @@
 {
   "name": "robot-video-studio",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "机器人热点选题、素材收集与 ChatCut 中文竖屏视频制作。",
   "skills": "./skills/",
   "requires_local_executor": true,

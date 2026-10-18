@@ -4,9 +4,9 @@
 
 从选题和来源核实开始，收集少量相关实拍素材，编写口语化脚本，通过已连接的 ChatCut 制作配音、B-Roll、动态文字、字幕及配乐，检查后交付 MP4、SRT 和编辑工程。
 
-**版本：0.1.5 · 平台：macOS 上本地执行的 Codex · 分支：`video-generation`**
+**版本：0.1.6 · 平台：macOS 上本地执行的 Codex · 分支：`video-generation`**
 
-[下载安装包](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.5.zip) · [SHA-256](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.5.zip.sha256) · [验证记录](VALIDATION.md) · [更新记录](CHANGELOG.md)
+[下载安装包](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.6.zip) · [SHA-256](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.6.zip.sha256) · [验证记录](VALIDATION.md) · [更新记录](CHANGELOG.md)
 
 ## 1. 工作方式
 
@@ -82,9 +82,9 @@ Git来源及 `--ref` 语法见 [OpenAI 官方插件文档](https://developers.op
 下载页面顶部的 ZIP 和同名 `.zip.sha256`，放在同一目录：
 
 ```sh
-shasum -a 256 -c robot-video-studio-0.1.5.zip.sha256
-unzip robot-video-studio-0.1.5.zip
-cd robot-video-studio-0.1.5
+shasum -a 256 -c robot-video-studio-0.1.6.zip.sha256
+unzip robot-video-studio-0.1.6.zip
+cd robot-video-studio-0.1.6
 codex plugin marketplace add "$PWD"
 codex plugin add robot-video-studio@robot-video-studio
 ```
@@ -156,6 +156,12 @@ python3 plugins/robot-video-studio/scripts/studio.py doctor
 - 报告入点偏差、尾部保留、严格200ms超标及半帧量化容差，不隐藏差异。
 - 检查部分字、重复源字、旁白参数漂移、原片内部短镜头残片和转场读取的额外源帧。
 - 检查关键动作句的整句画面覆盖；时间覆盖不能证明画面相关，仍需查看实际合成像素。
+
+### 自然解说与动效（0.1.6）
+
+整稿检查套话、句间关系和动作描述时点；数据展示比较多种形式后按旁白设计变化。章节转场先查源镜头余量，必要时用独立遮罩层保护原片动作。保持已确认的克隆音色及配乐，实际听感仍需听审。
+
+详见 [自然解说与动效](plugins/robot-video-studio/references/narration-motion.md)。
 
 ### 开场、布局与节奏（0.1.5）
 
@@ -274,7 +280,7 @@ python3 tools/package.py
 
 构建输出 `dist/robot-video-studio-<version>.zip` 和 `.zip.sha256`。明确白名单排除凭据、配置、素材、运行记录、缓存和二进制工具，固定ZIP条目时间使重复构建可复现。
 
-发布新版本时同步更新两个manifest、README版本及下载链接、更新记录和验证记录；重建ZIP、检查独立解压测试及校验和。0.1.5 新增剪辑节奏诊断和强制复核入口；当前版本的真实回归及未验证项见 VALIDATION.md。
+发布新版本时同步更新两个manifest、README版本及下载链接、更新记录和验证记录；重建ZIP、检查独立解压测试及校验和。0.1.6 新增自然解说、指标动画和转场复核要求；当前版本的真实回归及未验证项见 VALIDATION.md。
 
 ## 11. 常见问题
 
