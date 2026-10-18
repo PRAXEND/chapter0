@@ -84,14 +84,12 @@ result 示例：`{"jobId":"返回的jobId","assetId":"返回的assetId"}`。完�
 
 `audit --run "$RUN" --video /absolute/final.mp4 --subtitles /absolute/final.srt --evidence /absolute/final-evidence.json` 完整解码并验证规格、SRT、分镜和审核状态，生成 qa-report.json。有配乐时自动扫描旁白停顿，另保存 music-pause-check.json；省略 --evidence 时读取 project.evidence_directory/live-evidence.json。首次缺少人工/模型审核或有配乐候选时退出 2 正常，不能当工具故障反复重跑。
 
-自动音乐检查绑定视频哈希、证据哈希与 run revision；发现候选或缺少证据会添加 music_pause_levels 待复核项，不允许通过手写 review 覆盖。该项不属于下方人工/模型 review 的六个 key，执行 audit 重新测量即可更新。修改旁白停顿、配乐、混音或任何成片字节后，用新导出和最新证据重新检查；自动检查通过也不代表 audio_listening 通过。
+自动音乐检查绑定视频哈希、证据哈希与 run revision；发现候选或缺少证据会添加 music_pause_levels 待复核项，不允许通过手写 review 覆盖。该项不属于下方人工/模型 review 的九个 key，执行 audit 重新测量即可更新。修改旁白停顿、配乐、混音或任何成片字节后，用新导出和最新证据重新检查；自动检查通过也不代表 audio_listening 通过。
 
 局部字幕/音频/短镜头诊断另用 `review_sync.py`，证据格式与完整流程见 [修复方法](repairs.md)。原片场景检测和全音轨响度扫描是只读检查，不是本地替代 ChatCut 剪辑。保留原始导出 SRT；若独立 SRT 断行把“机器人”拆开而画面正常，可仅调整换行并验证所有时间戳与去换行后的原文字节不变，再重新绑定字幕文件哈希。不得借排版名义改字幕时间。
 
-审阅实际文件后，逐项 `record --kind review --file ...`：
+审阅实际文件后，逐项 `record --kind review --file ...`。0.1.7 新增 `record --kind quality_plan`；完整字段、九项 method 对照、证据路径和哈希算法见 [创作要求与证据审查](creative-quality.md)。旧版只含 evidence 字符串的 pass 已不足以通过。
 
-```json
-{"check":"caption_sync","result":"pass","artifact_sha256":"audit返回的64位值","subtitle_sha256":"audit返回的64位值","evidence":"检查了全部字幕边界；b1第一个词与字幕起点相差0.10秒，最大观察偏差0.17秒"}
-```
+pass 必须有真实 reviewer、observations、evidence_files（路径和 SHA-256）、当前 plan_sha256、整个最终证据对象的 evidence_sha256，以及导出 artifact_sha256。整片画面/听审/节奏需完整 coverage_frames。字幕和全稿检查另绑 subtitle_sha256/script_sha256。result 仍是 pass/fail/unverified。缺少实际听审能力时填 unverified；不得复制示例冒充审查。
 
-check 取 facts/composed_visuals/audio_listening/caption_sync/semantic_sync/editorial_rhythm。result 取 pass/fail/unverified；证据必须为真实检查，不复制上方示例。不支持试听时填 unverified。检查内容或文件变化后重新检查。最后再运行一次 audit；只有全部有证据的审核有效且技术检查通过，status 才为 completed。
+最后重跑 audit，自动产生 music-pause-check.json、editorial-check.json、creative-quality-report.json 和 qa-report.json。只有所有有效审阅和客观检查都完成才为 completed。自动报告不能通过手写 review 绕过；缺证据为 review_pending。

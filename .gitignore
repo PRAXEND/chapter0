@@ -1,4 +1,6 @@
 dist/*
+!dist/robot-video-studio-0.1.7.zip
+!dist/robot-video-studio-0.1.7.zip.sha256
 !dist/robot-video-studio-0.1.5.zip
 !dist/robot-video-studio-0.1.5.zip.sha256
 !dist/robot-video-studio-0.1.6.zip

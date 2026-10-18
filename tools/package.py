@@ -17,7 +17,8 @@ FILES = [
     "plugins/robot-video-studio/references/editorial.md", "plugins/robot-video-studio/references/operations.md", "plugins/robot-video-studio/references/quality.md",
     "plugins/robot-video-studio/skills/setup-robot-video/SKILL.md", "plugins/robot-video-studio/skills/setup-robot-video/agents/openai.yaml",
     "plugins/robot-video-studio/skills/produce-robot-video/SKILL.md", "plugins/robot-video-studio/skills/produce-robot-video/agents/openai.yaml",
-    "tests/test_studio.py", "tests/test_review_sync.py", "tests/test_review_music.py", "tests/test_review_edit.py", "tools/package.py",
+    "plugins/robot-video-studio/scripts/review_quality.py", "plugins/robot-video-studio/references/creative-quality.md",
+    "tests/test_review_quality.py", "tests/test_studio.py", "tests/test_review_sync.py", "tests/test_review_music.py", "tests/test_review_edit.py", "tools/package.py",
 ]
 
 

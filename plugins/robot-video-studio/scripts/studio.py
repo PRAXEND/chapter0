@@ -22,17 +22,20 @@ import tempfile
 from urllib.parse import urlsplit
 import uuid
 
+import review_quality as quality
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULTS = {
     "schema_version": 1, "language": "zh-CN", "timezone": "Asia/Shanghai",
     "width": 1080, "height": 1920, "fps": 30, "target_seconds": 90,
     "min_seconds": 60, "max_seconds": 120,
     "max_video_sources": 6, "max_download_seconds": 300,
+    "creative": quality.DEFAULT_CREATIVE,
     "voice": None, "style": "有趣但克制，真实演示优先，少量解释性动画",
     "confirmation": "topic_then_finish", "generate_video": False,
     "generate_music": False, "publish": False,
 }
-REVIEW_KEYS = {"facts", "composed_visuals", "audio_listening", "caption_sync", "semantic_sync", "editorial_rhythm"}
+REVIEW_KEYS = set(quality.METHODS)
 
 
 class StudioError(Exception):
@@ -160,6 +163,7 @@ def profile():
     result = {**DEFAULTS, "output_root": str(Path.home() / "Movies/Robot Video Studio")}
     if path.exists():
         result.update(read(path))
+    result["creative"] = quality.preferences(result.get("creative", {}))
     return result
 
 
@@ -176,6 +180,7 @@ def save_profile(patch):
         for key in ("min_seconds", "max_seconds", "max_video_sources", "max_download_seconds", "confirmation", "generate_video", "generate_music", "publish", "schema_version"):
             if result[key] != DEFAULTS[key]:
                 raise StudioError(f"{key} is a fixed v0.1 boundary; override the workflow explicitly instead.")
+        result["creative"] = quality.preferences({**profile()["creative"], **patch.get("creative", {})})
         voice = result["voice"]
         if voice is not None and (not isinstance(voice, dict) or not all(voice.get(k) for k in ("name", "provider", "voiceId")) or voice.get("selected_by_user") is not True):
             raise StudioError("Voice needs an explicitly selected live catalog entry.")
@@ -195,6 +200,7 @@ def new_run(title, output_root=None):
         "status": "awaiting_topic", "settings": settings, "selection": None,
         "project": {}, "sources": [], "beats": [], "downloads": {},
         "operations": {}, "reviews": {}, "revision": 0, "history": [],
+        "quality_plan": None,
     }
     write(directory / "run.json", manifest)
     return {"run": str(directory), "manifest": manifest}
@@ -253,6 +259,11 @@ def record(directory, kind, payload):
                 collection.append(payload)
             if sum(x["kind"] == "video" for x in data["sources"]) > 6:
                 raise StudioError("At most six video sources per run.")
+        elif kind == "quality_plan":
+            quality.validate_plan(payload)
+            if data.get("quality_plan") == payload:
+                return data
+            data["quality_plan"] = payload
         elif kind == "review":
             key = payload.get("check")
             if key not in REVIEW_KEYS or payload.get("result") not in {"pass", "fail", "unverified"}:
@@ -261,6 +272,13 @@ def record(directory, kind, payload):
                 raise StudioError("A review requires concrete evidence, even when unverified.")
             if not re.fullmatch(r"[0-9a-f]{64}", payload.get("artifact_sha256", "")):
                 raise StudioError("Bind the review to the actual exported MP4 SHA-256.")
+            if payload["result"] == "pass":
+                if payload.get("method") not in quality.METHODS[key] or not payload.get("reviewer") or not payload.get("observations"):
+                    raise StudioError("A pass needs the appropriate review method, reviewer and observations.")
+                if not payload.get("evidence_files") or not all(quality.file_proof(ref, directory) for ref in payload["evidence_files"]):
+                    raise StudioError("A pass needs existing SHA-256-bound evidence files.")
+                if payload.get("plan_sha256") != digest(data.get("quality_plan")) or not data.get("quality_plan"):
+                    raise StudioError("Bind the review to the current quality plan.")
             data["reviews"][key] = {**payload, "revision": data["revision"], "at": now()}
         else:
             raise StudioError("Unsupported record kind.")
@@ -395,7 +413,7 @@ def music_expected(data):
     return bool(project.get('music_asset_id') or project.get('music_tracks') or project.get('music_enabled'))
 
 
-def audit_data(data, media, captions, artifact_hash, subtitle_hash, music_check=None, edit_check=None):
+def audit_data(data, media, captions, artifact_hash, subtitle_hash, music_check=None, edit_check=None, quality_check=None, review_base=None, evidence=None):
     failures, warnings = [], []
     streams = media.get("streams", [])
     video = next((s for s in streams if s.get("codec_type") == "video"), {})
@@ -452,14 +470,16 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash, music_check=
     for key, entry in data.get("operations", {}).items():
         if entry["status"] in {"reserved", "submitted"}:
             failures.append(f"{key}:unresolved_remote_operation")
-    pending = []
+    pending, review_details = [], {}
+    frames = round(duration*30) if math.isfinite(duration) and duration > 0 else 0
     for key in sorted(REVIEW_KEYS):
-        review = data["reviews"].get(key, {})
-        if review.get("result") != "pass" or review.get("artifact_sha256") != artifact_hash or review.get("revision") != data["revision"]:
+        issues = quality.review_issues(key, data["reviews"].get(key, {}), data,
+                                       artifact_hash, subtitle_hash, frames, review_base, evidence)
+        review_details[key] = issues
+        if issues:
             pending.append(key)
-        if key == "caption_sync" and review.get("subtitle_sha256") != subtitle_hash:
-            if key not in pending:
-                pending.append(key)
+    if not quality_check or quality_check.get('status') != 'pass' or quality_check.get('artifact_sha256') != artifact_hash or quality_check.get('run_revision') != data['revision'] or quality_check.get('plan_sha256') != digest(data.get('quality_plan')):
+        pending.append('creative_quality')
     music_required = music_expected(data) or bool(music_check and music_check.get('status') != 'not_applicable')
     if music_required and (not music_check or music_check.get('status') != 'pass' or
                            music_check.get('artifact_sha256') != artifact_hash or
@@ -471,6 +491,7 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash, music_check=
         pending.append('editorial_structure')
     return {"technical_pass": not failures, "failures": failures, "warnings": warnings,
             "editorial_check": edit_check or {"status": "unverified"},
+            "creative_quality": quality_check or {"status": "unverified"}, "review_details": review_details,
             "review_pending": pending, "completed": not failures and not pending,
             "music_pause_check": music_check or {"status": "unverified" if music_required else "not_applicable"},
             "artifact_sha256": artifact_hash, "subtitle_sha256": subtitle_hash, "checked_at": now(),
@@ -502,19 +523,25 @@ def audit(directory, video, subtitles, evidence=None):
     edit_check.update(artifact_sha256=file_hash(video), run_revision=snapshot['revision'])
     if proof is not None:
         edit_check['evidence_sha256'] = file_hash(evidence_path)
+    quality_check = quality.check(snapshot, proof, file_hash(video),
+                                  evidence_path.parent if evidence_path else directory, edit_check)
+    if proof is not None:
+        quality_check['evidence_sha256'] = file_hash(evidence_path)
     media = probe_media(video)
     # Decode the whole export. Detection results need human/model inspection;
     # a dark robotics shot is not automatically an unintended black screen.
-    result = execute(["ffmpeg", "-hide_banner", "-nostats", "-v", "info", "-i", Path(video).resolve(), "-vf", "blackdetect=d=0.15:pix_th=0.05", "-af", "silencedetect=noise=-45dB:d=0.6", "-f", "null", "-"], timeout=600)
+    result = execute(["ffmpeg", "-hide_banner", "-nostats", "-v", "info", "-i", Path(video).resolve(), "-vf", "blackdetect=d=0.15:pix_th=0.05,freezedetect=n=-50dB:d=3", "-af", "silencedetect=noise=-45dB:d=0.6", "-f", "null", "-"], timeout=600)
+    quality.apply_freeze_check(quality_check, snapshot, result.stderr, float(media["format"]["duration"]))
     with locked(directory):
         data = load_run(directory)
-        report = audit_data(data, media, parse_srt(subtitles), file_hash(video), file_hash(subtitles), music_check, edit_check)
+        report = audit_data(data, media, parse_srt(subtitles), file_hash(video), file_hash(subtitles), music_check, edit_check, quality_check, directory, proof)
         report["decode_pass"] = True
-        report["detector_notes"] = [line.strip() for line in result.stderr.splitlines() if "black_start:" in line or "silence_start:" in line or "silence_end:" in line]
+        report["detector_notes"] = [line.strip() for line in result.stderr.splitlines() if "black_start:" in line or "silence_start:" in line or "silence_end:" in line or "freezedetect.freeze_" in line]
         data["last_audit"] = report
         data["status"] = "completed" if report["completed"] else "review_pending"
         write(Path(directory) / 'music-pause-check.json', music_check)
         write(Path(directory) / 'editorial-check.json', edit_check)
+        write(Path(directory) / 'creative-quality-report.json', quality_check)
         write(Path(directory) / "qa-report.json", report)
         save_run(directory, data, "audit")
         return report
@@ -549,7 +576,7 @@ def doctor():
     if executable_checks["ffmpeg"]["ok"]:
         try:
             filters = execute([programs["ffmpeg"], "-hide_banner", "-filters"], timeout=10).stdout
-            filters_ok = all(name in filters for name in ("blackdetect", "silencedetect"))
+            filters_ok = all(name in filters for name in ("blackdetect", "silencedetect", "freezedetect"))
         except StudioError:
             pass
     ready = sys.version_info >= (3, 10) and all(modules.values()) and all(executable_checks[k]["ok"] for k in ("ffmpeg", "ffprobe", "yt-dlp")) and any(executable_checks[k]["ok"] for k in ("node", "deno")) and filters_ok
@@ -578,7 +605,7 @@ def main(argv=None):
     p = subs.add_parser("profile"); p.add_argument("--merge-file")
     p = subs.add_parser("new"); p.add_argument("--title", required=True); p.add_argument("--output-root")
     p = subs.add_parser("status"); p.add_argument("--run", required=True)
-    p = subs.add_parser("record"); p.add_argument("--run", required=True); p.add_argument("--kind", choices=["source", "beat", "selection", "project", "review"], required=True); p.add_argument("--file", required=True)
+    p = subs.add_parser("record"); p.add_argument("--run", required=True); p.add_argument("--kind", choices=["source", "beat", "selection", "project", "quality_plan", "review"], required=True); p.add_argument("--file", required=True)
     p = subs.add_parser("operation"); p.add_argument("action", choices=["reserve", "resolve"]); p.add_argument("--run", required=True); p.add_argument("--key", required=True); p.add_argument("--file", required=True); p.add_argument("--state", choices=["submitted", "completed", "failed"])
     p = subs.add_parser("probe"); p.add_argument("--url", required=True)
     p = subs.add_parser("fetch"); p.add_argument("--run", required=True); p.add_argument("--source", required=True); p.add_argument("--start", type=float, required=True); p.add_argument("--end", type=float, required=True)

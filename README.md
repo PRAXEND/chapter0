@@ -4,9 +4,9 @@
 
 从选题和来源核实开始，收集少量相关实拍素材，编写口语化脚本，通过已连接的 ChatCut 制作配音、B-Roll、动态文字、字幕及配乐，检查后交付 MP4、SRT 和编辑工程。
 
-**版本：0.1.6 · 平台：macOS 上本地执行的 Codex · 分支：`video-generation`**
+**版本：0.1.7 · 平台：macOS 上本地执行的 Codex · 分支：`video-generation`**
 
-[下载安装包](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.6.zip) · [SHA-256](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.6.zip.sha256) · [验证记录](VALIDATION.md) · [更新记录](CHANGELOG.md)
+[下载安装包](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.7.zip) · [SHA-256](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.7.zip.sha256) · [验证记录](VALIDATION.md) · [更新记录](CHANGELOG.md)
 
 ## 1. 工作方式
 
@@ -82,9 +82,9 @@ Git来源及 `--ref` 语法见 [OpenAI 官方插件文档](https://developers.op
 下载页面顶部的 ZIP 和同名 `.zip.sha256`，放在同一目录：
 
 ```sh
-shasum -a 256 -c robot-video-studio-0.1.6.zip.sha256
-unzip robot-video-studio-0.1.6.zip
-cd robot-video-studio-0.1.6
+shasum -a 256 -c robot-video-studio-0.1.7.zip.sha256
+unzip robot-video-studio-0.1.7.zip
+cd robot-video-studio-0.1.7
 codex plugin marketplace add "$PWD"
 codex plugin add robot-video-studio@robot-video-studio
 ```
@@ -148,6 +148,16 @@ python3 plugins/robot-video-studio/scripts/studio.py doctor
 选题确定后，默认继续已经授权的制作与导出，不在每步重复要求批准。真实的权限、额度或素材缺口仍可能需要处理。自动化依赖正在执行任务的 Codex，不是关闭应用后仍自主运行的后台服务。
 
 ## 7. 质量检查
+
+### 创作要求与分层审查（0.1.7）
+
+- 持久化个人创作偏好，每期保存要求和章节/动效计划；本期覆盖偏好要记录真实理由。
+- 全稿逐段口语审查并绑定最终文字；检查实际动效阶段和章节转场，标题淡入不算完成转场要求。
+- 支持实拍上叠加图解的偏好：相关素材适度压暗承载动画，素材不足主动补找；严格模式对≥3秒最终合成静止保留待修订。
+- 扫描长图解、核心变化停滞、小画面、慢放界面，以及既有长停顿和重复镜头；保留例外需可读取的画面证据和具体观察。
+- 分开记录抽帧、运动序列、整片画面和最终混音听审。摘要、版本、审阅范围或证据不符时不能标 completed。
+
+新增 `quality_plan`、`creative-quality-report.json` 和九项审阅方法。旧项目可继续读取，但裸 pass 不自动升级为新标准通过。[字段与操作方法](plugins/robot-video-studio/references/creative-quality.md)。脚本检查证据一致性，不能代替真实观看、听审或自动保证审美质量。
 
 ### 文件、字幕与镜头
 
@@ -228,6 +238,7 @@ plugins/robot-video-studio/
 │   ├── studio.py                        # 环境、获取、状态、验收
 │   ├── review_sync.py                   # 字幕/动作/短镜头诊断
 │   ├── review_edit.py                   # 长停顿、长镜头、重复区间与编辑判断
+│   ├── review_quality.py                # 要求/实际动效/证据与审阅范围
 │   └── review_music.py                  # 停顿处音量回升诊断
 ├── references/                          # 采编、操作、验收与修复规范
 └── requirements-runtime.txt
@@ -258,7 +269,7 @@ python3 plugins/robot-video-studio/scripts/studio.py audit \
 | `2` | doctor/bootstrap 缺依赖，或 audit/诊断存在候选和待审核项；不应无限重试 |
 | `1` | studio.py 输入、文件或运行错误，应按错误内容处理 |
 
-三个 review 脚本只读诊断，不替代 ChatCut 编辑。最终剪辑、字幕、混音和主成片导出仍在 ChatCut 完成。
+四个 review 脚本只读诊断，不替代 ChatCut 编辑。最终剪辑、字幕、混音和主成片导出仍在 ChatCut 完成。
 
 ## 10. 更新、开发与打包
 
@@ -280,7 +291,7 @@ python3 tools/package.py
 
 构建输出 `dist/robot-video-studio-<version>.zip` 和 `.zip.sha256`。明确白名单排除凭据、配置、素材、运行记录、缓存和二进制工具，固定ZIP条目时间使重复构建可复现。
 
-发布新版本时同步更新两个manifest、README版本及下载链接、更新记录和验证记录；重建ZIP、检查独立解压测试及校验和。0.1.6 新增自然解说、指标动画和转场复核要求；当前版本的真实回归及未验证项见 VALIDATION.md。
+发布新版本时同步更新两个manifest、README版本及下载链接、更新记录和验证记录；重建ZIP、检查独立解压测试及校验和。0.1.7 新增要求与实际实现核对、素材叠加图解偏好和分层审阅关卡；当前版本的真实回归及未验证项见 VALIDATION.md。
 
 ## 11. 常见问题
 

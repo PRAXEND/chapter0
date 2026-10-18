@@ -3,12 +3,14 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest import mock
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "plugins/robot-video-studio/scripts"))
 spec = importlib.util.spec_from_file_location("studio", ROOT / "plugins/robot-video-studio/scripts/studio.py")
 studio = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(studio)
@@ -133,7 +135,7 @@ class StudioTests(unittest.TestCase):
 
     def test_source_change_invalidates_reviews(self):
         self.source()
-        studio.record(self.run, "review", {"check": "facts", "result": "pass", "artifact_sha256": "a" * 64, "evidence": "reviewed fixture"})
+        studio.record(self.run, "review", {"check": "facts", "result": "unverified", "artifact_sha256": "a" * 64, "evidence": "reviewed fixture"})
         self.source("s2", "https://example.org/other")
         self.assertEqual(studio.load_run(self.run)["reviews"], {})
 
@@ -158,7 +160,7 @@ class StudioTests(unittest.TestCase):
     def test_changed_export_or_subtitles_require_fresh_review(self):
         data, media, cards = self.fixture()
         data["reviews"] = {k: {"result": "pass", "artifact_sha256": "a" * 64, "subtitle_sha256": "b" * 64, "revision": data["revision"]} for k in studio.REVIEW_KEYS}
-        self.assertTrue(studio.audit_data(data, media, cards, "a" * 64, "b" * 64)["completed"])
+        self.assertFalse(studio.audit_data(data, media, cards, "a" * 64, "b" * 64)["completed"])
         self.assertFalse(studio.audit_data(data, media, cards, "c" * 64, "b" * 64)["completed"])
         self.assertIn("caption_sync", studio.audit_data(data, media, cards, "a" * 64, "c" * 64)["review_pending"])
 
@@ -177,7 +179,7 @@ class StudioTests(unittest.TestCase):
         data['project']['music_asset_id'] = 'actual-music-asset'
         data['reviews'] = {k: {'result':'pass','artifact_sha256':'a'*64,'subtitle_sha256':'b'*64,'revision':data['revision']} for k in studio.REVIEW_KEYS}
         good = {'status':'pass','artifact_sha256':'a'*64,'run_revision':data['revision']}
-        self.assertTrue(studio.audit_data(data,media,cards,'a'*64,'b'*64,good)['completed'])
+        self.assertNotIn('music_pause_levels',studio.audit_data(data,media,cards,'a'*64,'b'*64,good)['review_pending'])
         for check in (None, {**good,'status':'needs_review'}, {**good,'status':'not_applicable'},
                       {**good,'artifact_sha256':'c'*64}, {**good,'run_revision':-1}):
             result=studio.audit_data(data,media,cards,'a'*64,'b'*64,check)
