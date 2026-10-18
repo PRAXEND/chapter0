@@ -240,6 +240,24 @@ def compare_cards(cues, cards, fps=30):
     return {'matches': not mismatches, 'mismatched_cues': mismatches}
 
 
+def speech_rates(words):
+    """Do not count intervening chapters as speech when one asset is reordered."""
+    rows = []
+    for aid in dict.fromkeys(w['asset_id'] for w in words):
+        selected = [w for w in words if w['asset_id'] == aid]
+        span = max(w['end'] for w in selected) - min(w['start'] for w in selected)
+        groups = {}
+        for word in selected:
+            groups.setdefault(word['item_id'], []).append(word)
+        active = sum(max(w['end'] for w in group) - min(w['start'] for w in group)
+                     for group in groups.values())
+        rows.append({'asset_id': aid, 'timeline_span_seconds': round(span, 3),
+                     'spoken_span_seconds': round(active, 3),
+                     'characters_per_second': round(sum(len(normalized(w['text'])) for w in selected) / active, 3),
+                     'note': 'Sums measured speech spans within placed clips; not a timbre/listening judgment.'})
+    return rows
+
+
 def review(evidence, cues, cuts_by_asset, fps=30):
     state = evidence['timeline'].get('state', {})
     if state.get('fps', fps) != fps:
@@ -269,13 +287,7 @@ def review(evidence, cues, cuts_by_asset, fps=30):
         if aid not in cuts_by_asset:
             raise ValueError('Missing source cut evidence for ' + aid)
         shots.extend(dict(s, item_id=clip['id']) for s in shot_fragments(clip, cuts_by_asset[aid], fps))
-    rates = []
-    for aid in sources:
-        selected = [w for w in words if w['asset_id'] == aid]
-        if selected:
-            span = max(w['end'] for w in selected) - min(w['start'] for w in selected)
-            rates.append({'asset_id': aid, 'spoken_span_seconds': round(span, 3),
-                          'characters_per_second': round(sum(len(normalized(w['text'])) for w in selected) / span, 3)})
+    rates = speech_rates(words)
     return {'caption_sync': check_captions(cues, words, fps=fps), 'source_window_issues': issues,
             'transition_handle_candidates': transition_handles(entries, cuts_by_asset, fps),
             'semantic_anchors': semantic_anchors(words, entries, evidence.get('semantic_anchors', []), fps),

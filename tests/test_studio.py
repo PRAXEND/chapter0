@@ -204,6 +204,28 @@ class StudioTests(unittest.TestCase):
         path.write_text("1\n00:99:00,000 --> 00:00:01,000\nwrong\n")
         with self.assertRaises(studio.StudioError): studio.parse_srt(path)
 
+    def test_editorial_check_is_automatic_and_bound_to_final_export(self):
+        data, media, _ = self.fixture()
+        studio.write(self.run/'run.json', data)
+        proof=self.root/'proof.json'; studio.write(proof, {'narration_tracks':['A1']})
+        video=self.root/'video.mp4'; video.write_bytes(b'final export')
+        srt=self.root/'video.srt'; srt.write_text('1\n00:00:00,000 --> 00:00:03,000\nfixture\n')
+        with mock.patch.object(studio,'probe_media',return_value=media), mock.patch.object(studio,'execute',return_value=mock.Mock(stderr='')), mock.patch('review_music.check_file',return_value={'status':'not_applicable'}), mock.patch('review_edit.check',return_value={'status':'needs_review','pending':['opening_pixel_review']}) as check:
+            report=studio.audit(self.run,video,srt,evidence=proof)
+        check.assert_called_once_with({'narration_tracks':['A1']})
+        self.assertIn('editorial_structure',report['review_pending'])
+        saved=studio.read(self.run/'editorial-check.json')
+        self.assertEqual(studio.file_hash(video),saved['artifact_sha256'])
+        self.assertEqual(studio.file_hash(proof),saved['evidence_sha256'])
+        self.assertEqual(data['revision'],saved['run_revision'])
+
+    def test_stale_editorial_pass_cannot_certify_new_export(self):
+        data, media, cards = self.fixture()
+        check={'status':'pass','artifact_sha256':'old','run_revision':data['revision']}
+        self.assertIn('editorial_structure',studio.audit_data(data,media,cards,'new','srt',edit_check=check)['review_pending'])
+        check.update(artifact_sha256='new',run_revision=data['revision']-1)
+        self.assertIn('editorial_structure',studio.audit_data(data,media,cards,'new','srt',edit_check=check)['review_pending'])
+
     def test_missing_dependencies_do_not_report_ready(self):
         with mock.patch.object(studio.shutil, "which", return_value=None), mock.patch.object(studio, "downloader", side_effect=studio.StudioError("missing")):
             self.assertFalse(studio.doctor()["local_ready"])

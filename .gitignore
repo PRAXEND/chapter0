@@ -1,6 +1,6 @@
 dist/*
-!dist/robot-video-studio-0.1.4.zip
-!dist/robot-video-studio-0.1.4.zip.sha256
+!dist/robot-video-studio-0.1.5.zip
+!dist/robot-video-studio-0.1.5.zip.sha256
 .runtime/
 runs/
 validation/

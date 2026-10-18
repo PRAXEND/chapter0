@@ -12,6 +12,14 @@ def clip(first, last, start=0, end=30, id='clip'):
 
 
 class SyncTests(unittest.TestCase):
+    def test_reordered_asset_does_not_count_other_chapters_as_slow_speech(self):
+        words=[{'text':'工作','asset_id':'voice','item_id':'hook','start':0,'end':1},
+               {'text':'充电','asset_id':'voice','item_id':'later','start':20,'end':21}]
+        report=r.speech_rates(words)[0]
+        self.assertEqual(2,report['spoken_span_seconds'])
+        self.assertEqual(21,report['timeline_span_seconds'])
+        self.assertEqual(2,report['characters_per_second'])
+
     def test_projects_offset_and_rate_ignores_silence(self):
         sources = {'voice': [{'startMs': 1100, 'endMs': 1500, 'text': '机器人'},
                              {'startMs': 1500, 'endMs': 2000, 'text': '[0.50 seconds silent]'}]}

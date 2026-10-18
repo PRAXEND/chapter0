@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "robot-video-studio",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "从机器人热点选题到中文竖屏成片：核实来源、获取短片段，并通过已连接的 ChatCut 完成可编辑剪辑、配音、字幕和导出。",
   "extensions": {
     "com.openai": {

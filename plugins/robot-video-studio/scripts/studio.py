@@ -32,7 +32,7 @@ DEFAULTS = {
     "confirmation": "topic_then_finish", "generate_video": False,
     "generate_music": False, "publish": False,
 }
-REVIEW_KEYS = {"facts", "composed_visuals", "audio_listening", "caption_sync", "semantic_sync"}
+REVIEW_KEYS = {"facts", "composed_visuals", "audio_listening", "caption_sync", "semantic_sync", "editorial_rhythm"}
 
 
 class StudioError(Exception):
@@ -395,7 +395,7 @@ def music_expected(data):
     return bool(project.get('music_asset_id') or project.get('music_tracks') or project.get('music_enabled'))
 
 
-def audit_data(data, media, captions, artifact_hash, subtitle_hash, music_check=None):
+def audit_data(data, media, captions, artifact_hash, subtitle_hash, music_check=None, edit_check=None):
     failures, warnings = [], []
     streams = media.get("streams", [])
     video = next((s for s in streams if s.get("codec_type") == "video"), {})
@@ -465,7 +465,12 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash, music_check=
                            music_check.get('artifact_sha256') != artifact_hash or
                            music_check.get('run_revision') != data['revision']):
         pending.append('music_pause_levels')
+    if edit_check is not None and (edit_check.get('status') != 'pass' or
+            edit_check.get('artifact_sha256') != artifact_hash or
+            edit_check.get('run_revision') != data['revision']):
+        pending.append('editorial_structure')
     return {"technical_pass": not failures, "failures": failures, "warnings": warnings,
+            "editorial_check": edit_check or {"status": "unverified"},
             "review_pending": pending, "completed": not failures and not pending,
             "music_pause_check": music_check or {"status": "unverified" if music_required else "not_applicable"},
             "artifact_sha256": artifact_hash, "subtitle_sha256": subtitle_hash, "checked_at": now(),
@@ -474,6 +479,7 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash, music_check=
 
 def audit(directory, video, subtitles, evidence=None):
     from review_music import check_file
+    from review_edit import check as check_edit
     snapshot = load_run(directory)
     evidence_path = Path(evidence).expanduser() if evidence else None
     if evidence_path is None and snapshot['project'].get('evidence_directory'):
@@ -492,18 +498,23 @@ def audit(directory, video, subtitles, evidence=None):
         music_check['evidence_sha256'] = file_hash(evidence_path)
     if proof_error:
         music_check.update(status='unverified', reason='Cannot read final evidence: ' + proof_error)
+    edit_check = check_edit(proof)
+    edit_check.update(artifact_sha256=file_hash(video), run_revision=snapshot['revision'])
+    if proof is not None:
+        edit_check['evidence_sha256'] = file_hash(evidence_path)
     media = probe_media(video)
     # Decode the whole export. Detection results need human/model inspection;
     # a dark robotics shot is not automatically an unintended black screen.
     result = execute(["ffmpeg", "-hide_banner", "-nostats", "-v", "info", "-i", Path(video).resolve(), "-vf", "blackdetect=d=0.15:pix_th=0.05", "-af", "silencedetect=noise=-45dB:d=0.6", "-f", "null", "-"], timeout=600)
     with locked(directory):
         data = load_run(directory)
-        report = audit_data(data, media, parse_srt(subtitles), file_hash(video), file_hash(subtitles), music_check)
+        report = audit_data(data, media, parse_srt(subtitles), file_hash(video), file_hash(subtitles), music_check, edit_check)
         report["decode_pass"] = True
         report["detector_notes"] = [line.strip() for line in result.stderr.splitlines() if "black_start:" in line or "silence_start:" in line or "silence_end:" in line]
         data["last_audit"] = report
         data["status"] = "completed" if report["completed"] else "review_pending"
         write(Path(directory) / 'music-pause-check.json', music_check)
+        write(Path(directory) / 'editorial-check.json', edit_check)
         write(Path(directory) / "qa-report.json", report)
         save_run(directory, data, "audit")
         return report

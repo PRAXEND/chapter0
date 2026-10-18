@@ -4,9 +4,9 @@
 
 从选题和来源核实开始，收集少量相关实拍素材，编写口语化脚本，通过已连接的 ChatCut 制作配音、B-Roll、动态文字、字幕及配乐，检查后交付 MP4、SRT 和编辑工程。
 
-**版本：0.1.4 · 平台：macOS 上本地执行的 Codex · 分支：`video-generation`**
+**版本：0.1.5 · 平台：macOS 上本地执行的 Codex · 分支：`video-generation`**
 
-[下载安装包](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.4.zip) · [SHA-256](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.4.zip.sha256) · [验证记录](VALIDATION.md) · [更新记录](CHANGELOG.md)
+[下载安装包](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.5.zip) · [SHA-256](https://github.com/PRAXEND/chapter0/raw/refs/heads/video-generation/dist/robot-video-studio-0.1.5.zip.sha256) · [验证记录](VALIDATION.md) · [更新记录](CHANGELOG.md)
 
 ## 1. 工作方式
 
@@ -82,9 +82,9 @@ Git来源及 `--ref` 语法见 [OpenAI 官方插件文档](https://developers.op
 下载页面顶部的 ZIP 和同名 `.zip.sha256`，放在同一目录：
 
 ```sh
-shasum -a 256 -c robot-video-studio-0.1.4.zip.sha256
-unzip robot-video-studio-0.1.4.zip
-cd robot-video-studio-0.1.4
+shasum -a 256 -c robot-video-studio-0.1.5.zip.sha256
+unzip robot-video-studio-0.1.5.zip
+cd robot-video-studio-0.1.5
 codex plugin marketplace add "$PWD"
 codex plugin add robot-video-studio@robot-video-studio
 ```
@@ -157,7 +157,18 @@ python3 plugins/robot-video-studio/scripts/studio.py doctor
 - 检查部分字、重复源字、旁白参数漂移、原片内部短镜头残片和转场读取的额外源帧。
 - 检查关键动作句的整句画面覆盖；时间覆盖不能证明画面相关，仍需查看实际合成像素。
 
-### 配乐停顿检查（0.1.4）
+### 开场、布局与节奏（0.1.5）
+
+- 开头尽早展示具体动作或数字，随画面保留厂商宣称等必要限定；不以长铺垫消耗前几秒。
+- 每个镜头选择适合的主体放大、完整全景或同步细节窗，避免全片缩成中间窄条，也不裁掉关键动作。
+- 自动定位 ≥1.5 秒内部旁白停顿、>8 秒连续主镜头和明显重复原片；这些是复核线索，不自动切掉完整动作。
+- 每个保留候选要有具体像素依据；开头和布局另有证据记录。没有依据时保持待复核。
+- 不用空档、重复蒙太奇或长卡片凑满90秒；重排旁白后重新检查字幕及停顿处配乐。
+- 对照最终 SRT、当前 Caption Cards 和实际烧录画面，差异要留证；只有核实真实边界后才重建外置字幕。
+
+详见 [开场、布局与节奏复核](plugins/robot-video-studio/references/editing-rhythm.md)。
+
+### 配乐停顿检查
 
 有 BGM 时，最终验收根据真实词时间扫描旁白内部停顿，检测短时音量回升并保存精确区间，包括同一个旁白片段内部的停顿。
 
@@ -187,7 +198,8 @@ python3 plugins/robot-video-studio/scripts/studio.py doctor
 ├── final.mp4                # 文件名示意，实际以该期交付为准
 ├── final.srt
 ├── qa-report.json
-└── music-pause-check.json
+├── music-pause-check.json
+└── editorial-check.json
 ```
 
 脚本、来源清单和证据也存放在该期运行目录，具体文件名由制作记录确定。不要将这些个人文件提交到本仓库。
@@ -209,10 +221,11 @@ plugins/robot-video-studio/
 ├── scripts/
 │   ├── studio.py                        # 环境、获取、状态、验收
 │   ├── review_sync.py                   # 字幕/动作/短镜头诊断
+│   ├── review_edit.py                   # 长停顿、长镜头、重复区间与编辑判断
 │   └── review_music.py                  # 停顿处音量回升诊断
 ├── references/                          # 采编、操作、验收与修复规范
 └── requirements-runtime.txt
-tests/                                   # 54项离线单元测试
+tests/                                   # 67项离线单元测试
 tools/package.py                         # 白名单、可复现ZIP构建
 dist/                                    # 当前ZIP及SHA-256
 CHANGELOG.md
@@ -239,7 +252,7 @@ python3 plugins/robot-video-studio/scripts/studio.py audit \
 | `2` | doctor/bootstrap 缺依赖，或 audit/诊断存在候选和待审核项；不应无限重试 |
 | `1` | studio.py 输入、文件或运行错误，应按错误内容处理 |
 
-两个 review 脚本只读诊断，不替代 ChatCut 编辑。最终剪辑、字幕、混音和主成片导出仍在 ChatCut 完成。
+三个 review 脚本只读诊断，不替代 ChatCut 编辑。最终剪辑、字幕、混音和主成片导出仍在 ChatCut 完成。
 
 ## 10. 更新、开发与打包
 
@@ -257,11 +270,11 @@ python3 -m unittest discover -s tests -v
 python3 tools/package.py
 ```
 
-54项单元测试可离线运行，不生成视频或扣除 ChatCut 积分。完整制作验证另需真实 ChatCut 会话；离线通过不等于所有远端功能通过。
+67项单元测试可离线运行，不生成视频或扣除 ChatCut 积分。完整制作验证另需真实 ChatCut 会话；离线通过不等于所有远端功能通过。
 
 构建输出 `dist/robot-video-studio-<version>.zip` 和 `.zip.sha256`。明确白名单排除凭据、配置、素材、运行记录、缓存和二进制工具，固定ZIP条目时间使重复构建可复现。
 
-发布新版本时同步更新两个manifest、README版本及下载链接、更新记录和验证记录；重建ZIP、检查独立解压测试及校验和。当前0.1.4仓库分发版完善了文档，制作代码与此前验证版本一致。
+发布新版本时同步更新两个manifest、README版本及下载链接、更新记录和验证记录；重建ZIP、检查独立解压测试及校验和。0.1.5 新增剪辑节奏诊断和强制复核入口；当前版本的真实回归及未验证项见 VALIDATION.md。
 
 ## 11. 常见问题
 
@@ -287,6 +300,7 @@ python3 tools/package.py
 
 - [采编规范](plugins/robot-video-studio/references/editorial.md)：来源、时效、事实与脚本。
 - [运行记录](plugins/robot-video-studio/references/operations.md)：状态、下载、恢复和验收命令。
+- [剪辑节奏](plugins/robot-video-studio/references/editing-rhythm.md)：开头、版式、长停顿、重复镜头与导出复核。
 - [质量标准](plugins/robot-video-studio/references/quality.md)：文件、画面、声音和内容验收。
 - [修复经验](plugins/robot-video-studio/references/repairs.md)：语速、字幕停留、瞬切、动作、动画和转场。
 - [配乐停顿检查](plugins/robot-video-studio/references/music-pauses.md)：证据、规则、局限与修复。

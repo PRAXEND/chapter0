@@ -12,10 +12,11 @@ FILES = [
     "plugins/robot-video-studio/requirements-runtime.txt", "plugins/robot-video-studio/scripts/studio.py",
     "plugins/robot-video-studio/scripts/review_sync.py", "plugins/robot-video-studio/references/repairs.md",
     "plugins/robot-video-studio/scripts/review_music.py", "plugins/robot-video-studio/references/music-pauses.md",
+    "plugins/robot-video-studio/scripts/review_edit.py", "plugins/robot-video-studio/references/editing-rhythm.md",
     "plugins/robot-video-studio/references/editorial.md", "plugins/robot-video-studio/references/operations.md", "plugins/robot-video-studio/references/quality.md",
     "plugins/robot-video-studio/skills/setup-robot-video/SKILL.md", "plugins/robot-video-studio/skills/setup-robot-video/agents/openai.yaml",
     "plugins/robot-video-studio/skills/produce-robot-video/SKILL.md", "plugins/robot-video-studio/skills/produce-robot-video/agents/openai.yaml",
-    "tests/test_studio.py", "tests/test_review_sync.py", "tests/test_review_music.py", "tools/package.py",
+    "tests/test_studio.py", "tests/test_review_sync.py", "tests/test_review_music.py", "tests/test_review_edit.py", "tools/package.py",
 ]
 
 
