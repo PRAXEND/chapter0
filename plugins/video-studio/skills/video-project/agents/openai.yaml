@@ -1,0 +1,6 @@
+interface:
+  display_name: "视频项目"
+  short_description: "按用户题材和风格组织素材、剪辑、声音、字幕与交付工具"
+  default_prompt: "使用 $video-project 根据我的题材与风格制作视频。"
+policy:
+  allow_implicit_invocation: true

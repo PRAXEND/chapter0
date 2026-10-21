@@ -21,3 +21,6 @@ runtime-versions.json
 *.m4a
 *.mp3
 *.wav
+
+!dist/video-studio-0.2.0.zip
+!dist/video-studio-0.2.0.zip.sha256

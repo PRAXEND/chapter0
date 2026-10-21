@@ -1,0 +1,6 @@
+interface:
+  display_name: "完整视频验收"
+  short_description: "完整检查音画同步、遮挡、配乐、转场、字幕进出、闪动与成片细节"
+  default_prompt: "使用 $video-quality-review 完整验收这条视频，记录问题时间点并复查修复结果。"
+policy:
+  allow_implicit_invocation: true

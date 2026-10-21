@@ -1,0 +1,25 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "video-studio",
+  "version": "0.2.0",
+  "description": "自选题材、风格与素材的通用视频工作流，支持从参考保存可复用风格技能。",
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "interface": {
+        "displayName": "Video Studio",
+        "shortDescription": "自选题材与风格的视频制作及参考风格技能保存",
+        "longDescription": "按用户题材和风格采集素材，组合 ChatCut 编辑、声音、字幕和交付工具。从示例脚本或视频提炼可复用的个人风格技能。",
+        "category": "Creativity",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "defaultPrompt": [
+          "按我选择的题材和风格制作视频。",
+          "把我的参考脚本或视频保存成可复用的风格技能。"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "ChatCut 编辑工具"
+  short_description: "使用可编辑时间线、独立资产与 MG 工具实现本次剪辑要求"
+  default_prompt: "使用 $chatcut-edit-tools 按本次分镜和风格编辑时间线。"
+policy:
+  allow_implicit_invocation: true

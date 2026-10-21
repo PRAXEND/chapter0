@@ -7,28 +7,54 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = [
-    ".agents/plugins/marketplace.json", "README.md", "VALIDATION.md", "CHANGELOG.md", ".gitignore",
-    "plugins/robot-video-studio/plugin.json", "plugins/robot-video-studio/.codex-plugin/plugin.json",
-    "plugins/robot-video-studio/requirements-runtime.txt", "plugins/robot-video-studio/scripts/studio.py",
-    "plugins/robot-video-studio/scripts/review_sync.py", "plugins/robot-video-studio/references/repairs.md",
-    "plugins/robot-video-studio/scripts/review_music.py", "plugins/robot-video-studio/references/music-pauses.md",
-    "plugins/robot-video-studio/scripts/review_edit.py", "plugins/robot-video-studio/references/editing-rhythm.md",
-    "plugins/robot-video-studio/references/narration-motion.md",
-    "plugins/robot-video-studio/references/editorial.md", "plugins/robot-video-studio/references/operations.md", "plugins/robot-video-studio/references/quality.md",
-    "plugins/robot-video-studio/skills/setup-robot-video/SKILL.md", "plugins/robot-video-studio/skills/setup-robot-video/agents/openai.yaml",
-    "plugins/robot-video-studio/skills/produce-robot-video/SKILL.md", "plugins/robot-video-studio/skills/produce-robot-video/agents/openai.yaml",
-    "plugins/robot-video-studio/scripts/review_quality.py", "plugins/robot-video-studio/references/creative-quality.md",
-    "tests/test_review_quality.py", "tests/test_studio.py", "tests/test_review_sync.py", "tests/test_review_music.py", "tests/test_review_edit.py", "tools/package.py",
+    '.agents/plugins/marketplace.json',
+    'README.md',
+    'VALIDATION.md',
+    'CHANGELOG.md',
+    '.gitignore',
+    'plugins/video-studio/plugin.json',
+    'plugins/video-studio/.codex-plugin/plugin.json',
+    'plugins/video-studio/requirements-runtime.txt',
+    'plugins/video-studio/scripts/studio.py',
+    'plugins/video-studio/scripts/styles.py',
+    'plugins/video-studio/scripts/review_sync.py',
+    'plugins/video-studio/scripts/review_music.py',
+    'plugins/video-studio/references/operations.md',
+    'plugins/video-studio/references/style-format.md',
+    'plugins/video-studio/references/diagnostics.md',
+    'plugins/video-studio/skills/video-project/SKILL.md',
+    'plugins/video-studio/skills/video-project/agents/openai.yaml',
+    'plugins/video-studio/skills/setup-video-studio/SKILL.md',
+    'plugins/video-studio/skills/setup-video-studio/agents/openai.yaml',
+    'plugins/video-studio/skills/video-source-tools/SKILL.md',
+    'plugins/video-studio/skills/video-source-tools/agents/openai.yaml',
+    'plugins/video-studio/skills/chatcut-edit-tools/SKILL.md',
+    'plugins/video-studio/skills/chatcut-edit-tools/agents/openai.yaml',
+    'plugins/video-studio/skills/video-audio-tools/SKILL.md',
+    'plugins/video-studio/skills/video-audio-tools/agents/openai.yaml',
+    'plugins/video-studio/skills/video-delivery-tools/SKILL.md',
+    'plugins/video-studio/skills/video-delivery-tools/agents/openai.yaml',
+    'plugins/video-studio/skills/learn-video-style/SKILL.md',
+    'plugins/video-studio/skills/learn-video-style/agents/openai.yaml',
+    'tests/test_studio.py',
+    'tests/test_styles.py',
+    'tests/test_quality_review.py',
+    'tests/test_review_sync.py',
+    'tests/test_review_music.py',
+    'tools/package.py',
+    'plugins/video-studio/skills/video-quality-review/SKILL.md',
+    'plugins/video-studio/skills/video-quality-review/agents/openai.yaml',
+    'plugins/video-studio/references/quality-review.md',
 ]
 
 
 def build(root=ROOT):
     root = Path(root)
-    manifest = json.loads((root / "plugins/robot-video-studio/plugin.json").read_text())
-    compatibility = json.loads((root / "plugins/robot-video-studio/.codex-plugin/plugin.json").read_text())
+    manifest = json.loads((root / "plugins/video-studio/plugin.json").read_text())
+    compatibility = json.loads((root / "plugins/video-studio/.codex-plugin/plugin.json").read_text())
     if (manifest["name"], manifest["version"]) != (compatibility["name"], compatibility["version"]):
         raise ValueError("Portable and compatibility identities differ")
-    name = f"robot-video-studio-{manifest['version']}"
+    name = f"video-studio-{manifest['version']}"
     output = root / "dist" / f"{name}.zip"
     output.parent.mkdir(exist_ok=True)
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:

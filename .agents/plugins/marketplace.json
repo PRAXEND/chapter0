@@ -1,10 +1,20 @@
 {
-  "name": "robot-video-studio",
-  "interface": { "displayName": "Robot Video Studio" },
-  "plugins": [{
-    "name": "robot-video-studio",
-    "source": { "source": "local", "path": "./plugins/robot-video-studio" },
-    "policy": { "installation": "AVAILABLE", "authentication": "ON_USE" },
-    "category": "Creativity"
-  }]
+  "name": "video-studio",
+  "interface": {
+    "displayName": "Video Studio"
+  },
+  "plugins": [
+    {
+      "name": "video-studio",
+      "source": {
+        "source": "local",
+        "path": "./plugins/video-studio"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Creativity"
+    }
+  ]
 }

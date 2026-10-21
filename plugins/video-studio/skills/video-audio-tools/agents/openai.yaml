@@ -1,0 +1,6 @@
+interface:
+  display_name: "声音与字幕工具"
+  short_description: "调用配音配乐和字幕工具，按真实音频时序处理同步与修订"
+  default_prompt: "使用 $video-audio-tools 处理本期音频和字幕。"
+policy:
+  allow_implicit_invocation: true

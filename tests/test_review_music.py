@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'plugins/robot-video-studio/scripts'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'plugins/video-studio/scripts'))
 import review_music as music
 
 
@@ -56,7 +56,7 @@ class MusicPauseTests(unittest.TestCase):
             self.check(self.waveform()[:2000])
 
     def evidence(self):
-        return {'music_tracks':['A2'], 'timeline':{
+        return {'music_tracks':['A2'], 'narration_tracks':['A1'], 'timeline':{
             'state':{'fps':24, 'durationFrames':72},
             'timeline':{'totalEntries':2, 'tracks':[{'id':'voice','alias':'A1'}, {'id':'music','alias':'A2'}],
                 'entries':[

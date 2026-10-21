@@ -1,0 +1,6 @@
+interface:
+  display_name: "素材采集工具"
+  short_description: "结合本次题材和风格查找素材、核实出处并获取所需片段"
+  default_prompt: "使用 $video-source-tools 为本期视频准备适配题材和风格的素材。"
+policy:
+  allow_implicit_invocation: true

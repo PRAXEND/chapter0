@@ -10,8 +10,8 @@ from unittest import mock
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "plugins/robot-video-studio/scripts"))
-spec = importlib.util.spec_from_file_location("studio", ROOT / "plugins/robot-video-studio/scripts/studio.py")
+sys.path.insert(0, str(ROOT / "plugins/video-studio/scripts"))
+spec = importlib.util.spec_from_file_location("studio", ROOT / "plugins/video-studio/scripts/studio.py")
 studio = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(studio)
 pack_spec = importlib.util.spec_from_file_location("package", ROOT / "tools/package.py")
@@ -23,9 +23,10 @@ class StudioTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        self.env = mock.patch.dict(os.environ, {"ROBOT_VIDEO_STUDIO_HOME": str(self.root / "state")})
+        self.env = mock.patch.dict(os.environ, {"VIDEO_STUDIO_HOME": str(self.root / "state")})
         self.env.start()
-        self.run = Path(studio.new_run("测试", self.root / "runs")["run"])
+        self.brief = {"topic":"Test topic", "style":None, "requirements":{"width":1080,"height":1920,"fps":30,"narration":True,"captions":True,"audio_required":True}}
+        self.run = Path(studio.new_run("测试", self.root / "runs", self.brief)["run"])
 
     def tearDown(self):
         self.env.stop()
@@ -174,30 +175,7 @@ class StudioTests(unittest.TestCase):
         self.assertIn("b1:audio_fit_outside_200ms", report["failures"])
         self.assertIn("export:1:unresolved_remote_operation", report["failures"])
 
-    def test_music_pause_check_is_required_and_bound_to_export_and_revision(self):
-        data, media, cards = self.fixture()
-        data['project']['music_asset_id'] = 'actual-music-asset'
-        data['reviews'] = {k: {'result':'pass','artifact_sha256':'a'*64,'subtitle_sha256':'b'*64,'revision':data['revision']} for k in studio.REVIEW_KEYS}
-        good = {'status':'pass','artifact_sha256':'a'*64,'run_revision':data['revision']}
-        self.assertNotIn('music_pause_levels',studio.audit_data(data,media,cards,'a'*64,'b'*64,good)['review_pending'])
-        for check in (None, {**good,'status':'needs_review'}, {**good,'status':'not_applicable'},
-                      {**good,'artifact_sha256':'c'*64}, {**good,'run_revision':-1}):
-            result=studio.audit_data(data,media,cards,'a'*64,'b'*64,check)
-            self.assertIn('music_pause_levels',result['review_pending'])
-            self.assertFalse(result['completed'])
 
-    def test_audit_automatically_runs_music_check_from_evidence_directory(self):
-        data, media, cards = self.fixture()
-        data['project'].update(music_asset_id='music', evidence_directory=str(self.root/'evidence'))
-        studio.write(self.root/'evidence/live-evidence.json', {'music_tracks':['A2']})
-        studio.write(self.run/'run.json',data)
-        video=self.root/'video.mp4'; video.write_bytes(b'fixture')
-        srt=self.root/'video.srt'; srt.write_text('1\n00:00:00,000 --> 00:00:03,000\nfixture\n')
-        with mock.patch.object(studio,'probe_media',return_value=media), mock.patch.object(studio,'execute',return_value=mock.Mock(stderr='')), mock.patch('review_music.check_file',return_value={'status':'needs_review','artifact_sha256':studio.file_hash(video)}) as check:
-            result=studio.audit(self.run,video,srt)
-        check.assert_called_once_with(video, {'music_tracks':['A2']}, required=True)
-        self.assertIn('music_pause_levels',result['review_pending'])
-        self.assertEqual('needs_review',studio.read(self.run/'music-pause-check.json')['status'])
 
     def test_srt_unicode_crlf_and_malformed_timestamp(self):
         path = self.root / "test.srt"
@@ -206,27 +184,7 @@ class StudioTests(unittest.TestCase):
         path.write_text("1\n00:99:00,000 --> 00:00:01,000\nwrong\n")
         with self.assertRaises(studio.StudioError): studio.parse_srt(path)
 
-    def test_editorial_check_is_automatic_and_bound_to_final_export(self):
-        data, media, _ = self.fixture()
-        studio.write(self.run/'run.json', data)
-        proof=self.root/'proof.json'; studio.write(proof, {'narration_tracks':['A1']})
-        video=self.root/'video.mp4'; video.write_bytes(b'final export')
-        srt=self.root/'video.srt'; srt.write_text('1\n00:00:00,000 --> 00:00:03,000\nfixture\n')
-        with mock.patch.object(studio,'probe_media',return_value=media), mock.patch.object(studio,'execute',return_value=mock.Mock(stderr='')), mock.patch('review_music.check_file',return_value={'status':'not_applicable'}), mock.patch('review_edit.check',return_value={'status':'needs_review','pending':['opening_pixel_review']}) as check:
-            report=studio.audit(self.run,video,srt,evidence=proof)
-        check.assert_called_once_with({'narration_tracks':['A1']})
-        self.assertIn('editorial_structure',report['review_pending'])
-        saved=studio.read(self.run/'editorial-check.json')
-        self.assertEqual(studio.file_hash(video),saved['artifact_sha256'])
-        self.assertEqual(studio.file_hash(proof),saved['evidence_sha256'])
-        self.assertEqual(data['revision'],saved['run_revision'])
 
-    def test_stale_editorial_pass_cannot_certify_new_export(self):
-        data, media, cards = self.fixture()
-        check={'status':'pass','artifact_sha256':'old','run_revision':data['revision']}
-        self.assertIn('editorial_structure',studio.audit_data(data,media,cards,'new','srt',edit_check=check)['review_pending'])
-        check.update(artifact_sha256='new',run_revision=data['revision']-1)
-        self.assertIn('editorial_structure',studio.audit_data(data,media,cards,'new','srt',edit_check=check)['review_pending'])
 
     def test_missing_dependencies_do_not_report_ready(self):
         with mock.patch.object(studio.shutil, "which", return_value=None), mock.patch.object(studio, "downloader", side_effect=studio.StudioError("missing")):
