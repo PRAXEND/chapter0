@@ -7,6 +7,8 @@ description: 在 Video Studio 中调用 ChatCut 项目、素材导入、可编�
 
 沿当前已安装 ChatCut 技能与实时 schema 操作，不硬编码缓存版本、assetId 或工具参数。首次连接读 chatcut-plugin-basics；桌面和 hosted 表面使用各自适用说明。
 
+新片正式排镜或制作 MG 前，遵循 [video-project 的文案与分镜确认步骤](../video-project/SKILL.md)，检查当前方案已确认或用户明确跳过确认。确认选材不等于确认剪辑方案；已授权的局部修改不重复审稿。
+
 1. 读实际项目状态；新建项目后保存返回的 projectId/timelineId/editorUrl，并展示编辑器链接。使用用户指定项目时先读其时间线。
 2. 导入文件加载 asset-import；使用其当前 loopback 或上传助手。保留每个来源为独立可编辑资产、原片偏移与 assetId。
 3. 剪辑意图来自本期 brief 和风格快照。统一将秒转换成实际 fps 的帧；读取完整时间线所有页；区分源时间、时间线帧、变速后时长。不要把估计的生成时长用于最终排镜。
