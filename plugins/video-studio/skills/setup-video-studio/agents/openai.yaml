@@ -1,6 +1,6 @@
 interface:
   display_name: "配置 Video Studio"
-  short_description: "检查本地工具及 ChatCut 连接，保存用户明确的制作偏好"
-  default_prompt: "使用 $setup-video-studio 检查依赖与现有配置。"
+  short_description: "检查本地工具、引导安装依赖插件并验证 ChatCut 连接和制作偏好"
+  default_prompt: "使用 $setup-video-studio 检查环境，缺少 ChatCut 等依赖插件时引导我安装并验证连接。"
 policy:
   allow_implicit_invocation: true
