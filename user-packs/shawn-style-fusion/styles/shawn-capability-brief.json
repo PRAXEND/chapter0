@@ -1,0 +1,273 @@
+{
+  "schema_version": 1,
+  "id": "shawn-capability-brief",
+  "version": 1,
+  "name": "能力快报型",
+  "description": "先让我看见，它这次厉害在哪。 有新演示、新产品或显著动作高光，观众主要想快速知道发生了什么。",
+  "adaptation": "替换原片品牌、事件和台词，以本期真实证据承载相同理解路径。主线是发生了什么、看什么；不承担逐层解释为什么。 主要问题是内部机制或长期产业判断，单纯展示无法回答。",
+  "references": [
+    {
+      "id": "user",
+      "kind": "user_direction",
+      "locator": "pack:evidence/project-lessons.md",
+      "analyzed_ranges": [
+        "用户明确要求与反馈"
+      ],
+      "limitations": "用户声音、画幅与时长要求，不是参考账号声学观察"
+    },
+    {
+      "id": "fusion",
+      "kind": "script",
+      "locator": "pack:evidence/reference-analysis.json",
+      "analyzed_ranges": [
+        "scope及17条分析"
+      ],
+      "limitations": "声画采用分布与连续抽帧；没有完整实时播放与听审"
+    },
+    {
+      "id": "botpie",
+      "kind": "script",
+      "locator": "pack:evidence/botpie-sample.json",
+      "limitations": "57条标题封面卡片，只支持钩子与封面参考，不支持精确镜头/音乐规则"
+    },
+    {
+      "id": "trial-a",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/601b3050-3b93-4d36-90fb-7d6efa15f37b",
+      "analyzed_ranges": [
+        "既有合成抽帧、脚本与制作记录"
+      ],
+      "limitations": "用户总体好评；没有完整连续声画与逐项复现验收"
+    },
+    {
+      "id": "trial-b",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/3a2a905a-100e-41ff-9f2f-1c80b1972d50",
+      "analyzed_ranges": [
+        "既有合成抽帧、脚本与制作记录"
+      ],
+      "limitations": "用户总体好评；没有完整连续声画与逐项复现验收"
+    },
+    {
+      "id": "ref-01",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7699030784673418538",
+      "title": "宇树功夫展示",
+      "sha256": "0a9a4f1ccdc4ffae33d288c49abf92cfc727ab8eeea6d9ce3f16bbecc9e9c557",
+      "analyzed_ranges": [
+        "00:00–00:28"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    },
+    {
+      "id": "ref-02",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7696269460906183971",
+      "title": "越疆新品预告",
+      "sha256": "f5a24823bd066cc5071d821ab8a22892c1019ab0a06c09a68564a8a58ddf3ab1",
+      "analyzed_ranges": [
+        "00:00–00:55"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    }
+  ],
+  "rules": [
+    {
+      "id": "narrative",
+      "dimension": "narrative",
+      "instruction": "先给最强但完整的可见动作，立即说明新事件；以两三个可观察亮点回答厉害在哪，最后给实际用途和已知限制。",
+      "check": "逐段标出本风格的推进节点，开场承诺在结尾得到回答。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-01",
+          "location": "00:00–00:28"
+        },
+        {
+          "reference_id": "ref-02",
+          "location": "00:00–00:55"
+        }
+      ]
+    },
+    {
+      "id": "language",
+      "dimension": "language",
+      "instruction": "多用动作动词，把指标翻译成任务意义；可采用职业角色的两三道关，少用连续形容词和参数串。",
+      "check": "逐句口语审稿；事实、来源声称与推断分开，专名和数据另行核实。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-01",
+          "location": "00:00–00:28"
+        },
+        {
+          "reference_id": "ref-02",
+          "location": "00:00–00:55"
+        }
+      ]
+    },
+    {
+      "id": "shots",
+      "dimension": "shots",
+      "instruction": "全身或任务全景先交代对象和空间，再给关键局部；分屏只用于明确的同类观察点，并标明不同条件。",
+      "check": "对照实际素材与合成画面，逐段指认观察对象；画面能够支持对应解说。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-01",
+          "location": "00:00–00:28"
+        },
+        {
+          "reference_id": "ref-02",
+          "location": "00:00–00:55"
+        }
+      ]
+    },
+    {
+      "id": "pacing",
+      "dimension": "pacing",
+      "instruction": "高光先行、解释紧随，动作起止和落点优先；介绍新亮点才换观察点，不能用高频碎切掩盖动作。",
+      "check": "按配音真实词时间和完整动作区间审查；不能为凑时长截断动作。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-01",
+          "location": "00:00–00:28"
+        },
+        {
+          "reference_id": "ref-02",
+          "location": "00:00–00:55"
+        }
+      ]
+    },
+    {
+      "id": "graphics",
+      "dimension": "graphics",
+      "instruction": "只在被说到时增加亮点词、产品标签或一个参数；文字贴近相关对象，避免同时铺满三组说明。",
+      "check": "每项标注都指向当段对象或关系；示意、回看、倍速和计划状态有明确标签。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-01",
+          "location": "00:00–00:28"
+        },
+        {
+          "reference_id": "ref-02",
+          "location": "00:00–00:55"
+        }
+      ]
+    },
+    {
+      "id": "transitions",
+      "dimension": "transitions",
+      "instruction": "以动作或亮点切换为切点，通常直接切；只有需同时比较时才进入分屏。",
+      "check": "逐一回看切点前后，确认叙事层级清楚、主体角色稳定、动作没有被伪接。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-01",
+          "location": "00:00–00:28"
+        },
+        {
+          "reference_id": "ref-02",
+          "location": "00:00–00:55"
+        }
+      ]
+    },
+    {
+      "id": "project-captions",
+      "dimension": "captions",
+      "instruction": "字幕依据最终配音，逐句校正专名和断句；通常不超过两行并避开关键动作；导出SRT与烧录画面分别核对。",
+      "check": "抽查首尾及关键动作段，核对字幕卡、实际画面和独立SRT。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial-b",
+          "location": "既有试片的字幕修复与制作复盘，见project-lessons.md"
+        }
+      ]
+    },
+    {
+      "id": "project-audio",
+      "dimension": "audio",
+      "instruction": "本项目沿用大壹、自然有活力且紧凑的讲述和轻科技纯器乐；BGM可听见且人声清楚。音量与语速按新素材实际听审，历史参数不作为固定模板。",
+      "check": "最终混音完整听审，特别检查停顿处配乐和关键句清晰度；克隆音色仅在当前明确选择且可用时替换。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户要求：配音激情/语速调整、BGM提高、音色与交付约定"
+        }
+      ]
+    },
+    {
+      "id": "duration-adaptation",
+      "dimension": "pacing",
+      "instruction": "本项目成片严格不超过60秒；所附分段秒数是改写起点，不是镜头定长或必须填满的目标。按本风格保留一个核心问题，删支线后再生成声音。",
+      "check": "审查实际导出文件总时长不超过60秒；若超时先缩脚本，不直接拉快全部音频。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户明确要求：最终视频文件必须不能超过一分钟"
+        }
+      ]
+    }
+  ],
+  "unknown_dimensions": [],
+  "material_requirements": [
+    {
+      "role": "新事件的完整动作高光和一处可读的操作局部",
+      "search_hint": "{本期对象} {本期任务} official demo explanation full sequence",
+      "acceptance": "来源、日期明确；动作起止可见；参数有原始依据；演示条件可说明",
+      "rule_id": "shots"
+    }
+  ],
+  "production_guide": {
+    "id": "shawn-capability-brief",
+    "version": 1,
+    "name": "能力快报型",
+    "promise": "先让我看见，它这次厉害在哪。",
+    "when": "有新演示、新产品或显著动作高光，观众主要想快速知道发生了什么。",
+    "not_when": "主要问题是内部机制或长期产业判断，单纯展示无法回答。",
+    "hook": "这次机器人最值得看的，不是它会动，而是这个瞬间。",
+    "narrative": "先给最强但完整的可见动作，立即说明新事件；以两三个可观察亮点回答厉害在哪，最后给实际用途和已知限制。",
+    "language": "多用动作动词，把指标翻译成任务意义；可采用职业角色的两三道关，少用连续形容词和参数串。",
+    "shots": "全身或任务全景先交代对象和空间，再给关键局部；分屏只用于明确的同类观察点，并标明不同条件。",
+    "pacing": "高光先行、解释紧随，动作起止和落点优先；介绍新亮点才换观察点，不能用高频碎切掩盖动作。",
+    "graphics": "只在被说到时增加亮点词、产品标签或一个参数；文字贴近相关对象，避免同时铺满三组说明。",
+    "transitions": "以动作或亮点切换为切点，通常直接切；只有需同时比较时才进入分屏。",
+    "timeline": [
+      [
+        "0–5秒",
+        "完整高光＋本期新事件"
+      ],
+      [
+        "5–18秒",
+        "亮点一及实际任务"
+      ],
+      [
+        "18–35秒",
+        "亮点二及对应画面"
+      ],
+      [
+        "35–50秒",
+        "用途与能力边界"
+      ],
+      [
+        "50–56秒",
+        "一个明确收束"
+      ]
+    ],
+    "material_role": "新事件的完整动作高光和一处可读的操作局部",
+    "material_acceptance": "来源、日期明确；动作起止可见；参数有原始依据；演示条件可说明",
+    "comparison": "主线是发生了什么、看什么；不承担逐层解释为什么。"
+  },
+  "analysis_limits": [
+    "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index",
+    "没有完整实时播放和听审；声音规定来自用户偏好",
+    "参考片的事实主张未在本次风格研究重新核验",
+    "BOTPIE只分析了57条可见卡片",
+    "保存不代表新风格已完成试片复现验收"
+  ]
+}

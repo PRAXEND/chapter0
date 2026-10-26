@@ -28,6 +28,10 @@
 
 style 是 id@version 或 null；省略时使用用户保存的 default_style。覆盖规则用 rule id 到实际用户要求的映射。每次应用风格把 SKILL.md/style.json 与哈希固定到 run/style/id@version/，后续版本不会替换快照。
 
+`production_preferences` 是可选对象，存放用户明确确认的讲述、配乐、交付和协作偏好；初始为空，不替代本期 brief。风格按钮与可选包导入见 [风格选择](style-selection.md)。`connection --file <本次观察json> [--run <已有schema2工程>]` 只写诊断附属文件，旧 schema1 继续使用原插件。
+
+max_seconds 是最终文件的严格上限，不额外放宽100ms；制作时给编码留余量。配置一分钟内不要求填满一分钟。
+
 选择记录：`record --kind selection` 写入 {"topic":"与brief一致","confirmed_by_user":true}。用户明确委托选题时可用 {"topic":"选定题目","selection_basis":"delegated","authorized_by_user":true}，不要伪装成用户亲自挑选。
 
 ## 来源和分镜

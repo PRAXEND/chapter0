@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 import uuid
 
 import styles
+import check_connection
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULTS = {
@@ -32,6 +33,7 @@ DEFAULTS = {
     "max_video_sources": 6, "max_download_seconds": 300,
     "voice": None, "default_style": None,
     "narration": None, "captions": None, "audio_required": None,
+    "production_preferences": {},
 }
 REVIEW_METHODS = {"visuals": "continuous_playback", "audio_listening": "full_mix_listening",
                   "caption_sync": "word_alignment_and_frames", "facts": "source_review",
@@ -175,6 +177,8 @@ def profile():
 
 
 def validate_settings(result, complete=False):
+    if not isinstance(result.get("production_preferences", {}), dict):
+        raise StudioError("production_preferences must be an object of explicit user preferences")
     for key in ("width", "height", "fps", "target_seconds", "min_seconds", "max_seconds",
                 "max_video_sources", "max_download_seconds"):
         if result.get(key) is not None:
@@ -430,7 +434,9 @@ def fetch(directory, source_id, start, end):
         folder = Path(directory).resolve() / "media"
         folder.mkdir(exist_ok=True)
         path = folder / f"{source_id}-{key}.mp4"
-        if old and old["status"] == "completed" and path.is_file() and old.get("sha256") == file_hash(path):
+        if old and old["status"] == "completed":
+            if not path.is_file() or old.get("sha256") != file_hash(path):
+                raise StudioError("Completed download is missing or its hash changed; inspect and explicitly repair this source before reuse.")
             return {**old, "reused": True}
         total = sum(x["end"] - x["start"] for k, x in data["downloads"].items() if k != key)
         if total + end - start > data["settings"]["max_download_seconds"]:
@@ -512,7 +518,7 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
         duration = 0
     if settings.get("min_seconds") and duration < settings["min_seconds"]:
         failures.append("duration_below_requested_minimum")
-    if settings.get("max_seconds") and duration > settings["max_seconds"] + .1:
+    if settings.get("max_seconds") and duration > settings["max_seconds"]:
         failures.append("duration_above_requested_maximum")
     if (video.get("width"), video.get("height"), video.get("codec_name")) != (settings["width"], settings["height"], "h264"):
         failures.append("video_format_differs_from_brief")
@@ -684,11 +690,54 @@ def bootstrap():
     return doctor()
 
 
+def connection(observation, directory=None):
+    """Report a live host observation without mutating the production checkpoint."""
+    previous = None
+    if directory:
+        directory = Path(directory).expanduser().resolve()
+        data = load_run(directory)
+        report_path = directory / "connection-check.json"
+        if report_path.exists():
+            previous = read(report_path)
+    report = check_connection.diagnose(observation, check_connection.registration(), previous)
+    if directory:
+        integrity = {}
+        for key, item in data.get("downloads", {}).items():
+            if item.get("status") != "completed":
+                continue
+            path = Path(item.get("path") or "__missing_download_path__")
+            if not path.is_absolute():
+                path = directory / path
+            try:
+                if not path.is_file():
+                    result = "missing"
+                elif not item.get("sha256"):
+                    result = "unverified"
+                else:
+                    result = "verified" if file_hash(path) == item["sha256"] else "hash_mismatch"
+            except OSError:
+                result = "unreadable"
+            integrity[key] = result
+        report["resume"] = {
+            "run": str(directory), "run_status": data.get("status"),
+            "project": {k: data.get("project", {}).get(k) for k in ("projectId", "timelineId")},
+            "completed_downloads": len(integrity), "download_integrity": integrity,
+            "downloads_to_review": [k for k, v in integrity.items() if v != "verified"],
+            "operations_to_reconcile": [k for k, v in data.get("operations", {}).items()
+                                        if v.get("status") in {"reserved", "submitted"}],
+            "instruction": "先核对现有任务和素材；不重新生成结果未知的操作。",
+        }
+        with locked(directory):
+            write(report_path, report)
+    return report
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest="command", required=True)
     subs.add_parser("doctor")
     subs.add_parser("bootstrap")
+    p = subs.add_parser("connection"); p.add_argument("--file", required=True); p.add_argument("--run")
     p = subs.add_parser("profile"); p.add_argument("--merge-file")
     p = subs.add_parser("new"); p.add_argument("--title", required=True); p.add_argument("--output-root"); p.add_argument("--brief")
     p = subs.add_parser("status"); p.add_argument("--run", required=True)
@@ -697,17 +746,22 @@ def main(argv=None):
     p = subs.add_parser("probe"); p.add_argument("--url", required=True)
     p = subs.add_parser("fetch"); p.add_argument("--run", required=True); p.add_argument("--source", required=True); p.add_argument("--start", type=float, required=True); p.add_argument("--end", type=float, required=True)
     p = subs.add_parser("audit"); p.add_argument("--run", required=True); p.add_argument("--video", required=True); p.add_argument("--subtitles"); p.add_argument("--evidence")
-    p = subs.add_parser("styles"); p.add_argument("action", choices=["list", "show", "add"]); p.add_argument("--selector"); p.add_argument("--file")
+    p = subs.add_parser("styles"); p.add_argument("action", choices=["list", "show", "add", "choices", "import"]); p.add_argument("--selector"); p.add_argument("--file"); p.add_argument("--apply-preferences", action="store_true")
     args = parser.parse_args(argv)
     try:
         command = args.command
         if command == "doctor": result = doctor()
         elif command == "bootstrap": result = bootstrap()
+        elif command == "connection": result = connection(read(args.file), args.run)
         elif command == "profile": result = save_profile(read(args.merge_file)) if args.merge_file else profile()
         elif command == "new": result = new_run(args.title, args.output_root, read(args.brief) if args.brief else None)
         elif command == "styles":
             if args.action == "list": result = styles.catalog()
             elif args.action == "show": result = styles.resolve(args.selector)
+            elif args.action == "choices": result = styles.choices()
+            elif args.action == "import":
+                import user_packs
+                result = user_packs.install(args.file, args.apply_preferences)
             else: result = styles.register(read(args.file))
         elif command == "status": result = load_run(args.run)
         elif command == "record": result = record(args.run, args.kind, read(args.file))
@@ -717,6 +771,7 @@ def main(argv=None):
         elif command == "audit": result = audit(args.run, args.video, args.subtitles, args.evidence)
         print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
         if command in {"doctor", "bootstrap"} and not result["local_ready"]: return 2
+        if command == "connection" and not result["ready"]: return 2
         if command == "audit" and not result["completed"]: return 2
         return 0
     except (StudioError, OSError, ValueError, KeyError, IndexError, TypeError) as exc:

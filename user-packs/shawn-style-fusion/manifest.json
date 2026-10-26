@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "shawn-style-fusion",
+  "version": 1,
+  "styles": [
+    "styles/shawn-capability-brief.json",
+    "styles/shawn-contrast-story.json",
+    "styles/shawn-action-breakdown.json",
+    "styles/shawn-analogy-explainer.json",
+    "styles/shawn-case-synthesis.json",
+    "styles/shawn-industry-context.json",
+    "styles/shawn-evidence-commentary.json"
+  ]
+}
