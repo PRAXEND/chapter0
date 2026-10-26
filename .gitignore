@@ -24,3 +24,5 @@ runtime-versions.json
 
 !dist/video-studio-0.2.0.zip
 !dist/video-studio-0.2.0.zip.sha256
+!dist/video-studio-0.2.2-shawn.1.zip
+!dist/video-studio-0.2.2-shawn.1.zip.sha256

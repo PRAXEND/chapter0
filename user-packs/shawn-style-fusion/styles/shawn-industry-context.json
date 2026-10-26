@@ -1,0 +1,273 @@
+{
+  "schema_version": 1,
+  "id": "shawn-industry-context",
+  "version": 1,
+  "name": "产业脉络型",
+  "description": "把眼前的进展，放进一条更大的因果链。 解释某个瓶颈、供应链角色、阶段变化及其商业含义。",
+  "adaptation": "替换原片品牌、事件和台词，以本期真实证据承载相同理解路径。沿一条产业关系建全局感；不是把多新闻顺序串播。 想在一分钟里讲完整发展史、十家公司和所有技术路线。",
+  "references": [
+    {
+      "id": "user",
+      "kind": "user_direction",
+      "locator": "pack:evidence/project-lessons.md",
+      "analyzed_ranges": [
+        "用户明确要求与反馈"
+      ],
+      "limitations": "用户声音、画幅与时长要求，不是参考账号声学观察"
+    },
+    {
+      "id": "fusion",
+      "kind": "script",
+      "locator": "pack:evidence/reference-analysis.json",
+      "analyzed_ranges": [
+        "scope及17条分析"
+      ],
+      "limitations": "声画采用分布与连续抽帧；没有完整实时播放与听审"
+    },
+    {
+      "id": "botpie",
+      "kind": "script",
+      "locator": "pack:evidence/botpie-sample.json",
+      "limitations": "57条标题封面卡片，只支持钩子与封面参考，不支持精确镜头/音乐规则"
+    },
+    {
+      "id": "trial-a",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/601b3050-3b93-4d36-90fb-7d6efa15f37b",
+      "analyzed_ranges": [
+        "既有合成抽帧、脚本与制作记录"
+      ],
+      "limitations": "用户总体好评；没有完整连续声画与逐项复现验收"
+    },
+    {
+      "id": "trial-b",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/3a2a905a-100e-41ff-9f2f-1c80b1972d50",
+      "analyzed_ranges": [
+        "既有合成抽帧、脚本与制作记录"
+      ],
+      "limitations": "用户总体好评；没有完整连续声画与逐项复现验收"
+    },
+    {
+      "id": "ref-13",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7667419021654579803",
+      "title": "机器人电池",
+      "sha256": "c096b8d8b1a15216ef4dc4ee97f0e51835b572ef0fac2b108c2621cf562b5485",
+      "analyzed_ranges": [
+        "00:00–02:22"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    },
+    {
+      "id": "ref-14",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7677140846865410195",
+      "title": "机器人发展",
+      "sha256": "4d9fb7a1df8b0f5f4363f87395834fb23006337ee5abf03576159f05485f259d",
+      "analyzed_ranges": [
+        "00:00–03:35；阶段图00:36–00:40.2"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    }
+  ],
+  "rules": [
+    {
+      "id": "narrative",
+      "dimension": "narrative",
+      "instruction": "从当前现象找出一条关键瓶颈或阶段变化，解释必须权衡的工程条件，再说明参与角色和落地成本，结尾给下一阶段判断指标。",
+      "check": "逐段标出本风格的推进节点，开场承诺在结尾得到回答。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-13",
+          "location": "00:00–02:22"
+        },
+        {
+          "reference_id": "ref-14",
+          "location": "00:00–03:35；阶段图00:36–00:40.2"
+        }
+      ]
+    },
+    {
+      "id": "language",
+      "dimension": "language",
+      "instruction": "用所以、代价、约束建立因果，不把发展史写成年份列表；预测标明来源主体和时间。",
+      "check": "逐句口语审稿；事实、来源声称与推断分开，专名和数据另行核实。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-13",
+          "location": "00:00–02:22"
+        },
+        {
+          "reference_id": "ref-14",
+          "location": "00:00–03:35；阶段图00:36–00:40.2"
+        }
+      ]
+    },
+    {
+      "id": "shots",
+      "dimension": "shots",
+      "instruction": "问题对应的任务画面先行，随后结构示意、工厂或历史档案承担不同层级；每个镜头清楚是实拍、档案还是原理示意。",
+      "check": "对照实际素材与合成画面，逐段指认观察对象；画面能够支持对应解说。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-13",
+          "location": "00:00–02:22"
+        },
+        {
+          "reference_id": "ref-14",
+          "location": "00:00–03:35；阶段图00:36–00:40.2"
+        }
+      ]
+    },
+    {
+      "id": "pacing",
+      "dimension": "pacing",
+      "instruction": "一分钟只讲一条链或两个阶段；产业名单和长时间线移出正文，转折来自条件变化。",
+      "check": "按配音真实词时间和完整动作区间审查；不能为凑时长截断动作。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-13",
+          "location": "00:00–02:22"
+        },
+        {
+          "reference_id": "ref-14",
+          "location": "00:00–03:35；阶段图00:36–00:40.2"
+        }
+      ]
+    },
+    {
+      "id": "graphics",
+      "dimension": "graphics",
+      "instruction": "用不超过三层的瓶颈链、角色图或双阶段时间线；每次只点亮当前节点，数字、单位、日期与限定条件同步出现。",
+      "check": "每项标注都指向当段对象或关系；示意、回看、倍速和计划状态有明确标签。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-13",
+          "location": "00:00–02:22"
+        },
+        {
+          "reference_id": "ref-14",
+          "location": "00:00–03:35；阶段图00:36–00:40.2"
+        }
+      ]
+    },
+    {
+      "id": "transitions",
+      "dimension": "transitions",
+      "instruction": "在能力、约束、参与者和成本层级变化处切换；回到同一个现实任务检验行业判断。",
+      "check": "逐一回看切点前后，确认叙事层级清楚、主体角色稳定、动作没有被伪接。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-13",
+          "location": "00:00–02:22"
+        },
+        {
+          "reference_id": "ref-14",
+          "location": "00:00–03:35；阶段图00:36–00:40.2"
+        }
+      ]
+    },
+    {
+      "id": "project-captions",
+      "dimension": "captions",
+      "instruction": "字幕依据最终配音，逐句校正专名和断句；通常不超过两行并避开关键动作；导出SRT与烧录画面分别核对。",
+      "check": "抽查首尾及关键动作段，核对字幕卡、实际画面和独立SRT。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial-b",
+          "location": "既有试片的字幕修复与制作复盘，见project-lessons.md"
+        }
+      ]
+    },
+    {
+      "id": "project-audio",
+      "dimension": "audio",
+      "instruction": "本项目沿用大壹、自然有活力且紧凑的讲述和轻科技纯器乐；BGM可听见且人声清楚。音量与语速按新素材实际听审，历史参数不作为固定模板。",
+      "check": "最终混音完整听审，特别检查停顿处配乐和关键句清晰度；克隆音色仅在当前明确选择且可用时替换。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户要求：配音激情/语速调整、BGM提高、音色与交付约定"
+        }
+      ]
+    },
+    {
+      "id": "duration-adaptation",
+      "dimension": "pacing",
+      "instruction": "本项目成片严格不超过60秒；所附分段秒数是改写起点，不是镜头定长或必须填满的目标。按本风格保留一个核心问题，删支线后再生成声音。",
+      "check": "审查实际导出文件总时长不超过60秒；若超时先缩脚本，不直接拉快全部音频。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户明确要求：最终视频文件必须不能超过一分钟"
+        }
+      ]
+    }
+  ],
+  "unknown_dimensions": [],
+  "material_requirements": [
+    {
+      "role": "瓶颈任务、约束资料与一条产业关系/阶段证据",
+      "search_hint": "{本期对象} {本期任务} official demo explanation full sequence",
+      "acceptance": "时间与数据可核查；公司角色有资料依据；示意不能当成已实现产品",
+      "rule_id": "shots"
+    }
+  ],
+  "production_guide": {
+    "id": "shawn-industry-context",
+    "version": 1,
+    "name": "产业脉络型",
+    "promise": "把眼前的进展，放进一条更大的因果链。",
+    "when": "解释某个瓶颈、供应链角色、阶段变化及其商业含义。",
+    "not_when": "想在一分钟里讲完整发展史、十家公司和所有技术路线。",
+    "hook": "机器人会的动作越来越多，为什么这个环节反而成了瓶颈？",
+    "narrative": "从当前现象找出一条关键瓶颈或阶段变化，解释必须权衡的工程条件，再说明参与角色和落地成本，结尾给下一阶段判断指标。",
+    "language": "用所以、代价、约束建立因果，不把发展史写成年份列表；预测标明来源主体和时间。",
+    "shots": "问题对应的任务画面先行，随后结构示意、工厂或历史档案承担不同层级；每个镜头清楚是实拍、档案还是原理示意。",
+    "pacing": "一分钟只讲一条链或两个阶段；产业名单和长时间线移出正文，转折来自条件变化。",
+    "graphics": "用不超过三层的瓶颈链、角色图或双阶段时间线；每次只点亮当前节点，数字、单位、日期与限定条件同步出现。",
+    "transitions": "在能力、约束、参与者和成本层级变化处切换；回到同一个现实任务检验行业判断。",
+    "timeline": [
+      [
+        "0–6秒",
+        "当前现象/被忽略瓶颈"
+      ],
+      [
+        "6–23秒",
+        "为什么卡住"
+      ],
+      [
+        "23–39秒",
+        "一项技术取舍或前后变化"
+      ],
+      [
+        "39–51秒",
+        "商业/交付含义"
+      ],
+      [
+        "51–58秒",
+        "下一步看哪个指标"
+      ]
+    ],
+    "material_role": "瓶颈任务、约束资料与一条产业关系/阶段证据",
+    "material_acceptance": "时间与数据可核查；公司角色有资料依据；示意不能当成已实现产品",
+    "comparison": "沿一条产业关系建全局感；不是把多新闻顺序串播。"
+  },
+  "analysis_limits": [
+    "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index",
+    "没有完整实时播放和听审；声音规定来自用户偏好",
+    "参考片的事实主张未在本次风格研究重新核验",
+    "BOTPIE只分析了57条可见卡片",
+    "保存不代表新风格已完成试片复现验收"
+  ]
+}

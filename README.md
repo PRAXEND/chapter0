@@ -2,7 +2,7 @@
 
 按用户选择的题材和风格制作视频，并把参考脚本、视频提炼成下次可调用的风格技能。
 
-**本地开发版 0.2.1 · macOS / Codex · 依赖已安装且登录的 ChatCut**
+**本地整合版 0.2.2-shawn.1 · 基于团队 0.2.1 · macOS / Codex · 依赖已安装且登录的 ChatCut**
 
 ## 组成
 
@@ -45,6 +45,19 @@
 
 风格文件位于 `~/Library/Application Support/Video Studio/styles/<id>/<version>/`，含真正的 SKILL.md、style.json 和校验清单。由插件主动发现读取，下一次聊天可选择；不是自动注册到全局技能列表。升级插件不会覆盖个人库，发行包不包含用户参考和个人风格。每期固定风格版本及内容快照，本期覆盖不会修改库。
 
+需要可点击选择时，`styles choices` 返回真实名称、版本、维度和验证状态，由宿主按[风格选择流程](plugins/video-studio/references/style-selection.md)显示单选卡片。选择风格不自动提交生成任务。
+
+本分支保留团队八技能架构。源码中的可选 `user-packs/shawn-robotics/` 保存本项目“反差故事型”“动作拆解型”、BOTPIE有限样本分析与制作经验，不随通用ZIP分发、不作为他人默认。明确导入本人的风格与偏好：
+
+```sh
+python3 plugins/video-studio/scripts/studio.py styles import \
+  --file user-packs/shawn-robotics/manifest.json --apply-preferences
+```
+
+去掉 `--apply-preferences` 只导入风格。两种风格均保持 unverified；总体试片好评不等于逐项风格验收。原始录音、视频、账号状态与会话连接编号不进用户包。
+
+后续整合17条用户参考的七类个人风格位于源码仓库的 `user-packs/shawn-style-fusion/README.md`：能力快报、反差故事、动作拆解、类比科普、案例归纳、产业脉络、观点论证。导入该包后，原两类使用v2，原v1保留；新五类为v1。该包不改偏好和默认，不进入通用ZIP；仅下载通用ZIP时，需要另从源码仓库获取可选个人包。证据为全长机器转录、分布抽帧和代表区间连续抽帧，未完成所有原片的完整实时播放与听审，保存状态仍为unverified。
+
 ## 独立完整验收
 
 检查整片与全部事件边界，并记录时间/帧号、实际证据、严重程度、修复与复查：
@@ -61,12 +74,12 @@
 
 ## 安装与验证
 
-安装包：`dist/video-studio-0.2.1.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
+安装包：`dist/video-studio-0.2.2-shawn.1.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
 
 ```sh
-shasum -a 256 -c video-studio-0.2.1.zip.sha256
-unzip video-studio-0.2.1.zip
-codex plugin marketplace add ./video-studio-0.2.1
+shasum -a 256 -c video-studio-0.2.2-shawn.1.zip.sha256
+unzip video-studio-0.2.2-shawn.1.zip
+codex plugin marketplace add ./video-studio-0.2.2-shawn.1
 ```
 
 在插件目录选择 Video Studio 本地来源安装，并在新聊天验证技能。安装缓存与市场源不是同一份文件；不要手工改缓存。插件目录与本地市场机制见 [OpenAI 官方文档](https://developers.openai.com/plugins/build/plugins)。
@@ -83,6 +96,8 @@ python3 tools/package.py
 ```
 
 doctor 本地成功不表示 ChatCut 已连接。使用宿主完整 Python；损坏的系统 Python 不用于验证。
+
+保留0.1.8的只读 `connection` 命令，区分注册、工具加载、认证与实时调用结果，续做时检查已下载素材哈希和未知任务。缺失/变更的已完成下载不会因时长接近而自动重新登记或下载。设置的 `max_seconds` 为严格最终文件上限。
 
 ## 数据与兼容
 

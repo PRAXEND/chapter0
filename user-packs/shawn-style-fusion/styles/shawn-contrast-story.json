@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "id": "shawn-contrast-story",
+  "version": 2,
+  "name": "反差故事型",
+  "description": "带着一个预期，看到另一种结果。 有真实的预期差、产品选择、阶段转折或角色经历，能够首尾呼应。",
+  "adaptation": "替换原片品牌、事件和台词，以本期真实证据承载相同理解路径。主线是认知和情绪的转折；不是只用一句反问包装普通快报。 只有参数更新、没有可核实的转折；需要编造嘲讽或逆袭才成立。",
+  "references": [
+    {
+      "id": "user",
+      "kind": "user_direction",
+      "locator": "pack:evidence/project-lessons.md",
+      "analyzed_ranges": [
+        "用户明确要求与反馈"
+      ],
+      "limitations": "用户声音、画幅与时长要求，不是参考账号声学观察"
+    },
+    {
+      "id": "fusion",
+      "kind": "script",
+      "locator": "pack:evidence/reference-analysis.json",
+      "analyzed_ranges": [
+        "scope及17条分析"
+      ],
+      "limitations": "声画采用分布与连续抽帧；没有完整实时播放与听审"
+    },
+    {
+      "id": "botpie",
+      "kind": "script",
+      "locator": "pack:evidence/botpie-sample.json",
+      "limitations": "57条标题封面卡片，只支持钩子与封面参考，不支持精确镜头/音乐规则"
+    },
+    {
+      "id": "trial-a",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/601b3050-3b93-4d36-90fb-7d6efa15f37b",
+      "analyzed_ranges": [
+        "既有合成抽帧、脚本与制作记录"
+      ],
+      "limitations": "用户总体好评；没有完整连续声画与逐项复现验收"
+    },
+    {
+      "id": "trial-b",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/3a2a905a-100e-41ff-9f2f-1c80b1972d50",
+      "analyzed_ranges": [
+        "既有合成抽帧、脚本与制作记录"
+      ],
+      "limitations": "用户总体好评；没有完整连续声画与逐项复现验收"
+    },
+    {
+      "id": "ref-04",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7691370937152720174",
+      "title": "Figure 02 退役",
+      "sha256": "d19ab06256a8cbca669b79d1fe6997870951cd7679bf92b4dd09c5b6bafdd401",
+      "analyzed_ranges": [
+        "00:00–00:54"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    }
+  ],
+  "rules": [
+    {
+      "id": "narrative",
+      "dimension": "narrative",
+      "instruction": "以具体预期或角色处境开场，揭示真实的不同选择或阶段转折，再给经历与证据，补现实边界，结尾回扣开场。",
+      "check": "逐段标出本风格的推进节点，开场承诺在结尾得到回答。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-04",
+          "location": "00:00–00:54"
+        }
+      ]
+    },
+    {
+      "id": "language",
+      "dimension": "language",
+      "instruction": "用具体角色、动作和时间推动故事，数据作为经历而非段首清单；情绪建立在真实事件上。",
+      "check": "逐句口语审稿；事实、来源声称与推断分开，专名和数据另行核实。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-04",
+          "location": "00:00–00:54"
+        }
+      ]
+    },
+    {
+      "id": "shots",
+      "dimension": "shots",
+      "instruction": "近景建立角色感，远景交代转折发生的空间；在转折处切入履历或任务证据，结尾回到开场视觉母题。",
+      "check": "对照实际素材与合成画面，逐段指认观察对象；画面能够支持对应解说。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-04",
+          "location": "00:00–00:54"
+        }
+      ]
+    },
+    {
+      "id": "pacing",
+      "dimension": "pacing",
+      "instruction": "悬念只留到问题足够清楚，随后尽快给事实；转折前后允许节奏变化，不把全部时间花在铺垫。",
+      "check": "按配音真实词时间和完整动作区间审查；不能为凑时长截断动作。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-04",
+          "location": "00:00–00:54"
+        }
+      ]
+    },
+    {
+      "id": "graphics",
+      "dimension": "graphics",
+      "instruction": "用一组有日期或条件的前后对照、履历数字或阶段标签支撑转折；动画逐项改变信息，不能代替事件证据。",
+      "check": "每项标注都指向当段对象或关系；示意、回看、倍速和计划状态有明确标签。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-04",
+          "location": "00:00–00:54"
+        }
+      ]
+    },
+    {
+      "id": "transitions",
+      "dimension": "transitions",
+      "instruction": "在预期与结果、回顾与当下之间切换；保留能让观众认出首尾呼应的画面或构图。",
+      "check": "逐一回看切点前后，确认叙事层级清楚、主体角色稳定、动作没有被伪接。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-04",
+          "location": "00:00–00:54"
+        }
+      ]
+    },
+    {
+      "id": "project-captions",
+      "dimension": "captions",
+      "instruction": "字幕依据最终配音，逐句校正专名和断句；通常不超过两行并避开关键动作；导出SRT与烧录画面分别核对。",
+      "check": "抽查首尾及关键动作段，核对字幕卡、实际画面和独立SRT。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial-b",
+          "location": "既有试片的字幕修复与制作复盘，见project-lessons.md"
+        }
+      ]
+    },
+    {
+      "id": "project-audio",
+      "dimension": "audio",
+      "instruction": "本项目沿用大壹、自然有活力且紧凑的讲述和轻科技纯器乐；BGM可听见且人声清楚。音量与语速按新素材实际听审，历史参数不作为固定模板。",
+      "check": "最终混音完整听审，特别检查停顿处配乐和关键句清晰度；克隆音色仅在当前明确选择且可用时替换。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户要求：配音激情/语速调整、BGM提高、音色与交付约定"
+        }
+      ]
+    },
+    {
+      "id": "duration-adaptation",
+      "dimension": "pacing",
+      "instruction": "本项目成片严格不超过60秒；所附分段秒数是改写起点，不是镜头定长或必须填满的目标。按本风格保留一个核心问题，删支线后再生成声音。",
+      "check": "审查实际导出文件总时长不超过60秒；若超时先缩脚本，不直接拉快全部音频。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户明确要求：最终视频文件必须不能超过一分钟"
+        }
+      ]
+    }
+  ],
+  "unknown_dimensions": [],
+  "material_requirements": [
+    {
+      "role": "开场处境、真实转折与对应任务证据",
+      "search_hint": "{本期对象} {本期任务} official demo explanation full sequence",
+      "acceptance": "前后事实和日期可核对；画面性质可标明；不编造历史情绪",
+      "rule_id": "shots"
+    }
+  ],
+  "production_guide": {
+    "id": "shawn-contrast-story",
+    "version": 2,
+    "name": "反差故事型",
+    "promise": "带着一个预期，看到另一种结果。",
+    "when": "有真实的预期差、产品选择、阶段转折或角色经历，能够首尾呼应。",
+    "not_when": "只有参数更新、没有可核实的转折；需要编造嘲讽或逆袭才成立。",
+    "hook": "它看起来是在告别，但真正值得讲的是，之前它完成了什么。",
+    "narrative": "以具体预期或角色处境开场，揭示真实的不同选择或阶段转折，再给经历与证据，补现实边界，结尾回扣开场。",
+    "language": "用具体角色、动作和时间推动故事，数据作为经历而非段首清单；情绪建立在真实事件上。",
+    "shots": "近景建立角色感，远景交代转折发生的空间；在转折处切入履历或任务证据，结尾回到开场视觉母题。",
+    "pacing": "悬念只留到问题足够清楚，随后尽快给事实；转折前后允许节奏变化，不把全部时间花在铺垫。",
+    "graphics": "用一组有日期或条件的前后对照、履历数字或阶段标签支撑转折；动画逐项改变信息，不能代替事件证据。",
+    "transitions": "在预期与结果、回顾与当下之间切换；保留能让观众认出首尾呼应的画面或构图。",
+    "timeline": [
+      [
+        "0–6秒",
+        "预期/角色处境"
+      ],
+      [
+        "6–16秒",
+        "转折或不同选择"
+      ],
+      [
+        "16–37秒",
+        "两条关键经历/证据"
+      ],
+      [
+        "37–49秒",
+        "现实边界"
+      ],
+      [
+        "49–57秒",
+        "回扣开场"
+      ]
+    ],
+    "material_role": "开场处境、真实转折与对应任务证据",
+    "material_acceptance": "前后事实和日期可核对；画面性质可标明；不编造历史情绪",
+    "comparison": "主线是认知和情绪的转折；不是只用一句反问包装普通快报。"
+  },
+  "analysis_limits": [
+    "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index",
+    "没有完整实时播放和听审；声音规定来自用户偏好",
+    "参考片的事实主张未在本次风格研究重新核验",
+    "BOTPIE只分析了57条可见卡片",
+    "保存不代表新风格已完成试片复现验收"
+  ]
+}

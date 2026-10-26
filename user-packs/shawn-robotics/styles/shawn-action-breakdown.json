@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "id": "shawn-action-breakdown",
+  "version": 1,
+  "name": "动作拆解型",
+  "description": "动作问题 → 为什么 → 空间与反馈拆解 → 回到实测；适合解释操作中的成功与失败。",
+  "adaptation": "替换为新任务中的真实操作与约束，先确认完整动作区间；不可见的内部机制只作有来源的原理示意，不推断厂商未披露实现。",
+  "references": [
+    {
+      "id": "user",
+      "kind": "user_direction",
+      "locator": "pack:evidence/project-lessons.md",
+      "analyzed_ranges": [
+        "用户明确要求与反馈"
+      ]
+    },
+    {
+      "id": "botpie",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7666033264653520162",
+      "analyzed_ranges": [
+        "2026-10-21 work card only"
+      ],
+      "limitations": "标题与封面样本；未播放完整视频；见包内botpie-sample.json"
+    },
+    {
+      "id": "script",
+      "kind": "script",
+      "locator": "pack:evidence/trial-B-script.txt"
+    },
+    {
+      "id": "trial",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/3a2a905a-100e-41ff-9f2f-1c80b1972d50",
+      "analyzed_ranges": [
+        "sampled composed frames and production records"
+      ],
+      "limitations": "完整连续画面与听审未验证；不是BOTPIE原片"
+    },
+    {
+      "id": "lessons",
+      "kind": "script",
+      "locator": "pack:evidence/project-lessons.md"
+    },
+    {
+      "id": "findings",
+      "kind": "script",
+      "locator": "pack:evidence/botpie-sample.json"
+    }
+  ],
+  "rules": [
+    {
+      "id": "causal-arc",
+      "dimension": "narrative",
+      "instruction": "先展示一个动作问题并问为什么，再解释空间、身体和反馈关系，最后回到真实任务与技术意义。",
+      "check": "开场问题得到动作依据支持的解释，结尾回到任务。",
+      "basis": "observed",
+      "evidence": [
+        {
+          "reference_id": "script",
+          "location": "脚本第1至4段"
+        }
+      ]
+    },
+    {
+      "id": "complete-action",
+      "dimension": "shots",
+      "instruction": "全景交代机器人、物体和空间，保留完整动作；局部放大接触点或路径，有目的地回看增加观察点。",
+      "check": "手、目标、路径和动作起止可见；回看明确指出新线索。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial",
+          "location": "两条试片形成的制作判断"
+        },
+        {
+          "reference_id": "lessons",
+          "location": "两条试片形成的制作判断"
+        }
+      ]
+    },
+    {
+      "id": "causal-graphics",
+      "dimension": "graphics",
+      "instruction": "用位置、路径、接触或反馈的逐步变化解释因果，再返回原动作；不能用三个标题代替解释。",
+      "check": "每一步有原片证据或明确标示的原理示意，图解与所指动作同步。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial",
+          "location": "两条试片形成的制作判断"
+        },
+        {
+          "reference_id": "lessons",
+          "location": "两条试片形成的制作判断"
+        }
+      ]
+    },
+    {
+      "id": "spoken-language",
+      "dimension": "language",
+      "instruction": "口语化讲一个核心问题；事实、厂商目标和推论分别表达，删去套话与无依据的煽动。",
+      "check": "逐段核对可自然说出口、限定词和事实来源。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial",
+          "location": "两条试片形成的制作判断"
+        },
+        {
+          "reference_id": "lessons",
+          "location": "两条试片形成的制作判断"
+        }
+      ]
+    },
+    {
+      "id": "semantic-pacing",
+      "dimension": "pacing",
+      "instruction": "切换跟随问题、解释和完整动作；给读图与关键动作足够时间，不固定每几秒切镜，不凑满时长。",
+      "check": "对照实际词时间与完整动作区间，回看是否增加信息。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial",
+          "location": "两条试片形成的制作判断"
+        },
+        {
+          "reference_id": "lessons",
+          "location": "两条试片形成的制作判断"
+        }
+      ]
+    },
+    {
+      "id": "caption-legibility",
+      "dimension": "captions",
+      "instruction": "字幕跟随最终旁白，逐句核对专名、换行和进出；避开操作对象及关键图解。",
+      "check": "逐句对照实际烧录画面、Caption Cards和独立SRT。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial",
+          "location": "两条试片形成的制作判断"
+        },
+        {
+          "reference_id": "lessons",
+          "location": "两条试片形成的制作判断"
+        }
+      ]
+    },
+    {
+      "id": "energetic-audio",
+      "dimension": "audio",
+      "instruction": "自然有活力、紧凑而不拖尾；本项目沿用已确认大壹和轻科技纯器乐，音乐可听见且人声清楚，换声音按当前要求。",
+      "check": "实际听审最终混音；参数只作起点，不代替听感。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户明确要求与反馈"
+        }
+      ]
+    },
+    {
+      "id": "motivated-transitions",
+      "dimension": "transitions",
+      "instruction": "在叙事或观察点改变处切换；检查源余量，不用转场遮住关键动作，也不为风格机械添加转场。",
+      "check": "逐一检查切点前后及动作连续性。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial",
+          "location": "两条试片形成的制作判断"
+        },
+        {
+          "reference_id": "lessons",
+          "location": "两条试片形成的制作判断"
+        }
+      ]
+    }
+  ],
+  "unknown_dimensions": [],
+  "material_requirements": [
+    {
+      "role": "完整动作及因果细节",
+      "search_hint": "{本期对象} full manipulation task demo failure close up",
+      "acceptance": "起止、机器人站位、操作对象及必要接触点可见",
+      "rule_id": "complete-action"
+    }
+  ],
+  "research_scope": {
+    "source": "57 visible BOTPIE work cards, 2026-10-21",
+    "account_ranking_verified": false,
+    "full_reference_audio_video_review": false,
+    "findings_file": "pack:evidence/botpie-sample.json"
+  },
+  "trial_feedback": {
+    "date": "2026-10-26",
+    "quote": "这两个视频做得其实还不错。",
+    "scope": "overall user feedback; no per-rule pass or engagement comparison"
+  },
+  "analysis_limits": [
+    "BOTPIE cover/title sample does not establish audiovisual editing formula",
+    "Trial continuous playback and full mix listening remain unverified"
+  ]
+}

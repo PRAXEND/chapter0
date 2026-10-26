@@ -154,3 +154,21 @@ def snapshot(selector, run):
     return {"id": value["id"], "version": value["version"], "selector": value["selector"],
             "skill_path": str(folder / "SKILL.md"), "files": value["files"],
             "validation_status": value["validation_status"]}
+
+
+def choices():
+    """Host-neutral choice data; selection never starts production or sets a default."""
+    options, errors = [], []
+    for entry in catalog():
+        if entry.get("error"):
+            errors.append(entry)
+            continue
+        value = resolve(entry["selector"])
+        spec = value["spec"]
+        options.append({"id": value["selector"], "label": value["name"],
+                        "description": value["description"],
+                        "validation_status": value["validation_status"],
+                        "dimensions": sorted({r["dimension"] for r in spec["rules"]}),
+                        "unknown_dimensions": spec["unknown_dimensions"]})
+    return {"field_id": "video_style", "options": options, "errors": errors,
+            "selection_sets_default": False, "selection_starts_production": False}
