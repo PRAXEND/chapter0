@@ -2,7 +2,7 @@
 
 按用户选择的题材和风格制作视频，并把参考脚本、视频提炼成下次可调用的风格技能。
 
-**本地开发版 0.2.0 · macOS / Codex · 依赖已安装且登录的 ChatCut**
+**本地开发版 0.2.1 · macOS / Codex · 依赖已安装且登录的 ChatCut**
 
 ## 组成
 
@@ -17,7 +17,7 @@
 ## 技能
 
 - `video-project`：解析本期要求，选择并加载实际风格 SKILL.md，组织工具。
-- `setup-video-studio`：检查本地依赖及 ChatCut 连接，保存明确偏好。
+- `setup-video-studio`：检查本地依赖，发现并引导安装 ChatCut 等所需插件，验证连接并保存明确偏好。
 - `video-source-tools`：按题材与风格形成采集计划，核实和获取素材。
 - `chatcut-edit-tools`：项目、导入、时间线、MG、转场的工具用法。
 - `video-audio-tools`：配音、音乐、字幕与真实时序同步。
@@ -26,6 +26,12 @@
 - `video-delivery-tools`：导出任务、文件与可编辑工程交付。
 
 ## 使用方式
+
+首次配置或缺少插件时：
+
+> 使用 $setup-video-studio 检查环境，缺少 ChatCut 等依赖插件时引导我安装并验证连接。
+
+技能会检查已有工具并搜索真实插件来源，提供安装或登录入口。搜索无结果时会请你提供发布者安装链接，不会猜测 ChatCut 地址。安装状态与连接状态分别报告；需要时新建聊天重新验证。本地依赖检查通过不等于完整制片环境就绪。
 
 > 用 Video Studio 做一个咖啡制作视频，横屏、三分钟，先让我选择表现风格。
 
@@ -55,12 +61,12 @@
 
 ## 安装与验证
 
-安装包：`dist/video-studio-0.2.0.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
+安装包：`dist/video-studio-0.2.1.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
 
 ```sh
-shasum -a 256 -c video-studio-0.2.0.zip.sha256
-unzip video-studio-0.2.0.zip
-codex plugin marketplace add ./video-studio-0.2.0
+shasum -a 256 -c video-studio-0.2.1.zip.sha256
+unzip video-studio-0.2.1.zip
+codex plugin marketplace add ./video-studio-0.2.1
 ```
 
 在插件目录选择 Video Studio 本地来源安装，并在新聊天验证技能。安装缓存与市场源不是同一份文件；不要手工改缓存。插件目录与本地市场机制见 [OpenAI 官方文档](https://developers.openai.com/plugins/build/plugins)。
