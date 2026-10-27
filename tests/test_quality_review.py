@@ -48,6 +48,27 @@ class QualityTests(unittest.TestCase):
         self.record_pass(run,"music_fit",result="not_applicable",not_applicable_reason="contradictory declaration")
         self.assertIn("music_fit",self.report(run,media)["review_pending"])
 
+    def test_audio_padding_does_not_extend_visual_coverage(self):
+        run,media=self.fixture()
+        video=next(s for s in media["streams"] if s["codec_type"]=="video")
+        video["duration"]="180.000000"
+        media["format"]["duration"]="180.068000"
+        media["streams"].append({"codec_type":"audio","duration":"180.068000"})
+        for key in self.report(run,media)["review_pending"]:
+            self.record_pass(run,key)
+        report=self.report(run,media)
+        self.assertTrue(report["completed"],report)
+        self.record_pass(run,"flicker",coverage_frames=[0,4502])
+        self.assertIn("flicker",self.report(run,media)["review_pending"])
+
+    def test_invalid_video_duration_does_not_use_longer_container(self):
+        run,media=self.fixture()
+        video=next(s for s in media["streams"] if s["codec_type"]=="video")
+        for duration in ("N/A", "nan", None):
+            with self.subTest(duration=duration):
+                video["duration"]=duration
+                self.assertIn("invalid_duration",self.report(run,media)["failures"])
+
     def test_caption_entry_and_exit_are_separate_from_word_sync(self):
         run,media=self.fixture()
         data=studio.load_run(run);data["settings"]["captions"]=True;studio.write(run/"run.json",data)
@@ -102,6 +123,7 @@ class QualityTests(unittest.TestCase):
         self.assertIsNone(data["material_plan"])
         with self.assertRaises(studio.StudioError):
             studio.operation(run,"reserve","voice:1",{"text":"changed topic"})
+
 
 if __name__=="__main__":
     unittest.main()

@@ -1,0 +1,1284 @@
+<xmeml version="4">
+    <project>
+        <name>热点资讯型v5｜复现母版｜家务试片R3</name>
+        <children>
+            <sequence id="sequence-1">
+                <name>热点资讯型v5｜复现母版｜家务试片R3</name>
+                <duration>1889</duration>
+                <rate>
+                    <timebase>30</timebase>
+                    <ntsc>FALSE</ntsc>
+                </rate>
+                <media>
+                    <video>
+                        <format><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>1920</width><height>1080</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></format>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-1">
+                                <file id="file-1">
+                                    <pathurl>file://../../media/hot-news/perturb.mp4</pathurl>
+                                    <name>perturb.mp4</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>422</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <video><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>854</width><height>480</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></video>
+                                        </media>
+                                </file>
+                                <name>perturb.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>380</duration>
+                                <start>0</start>
+                                <end>380</end>
+                                <in>39</in>
+                                <out>419</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>202.0833</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0.0006</horiz><vert>-0.1146</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-2">
+                                <file id="file-2">
+                                    <pathurl>file://../../media/hot-news/laundry-interruption.mp4</pathurl>
+                                    <name>laundry-interruption.mp4</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>1230</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <video><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>854</width><height>480</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></video>
+                                        </media>
+                                </file>
+                                <name>laundry-interruption.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>270</duration>
+                                <start>380</start>
+                                <end>650</end>
+                                <in>525</in>
+                                <out>795</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>202.0833</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0.0006</horiz><vert>-0.1146</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-3">
+                                <file id="file-2" />
+                                <name>laundry-interruption.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>228</duration>
+                                <start>650</start>
+                                <end>878</end>
+                                <in>999</in>
+                                <out>1227</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>202.0833</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0.0006</horiz><vert>-0.1146</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-4">
+                                <file id="file-3">
+                                    <pathurl>file://../../media/hot-news/kitchen.mp4</pathurl>
+                                    <name>kitchen.mp4</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>2471</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <video><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>854</width><height>480</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></video>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>kitchen.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>120</duration>
+                                <start>878</start>
+                                <end>998</end>
+                                <in>15</in>
+                                <out>135</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>202.0833</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0.0006</horiz><vert>-0.1146</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-4</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>4</clipindex></link><link><linkclipref>clipitem-46</linkclipref><mediatype>audio</mediatype><trackindex>5</trackindex><clipindex>1</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-5">
+                                <file id="file-4">
+                                    <pathurl>file://../../media/hot-news/dryplate.mp4</pathurl>
+                                    <name>dryplate.mp4</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>1349</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <video><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>854</width><height>480</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></video>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>dryplate.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>90</duration>
+                                <start>998</start>
+                                <end>1088</end>
+                                <in>300</in>
+                                <out>390</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>202.0833</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0.0006</horiz><vert>-0.1146</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-5</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>5</clipindex></link><link><linkclipref>clipitem-47</linkclipref><mediatype>audio</mediatype><trackindex>5</trackindex><clipindex>2</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-6">
+                                <file id="file-5">
+                                    <pathurl>file://../../media/hot-news/wiping-interruption.mp4</pathurl>
+                                    <name>wiping-interruption.mp4</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>941</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <video><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>854</width><height>480</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></video>
+                                        </media>
+                                </file>
+                                <name>wiping-interruption.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>90</duration>
+                                <start>1088</start>
+                                <end>1178</end>
+                                <in>345</in>
+                                <out>435</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>202.0833</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0.0006</horiz><vert>-0.1146</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-7">
+                                <file id="file-2" />
+                                <name>laundry-interruption.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>245</duration>
+                                <start>1178</start>
+                                <end>1423</end>
+                                <in>15</in>
+                                <out>260</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>202.0833</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0.0006</horiz><vert>-0.1146</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-8">
+                                <file id="file-5" />
+                                <name>wiping-interruption.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>180</duration>
+                                <start>1423</start>
+                                <end>1603</end>
+                                <in>450</in>
+                                <out>630</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>202.0833</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0.0006</horiz><vert>-0.1146</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-9">
+                                <file id="file-6">
+                                    <pathurl>file://../../media/hot-news/failure.mp4</pathurl>
+                                    <name>failure.mp4</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>621</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <video><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>736</width><height>480</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></video>
+                                        </media>
+                                </file>
+                                <name>failure.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>285</duration>
+                                <start>1603</start>
+                                <end>1888</end>
+                                <in>333</in>
+                                <out>618</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>202.0833</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>-0.0007</horiz><vert>-0.1146</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter></clipitem>
+                        </track>
+                    </video>
+                    <audio>
+                        <format><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics></format><track>
+                            <clipitem frameBlend="FALSE" id="clipitem-10">
+                                <file id="file-7">
+                                    <pathurl>file://../../media/hot-news/v4%E6%97%81%E7%99%BD-s1.mp3</pathurl>
+                                    <name>v4旁白-s1.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>137</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>1</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>v4旁白-s1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>114</duration>
+                                <start>0</start>
+                                <end>68</end>
+                                <in>0</in>
+                                <out>68</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>120.588</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>137</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>68</when><value>82</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>114</when><value>137</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.6607</value><keyframe><when>0</when><value>0</value></keyframe><keyframe><when>1</when><value>0.6607</value></keyframe><keyframe><when>67</when><value>0.6607</value></keyframe><keyframe><when>68</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-11">
+                                <file id="file-7" />
+                                <name>v4旁白-s1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>114</duration>
+                                <start>121</start>
+                                <end>137</end>
+                                <in>72</in>
+                                <out>88</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>118.750</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>137</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>72</when><value>86</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>88</when><value>105</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>114</when><value>137</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.6607</value><keyframe><when>72</when><value>0</value></keyframe><keyframe><when>73</when><value>0.6607</value></keyframe><keyframe><when>87</when><value>0.6607</value></keyframe><keyframe><when>88</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-12">
+                                <file id="file-8">
+                                    <pathurl>file://../../media/hot-news/v4%E4%BF%AE%E8%AE%A23-%E5%8F%88%E6%9D%A5%E4%B8%80%E4%BB%B6.mp3</pathurl>
+                                    <name>v4修订3-又来一件.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>35</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>1</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>v4修订3-又来一件.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>29</duration>
+                                <start>172</start>
+                                <end>198</end>
+                                <in>2</in>
+                                <out>28</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>119.231</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>35</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>2</when><value>2</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>28</when><value>33</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>29</when><value>35</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.5754</value><keyframe><when>2</when><value>0</value></keyframe><keyframe><when>3</when><value>0.5754</value></keyframe><keyframe><when>27</when><value>0.5754</value></keyframe><keyframe><when>28</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-13">
+                                <file id="file-9">
+                                    <pathurl>file://../../media/hot-news/v4%E6%97%81%E7%99%BD-s2.mp3</pathurl>
+                                    <name>v4旁白-s2.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>236</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>1</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>v4旁白-s2.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>197</duration>
+                                <start>198</start>
+                                <end>326</end>
+                                <in>0</in>
+                                <out>128</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>120.312</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>236</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>128</when><value>154</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>197</when><value>236</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.7079</value><keyframe><when>0</when><value>0</value></keyframe><keyframe><when>1</when><value>0.7079</value></keyframe><keyframe><when>127</when><value>0.7079</value></keyframe><keyframe><when>128</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-14">
+                                <file id="file-9" />
+                                <name>v4旁白-s2.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>197</duration>
+                                <start>326</start>
+                                <end>362</end>
+                                <in>161</in>
+                                <out>197</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>119.444</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>236</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>161</when><value>193</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>197</when><value>236</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>197</when><value>236</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.7079</value><keyframe><when>161</when><value>0</value></keyframe><keyframe><when>162</when><value>0.7079</value></keyframe><keyframe><when>196</when><value>0.7079</value></keyframe><keyframe><when>197</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-15">
+                                <file id="file-10">
+                                    <pathurl>file://../../media/hot-news/v4%E6%97%81%E7%99%BD-s3.mp3</pathurl>
+                                    <name>v4旁白-s3.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>166</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>1</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>v4旁白-s3.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>138</duration>
+                                <start>403</start>
+                                <end>541</end>
+                                <in>0</in>
+                                <out>138</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>120.290</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>166</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>138</when><value>166</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>138</when><value>166</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.8128</value><keyframe><when>0</when><value>0</value></keyframe><keyframe><when>1</when><value>0.8128</value></keyframe><keyframe><when>137</when><value>0.8128</value></keyframe><keyframe><when>138</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-16">
+                                <file id="file-11">
+                                    <pathurl>file://../../media/hot-news/v4%E6%97%81%E7%99%BD-s4.mp3</pathurl>
+                                    <name>v4旁白-s4.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>307</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>1</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>v4旁白-s4.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>256</duration>
+                                <start>649</start>
+                                <end>699</end>
+                                <in>0</in>
+                                <out>50</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>120.000</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>307</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>50</when><value>60</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>256</when><value>307</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.8318</value><keyframe><when>0</when><value>0</value></keyframe><keyframe><when>1</when><value>0.8318</value></keyframe><keyframe><when>49</when><value>0.8318</value></keyframe><keyframe><when>50</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-17">
+                                <file id="file-11" />
+                                <name>v4旁白-s4.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>256</duration>
+                                <start>749</start>
+                                <end>947</end>
+                                <in>58</in>
+                                <out>256</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>119.697</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>307</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>58</when><value>70</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>256</when><value>307</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>256</when><value>307</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.8318</value><keyframe><when>58</when><value>0</value></keyframe><keyframe><when>59</when><value>0.8318</value></keyframe><keyframe><when>255</when><value>0.8318</value></keyframe><keyframe><when>256</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-18">
+                                <file id="file-12">
+                                    <pathurl>file://../../media/hot-news/v4%E6%97%81%E7%99%BD-s5.mp3</pathurl>
+                                    <name>v4旁白-s5.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>238</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>1</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>v4旁白-s5.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>198</duration>
+                                <start>958</start>
+                                <end>1157</end>
+                                <in>0</in>
+                                <out>199</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>119.598</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>238</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>199</when><value>238</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>198</when><value>238</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.7244</value><keyframe><when>0</when><value>0</value></keyframe><keyframe><when>1</when><value>0.7244</value></keyframe><keyframe><when>198</when><value>0.7244</value></keyframe><keyframe><when>199</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-19">
+                                <file id="file-13">
+                                    <pathurl>file://../../media/hot-news/v4%E6%97%81%E7%99%BD-s6.mp3</pathurl>
+                                    <name>v4旁白-s6.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>286</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>1</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>v4旁白-s6.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>238</duration>
+                                <start>1180</start>
+                                <end>1418</end>
+                                <in>0</in>
+                                <out>238</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>120.168</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>286</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>238</when><value>286</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>238</when><value>286</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.7413</value><keyframe><when>0</when><value>0</value></keyframe><keyframe><when>1</when><value>0.7413</value></keyframe><keyframe><when>237</when><value>0.7413</value></keyframe><keyframe><when>238</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-20">
+                                <file id="file-14">
+                                    <pathurl>file://../../media/hot-news/v4%E6%97%81%E7%99%BD-s7.mp3</pathurl>
+                                    <name>v4旁白-s7.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>177</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>1</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>v4旁白-s7.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>148</duration>
+                                <start>1427</start>
+                                <end>1575</end>
+                                <in>0</in>
+                                <out>148</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>119.595</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>177</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>148</when><value>177</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>148</when><value>177</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.7413</value><keyframe><when>0</when><value>0</value></keyframe><keyframe><when>1</when><value>0.7413</value></keyframe><keyframe><when>147</when><value>0.7413</value></keyframe><keyframe><when>148</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-21">
+                                <file id="file-15">
+                                    <pathurl>file://../../media/hot-news/v4%E6%97%81%E7%99%BD-s8.mp3</pathurl>
+                                    <name>v4旁白-s8.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>218</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>1</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>v4旁白-s8.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>182</duration>
+                                <start>1637</start>
+                                <end>1819</end>
+                                <in>0</in>
+                                <out>182</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>119.780</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>218</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>182</when><value>218</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>182</when><value>218</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.7943</value><keyframe><when>0</when><value>0</value></keyframe><keyframe><when>1</when><value>0.7943</value></keyframe><keyframe><when>181</when><value>0.7943</value></keyframe><keyframe><when>182</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                        </track>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-22">
+                                <file id="file-16">
+                                    <pathurl>file://../../media/hot-news/%E9%99%8C%E7%94%9F%E5%8E%A8%E6%88%BF%EF%BD%9C%E7%83%AD%E8%A1%80%E8%8A%82%E6%8B%8D%E7%BA%AF%E9%9F%B3%E4%B9%90.mp3</pathurl>
+                                    <name>陌生厨房｜热血节拍纯音乐.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>4671</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>陌生厨房｜热血节拍纯音乐.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>1889</duration>
+                                <start>0</start>
+                                <end>1889</end>
+                                <in>0</in>
+                                <out>1889</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2818</value><keyframe><when>0</when><value>0</value></keyframe><keyframe><when>4</when><value>0.2818</value></keyframe><keyframe><when>1862</when><value>0.2818</value></keyframe><keyframe><when>1889</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                        </track>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-23">
+                                <file id="file-17">
+                                    <pathurl>file://../../media/hot-news/tiny-bubble-pop-r1.mp3</pathurl>
+                                    <name>tiny-bubble-pop-r1.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>4</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>3</start>
+                                <end>7</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1778</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-24">
+                                <file id="file-18">
+                                    <pathurl>file://../../media/hot-news/synthetic-bubble-pop-r1.mp3</pathurl>
+                                    <name>synthetic-bubble-pop-r1.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>9</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>synthetic-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>9</duration>
+                                <start>62</start>
+                                <end>71</end>
+                                <in>0</in>
+                                <out>9</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1122</value><keyframe><when>7</when><value>0.1122</value></keyframe><keyframe><when>9</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-25">
+                                <file id="file-17" />
+                                <name>tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>123</start>
+                                <end>127</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1413</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-26">
+                                <file id="file-19">
+                                    <pathurl>file://../../media/hot-news/ui-pop-up-alert-r2.mp3</pathurl>
+                                    <name>ui-pop-up-alert-r2.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>11</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>ui-pop-up-alert-r2.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>11</duration>
+                                <start>180</start>
+                                <end>191</end>
+                                <in>0</in>
+                                <out>11</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1122</value><keyframe><when>9</when><value>0.1122</value></keyframe><keyframe><when>11</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-27">
+                                <file id="file-19" />
+                                <name>ui-pop-up-alert-r2.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>11</duration>
+                                <start>270</start>
+                                <end>281</end>
+                                <in>0</in>
+                                <out>11</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-28">
+                                <file id="file-20">
+                                    <pathurl>file://../../media/hot-news/deep-short-whoosh-r1.mp3</pathurl>
+                                    <name>deep-short-whoosh-r1.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>39</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>deep-short-whoosh-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>33</duration>
+                                <start>371</start>
+                                <end>404</end>
+                                <in>0</in>
+                                <out>33</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0398</value><keyframe><when>29</when><value>0.0398</value></keyframe><keyframe><when>33</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-29">
+                                <file id="file-17" />
+                                <name>tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>414</start>
+                                <end>418</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1259</value><keyframe><when>3</when><value>0.1259</value></keyframe><keyframe><when>4</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-30">
+                                <file id="file-19" />
+                                <name>ui-pop-up-alert-r2.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>11</duration>
+                                <start>477</start>
+                                <end>488</end>
+                                <in>0</in>
+                                <out>11</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0794</value><keyframe><when>9</when><value>0.0794</value></keyframe><keyframe><when>11</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-31">
+                                <file id="file-17" />
+                                <name>tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>549</start>
+                                <end>553</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1122</value><keyframe><when>3</when><value>0.1122</value></keyframe><keyframe><when>4</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-32">
+                                <file id="file-18" />
+                                <name>synthetic-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>9</duration>
+                                <start>673</start>
+                                <end>682</end>
+                                <in>0</in>
+                                <out>9</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0794</value><keyframe><when>7</when><value>0.0794</value></keyframe><keyframe><when>9</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-33">
+                                <file id="file-20" />
+                                <name>deep-short-whoosh-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>33</duration>
+                                <start>986</start>
+                                <end>1019</end>
+                                <in>0</in>
+                                <out>33</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0398</value><keyframe><when>29</when><value>0.0398</value></keyframe><keyframe><when>33</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-34">
+                                <file id="file-20" />
+                                <name>deep-short-whoosh-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>33</duration>
+                                <start>1076</start>
+                                <end>1109</end>
+                                <in>0</in>
+                                <out>33</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0398</value><keyframe><when>29</when><value>0.0398</value></keyframe><keyframe><when>33</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-35">
+                                <file id="file-20" />
+                                <name>deep-short-whoosh-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>33</duration>
+                                <start>1158</start>
+                                <end>1191</end>
+                                <in>0</in>
+                                <out>33</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0398</value><keyframe><when>29</when><value>0.0398</value></keyframe><keyframe><when>33</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-36">
+                                <file id="file-18" />
+                                <name>synthetic-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>9</duration>
+                                <start>1218</start>
+                                <end>1227</end>
+                                <in>0</in>
+                                <out>9</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0794</value><keyframe><when>7</when><value>0.0794</value></keyframe><keyframe><when>9</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-37">
+                                <file id="file-19" />
+                                <name>ui-pop-up-alert-r2.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>11</duration>
+                                <start>1257</start>
+                                <end>1268</end>
+                                <in>0</in>
+                                <out>11</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-38">
+                                <file id="file-17" />
+                                <name>tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>1281</start>
+                                <end>1285</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0794</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-39">
+                                <file id="file-17" />
+                                <name>tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>1303</start>
+                                <end>1307</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0794</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-40">
+                                <file id="file-19" />
+                                <name>ui-pop-up-alert-r2.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>11</duration>
+                                <start>1353</start>
+                                <end>1364</end>
+                                <in>0</in>
+                                <out>11</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-41">
+                                <file id="file-18" />
+                                <name>synthetic-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>9</duration>
+                                <start>1637</start>
+                                <end>1646</end>
+                                <in>0</in>
+                                <out>9</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0794</value><keyframe><when>7</when><value>0.0794</value></keyframe><keyframe><when>9</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-42">
+                                <file id="file-18" />
+                                <name>synthetic-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>9</duration>
+                                <start>1820</start>
+                                <end>1829</end>
+                                <in>0</in>
+                                <out>9</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0794</value><keyframe><when>7</when><value>0.0794</value></keyframe><keyframe><when>9</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                        </track>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-43">
+                                <file id="file-21">
+                                    <pathurl>file://../../media/hot-news/vine-boom-impact-r1.mp3</pathurl>
+                                    <name>vine-boom-impact-r1.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>86</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>vine-boom-impact-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>86</duration>
+                                <start>482</start>
+                                <end>568</end>
+                                <in>0</in>
+                                <out>86</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0447</value><keyframe><when>80</when><value>0.0447</value></keyframe><keyframe><when>86</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-44">
+                                <file id="file-22">
+                                    <pathurl>file://../../media/hot-news/airy-short-whoosh-r1.mp3</pathurl>
+                                    <name>airy-short-whoosh-r1.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>22</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>airy-short-whoosh-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>22</duration>
+                                <start>1080</start>
+                                <end>1102</end>
+                                <in>0</in>
+                                <out>22</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0631</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-45">
+                                <file id="file-22" />
+                                <name>airy-short-whoosh-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>22</duration>
+                                <start>1184</start>
+                                <end>1206</end>
+                                <in>0</in>
+                                <out>22</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.0631</value></parameter></effect></filter></clipitem>
+                        </track>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-46">
+                                <file id="file-3" />
+                                <name>kitchen.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>120</duration>
+                                <start>878</start>
+                                <end>998</end>
+                                <in>15</in>
+                                <out>135</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-4</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>4</clipindex></link><link><linkclipref>clipitem-46</linkclipref><mediatype>audio</mediatype><trackindex>5</trackindex><clipindex>1</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-47">
+                                <file id="file-4" />
+                                <name>dryplate.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>90</duration>
+                                <start>998</start>
+                                <end>1088</end>
+                                <in>300</in>
+                                <out>390</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-5</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>5</clipindex></link><link><linkclipref>clipitem-47</linkclipref><mediatype>audio</mediatype><trackindex>5</trackindex><clipindex>2</clipindex></link></clipitem>
+                        </track>
+                    </audio>
+                </media>
+                <timecode>
+                    <rate>
+                        <timebase>30</timebase>
+                        <ntsc>FALSE</ntsc>
+                    </rate>
+                    <string>00:00:00:00</string>
+                    <frame>0</frame>
+                    <displayformat>NDF</displayformat>
+                </timecode>
+            </sequence>
+        </children>
+    </project>
+</xmeml>

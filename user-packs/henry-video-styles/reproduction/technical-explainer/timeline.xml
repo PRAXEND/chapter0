@@ -1,0 +1,1399 @@
+<xmeml version="4">
+    <project>
+        <name>technical-explainer-source-media</name>
+        <children>
+            <sequence id="sequence-1">
+                <name>technical-explainer-source-media</name>
+                <duration>2745</duration>
+                <rate>
+                    <timebase>30</timebase>
+                    <ntsc>FALSE</ntsc>
+                </rate>
+                <media>
+                    <video>
+                        <format><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>1920</width><height>1080</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></format>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-1">
+                                <file id="file-1">
+                                    <pathurl>file://../../media/technical-explainer/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</pathurl>
+                                    <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>3900</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <video><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>2560</width><height>1440</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></video>
+                                        <audio />
+                                    </media>
+                                </file>
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>162</duration>
+                                <start>0</start>
+                                <end>162</end>
+                                <in>180</in>
+                                <out>342</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-1</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>1</clipindex></link><link><linkclipref>clipitem-46</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>1</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-2">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>122</duration>
+                                <start>162</start>
+                                <end>284</end>
+                                <in>345</in>
+                                <out>467</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-2</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>2</clipindex></link><link><linkclipref>clipitem-47</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>2</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-3">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>85</duration>
+                                <start>284</start>
+                                <end>369</end>
+                                <in>1620</in>
+                                <out>1705</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-3</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>3</clipindex></link><link><linkclipref>clipitem-48</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>3</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-4">
+                                <file id="file-2">
+                                    <pathurl>file://../../media/technical-explainer/atlas-learn-bf8897ac925f57179dd40c70.mp4</pathurl>
+                                    <name>media/atlas-learn-bf8897ac925f57179dd40c70.mp4</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>1201</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <video><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>2560</width><height>1440</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></video>
+                                        <audio />
+                                    </media>
+                                </file>
+                                <name>media/atlas-learn-bf8897ac925f57179dd40c70.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>140</duration>
+                                <start>369</start>
+                                <end>509</end>
+                                <in>441</in>
+                                <out>581</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-4</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>4</clipindex></link><link><linkclipref>clipitem-49</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>4</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-5">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>180</duration>
+                                <start>509</start>
+                                <end>689</end>
+                                <in>2940</in>
+                                <out>3120</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-5</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>5</clipindex></link><link><linkclipref>clipitem-50</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>5</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-6">
+                                <file id="file-3">
+                                    <pathurl>file://../../media/technical-explainer/atlas-learn-2277d8172688a6a7c08114b0.mp4</pathurl>
+                                    <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>4500</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <video><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>2560</width><height>1440</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></video>
+                                        <audio />
+                                    </media>
+                                </file>
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>90</duration>
+                                <start>689</start>
+                                <end>779</end>
+                                <in>1260</in>
+                                <out>1350</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-6</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>6</clipindex></link><link><linkclipref>clipitem-51</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>6</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-7">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>5625</duration>
+                                <start>779</start>
+                                <end>869</end>
+                                <in>862</in>
+                                <out>952</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>80.000</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>4500</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>862</when><value>690</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>952</when><value>762</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>5625</when><value>4500</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-7</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>7</clipindex></link><link><linkclipref>clipitem-52</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>7</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-8">
+                                <file id="file-2" />
+                                <name>media/atlas-learn-bf8897ac925f57179dd40c70.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>120</duration>
+                                <start>869</start>
+                                <end>989</end>
+                                <in>285</in>
+                                <out>405</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-8</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>8</clipindex></link><link><linkclipref>clipitem-53</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>8</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-9">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>174</duration>
+                                <start>989</start>
+                                <end>1163</end>
+                                <in>2814</in>
+                                <out>2988</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>-0.1875</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><filter><effect><name>Crop</name><effectid>crop</effectid><effectcategory>matte</effectcategory><effecttype>filter</effecttype><mediatype>video</mediatype><parameter><parameterid>left</parameterid><name>left</name><valuemin>0</valuemin><valuemax>100</valuemax><value>25</value></parameter><parameter><parameterid>right</parameterid><name>right</name><valuemin>0</valuemin><valuemax>100</valuemax><value>25</value></parameter><parameter><parameterid>top</parameterid><name>top</name><valuemin>0</valuemin><valuemax>100</valuemax><value>0</value></parameter><parameter><parameterid>bottom</parameterid><name>bottom</name><valuemin>0</valuemin><valuemax>100</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-9</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>9</clipindex></link><link><linkclipref>clipitem-54</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>9</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-10">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>138</duration>
+                                <start>1163</start>
+                                <end>1301</end>
+                                <in>165</in>
+                                <out>303</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-10</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>10</clipindex></link><link><linkclipref>clipitem-55</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>10</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-11">
+                                <file id="file-4">
+                                    <pathurl>file://../../media/technical-explainer/s1-2bb84df67c9ea83938fc8901.mp4</pathurl>
+                                    <name>media/s1-2bb84df67c9ea83938fc8901.mp4</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>3601</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <video><samplecharacteristics><rate><timebase>30</timebase><ntsc>FALSE</ntsc></rate><width>1920</width><height>1080</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></video>
+                                        <audio />
+                                    </media>
+                                </file>
+                                <name>media/s1-2bb84df67c9ea83938fc8901.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>96</duration>
+                                <start>1301</start>
+                                <end>1397</end>
+                                <in>489</in>
+                                <out>585</out>
+                            <link><linkclipref>clipitem-11</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>11</clipindex></link><link><linkclipref>clipitem-56</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>11</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-12">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>72</duration>
+                                <start>1397</start>
+                                <end>1469</end>
+                                <in>1740</in>
+                                <out>1812</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-12</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>12</clipindex></link><link><linkclipref>clipitem-57</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>12</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-13">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>102</duration>
+                                <start>1469</start>
+                                <end>1571</end>
+                                <in>1434</in>
+                                <out>1536</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-13</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>13</clipindex></link><link><linkclipref>clipitem-58</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>13</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-14">
+                                <file id="file-4" />
+                                <name>media/s1-2bb84df67c9ea83938fc8901.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>78</duration>
+                                <start>1571</start>
+                                <end>1649</end>
+                                <in>2280</in>
+                                <out>2358</out>
+                            <link><linkclipref>clipitem-14</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>14</clipindex></link><link><linkclipref>clipitem-59</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>14</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-15">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>122</duration>
+                                <start>1649</start>
+                                <end>1771</end>
+                                <in>1542</in>
+                                <out>1664</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-15</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>15</clipindex></link><link><linkclipref>clipitem-60</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>15</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-16">
+                                <file id="file-4" />
+                                <name>media/s1-2bb84df67c9ea83938fc8901.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>111</duration>
+                                <start>1771</start>
+                                <end>1882</end>
+                                <in>927</in>
+                                <out>1038</out>
+                            <link><linkclipref>clipitem-16</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>16</clipindex></link><link><linkclipref>clipitem-61</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>16</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-17">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>96</duration>
+                                <start>1882</start>
+                                <end>1978</end>
+                                <in>510</in>
+                                <out>606</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-17</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>17</clipindex></link><link><linkclipref>clipitem-62</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>17</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-18">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>111</duration>
+                                <start>1978</start>
+                                <end>2089</end>
+                                <in>2100</in>
+                                <out>2211</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-18</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>18</clipindex></link><link><linkclipref>clipitem-63</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>18</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-19">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4875</duration>
+                                <start>2089</start>
+                                <end>2182</end>
+                                <in>4478</in>
+                                <out>4571</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>79.570</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>3900</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>4478</when><value>3582</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>4571</when><value>3656</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>4875</when><value>3900</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-19</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>19</clipindex></link><link><linkclipref>clipitem-64</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>19</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-20">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>93</duration>
+                                <start>2182</start>
+                                <end>2275</end>
+                                <in>2496</in>
+                                <out>2589</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-20</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>20</clipindex></link><link><linkclipref>clipitem-65</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>20</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-21">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>162</duration>
+                                <start>2275</start>
+                                <end>2437</end>
+                                <in>3120</in>
+                                <out>3282</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-21</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>21</clipindex></link><link><linkclipref>clipitem-66</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>21</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-22">
+                                <file id="file-4" />
+                                <name>media/s1-2bb84df67c9ea83938fc8901.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>120</duration>
+                                <start>2437</start>
+                                <end>2557</end>
+                                <in>660</in>
+                                <out>780</out>
+                            <link><linkclipref>clipitem-22</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>22</clipindex></link><link><linkclipref>clipitem-67</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>22</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-23">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>186</duration>
+                                <start>2557</start>
+                                <end>2743</end>
+                                <in>3300</in>
+                                <out>3486</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-23</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>23</clipindex></link><link><linkclipref>clipitem-68</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>23</clipindex></link></clipitem>
+                        </track>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-24">
+                                <file id="file-2" />
+                                <name>media/atlas-learn-bf8897ac925f57179dd40c70.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>1413</duration>
+                                <start>990</start>
+                                <end>1131</end>
+                                <in>1271</in>
+                                <out>1412</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>85.106</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>1201</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>1271</when><value>1080</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>1412</when><value>1200</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>1413</when><value>1201</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0.1875</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><filter><effect><name>Crop</name><effectid>crop</effectid><effectcategory>matte</effectcategory><effecttype>filter</effecttype><mediatype>video</mediatype><parameter><parameterid>left</parameterid><name>left</name><valuemin>0</valuemin><valuemax>100</valuemax><value>25</value></parameter><parameter><parameterid>right</parameterid><name>right</name><valuemin>0</valuemin><valuemax>100</valuemax><value>25</value></parameter><parameter><parameterid>top</parameterid><name>top</name><valuemin>0</valuemin><valuemax>100</valuemax><value>0</value></parameter><parameter><parameterid>bottom</parameterid><name>bottom</name><valuemin>0</valuemin><valuemax>100</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-24</linkclipref><mediatype>video</mediatype><trackindex>2</trackindex><clipindex>1</clipindex></link><link><linkclipref>clipitem-69</linkclipref><mediatype>audio</mediatype><trackindex>5</trackindex><clipindex>1</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-25">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>33</duration>
+                                <start>1131</start>
+                                <end>1164</end>
+                                <in>0</in>
+                                <out>33</out>
+                            <filter><effect><name>Basic Motion</name><effectid>basic</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>video</mediatype><parameter><parameterid>scale</parameterid><name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax><value>75</value></parameter><parameter><parameterid>center</parameterid><name>Center</name><value><horiz>0.1875</horiz><vert>0</vert></value></parameter><parameter><parameterid>rotation</parameterid><name>Rotation</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>0</value></parameter></effect></filter><filter><effect><name>Crop</name><effectid>crop</effectid><effectcategory>matte</effectcategory><effecttype>filter</effecttype><mediatype>video</mediatype><parameter><parameterid>left</parameterid><name>left</name><valuemin>0</valuemin><valuemax>100</valuemax><value>25</value></parameter><parameter><parameterid>right</parameterid><name>right</name><valuemin>0</valuemin><valuemax>100</valuemax><value>25</value></parameter><parameter><parameterid>top</parameterid><name>top</name><valuemin>0</valuemin><valuemax>100</valuemax><value>0</value></parameter><parameter><parameterid>bottom</parameterid><name>bottom</name><valuemin>0</valuemin><valuemax>100</valuemax><value>0</value></parameter></effect></filter><link><linkclipref>clipitem-25</linkclipref><mediatype>video</mediatype><trackindex>2</trackindex><clipindex>2</clipindex></link><link><linkclipref>clipitem-70</linkclipref><mediatype>audio</mediatype><trackindex>5</trackindex><clipindex>2</clipindex></link></clipitem>
+                        </track>
+                    </video>
+                    <audio>
+                        <format><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics></format><track>
+                            <clipitem frameBlend="FALSE" id="clipitem-26">
+                                <file id="file-5">
+                                    <pathurl>file://../../media/technical-explainer/Atlas%E6%90%AC%E5%86%B0%E7%AE%B1%EF%BD%9C%E5%9F%BA%E5%87%86%E6%97%81%E7%99%BD.mp3</pathurl>
+                                    <name>media/Atlas搬冰箱｜基准旁白.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>3258</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>1</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>media/Atlas搬冰箱｜基准旁白.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>2715</duration>
+                                <start>0</start>
+                                <end>2715</end>
+                                <in>0</in>
+                                <out>2715</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>120.000</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>3258</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>2715</when><value>3258</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>2715</when><value>3258</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>1.1749</value></parameter></effect></filter></clipitem>
+                        </track>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-27">
+                                <file id="file-6">
+                                    <pathurl>file://../../media/technical-explainer/Wallpaper.mp3</pathurl>
+                                    <name>media/Wallpaper.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>6600</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>44100</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>media/Wallpaper.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>2745</duration>
+                                <start>0</start>
+                                <end>2745</end>
+                                <in>480</in>
+                                <out>3225</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1161</value><keyframe><when>480</when><value>0</value></keyframe><keyframe><when>481</when><value>0.1161</value></keyframe><keyframe><when>3224</when><value>0.1161</value></keyframe><keyframe><when>3225</when><value>0</value></keyframe></parameter></effect></filter></clipitem>
+                        </track>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-28">
+                                <file id="file-7">
+                                    <pathurl>file://../../media/technical-explainer/tiny-bubble-pop-r1.mp3</pathurl>
+                                    <name>media/tiny-bubble-pop-r1.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>4</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>11</start>
+                                <end>15</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-29">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>167</start>
+                                <end>171</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-30">
+                                <file id="file-8">
+                                    <pathurl>file://../../media/technical-explainer/airy-short-whoosh-r1.mp3</pathurl>
+                                    <name>media/airy-short-whoosh-r1.mp3</name>
+                                    <rate>
+                                        <timebase>30</timebase>
+                                        <ntsc>FALSE</ntsc>
+                                    </rate>
+                                    <duration>22</duration>
+                                    <timecode>
+                                        <rate>
+                                            <timebase>30</timebase>
+                                            <ntsc>FALSE</ntsc>
+                                        </rate>
+                                        <string>00:00:00:00</string>
+                                        <frame>0</frame>
+                                        <displayformat>NDF</displayformat>
+                                    </timecode>
+                                    <media>
+                                        <audio><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics><channelcount>2</channelcount></audio>
+                                    </media>
+                                </file>
+                                <name>media/airy-short-whoosh-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>22</duration>
+                                <start>357</start>
+                                <end>379</end>
+                                <in>0</in>
+                                <out>22</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1259</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-31">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>589</start>
+                                <end>593</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-32">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>852</start>
+                                <end>856</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-33">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>994</start>
+                                <end>998</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-34">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>1115</start>
+                                <end>1119</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-35">
+                                <file id="file-8" />
+                                <name>media/airy-short-whoosh-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>22</duration>
+                                <start>1289</start>
+                                <end>1311</end>
+                                <in>0</in>
+                                <out>22</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1259</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-36">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>1347</start>
+                                <end>1351</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-37">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>1491</start>
+                                <end>1495</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-38">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>1661</start>
+                                <end>1665</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-39">
+                                <file id="file-8" />
+                                <name>media/airy-short-whoosh-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>22</duration>
+                                <start>1760</start>
+                                <end>1782</end>
+                                <in>0</in>
+                                <out>22</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1259</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-40">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>1794</start>
+                                <end>1798</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-41">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>1917</start>
+                                <end>1921</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-42">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>2156</start>
+                                <end>2160</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-43">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>2411</start>
+                                <end>2415</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-44">
+                                <file id="file-8" />
+                                <name>media/airy-short-whoosh-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>22</duration>
+                                <start>2426</start>
+                                <end>2448</end>
+                                <in>0</in>
+                                <out>22</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.1259</value></parameter></effect></filter></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-45">
+                                <file id="file-7" />
+                                <name>media/tiny-bubble-pop-r1.mp3</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4</duration>
+                                <start>2636</start>
+                                <end>2640</end>
+                                <in>0</in>
+                                <out>4</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.2512</value></parameter></effect></filter></clipitem>
+                        </track>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-46">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>162</duration>
+                                <start>0</start>
+                                <end>162</end>
+                                <in>180</in>
+                                <out>342</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-1</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>1</clipindex></link><link><linkclipref>clipitem-46</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>1</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-47">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>122</duration>
+                                <start>162</start>
+                                <end>284</end>
+                                <in>345</in>
+                                <out>467</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-2</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>2</clipindex></link><link><linkclipref>clipitem-47</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>2</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-48">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>85</duration>
+                                <start>284</start>
+                                <end>369</end>
+                                <in>1620</in>
+                                <out>1705</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-3</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>3</clipindex></link><link><linkclipref>clipitem-48</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>3</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-49">
+                                <file id="file-2" />
+                                <name>media/atlas-learn-bf8897ac925f57179dd40c70.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>140</duration>
+                                <start>369</start>
+                                <end>509</end>
+                                <in>441</in>
+                                <out>581</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-4</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>4</clipindex></link><link><linkclipref>clipitem-49</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>4</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-50">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>180</duration>
+                                <start>509</start>
+                                <end>689</end>
+                                <in>2940</in>
+                                <out>3120</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-5</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>5</clipindex></link><link><linkclipref>clipitem-50</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>5</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-51">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>90</duration>
+                                <start>689</start>
+                                <end>779</end>
+                                <in>1260</in>
+                                <out>1350</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-6</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>6</clipindex></link><link><linkclipref>clipitem-51</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>6</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-52">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>5625</duration>
+                                <start>779</start>
+                                <end>869</end>
+                                <in>862</in>
+                                <out>952</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>80.000</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>4500</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>862</when><value>690</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>952</when><value>762</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>5625</when><value>4500</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-7</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>7</clipindex></link><link><linkclipref>clipitem-52</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>7</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-53">
+                                <file id="file-2" />
+                                <name>media/atlas-learn-bf8897ac925f57179dd40c70.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>120</duration>
+                                <start>869</start>
+                                <end>989</end>
+                                <in>285</in>
+                                <out>405</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-8</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>8</clipindex></link><link><linkclipref>clipitem-53</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>8</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-54">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>174</duration>
+                                <start>989</start>
+                                <end>1163</end>
+                                <in>2814</in>
+                                <out>2988</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-9</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>9</clipindex></link><link><linkclipref>clipitem-54</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>9</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-55">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>138</duration>
+                                <start>1163</start>
+                                <end>1301</end>
+                                <in>165</in>
+                                <out>303</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-10</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>10</clipindex></link><link><linkclipref>clipitem-55</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>10</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-56">
+                                <file id="file-4" />
+                                <name>media/s1-2bb84df67c9ea83938fc8901.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>96</duration>
+                                <start>1301</start>
+                                <end>1397</end>
+                                <in>489</in>
+                                <out>585</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-11</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>11</clipindex></link><link><linkclipref>clipitem-56</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>11</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-57">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>72</duration>
+                                <start>1397</start>
+                                <end>1469</end>
+                                <in>1740</in>
+                                <out>1812</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-12</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>12</clipindex></link><link><linkclipref>clipitem-57</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>12</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-58">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>102</duration>
+                                <start>1469</start>
+                                <end>1571</end>
+                                <in>1434</in>
+                                <out>1536</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-13</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>13</clipindex></link><link><linkclipref>clipitem-58</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>13</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-59">
+                                <file id="file-4" />
+                                <name>media/s1-2bb84df67c9ea83938fc8901.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>78</duration>
+                                <start>1571</start>
+                                <end>1649</end>
+                                <in>2280</in>
+                                <out>2358</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-14</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>14</clipindex></link><link><linkclipref>clipitem-59</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>14</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-60">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>122</duration>
+                                <start>1649</start>
+                                <end>1771</end>
+                                <in>1542</in>
+                                <out>1664</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-15</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>15</clipindex></link><link><linkclipref>clipitem-60</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>15</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-61">
+                                <file id="file-4" />
+                                <name>media/s1-2bb84df67c9ea83938fc8901.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>111</duration>
+                                <start>1771</start>
+                                <end>1882</end>
+                                <in>927</in>
+                                <out>1038</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-16</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>16</clipindex></link><link><linkclipref>clipitem-61</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>16</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-62">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>96</duration>
+                                <start>1882</start>
+                                <end>1978</end>
+                                <in>510</in>
+                                <out>606</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-17</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>17</clipindex></link><link><linkclipref>clipitem-62</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>17</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-63">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>111</duration>
+                                <start>1978</start>
+                                <end>2089</end>
+                                <in>2100</in>
+                                <out>2211</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-18</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>18</clipindex></link><link><linkclipref>clipitem-63</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>18</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-64">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>4875</duration>
+                                <start>2089</start>
+                                <end>2182</end>
+                                <in>4478</in>
+                                <out>4571</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>79.570</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>3900</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>4478</when><value>3582</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>4571</when><value>3656</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>4875</when><value>3900</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-19</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>19</clipindex></link><link><linkclipref>clipitem-64</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>19</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-65">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>93</duration>
+                                <start>2182</start>
+                                <end>2275</end>
+                                <in>2496</in>
+                                <out>2589</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-20</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>20</clipindex></link><link><linkclipref>clipitem-65</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>20</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-66">
+                                <file id="file-1" />
+                                <name>media/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>162</duration>
+                                <start>2275</start>
+                                <end>2437</end>
+                                <in>3120</in>
+                                <out>3282</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-21</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>21</clipindex></link><link><linkclipref>clipitem-66</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>21</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-67">
+                                <file id="file-4" />
+                                <name>media/s1-2bb84df67c9ea83938fc8901.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>120</duration>
+                                <start>2437</start>
+                                <end>2557</end>
+                                <in>660</in>
+                                <out>780</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-22</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>22</clipindex></link><link><linkclipref>clipitem-67</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>22</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-68">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>186</duration>
+                                <start>2557</start>
+                                <end>2743</end>
+                                <in>3300</in>
+                                <out>3486</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-23</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>23</clipindex></link><link><linkclipref>clipitem-68</linkclipref><mediatype>audio</mediatype><trackindex>4</trackindex><clipindex>23</clipindex></link></clipitem>
+                        </track>
+                        <track>
+                            <clipitem frameBlend="FALSE" id="clipitem-69">
+                                <file id="file-2" />
+                                <name>media/atlas-learn-bf8897ac925f57179dd40c70.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>1413</duration>
+                                <start>990</start>
+                                <end>1131</end>
+                                <in>1271</in>
+                                <out>1412</out>
+                            <filter><effect><name>Time Remap</name><effectid>timeremap</effectid><effectcategory>motion</effectcategory><effecttype>motion</effecttype><mediatype>audio</mediatype><parameter><parameterid>variablespeed</parameterid><name>variablespeed</name><valuemin>0</valuemin><valuemax>1</valuemax><value>0</value></parameter><parameter><parameterid>speed</parameterid><name>speed</name><valuemin>-100000</valuemin><valuemax>100000</valuemax><value>85.106</value></parameter><parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter><parameter><parameterid>frameblending</parameterid><name>frameblending</name><value>FALSE</value></parameter><parameter><parameterid>graphdict</parameterid><name>graphdict</name><valuemin>0</valuemin><valuemax>1201</valuemax><value>0</value><keyframe><when>0</when><value>0</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfstart>TRUE</speedkfstart></keyframe><keyframe><when>1271</when><value>1080</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfin>TRUE</speedkfin></keyframe><keyframe><when>1412</when><value>1200</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfout>TRUE</speedkfout></keyframe><keyframe><when>1413</when><value>1201</value><speedvirtualkf>TRUE</speedvirtualkf><speedkfend>TRUE</speedkfend></keyframe><interpolation><name>FCPCurve</name></interpolation></parameter></effect></filter><filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-24</linkclipref><mediatype>video</mediatype><trackindex>2</trackindex><clipindex>1</clipindex></link><link><linkclipref>clipitem-69</linkclipref><mediatype>audio</mediatype><trackindex>5</trackindex><clipindex>1</clipindex></link></clipitem>
+                            <clipitem frameBlend="FALSE" id="clipitem-70">
+                                <file id="file-3" />
+                                <name>media/atlas-learn-2277d8172688a6a7c08114b0.mp4</name>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <rate>
+                                    <timebase>30</timebase>
+                                    <ntsc>FALSE</ntsc>
+                                </rate>
+                                <duration>33</duration>
+                                <start>1131</start>
+                                <end>1164</end>
+                                <in>0</in>
+                                <out>33</out>
+                            <filter><effect><name>Audio Levels</name><effectid>audiolevels</effectid><effectcategory>audiolevels</effectcategory><effecttype>audiolevels</effecttype><mediatype>audio</mediatype><parameter><parameterid>level</parameterid><name>Level</name><valuemin>0</valuemin><valuemax>3.9811</valuemax><value>0.001</value></parameter></effect></filter><link><linkclipref>clipitem-25</linkclipref><mediatype>video</mediatype><trackindex>2</trackindex><clipindex>2</clipindex></link><link><linkclipref>clipitem-70</linkclipref><mediatype>audio</mediatype><trackindex>5</trackindex><clipindex>2</clipindex></link></clipitem>
+                        </track>
+                    </audio>
+                </media>
+                <timecode>
+                    <rate>
+                        <timebase>30</timebase>
+                        <ntsc>FALSE</ntsc>
+                    </rate>
+                    <string>00:00:00:00</string>
+                    <frame>0</frame>
+                    <displayformat>NDF</displayformat>
+                </timecode>
+            </sequence>
+        </children>
+    </project>
+</xmeml>

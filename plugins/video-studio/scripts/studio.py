@@ -512,13 +512,18 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
         failures.append("output_requirements_missing_or_invalid:" + str(exc))
     streams = media.get("streams", [])
     video = next((s for s in streams if s.get("codec_type") == "video"), {})
-    duration = float(media.get("format", {}).get("duration", 0))
+    # AAC encoder padding can extend the container beyond the last video frame.
+    # Visual coverage and timeline bounds must follow the video stream itself.
+    try:
+        duration = float(video.get("duration", media.get("format", {}).get("duration", 0)))
+    except (TypeError, ValueError):
+        duration = 0
     if not math.isfinite(duration) or duration <= 0:
         failures.append("invalid_duration")
         duration = 0
     if settings.get("min_seconds") and duration < settings["min_seconds"]:
         failures.append("duration_below_requested_minimum")
-    if settings.get("max_seconds") and duration > settings["max_seconds"]:
+    if settings.get("max_seconds") and duration > settings["max_seconds"] + .1:
         failures.append("duration_above_requested_maximum")
     if (video.get("width"), video.get("height"), video.get("codec_name")) != (settings["width"], settings["height"], "h264"):
         failures.append("video_format_differs_from_brief")

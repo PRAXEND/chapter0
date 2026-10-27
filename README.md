@@ -2,7 +2,7 @@
 
 按用户选择的题材和风格制作视频，并把参考脚本、视频提炼成下次可调用的风格技能。
 
-**本地整合版 0.2.2-shawn.1 · 基于团队 0.2.1 · macOS / Codex · 依赖已安装且登录的 ChatCut**
+**Video Studio 0.2.4 · macOS / Codex · 依赖已安装且登录的 ChatCut**
 
 ## 组成
 
@@ -58,6 +58,24 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 后续整合17条用户参考的七类个人风格位于源码仓库的 `user-packs/shawn-style-fusion/README.md`：能力快报、反差故事、动作拆解、类比科普、案例归纳、产业脉络、观点论证。导入该包后，原两类使用v2，原v1保留；新五类为v1。该包不改偏好和默认，不进入通用ZIP；仅下载通用ZIP时，需要另从源码仓库获取可选个人包。证据为全长机器转录、分布抽帧和代表区间连续抽帧，未完成所有原片的完整实时播放与听审，保存状态仍为unverified。
 
+## 默认交付物
+
+每期完整制片交付到 `~/Movies/Video Studio/YYYY-MM-DD_选题/`（可由本期输出目录或已保存偏好覆盖），默认包含四个文件：
+
+```text
+2026-10-27_本期选题/
+├── 完整视频.mp4
+├── 封面_竖版_3x4.png
+├── 封面_横版_4x3.png
+└── 发布文案.txt
+```
+
+封面分别排版，建议 1440×1920 与 1920×1440；3:4、4:3 仅指封面比例，视频规格仍由本期要求决定。TXT 使用 UTF-8，含定稿发布标题、正文和可复制的话题标签。正文从真实反差、具体问题或观点切入，补足背景和观看理由，吸引观看与讨论。日期按用户本地时区，重名及改版目录保留后缀以避免覆盖。工程链接、字幕、脚本、来源及验收记录保存在工作 run，用户要求时再额外交付。准备发布包不执行发布。
+
+源码还提供可选个人包 `user-packs/henry-video-styles/README.md`，包含热点资讯型与技术科普型各自最新的 v7 规则，无变体。风格 ID 为 `henry-hot-news@7`、`henry-technical-explainer@7`，需显式导入，不改全局偏好或默认风格，不随通用 ZIP 分发。
+
+该可选包附实际参考原片、两条试片与源媒体、MG 源码及时间线记录，媒体约 473 MB，通过 Git LFS 获取。在源码仓库执行 `git lfs pull --include='user-packs/henry-video-styles/media/**'`，再运行 `python3 user-packs/henry-video-styles/verify.py`；完整导入与复现步骤见包内 README。
+
 ## 独立完整验收
 
 检查整片与全部事件边界，并记录时间/帧号、实际证据、严重程度、修复与复查：
@@ -74,12 +92,12 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 ## 安装与验证
 
-安装包：`dist/video-studio-0.2.2-shawn.1.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
+安装包：`dist/video-studio-0.2.4.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
 
 ```sh
-shasum -a 256 -c video-studio-0.2.2-shawn.1.zip.sha256
-unzip video-studio-0.2.2-shawn.1.zip
-codex plugin marketplace add ./video-studio-0.2.2-shawn.1
+shasum -a 256 -c video-studio-0.2.4.zip.sha256
+unzip video-studio-0.2.4.zip
+codex plugin marketplace add ./video-studio-0.2.4
 ```
 
 在插件目录选择 Video Studio 本地来源安装，并在新聊天验证技能。安装缓存与市场源不是同一份文件；不要手工改缓存。插件目录与本地市场机制见 [OpenAI 官方文档](https://developers.openai.com/plugins/build/plugins)。
@@ -97,7 +115,7 @@ python3 tools/package.py
 
 doctor 本地成功不表示 ChatCut 已连接。使用宿主完整 Python；损坏的系统 Python 不用于验证。
 
-保留0.1.8的只读 `connection` 命令，区分注册、工具加载、认证与实时调用结果，续做时检查已下载素材哈希和未知任务。缺失/变更的已完成下载不会因时长接近而自动重新登记或下载。设置的 `max_seconds` 为严格最终文件上限。
+保留0.1.8的只读 `connection` 命令，区分注册、工具加载、认证与实时调用结果，续做时检查已下载素材哈希和未知任务。缺失/变更的已完成下载不会因时长接近而自动重新登记或下载。`max_seconds` 按视频流时长检查并保留 0.1 秒容差；缺少视频流时长字段时回退到容器时长。音频编码尾部补齐不扩大画面验收范围。
 
 ## 数据与兼容
 
