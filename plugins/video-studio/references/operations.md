@@ -4,7 +4,7 @@
 
 ## 配置和制作要求
 
-`studio.py profile` 只读；`profile --merge-file <json>` 局部更新。默认状态为 ~/Library/Application Support/Video Studio；输出为 ~/Movies/Video Studio。VIDEO_STUDIO_HOME / VIDEO_STUDIO_FFMPEG_DIR 可覆盖路径。没有默认题材、语言、风格或输出比例。
+`studio.py profile` 只读；`profile --merge-file <json>` 局部更新。默认状态为 ~/Library/Application Support/Video Studio；输出为 ~/Movies/Video Studio。VIDEO_STUDIO_HOME / VIDEO_STUDIO_FFMPEG_DIR 可覆盖路径。没有默认题材、语言、风格或视频输出比例。
 
 本期 brief 示例仅说明数据格式，不是默认风格：
 
@@ -30,7 +30,7 @@ style 是 id@version 或 null；省略时使用用户保存的 default_style。�
 
 `production_preferences` 是可选对象，存放用户明确确认的讲述、配乐、交付和协作偏好；初始为空，不替代本期 brief。风格按钮与可选包导入见 [风格选择](style-selection.md)。`connection --file <本次观察json> [--run <已有schema2工程>]` 只写诊断附属文件，旧 schema1 继续使用原插件。
 
-max_seconds 是最终文件的严格上限，不额外放宽100ms；制作时给编码留余量。配置一分钟内不要求填满一分钟。
+max_seconds 按视频流时长检查，保留 0.1 秒容差；视频流没有 duration 字段时才回退到容器时长。无效的视频流时长会报错。画面验收范围按同一视频时长计算，避免 AAC 音频尾部补齐扩大画面范围；配置一分钟不要求填满一分钟。
 
 选择记录：`record --kind selection` 写入 {"topic":"与brief一致","confirmed_by_user":true}。用户明确委托选题时可用 {"topic":"选定题目","selection_basis":"delegated","authorized_by_user":true}，不要伪装成用户亲自挑选。
 
@@ -50,6 +50,10 @@ max_seconds 是最终文件的严格上限，不额外放宽100ms；制作时给
 `probe --url <url>` 只读；`fetch --run <run> --source <id> --start <秒> --end <秒>` 有界下载。默认6源/300秒，可在 requirements 调整预算。预留和失败片段都计入预算，相同输入及哈希一致的完成文件可复用，不自动清空预算。
 
 外部副作用前：`operation reserve --run <run> --key <稳定意图键> --file <输入json>`。仅 should_submit:true 新提交；reserved 是结果未知，先查询真实远端状态。返回 ID 后 `operation resolve --run ... --key ... --state submitted|completed|failed --file <结果json>`，结果需要实际 jobId/assetId/renderId/projectId/itemIds 或 observed_failure。终态不覆盖；这是宿主配合的去重协议，不是远端 exactly-once 保证。
+
+## 本地交付目录
+
+工作 run 继续保存制作数据；最终交付包由 Codex 按 [交付技能](../skills/video-delivery-tools/SKILL.md) 整理到本期输出根目录下的 `YYYY-MM-DD_选题/`，默认含完整 MP4、3:4 与 4:3 两张 PNG 封面、含发布标题/正文/话题标签的 TXT。`new` 不创建最终交付包，`audit` 不检查封面或 TXT。交付清单及文件哈希保存在工作 run 的 `delivery.json`；日期按用户本地时区确定，封面比例独立于视频规格。
 
 ## 验收
 

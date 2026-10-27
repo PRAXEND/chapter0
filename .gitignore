@@ -26,3 +26,10 @@ runtime-versions.json
 !dist/video-studio-0.2.0.zip.sha256
 !dist/video-studio-0.2.2-shawn.1.zip
 !dist/video-studio-0.2.2-shawn.1.zip.sha256
+
+!dist/video-studio-0.2.4.zip
+!dist/video-studio-0.2.4.zip.sha256
+
+# Explicitly shared reproduction media; stored through Git LFS.
+!user-packs/henry-video-styles/media/**/*.mp4
+!user-packs/henry-video-styles/media/**/*.mp3

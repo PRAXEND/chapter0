@@ -1,6 +1,6 @@
 interface:
-  display_name: "验证与导出工具"
-  short_description: "核验成片实际声画及风格要求，导出可继续修改的视频交付物"
-  default_prompt: "使用 $video-delivery-tools 检查并导出本期成片。"
+  display_name: "成片与发布包交付"
+  short_description: "按日期加选题归档完整视频、两版封面及发布标题、正文和话题标签"
+  default_prompt: "使用 $video-delivery-tools 将完整视频、两版封面和发布文案交付到日期加选题的本地目录。"
 policy:
   allow_implicit_invocation: true

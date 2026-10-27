@@ -1,0 +1,2 @@
+user-packs/henry-video-styles/media/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+user-packs/henry-video-styles/media/**/*.mp3 filter=lfs diff=lfs merge=lfs -text

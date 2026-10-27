@@ -1,0 +1,111 @@
+Timeline "Timeline" ref-ac8d6406461f | 1920x1080 30fps | 2745f (91.5s) | range [0,2745)
+Views: timeline
+Timeline frames [from,to); src seconds; IDs: safe 10-char/full.
+Tracks 8 | showing 97 of 97 entries; timeline length 91.5 s
+A1 ref-296edac90d3f audio order=0
+  [0,2716) audio ref-5516a463316e "Atlas搬冰箱｜基准旁白.mp3" asset ref-3c41a0882016 src [0,108.64)
+  [2716,2745) gap
+V1 ref-9c014f50569f video order=1
+  [285,370) effect ref-fcd26e907c73 builtin:fx-magnify on=item:ref-3b86fd6a47d4 overrides={"radius":0.2,"center_x":0.58,"center_y":0.55,"border_width":3,"magnification":1.3}
+  [2277,2439) effect ref-f8a9e7ce91b4 builtin:zoom on=item:ref-f4281c297254 overrides={"shape":"slow-push","direction":"in","focalPointY":0.37,"magnification":1.4,"easeInDurationInSeconds":5.4,"easeOutDurationInSeconds":0}
+  [0,162) video ref-34122533c0e9 "atlas-learn-f62a617de8ff3bd286eb0f6d.mp4" asset ref-1fd6bbd313e0 src [6,11.4)
+  [162,285) video ref-d485b67c6632 "atlas-learn-f62a617de8ff3bd286eb0f6d.mp4" asset ref-1fd6bbd313e0 src [11.5,15.6)
+  [285,370) video ref-3b86fd6a47d4 "atlas-learn-f62a617de8ff3bd286eb0f6d.mp4" asset ref-1fd6bbd313e0 src [54,56.833333)
+  [365,375) transition ref-cd1526ae1c59 builtin:tr-clean-line-wipe ref-3b86fd6a47d4 -> ref-325b593a4036
+  [370,510) video ref-325b593a4036 "atlas-learn-bf8897ac925f57179dd40c70.mp4" asset ref-6779fd42d2e9 src [14.7,19.366667)
+  [510,690) video ref-7bb5288df0c2 "atlas-learn-f62a617de8ff3bd286eb0f6d.mp4" asset ref-1fd6bbd313e0 src [98,104)
+  [690,780) video ref-72933e823f22 "atlas-learn-2277d8172688a6a7c08114b0.mp4" asset ref-73578290e4d0 src [42,45)
+  [780,870) video ref-fbb890c4adb7 "atlas-learn-2277d8172688a6a7c08114b0.mp4" asset ref-73578290e4d0 src [23,25.4)
+  [870,990) video ref-43204c061451 "atlas-learn-bf8897ac925f57179dd40c70.mp4" asset ref-6779fd42d2e9 src [9.5,13.5)
+  [990,1164) video ref-20aee46f9527 "atlas-learn-2277d8172688a6a7c08114b0.mp4" asset ref-73578290e4d0 src [93.8,99.6)
+  [1164,1302) video ref-b2b892b98f3c "atlas-learn-2277d8172688a6a7c08114b0.mp4" asset ref-73578290e4d0 src [5.5,10.1)
+  [1295,1309) transition ref-db92ff38a8cf builtin:tr-rack-focus ref-b2b892b98f3c -> ref-f0bda5c2b90c
+  [1302,1398) video ref-f0bda5c2b90c "s1-2bb84df67c9ea83938fc8901.mp4" asset ref-f32cc5e3eb62 src [16.3,19.5)
+  [1398,1470) video ref-1b5704454992 "atlas-learn-f62a617de8ff3bd286eb0f6d.mp4" asset ref-1fd6bbd313e0 src [58,60.4)
+  [1470,1572) video ref-27a97e2f63aa "atlas-learn-2277d8172688a6a7c08114b0.mp4" asset ref-73578290e4d0 src [47.8,51.2)
+  [1572,1650) video ref-34be1c0e8d6a "s1-2bb84df67c9ea83938fc8901.mp4" asset ref-f32cc5e3eb62 src [76,78.6)
+  [1650,1773) video ref-15e2559e2735 "atlas-learn-2277d8172688a6a7c08114b0.mp4" asset ref-73578290e4d0 src [51.4,55.5)
+  [1767,1779) transition ref-29fb63849f43 builtin:tr-whip-pan ref-15e2559e2735 -> ref-0321a2a479df
+  [1773,1884) video ref-0321a2a479df "s1-2bb84df67c9ea83938fc8901.mp4" asset ref-f32cc5e3eb62 src [30.9,34.6)
+  [1884,1980) video ref-0a9601be0ca2 "atlas-learn-2277d8172688a6a7c08114b0.mp4" asset ref-73578290e4d0 src [17,20.2)
+  [1980,2091) video ref-f8349b2dae54 "atlas-learn-2277d8172688a6a7c08114b0.mp4" asset ref-73578290e4d0 src [70,73.7)
+  [2091,2184) video ref-c1db5dae7da1 "atlas-learn-f62a617de8ff3bd286eb0f6d.mp4" asset ref-1fd6bbd313e0 src [119.4,121.88)
+  [2184,2277) video ref-8b2a4a6488cc "atlas-learn-f62a617de8ff3bd286eb0f6d.mp4" asset ref-1fd6bbd313e0 src [83.2,86.3)
+  [2277,2439) video ref-f4281c297254 "atlas-learn-f62a617de8ff3bd286eb0f6d.mp4" asset ref-1fd6bbd313e0 src [104,109.4)
+  [2434,2444) transition ref-88c7444dc569 builtin:tr-clean-line-wipe ref-f4281c297254 -> ref-cf80cc8e0863
+  [2439,2559) video ref-cf80cc8e0863 "s1-2bb84df67c9ea83938fc8901.mp4" asset ref-f32cc5e3eb62 src [22,26)
+  [2559,2745) video ref-1b076050cb10 "atlas-learn-2277d8172688a6a7c08114b0.mp4" asset ref-73578290e4d0 src [110,116.2)
+V2 ref-8077fd50f2d3 video order=2
+  [0,990) gap
+  [990,1131) video ref-e90e2b318715 "atlas-learn-bf8897ac925f57179dd40c70.mp4" asset ref-6779fd42d2e9 src [36,39.995)
+  [1131,1164) video ref-8745ecb97d16 "atlas-learn-2277d8172688a6a7c08114b0.mp4" asset ref-73578290e4d0 src [0,1.1)
+  [1164,2745) gap
+V3 ref-87b0d2553d66 video order=3
+  [0,120) motion-graphic ref-45b0d7bcc5cc "技术科普｜动词强调" asset ref-6a182c3ec1d3
+  [120,150) gap
+  [150,300) motion-graphic ref-ee92324e6841 "技术科普｜三步跟随" asset ref-1e1f01a8e7d4
+  [300,575) gap
+  [575,725) motion-graphic ref-15717a65b88f "技术科普｜三步跟随" asset ref-1e1f01a8e7d4
+  [725,835) gap
+  [835,1300) motion-graphic ref-fdd0a0782a89 "技术科普｜训练路径" asset ref-17ce0aa939d4
+  [1300,1330) gap
+  [1330,1480) motion-graphic ref-302b73b6eabc "技术科普｜三步跟随" asset ref-1e1f01a8e7d4
+  [1480,1600) motion-graphic ref-3906d8e95371 "技术科普｜动词强调" asset ref-6a182c3ec1d3
+  [1600,1650) gap
+  [1650,1770) motion-graphic ref-3a0ff3a7e9f2 "技术科普｜动词强调" asset ref-6a182c3ec1d3
+  [1770,1773) gap
+  [1773,1893) motion-graphic ref-45fee509fd6f "技术科普｜纵条聚字" asset ref-0ab15b06cb9d
+  [1893,1900) gap
+  [1900,2050) motion-graphic ref-2b05ce0dcaa5 "技术科普｜三步跟随" asset ref-1e1f01a8e7d4
+  [2050,2145) gap
+  [2145,2265) motion-graphic ref-30a8a7052b2a "技术科普｜动词强调" asset ref-6a182c3ec1d3
+  [2265,2400) gap
+  [2400,2520) motion-graphic ref-32b7f5858dac "技术科普｜动词强调" asset ref-6a182c3ec1d3
+  [2520,2625) gap
+  [2625,2745) motion-graphic ref-4903cb3be47f "技术科普｜动词强调" asset ref-6a182c3ec1d3
+V4 ref-e648be17e628 video order=4
+  [0,2745) motion-graphic ref-9f384f06311d "来源｜实验与资料区分" asset ref-7520224646f1
+V5 ref-30f81a2f4452 video order=5
+  [0,990) gap
+  [990,1164) motion-graphic ref-176d87f07d9e "仿真与实物｜分屏标识" asset ref-9a646ab242a9
+  [1164,2745) gap
+A2 ref-b231587fef42 audio order=5
+  [0,2745) audio ref-b03a27ee36b5 "Wallpaper.mp3" asset ref-ec505a8d59a9 src [16,107.5)
+A3 ref-be12e8732336 audio order=6
+  [0,11) gap
+  [11,15) audio ref-2f1645a79014 "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [15,167) gap
+  [167,171) audio ref-94e3ef667b21 "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [171,357) gap
+  [357,379) audio ref-362264d9d546 "airy-short-whoosh-r1.mp3" asset ref-9b13084a4e23 src [0,0.733333)
+  [379,589) gap
+  [589,593) audio ref-41d48e5ec7c7 "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [593,852) gap
+  [852,856) audio ref-1d6d2311035b "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [856,994) gap
+  [994,998) audio ref-bbc33a93d306 "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [998,1115) gap
+  [1115,1119) audio ref-bd36f21745bc "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [1119,1289) gap
+  [1289,1311) audio ref-a96f5f045450 "airy-short-whoosh-r1.mp3" asset ref-9b13084a4e23 src [0,0.733333)
+  [1311,1347) gap
+  [1347,1351) audio ref-503fb2d3c7bc "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [1351,1491) gap
+  [1491,1495) audio ref-c24c2feae054 "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [1495,1661) gap
+  [1661,1665) audio ref-f21918eeeecf "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [1665,1760) gap
+  [1760,1782) audio ref-f09036b8ea7a "airy-short-whoosh-r1.mp3" asset ref-9b13084a4e23 src [0,0.733333)
+  [1782,1794) gap
+  [1794,1798) audio ref-69aeb38738f3 "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [1798,1917) gap
+  [1917,1921) audio ref-cc540c3da901 "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [1921,2156) gap
+  [2156,2160) audio ref-5592a533e28f "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [2160,2411) gap
+  [2411,2415) audio ref-d3482e7c8e17 "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [2415,2426) gap
+  [2426,2448) audio ref-a8bc7fc562ab "airy-short-whoosh-r1.mp3" asset ref-9b13084a4e23 src [0,0.733333)
+  [2448,2636) gap
+  [2636,2640) audio ref-56e6e80963a7 "tiny-bubble-pop-r1.mp3" asset ref-fa7f6046946f src [0,0.133333)
+  [2640,2745) gap
