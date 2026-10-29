@@ -7,6 +7,10 @@ description: 用 Video Studio 制作、继续或修改视频，按用户指定�
 
 插件根目录为本技能上两级，命令入口为 `scripts/studio.py`。本技能只组织工具，不规定题材、语言、时长、比例、音色或剪辑模板。
 
+网页宿主发起的选材、审稿和制片请求，按[网页工作台约定](../../references/web-workbench.md)读取真实运行目录、确认哈希与任务记录；适配器是 `scripts/web_bridge.py`。独立会话不重置项目，不把网页保存/选材当作制片授权。
+
+用户要打开或在网页中操作工作台时，使用 [open-video-workbench](../open-video-workbench/SKILL.md) 启动插件内置页面；打开页面本身不开始制作。
+
 ## 需求与风格
 
 先读 `profile`、`styles list`；继续项目时先读 `status --run`。已说明的题材、参考和要求直接采用。用户尚未提供题材时只询问题材/目标；允许用户委托选题。热点任务再联网核实事件时间，普通题材不套近72小时窗口。

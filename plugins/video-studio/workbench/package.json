@@ -1,0 +1,13 @@
+{
+  "name": "video-studio-workbench",
+  "version": "0.3.0-web.14",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node studio-server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -2,7 +2,7 @@
 
 按用户选择的题材和风格制作视频，并把参考脚本、视频提炼成下次可调用的风格技能。
 
-**本地整合版 0.2.2-shawn.1 · 基于团队 0.2.1 · macOS / Codex · 依赖已安装且登录的 ChatCut**
+**插件内置网页工作台版 0.3.0-web.14 · 基于团队默认分支 · macOS / Codex · 依赖已安装且登录的 ChatCut**
 
 ## 组成
 
@@ -16,6 +16,7 @@
 
 ## 技能
 
+- `open-video-workbench`：启动并打开插件内置网页，复用已有服务，项目数据独立保留。
 - `video-project`：解析本期要求，选择并加载实际风格 SKILL.md，组织工具。
 - `setup-video-studio`：检查本地依赖，发现并引导安装 ChatCut 等所需插件，验证连接并保存明确偏好。
 - `video-source-tools`：按题材与风格形成采集计划，核实和获取素材。
@@ -47,7 +48,7 @@
 
 需要可点击选择时，`styles choices` 返回真实名称、版本、维度和验证状态，由宿主按[风格选择流程](plugins/video-studio/references/style-selection.md)显示单选卡片。选择风格不自动提交生成任务。
 
-本分支保留团队八技能架构。源码中的可选 `user-packs/shawn-robotics/` 保存本项目“反差故事型”“动作拆解型”、BOTPIE有限样本分析与制作经验，不随通用ZIP分发、不作为他人默认。明确导入本人的风格与偏好：
+本分支保留原有视频技能，并增加打开网页工作台入口。源码中的可选 `user-packs/shawn-robotics/` 保存本项目“反差故事型”“动作拆解型”、BOTPIE有限样本分析与制作经验，不随通用ZIP分发、不作为他人默认。明确导入本人的风格与偏好：
 
 ```sh
 python3 plugins/video-studio/scripts/studio.py styles import \
@@ -74,12 +75,12 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 ## 安装与验证
 
-安装包：`dist/video-studio-0.2.2-shawn.1.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
+安装包：`dist/video-studio-0.3.0-web.14.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
 
 ```sh
-shasum -a 256 -c video-studio-0.2.2-shawn.1.zip.sha256
-unzip video-studio-0.2.2-shawn.1.zip
-codex plugin marketplace add ./video-studio-0.2.2-shawn.1
+shasum -a 256 -c video-studio-0.3.0-web.14.zip.sha256
+unzip video-studio-0.3.0-web.14.zip
+codex plugin marketplace add ./video-studio-0.3.0-web.14
 ```
 
 在插件目录选择 Video Studio 本地来源安装，并在新聊天验证技能。安装缓存与市场源不是同一份文件；不要手工改缓存。插件目录与本地市场机制见 [OpenAI 官方文档](https://developers.openai.com/plugins/build/plugins)。
@@ -106,3 +107,16 @@ doctor 本地成功不表示 ChatCut 已连接。使用宿主完整 Python；损
 0.1.x 的旧 creative/style 和固定规格不自动导入。旧 run 的 schema 1 留给原插件继续，新版 schema 2 不覆盖旧项目。用户明确的音色等偏好可按需迁移。本包不包含发布、定时监控或后台制片服务。
 
 [命令与记录](plugins/video-studio/references/operations.md) · [风格规格](plugins/video-studio/references/style-format.md) · [可选诊断](plugins/video-studio/references/diagnostics.md) · [验证范围](VALIDATION.md)
+
+## 本地网页工作台
+
+插件的 `workbench/` 目录已包含完整网页、本地服务、启动器和 Token 用量组件，安装插件时一起分发；无需另取 sites 目录。安装后可对 Codex 说「打开 Video Studio 网页工作台」，或调用 `$open-video-workbench`。源码运行 `node plugins/video-studio/scripts/open-workbench.mjs` 会启动/复用服务并返回真实地址，再用宿主浏览器打开。双击插件 `workbench/start-macos.command` 则在终端运行。旧命令 `node sites/video-agent-demo/start.mjs` 保留为兼容入口。
+
+项目和素材缓存默认位于用户应用数据目录：macOS 为 `~/Library/Application Support/Video Studio/workbench/`，Windows 为 `%LOCALAPPDATA%/Video Studio/workbench/`，Linux 为 `$XDG_DATA_HOME/Video Studio/workbench/`（未设置时使用 `~/.local/share`）。可用 `VIDEO_STUDIO_WEB_DATA` 指定原目录。数据不放在插件安装缓存，升级后继续使用。工作台需要 Node.js 20+、Python 3.10+、Codex、ChatCut 连接及本地媒体工具；打开页面本身不开始制作。
+
+### 上传到 GitHub 分支
+
+`dist/video-studio-plugin-0.3.0-web.14.zip` 是仅含插件的包，根目录直接包含 `plugin.json`、`skills/`、`scripts/` 和 `workbench/`。解压到目标仓库的 `plugins/video-studio/` 后可提交分支；保留 `.agents/plugins/marketplace.json` 对该目录的引用。`dist/video-studio-0.3.0-web.14.zip` 是含 marketplace、测试、打包工具和说明的源码发行包。发行包采用白名单，不包含本机项目、素材、账号、个人风格和成片。
+
+
+网页的风格卡片由真实个人库和仓库可选用户包读取；可查看对应规则、检查方法、案例与原始证据，显示版本及未验证边界。选用未导入的条目时显式导入所在风格包，不应用默认偏好。

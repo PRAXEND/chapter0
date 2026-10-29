@@ -26,3 +26,9 @@ runtime-versions.json
 !dist/video-studio-0.2.0.zip.sha256
 !dist/video-studio-0.2.2-shawn.1.zip
 !dist/video-studio-0.2.2-shawn.1.zip.sha256
+
+# Workbench runtime and local deliverables must never enter plugin branches.
+**/.data/
+node_modules/
+deliverables/
+**/.data
