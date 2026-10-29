@@ -116,6 +116,64 @@ class WebBridgeTests(unittest.TestCase):
         self.assertEqual(saved['acquisition_report'], source['acquisition_report'])
         self.assertEqual(saved['title'], 'Reviewed source')
 
+    def test_direct_acquisition_preserves_existing_plan_and_records_missing_need(self):
+        payload = {'run': str(self.run), 'source': {'title': '用户点击的原片'}}
+        plan = web_bridge.prepare_collection(payload)
+        self.assertEqual(plan['scope'], 'user_clicked_acquisition')
+        self.assertEqual(plan['topic'], '适配器测试')
+        self.assertIn('未审阅', plan['needs'][0]['acceptance'])
+        self.assertEqual(web_bridge.prepare_collection(payload), plan)
+
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'media diagnostics not installed')
+    def test_audible_default_track_required_not_just_an_audio_stream(self):
+        requirements = {'width': 160, 'height': 90, 'fps': 25, 'max_seconds': 2, 'audio_required': True}
+        # Real encoded diagnostics: silence, inaudible audio and audible signal.
+        # These fixtures test the gate, not the quality of a real production mix.
+        for name, signal, gain, passes in [('silent', 'anullsrc=r=48000:cl=stereo', '1', False),
+                                           ('quiet', 'sine=frequency=440:sample_rate=48000', '0.00001', False),
+                                           ('audible', 'sine=frequency=440:sample_rate=48000', '1', True)]:
+            with self.subTest(name=name):
+                file = self.root / (name + '.mp4')
+                subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=s=160x90:r=25',
+                                '-f', 'lavfi', '-i', signal, '-t', '2', '-af', 'volume=' + gain,
+                                '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', str(file)], check=True)
+                request = {'file': str(file), 'requirements': requirements}
+                self.assertTrue(web_bridge.inspect_media(request)['hasAudio'])
+                if passes:
+                    result = web_bridge.verify_video(request)
+                    self.assertTrue(result['audibleAudioVerified'])
+                    self.assertGreater(result['audioPeakDbfs'], -60)
+                else:
+                    with self.assertRaisesRegex(ValueError, '静音或音量极低'):
+                        web_bridge.verify_video(request)
+                # An explicitly silent brief must remain supported.
+                self.assertTrue(web_bridge.verify_video({**request, 'requirements': {**requirements, 'audio_required': False}})['decodeVerified'])
+
+        # A silent default track cannot be masked by a second audible track.
+        file = self.root / 'default-silent.mp4'
+        subprocess.run(['ffmpeg', '-v', 'error', '-i', str(self.root / 'audible.mp4'),
+                        '-i', str(self.root / 'silent.mp4'), '-map', '0:v', '-map', '0:a', '-map', '1:a',
+                        '-c', 'copy', '-disposition:a:0', '0', '-disposition:a:1', 'default', str(file)], check=True)
+        with self.assertRaisesRegex(ValueError, '静音或音量极低'):
+            web_bridge.verify_video({'file': str(file), 'requirements': requirements})
+
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'media diagnostics not installed')
+    def test_video_duration_tolerance_and_audio_padding(self):
+        file = self.root / 'audio-padding.mp4'
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=s=160x90:r=25:d=2',
+                        '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2.2',
+                        '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', str(file)], check=True)
+        request = {'file': str(file), 'requirements': {'width': 160, 'height': 90, 'audio_required': True, 'max_seconds': 1.9}}
+        self.assertEqual(web_bridge.verify_video(request)['duration'], 2)
+        with self.assertRaisesRegex(ValueError, '时长上限'):
+            web_bridge.verify_video({**request, 'requirements': {**request['requirements'], 'max_seconds': 1.89}})
+
+    def test_invalid_video_duration_is_not_accepted(self):
+        info = {'hasVideo': True, 'hasAudio': False, 'duration': float('nan')}
+        with patch.object(web_bridge, 'inspect_media', return_value=info):
+            with self.assertRaisesRegex(ValueError, '视频流'):
+                web_bridge.verify_video({'file': 'unused', 'requirements': {}})
+
     @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'media diagnostics not installed')
     def test_actual_file_required_and_video_spec_checked(self):
         # A synthetic fixture only for testing diagnostics, never delivered as a production result.

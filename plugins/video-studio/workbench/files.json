@@ -39,5 +39,7 @@
   "paths.mjs",
   "launcher.mjs",
   "test/launcher.test.mjs",
-  "files.json"
+  "files.json",
+  "collection.mjs",
+  "test/collection.test.mjs"
 ]

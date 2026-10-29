@@ -11,12 +11,13 @@ import {initialStudio,validateSettings,updateSettings,validatePlan,inputHash,bri
 import {findPlugin,createPluginBridge} from './plugin.mjs';
 import {runAgent,cleanError,jobStopState} from './agent.mjs';
 import {rememberUsage} from './public/token-usage.js';
-import {fileHash,contained,mediaExtensions,mimeTypes,streamFile,saveUpload,publicUrl} from './media.mjs';
+import {fileHash,contained,mediaExtensions,mimeTypes,streamFile,saveUpload,publicUrl,nativeMediaTool} from './media.mjs';
 import {sourceDetails,materialPlan,normalizeReview,materialSelection,verifySourceIdentity} from './sources.mjs';
 import {MediaLibrary,candidateId} from './library.mjs';
 import {repositoryCatalog} from './repository.mjs';
 import {ProjectStore} from './projects.mjs';
 import {recoverLegacyProjects} from './recover-projects.mjs';
+import {canCollectRepository,collectRepository,scopedCollectionContext} from './collection.mjs';
 
 const root=path.dirname(fileURLToPath(import.meta.url));
 const dataDir=workbenchDataDirectory();
@@ -53,7 +54,7 @@ async function checkLocal(){
 }
 await checkLocal();
 function addEvent(job,type,message){job.events.push({type,message:cleanError(message),time:new Date().toISOString()});job.events=job.events.slice(-180);persist().catch(()=>{});}
-function sourceRecord(s){return {id:s.id,kind:s.kind,title:s.title,url:s.url||undefined,local_path:s.localPath||undefined,author:s.author||'',rights:s.rights||'unknown',need_ids:s.needIds?.length?s.needIds:['workbench-selection'],topic_fit:s.topicFit||s.description||'用户选择',style_fit:s.styleFit||'按本期风格评估',source_type:s.sourceType||'other',event_date:s.eventDate||'',date_evidence:s.dateEvidence||'',verification:s.verification||'',caveats:s.caveats||[],repository_commit:s.repositoryCommit||'',repository_path:s.repositoryPath||'',expected_sha256:s.expectedSha256||'',expected_bytes:s.expectedBytes||0,sha256:s.sha256,bytes:s.bytes,duration:s.duration,width:s.width,height:s.height,source_start_seconds:s.start||0,source_end_seconds:s.end||0};}
+function sourceRecord(s){return {id:s.id,kind:s.kind,title:s.title,url:s.url||undefined,local_path:s.localPath||undefined,author:s.author||'',rights:s.rights||'unknown',need_ids:s.needIds?.length?s.needIds:['workbench-selection'],topic_fit:s.topicFit||s.description||'用户选择',style_fit:s.styleFit||'按本期风格评估',source_type:s.sourceType||'other',event_date:s.eventDate||'',date_evidence:s.dateEvidence||'',...(s.acquisitionReport?{acquisition_report:s.acquisitionReport}:{}),verification:s.verification||'',caveats:s.caveats||[],repository_commit:s.repositoryCommit||'',repository_path:s.repositoryPath||'',expected_sha256:s.expectedSha256||'',expected_bytes:s.expectedBytes||0,sha256:s.sha256,bytes:s.bytes,duration:s.duration,width:s.width,height:s.height,source_start_seconds:s.start||0,source_end_seconds:s.end||0};}
 async function saveMaterialSelection(){if(project.run)await writeFile(path.join(project.run,'material-selection.json'),JSON.stringify(materialSelection(project),null,2));}
 async function ensureRun(){
   if(!project.run){const result=await bridge('create',{title:project.topic||'工作台连接检查',outputRoot:path.join(dataDir,'runs'),brief:brief({...project,topic:project.topic||'工作台连接检查'})});project.run=result.run;await persist();}
@@ -68,10 +69,10 @@ async function registerMedia(file,metadata={}){
   if(inspected.bytes>350*1024*1024)throw new Error('单个素材需小于 350 MB，请缩短采集范围。');
   const kind=mimeTypes[path.extname(file).toLowerCase()]?.startsWith('image/')?'image':inspected.hasVideo?'video':'audio';
   const existing=project.sources.find(s=>s.sha256===inspected.sha256 && s.status==='ready');if(existing&&(!metadata.id||metadata.id===existing.id)){await cacheMedia(existing);return existing;}
-  const source={...sourceDetails(metadata),id:metadata.id || 's-'+randomUUID().slice(0,12),candidateCacheId:metadata.candidateCacheId||null,title:metadata.title||path.basename(file),kind,url:metadata.url||'',mediaUrl:metadata.mediaUrl||'',author:metadata.author||'',rights:metadata.rights||'unknown',publishedAt:metadata.publishedAt||'',description:metadata.description||'',start:Number(metadata.start)||0,end:Number(metadata.end)||inspected.duration,localPath:file,status:'ready',duration:inspected.duration,width:inspected.width,height:inspected.height,sha256:inspected.sha256,bytes:inspected.bytes,thumbnailPath:null};
+  const source={...sourceDetails(metadata),id:metadata.id || 's-'+randomUUID().slice(0,12),candidateCacheId:metadata.candidateCacheId||null,title:metadata.title||path.basename(file),kind,url:metadata.url||'',mediaUrl:metadata.mediaUrl||'',author:metadata.author||'',rights:metadata.rights||'unknown',publishedAt:metadata.publishedAt||'',description:metadata.description||'',start:Number(metadata.start)||0,end:Number(metadata.end)||inspected.duration,localPath:file,acquisitionReport:metadata.acquisitionReport||'',status:'ready',duration:inspected.duration,width:inspected.width,height:inspected.height,sha256:inspected.sha256,bytes:inspected.bytes,thumbnailPath:null};
   if(inspected.hasVideo){
     const thumbnail=path.join(project.run,'previews',source.id+'.jpg');await mkdir(path.dirname(thumbnail),{recursive:true});
-    try{await execute('ffmpeg',['-v','error','-y','-ss',String(kind==='image'?0:Math.min(.5,inspected.duration/3)),'-i',file,'-frames:v','1','-vf','scale=480:-2',thumbnail],{timeout:30000});source.thumbnailPath=thumbnail;}catch{}
+    try{await execute(await nativeMediaTool('ffmpeg'),['-v','error','-y','-ss',String(kind==='image'?0:Math.min(.5,inspected.duration/3)),'-i',file,'-frames:v','1','-vf','scale=480:-2',thumbnail],{timeout:30000});source.thumbnailPath=thumbnail;}catch{}
   }
   const index=project.sources.findIndex(s=>s.id===source.id);if(index>=0)project.sources[index]=source;else project.sources.push(source);
   project.revision++;if(project.selected.includes(source.id)){project.approval=null;if(project.plan)project.plan.stale=true;}await cacheMedia(source);return source;
@@ -161,7 +162,9 @@ async function finishJob(job,context,{code,error,finalText}){
   finally{job.completedAt=new Date().toISOString();if(job.candidateCacheId)await library.markAcquisition(job.candidateCacheId,job).catch(e=>library.errors.push({title:'候选采集记录',error:cleanError(e.message)}));await refreshLibrary();await persist().catch(()=>{});if(active?.job.id===job.id)active=null;}
 }
 async function startJob(action,options={}){
-  assertReady(project,action);if(!runtime.codex||!runtime.authenticated)throw new Error('请先安装并登录 Codex，再重新检测本地环境。');await ensureRun();
+  assertReady(project,action);
+  const directCollection=action==='collect'&&canCollectRepository(project.sources.find(s=>s.id===options.sourceId));
+  if(!directCollection&&(!runtime.codex||!runtime.authenticated))throw new Error('请先安装并登录 Codex，再重新检测本地环境。');await ensureRun();
   if(['plan','produce'].includes(action))await checkSelected();
   if(action==='produce')await bridge('check-approval',{run:project.run,planHash:project.approval.planHash,inputHash:inputHash(project)});
   if(action==='collect' && !project.sources.some(s=>s.id===options.sourceId))throw new Error('找不到选中的内容。');
@@ -183,10 +186,36 @@ async function startJob(action,options={}){
   let previousPlanHash=previousProduction?.planHash;
   if(previousProduction&&!previousPlanHash)try{previousPlanHash=JSON.parse(await readFile(path.join(dataDir,'jobs',previousProduction.id,'request.json'),'utf8')).planHash;}catch{}
   const productionMode=previousProduction&&previousProduction.inputHash===inputHash(project)&&previousPlanHash===project.approval?.planHash?'recover':'new';
-  const context={productionMode,previousProduction:previousProduction?{id:previousProduction.id,status:previousProduction.status,inputHash:previousProduction.inputHash,planHash:previousPlanHash}:null,pluginRoot:plugin.root,run:project.run,jobDirectory,brief:brief(project),settings:{music:project.music,voiceDirection:project.voiceDirection,styleDescription:project.styleDescription},query:String(options.query||project.topic).slice(0,2000),source,knownSources:['discover','collect'].includes(action)?project.sources:undefined,sourceReview:project.sourceReview||null,selectedSources:project.sources.filter(s=>project.selected.includes(s.id)),plan:project.plan,planHash:project.approval?.planHash||null,inputHash:inputHash(project),userFollowup:String(options.followup||'').slice(0,4000),outputDirectory:project.outputRoot};
+  let context={productionMode,previousProduction:previousProduction?{id:previousProduction.id,status:previousProduction.status,inputHash:previousProduction.inputHash,planHash:previousPlanHash}:null,pluginRoot:plugin.root,run:project.run,jobDirectory,brief:brief(project),settings:{music:project.music,voiceDirection:project.voiceDirection,styleDescription:project.styleDescription},query:String(options.query||project.topic).slice(0,2000),source,knownSources:['discover','collect'].includes(action)?project.sources:undefined,sourceReview:project.sourceReview||null,selectedSources:project.sources.filter(s=>project.selected.includes(s.id)),plan:project.plan,planHash:project.approval?.planHash||null,inputHash:inputHash(project),userFollowup:String(options.followup||'').slice(0,4000),outputDirectory:project.outputRoot};
+  if(action==='collect'){
+    const acquired=[...new Map(project.sources.filter(s=>s.status==='ready'&&s.kind==='video'&&s.sha256!==source.expectedSha256).map(s=>[s.sha256,s])).values()];
+    context.acquisitionUsage={videoSources:acquired.length,videoSeconds:acquired.reduce((sum,s)=>sum+s.duration,0)};
+    context=scopedCollectionContext(context);
+  }
   if(action==='produce'){await unlink(path.join(project.run,'workbench-cancelled.json')).catch(()=>{});await unlink(path.join(project.run,'workbench-progress.json')).catch(()=>{});}
-  project.jobs.unshift(job);rememberUsage(project);project.jobs=project.jobs.slice(0,50);active={job,controller:null};addEvent(job,'queued',['discover','collect'].includes(action)?'网页已提交任务，正在加载插件的素材采集工具及适用来源规则':'网页已提交任务，正在加载 Video Studio 与 ChatCut 插件');await persist();
-  active.controller=runAgent({codex,job,context,event:(type,message)=>addEvent(job,type,message),onFinish:value=>finishJob(job,context,value)});return job;
+  project.jobs.unshift(job);rememberUsage(project);project.jobs=project.jobs.slice(0,50);active={job,controller:null};addEvent(job,'queued',directCollection?'正在直接采集所选仓库媒体并校验固定版本':['discover','collect'].includes(action)?'网页已提交任务，正在加载插件的素材采集工具及适用来源规则':'网页已提交任务，正在加载 Video Studio 与 ChatCut 插件');await persist();
+  active.controller=directCollection?runRepositoryCollection(job,context):runAgent({codex,job,context,event:(type,message)=>addEvent(job,type,message),onFinish:value=>finishJob(job,context,value)});return job;
+}
+function runRepositoryCollection(job,context){
+  const abort=new AbortController();
+  const controller={cancel(reason='user'){job.cancelRequested=true;job.stopReason=reason;abort.abort();}};
+  const timer=setTimeout(()=>controller.cancel('timeout'),180000);
+  job.execution='direct_repository';
+  (async()=>{
+    let outcome;
+    try{
+      await writeFile(path.join(context.jobDirectory,'request.json'),JSON.stringify(context,null,2));
+      await bridge('prepare-collection',{run:context.run,source:context.source});
+      const result=await collectRepository(context,{signal:abort.signal,event:(type,message)=>addEvent(job,type,message),
+        inspect:file=>bridge('inspect-media',{file}),
+        decode:async file=>execute(await nativeMediaTool('ffmpeg'),['-v','error','-xerror','-i',file,'-f','null','-'],{timeout:60000,signal:abort.signal}),
+        reuse:async source=>{const entry=library.entries.find(e=>e.sha256===source.expectedSha256&&e.bytes===source.expectedBytes);return entry?(await library.resolve(entry.id)).file:null;}});
+      outcome={code:0,finalText:JSON.stringify(result)};
+    }catch(e){abort.abort();outcome={code:1,error:cleanError(e.message)};}
+    finally{clearTimeout(timer);}
+    await finishJob(job,context,outcome);
+  })().catch(e=>{job.status='failed';job.error=cleanError(e.message);job.completedAt=new Date().toISOString();if(active?.job.id===job.id)active=null;persist().catch(()=>{});});
+  return controller;
 }
 function send(res,status,value){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));}
 async function body(req){let text='';for await(const block of req){text+=block;if(text.length>512000)throw new Error('请求内容过大。');}return JSON.parse(text||'{}');}

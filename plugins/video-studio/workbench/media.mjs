@@ -6,6 +6,17 @@ import {Transform,Readable} from 'node:stream';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import path from 'node:path';
+import os from 'node:os';
+
+export async function nativeMediaTool(name,env=process.env){
+  if(!['ffmpeg','ffprobe'].includes(name))throw new Error('不支持的媒体工具。');
+  const explicit=env.VIDEO_STUDIO_FFMPEG_DIR;
+  const folder=explicit||path.join(env.VIDEO_STUDIO_HOME||path.join(os.homedir(),'Library','Application Support','Video Studio'),'native-bin');
+  const candidate=path.join(folder.replace(/^~(?=\/)/,os.homedir()),name);
+  try{if((await stat(candidate)).isFile())return await realpath(candidate);}catch{}
+  if(explicit)throw new Error(`VIDEO_STUDIO_FFMPEG_DIR 中缺少 ${name}。`);
+  return name;
+}
 
 export const mediaExtensions=new Set(['.mp4','.mov','.webm','.mkv','.m4v','.jpg','.jpeg','.png','.webp','.gif','.mp3','.wav','.m4a','.aac','.ogg']);
 export const mimeTypes={'.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.mkv':'video/x-matroska','.m4v':'video/mp4','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.gif':'image/gif','.mp3':'audio/mpeg','.wav':'audio/wav','.m4a':'audio/mp4','.aac':'audio/aac','.ogg':'audio/ogg','.srt':'text/plain; charset=utf-8','.md':'text/markdown; charset=utf-8','.json':'application/json; charset=utf-8'};

@@ -5,7 +5,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import net from 'node:net';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
-import {fileHash,contained,mediaExtensions,mimeTypes,privateAddress} from './media.mjs';
+import {fileHash,contained,mediaExtensions,mimeTypes,privateAddress,nativeMediaTool} from './media.mjs';
 import {sourceDetails,verifySourceIdentity} from './sources.mjs';
 
 const execute=promisify(execFile);
@@ -112,7 +112,7 @@ export class MediaLibrary{
     }
     if(checked.hasVideo&&!entry.thumbnailPath){
       const thumbnail=path.join(this.directory,'previews',entry.id+'.jpg');await mkdir(path.dirname(thumbnail),{recursive:true});await contained(path.dirname(thumbnail),this.directory);
-      try{await execute('ffmpeg',['-v','error','-y','-ss',String(entry.kind==='image'?0:Math.min(.5,checked.duration/3)),'-i',entry.localPath,'-frames:v','1','-vf','scale=480:-2',thumbnail],{timeout:30000});entry.thumbnailPath=thumbnail;}catch{}
+      try{await execute(await nativeMediaTool('ffmpeg'),['-v','error','-y','-ss',String(entry.kind==='image'?0:Math.min(.5,checked.duration/3)),'-i',entry.localPath,'-frames:v','1','-vf','scale=480:-2',thumbnail],{timeout:30000});entry.thumbnailPath=thumbnail;}catch{}
     }
     const linked=this.candidates.filter(c=>c.id===source.candidateCacheId||candidateMatchesMedia(c,entry));
     entry.candidateIds=[...new Set([...(entry.candidateIds||[]),...linked.map(c=>c.id)])];

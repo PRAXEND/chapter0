@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -69,6 +70,23 @@ def sync(payload):
         if current_source is None or any(current_source.get(k) != v for k, v in source.items()):
             studio.record(run, "source", {**(current_source or {}), **source})
     return {"run": str(run), "revision": studio.load_run(run)["revision"]}
+
+
+def prepare_collection(payload):
+    """Record the clicked acquisition need without claiming a new editorial search."""
+    run = Path(payload["run"])
+    data = studio.load_run(run)
+    brief = data["brief"]
+    plan = data.get("material_plan")
+    if plan and plan.get("topic") == brief["topic"] and plan.get("style") == brief.get("style") and plan.get("needs"):
+        return plan
+    source = payload["source"]
+    plan = {"topic": brief["topic"], "style": brief.get("style"), "scope": "user_clicked_acquisition",
+            "needs": [{"id": "workbench-selection", "purpose": "获取用户点击的原始媒体，供后续按所选风格审阅",
+                       "query": brief["topic"] + " / " + source["title"],
+                       "acceptance": "固定版本 ready 清单、元数据、LFS 指针、文件哈希和规格一致；画面与事实未审阅"}]}
+    studio.record(run, "material_plan", plan)
+    return plan
 
 
 def save_plan(payload):
@@ -153,11 +171,14 @@ def inspect_media(payload):
     info = json.loads(process.stdout)
     streams = info.get("streams", [])
     video = next((s for s in streams if s.get("codec_type") == "video"), None)
-    audio = any(s.get("codec_type") == "audio" for s in streams)
+    audio_streams = [s for s in streams if s.get("codec_type") == "audio"]
+    audio = next((s for s in audio_streams if s.get("disposition", {}).get("default")),
+                 audio_streams[0] if audio_streams else None)
     if not video and not audio:
         raise ValueError("文件没有有效的视频或音频流。")
     try:
-        seconds = float(info.get("format", {}).get("duration", video.get("duration", 0) if video else 0))
+        seconds = float(video.get("duration", info.get("format", {}).get("duration", 0))
+                        if video else info.get("format", {}).get("duration", 0))
     except (TypeError, ValueError):
         seconds = 0
     try:
@@ -166,12 +187,13 @@ def inspect_media(payload):
         fps = 0
     return {"path": str(file), "bytes": file.stat().st_size, "sha256": file_digest(file), "fps": fps,
             "duration": seconds, "width": video.get("width", 0) if video else 0,
-            "height": video.get("height", 0) if video else 0, "hasVideo": bool(video), "hasAudio": audio}
+            "height": video.get("height", 0) if video else 0, "hasVideo": bool(video), "hasAudio": audio is not None,
+            "audioStreamIndex": audio.get("index") if audio is not None else None}
 
 
 def verify_video(payload):
     info = inspect_media(payload)
-    if not info["hasVideo"] or info["duration"] <= 0:
+    if not info["hasVideo"] or not math.isfinite(info["duration"]) or info["duration"] <= 0:
         raise ValueError("没有可交付的视频流。")
     requirements = payload["requirements"]
     if info["width"] != requirements["width"] or info["height"] != requirements["height"]:
@@ -180,20 +202,36 @@ def verify_video(payload):
         raise ValueError("成片帧率与本期要求不一致。")
     if requirements.get("audio_required") and not info["hasAudio"]:
         raise ValueError("本期要求声音，但成片没有音轨。")
-    if requirements.get("max_seconds") and info["duration"] > requirements["max_seconds"]:
+    if requirements.get("max_seconds") and info["duration"] > requirements["max_seconds"] + 0.1:
         raise ValueError("成片超过用户指定的时长上限。")
     if requirements.get("min_seconds") and info["duration"] < requirements["min_seconds"]:
         raise ValueError("成片短于用户指定的时长下限。")
     binary = studio.native_tool("ffmpeg")
     if not binary:
         raise ValueError("缺少 ffmpeg，请先检查本地环境。")
-    process = subprocess.run([binary, "-v", "error", "-xerror", "-i", info["path"], "-f", "null", "-"], capture_output=True, text=True, timeout=300)
+    # Inspect the default playback track in the same decode pass. A silent AAC track
+    # is still an audio stream; stream presence alone cannot establish audible sound.
+    measure_audio = requirements.get("audio_required", False)
+    command = [binary, "-hide_banner", "-nostats", "-v", "info" if measure_audio else "error",
+               "-xerror", "-i", info["path"], "-map", "0:v:0"]
+    if info["hasAudio"]:
+        command += ["-map", f"0:{info['audioStreamIndex']}"]
+    if measure_audio:
+        command += ["-af", "volumedetect"]
+    process = subprocess.run(command + ["-f", "null", "-"], capture_output=True, text=True, timeout=300)
     if process.returncode:
         raise ValueError("成片未通过完整解码检查：" + process.stderr[-400:])
-    return {**info, "decodeVerified": True, "perceptualReview": "requires_evidence"}
+    if measure_audio:
+        peak = re.search(r"max_volume:\s*(-?\d+(?:\.\d+)?|-inf) dB", process.stderr)
+        if not peak or float(peak[1]) <= -60:
+            raise ValueError("成片音轨为静音或音量极低（峰值不高于 -60 dBFS），请检查配音是否加入时间线、轨道静音和导出混音。")
+        info["audioPeakDbfs"] = float(peak[1])
+    return {**info, "decodeVerified": True, "audibleAudioVerified": bool(measure_audio),
+            "perceptualReview": "requires_evidence"}
 
 
 ACTIONS = {"catalog": catalog, "create": create, "sync": sync, "save-plan": save_plan,
+           "prepare-collection": prepare_collection,
            "style-details": lambda p: web_styles.details(p["key"]),
            "style-reference": lambda p: web_styles.reference(p["key"], p["referenceId"]),
            "style-select": lambda p: web_styles.select(p["key"]),
