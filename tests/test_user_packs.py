@@ -90,14 +90,29 @@ class UserPackTests(unittest.TestCase):
         self.assertEqual([x["id"] for x in result["options"]], ["sample@2"])
         self.assertEqual(len(result["errors"]), 1)
 
-    def test_limit_is_strict_but_exact_maximum_is_allowed(self):
+    def test_duration_limit_preserves_one_tenth_second_tolerance(self):
         run, media = fixtures.StyleTests.fixture(self)
         data = studio.load_run(run)
         data["settings"]["max_seconds"] = 180
+        # Fixtures without a stream duration retain the container fallback.
+        for duration in ("180", "180.05", "180.1", "180.1001"):
+            with self.subTest(duration=duration):
+                media["format"]["duration"] = duration
+                result = studio.audit_data(data, media, [], "a" * 64)
+                self.assertEqual("duration_above_requested_maximum" in result["failures"],
+                                 float(duration) > 180.1)
+
+    def test_video_duration_controls_limit_even_with_audio_padding(self):
+        run, media = fixtures.StyleTests.fixture(self)
+        data = studio.load_run(run)
+        data["settings"]["max_seconds"] = 180
+        video = next(s for s in media["streams"] if s["codec_type"] == "video")
+        media["format"]["duration"] = "180.18"
+        video["duration"] = "180.1"
         self.assertTrue(studio.audit_data(data, media, [], "a" * 64)["technical_pass"])
-        media["format"]["duration"] = "180.05"
-        result = studio.audit_data(data, media, [], "a" * 64)
-        self.assertIn("duration_above_requested_maximum", result["failures"])
+        video["duration"] = "180.1001"
+        self.assertIn("duration_above_requested_maximum",
+                      studio.audit_data(data, media, [], "a" * 64)["failures"])
 
     def brief(self, **extra):
         return fixtures.StyleTests.brief(self, **extra)

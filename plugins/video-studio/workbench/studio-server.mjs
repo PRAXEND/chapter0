@@ -113,7 +113,7 @@ async function deliver(result,job){
   for(const [file,value] of Object.entries(extras))await writeFile(path.join(staging,file),JSON.stringify(value,null,2));
   const files=[];
   async function add(file,name,role){if(files.some(f=>f.name===name))throw new Error('交付文件名重复，请核对导出结果。');const destination=path.join(staging,name);await copyFile(file,destination);files.push({id:randomUUID(),name,role,path:destination,bytes:(await stat(destination)).size,sha256:await fileHash(destination)});}
-  for(const item of registered){const ext=path.extname(item.path).toLowerCase();if(!['.mp4','.srt','.json','.md','.txt'].includes(ext))continue;const name=item.role==='video'?'final.mp4':item.role==='subtitles'?'captions.srt':item.role==='qa'?'qa-report.json':`${files.length+1}-${path.basename(item.path)}`;await add(item.path,name,item.role);}
+  for(const item of registered){const ext=path.extname(item.path).toLowerCase();if(!['.mp4','.srt','.json','.md','.txt','.png','.jpg','.jpeg','.webp'].includes(ext))continue;const name=item.role==='video'?'final.mp4':item.role==='subtitles'?'captions.srt':item.role==='qa'?'qa-report.json':`${files.length+1}-${path.basename(item.path)}`;await add(item.path,name,item.role);}
   const approval=await bridge('check-approval',{run:project.run,planHash:project.approval.planHash,inputHash:inputHash(project)});await add(approval.file,'script-storyboard.md','plan');
   for(const file of Object.keys(extras)){const p=path.join(staging,file);files.push({id:randomUUID(),name:file,role:file.startsWith('sources')?'sources':file.startsWith('project')?'project':'qa',path:p,bytes:(await stat(p)).size,sha256:await fileHash(p)});}
   await rename(staging,directory);for(const file of files)file.path=path.join(directory,file.name);

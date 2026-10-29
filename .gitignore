@@ -32,3 +32,9 @@ runtime-versions.json
 node_modules/
 deliverables/
 **/.data
+!dist/video-studio-0.2.4.zip
+!dist/video-studio-0.2.4.zip.sha256
+
+# Explicitly shared reproduction media; stored through Git LFS.
+!user-packs/henry-video-styles/media/**/*.mp4
+!user-packs/henry-video-styles/media/**/*.mp3

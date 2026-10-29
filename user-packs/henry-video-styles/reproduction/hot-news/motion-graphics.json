@@ -1,0 +1,650 @@
+[
+  {
+    "id": "ref-2e04652e6675",
+    "name": "v4r2｜抽屉关闭冲击线｜动作锚定",
+    "type": "motion-graphic",
+    "durationMs": 600,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 300,
+      "width": 440
+    },
+    "editableProperties": [
+      {
+        "key": "color",
+        "type": "color",
+        "defaultValue": "#F7F7F2"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "defaultValue": "#D7FF3F"
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "color",
+        "type": "color",
+        "label": "字色",
+        "defaultValue": "#F7F7F2"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "label": "强调色",
+        "defaultValue": "#D7FF3F"
+      }
+    ],
+    "code": "const Component=({item})=>{const f=useCurrentFrame();const p=item.props;const rootStyle={position:\"relative\",width:\"100%\",height:\"100%\",overflow:\"visible\"};\n const op=interpolate(f,[0,2,7,17],[0,1,.7,0],{extrapolateRight:\"clamp\"});const d=interpolate(f,[0,17],[0,52],{extrapolateRight:\"clamp\"});\n return <div style={rootStyle}>{[0,1,2,3,4,5,6,7].map(i=>{const a=i*Math.PI/4;return <div key={i} style={{position:\"absolute\",left:210+Math.cos(a)*(95+d),top:140+Math.sin(a)*(55+d*.6),width:40+(i%2)*20,height:i%2?3:5,backgroundColor:p.accent,opacity:op,transform:\"rotate(\"+(i*45)+\"deg)\",boxShadow:\"0 0 8px \"+p.accent}}/>})}{[0,1,2].map(i=><div key={i} style={{position:\"absolute\",left:80-d*2,top:115+i*16,width:75,height:3,backgroundColor:p.color,filter:\"blur(2px)\",opacity:op*.8,transform:\"rotate(-8deg)\"}}/>)}</div>;};",
+    "revision": "sha256:4bfecdcdc3f730c6431f07e3bd73802fa5c338152d3c8e5d04f1461a9c16026b"
+  },
+  {
+    "id": "ref-19c27b6c5cee",
+    "name": "v4 模型事实｜光扫揭示",
+    "type": "motion-graphic",
+    "durationMs": 6334,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 200,
+      "width": 700
+    },
+    "editableProperties": [
+      {
+        "key": "title",
+        "type": "text",
+        "defaultValue": "π0.5"
+      },
+      {
+        "key": "subtitle",
+        "type": "text",
+        "defaultValue": "训练中没见过的房间"
+      },
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Xinqingnian Ti"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "defaultValue": "#D7FF3F"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "defaultValue": "#F7F7F2"
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "title",
+        "type": "text",
+        "label": "型号",
+        "defaultValue": "π0.5"
+      },
+      {
+        "key": "subtitle",
+        "type": "text",
+        "label": "测试限定",
+        "defaultValue": "训练中没见过的房间"
+      },
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Xinqingnian Ti"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "label": "光色",
+        "defaultValue": "#D7FF3F"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "字色",
+        "defaultValue": "#F7F7F2"
+      }
+    ],
+    "code": "const Component=({item})=>{const frame=useCurrentFrame();const p=item.props;const fade=interpolate(frame,[0,6,182,189],[0,1,1,0],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"});const reveal=interpolate(frame,[0,13],[0,100],{extrapolateRight:\"clamp\"});const scan=interpolate(frame,[0,18],[-30,720],{extrapolateRight:\"clamp\"});const rootStyle={position:\"absolute\",inset:0,backgroundColor:\"transparent\",opacity:fade,overflow:\"hidden\",padding:16,display:\"flex\",flexDirection:\"column\",gap:12};const titleStyle={fontFamily:p.font,fontSize:88,lineHeight:1.05,color:p.accent,textShadow:\"0 2px 9px #111\",clipPath:\"inset(0 \"+(100-reveal)+\"% 0 0)\"};const sub={fontFamily:p.font,fontSize:38,color:p.color,lineHeight:1.15,textShadow:\"0 2px 9px #111\",opacity:Math.min(1,Math.max(0,(frame-10)/8))};const light={position:\"absolute\",left:scan,top:0,height:180,width:5,backgroundColor:p.accent,boxShadow:\"0 0 18px \"+p.accent,opacity:frame<18?0.65:0,transform:\"rotate(13deg)\"};return <div style={rootStyle}><div style={titleStyle}>{p.title}</div><div style={sub}>{p.subtitle}</div><div style={light}/></div>;};",
+    "revision": "sha256:deb6895b1f878a282ecebf47d97bfc8392f464caec502660a22abaf3209f883e"
+  },
+  {
+    "id": "ref-9cee1915acc9",
+    "name": "v4r2｜机制大字与环绕字体｜实拍分步解释",
+    "type": "motion-graphic",
+    "durationMs": 7667,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 570,
+      "width": 950
+    },
+    "editableProperties": [
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Xinqingnian Ti"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "defaultValue": "#F7F7F2"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "defaultValue": "#D7FF3F"
+      },
+      {
+        "key": "ink",
+        "type": "color",
+        "defaultValue": "#111319"
+      },
+      {
+        "key": "kicker",
+        "type": "text",
+        "defaultValue": "机制拆解"
+      },
+      {
+        "key": "titleA",
+        "type": "text",
+        "defaultValue": "先判断"
+      },
+      {
+        "key": "titleB",
+        "type": "text",
+        "defaultValue": "再动作"
+      },
+      {
+        "key": "titleC",
+        "type": "text",
+        "defaultValue": "变化？再判断"
+      },
+      {
+        "key": "subA",
+        "type": "text",
+        "defaultValue": "收起衣服"
+      },
+      {
+        "key": "subB",
+        "type": "text",
+        "defaultValue": "把任务变成动作"
+      },
+      {
+        "key": "subC",
+        "type": "text",
+        "defaultValue": "换位置，也能续上"
+      },
+      {
+        "key": "orbit",
+        "type": "text",
+        "defaultValue": "观察·判断·任务·反馈"
+      },
+      {
+        "key": "actionA",
+        "type": "text",
+        "defaultValue": "抓取"
+      },
+      {
+        "key": "actionB",
+        "type": "text",
+        "defaultValue": "移动"
+      },
+      {
+        "key": "actionC",
+        "type": "text",
+        "defaultValue": "放下"
+      },
+      {
+        "key": "note",
+        "type": "text",
+        "defaultValue": "机制示意 · 非实时内部数据"
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Xinqingnian Ti"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "字色",
+        "defaultValue": "#F7F7F2"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "label": "强调色",
+        "defaultValue": "#D7FF3F"
+      },
+      {
+        "key": "ink",
+        "type": "color",
+        "label": "描边色",
+        "defaultValue": "#111319"
+      },
+      {
+        "key": "kicker",
+        "type": "text",
+        "label": "kicker",
+        "defaultValue": "机制拆解"
+      },
+      {
+        "key": "titleA",
+        "type": "text",
+        "label": "titleA",
+        "defaultValue": "先判断"
+      },
+      {
+        "key": "titleB",
+        "type": "text",
+        "label": "titleB",
+        "defaultValue": "再动作"
+      },
+      {
+        "key": "titleC",
+        "type": "text",
+        "label": "titleC",
+        "defaultValue": "变化？再判断"
+      },
+      {
+        "key": "subA",
+        "type": "text",
+        "label": "subA",
+        "defaultValue": "收起衣服"
+      },
+      {
+        "key": "subB",
+        "type": "text",
+        "label": "subB",
+        "defaultValue": "把任务变成动作"
+      },
+      {
+        "key": "subC",
+        "type": "text",
+        "label": "subC",
+        "defaultValue": "换位置，也能续上"
+      },
+      {
+        "key": "orbit",
+        "type": "text",
+        "label": "orbit",
+        "defaultValue": "观察·判断·任务·反馈"
+      },
+      {
+        "key": "actionA",
+        "type": "text",
+        "label": "actionA",
+        "defaultValue": "抓取"
+      },
+      {
+        "key": "actionB",
+        "type": "text",
+        "label": "actionB",
+        "defaultValue": "移动"
+      },
+      {
+        "key": "actionC",
+        "type": "text",
+        "label": "actionC",
+        "defaultValue": "放下"
+      },
+      {
+        "key": "note",
+        "type": "text",
+        "label": "note",
+        "defaultValue": "机制示意 · 非实时内部数据"
+      }
+    ],
+    "code": "const Component=({item})=>{\n const f=useCurrentFrame();const p=item.props;const rootStyle={position:\"relative\",width:\"100%\",height:\"100%\",fontFamily:p.font,overflow:\"visible\"};\n const stage=f<65?0:f<161?1:2;const sf=stage===0?f:stage===1?f-65:f-161;\n const en=interpolate(sf,[0,5,10],[0.6,1.06,1],{extrapolateRight:\"clamp\"});const out=interpolate(f,[216,229],[1,0],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"});\n const chars=p.orbit.split(\"·\");const line=stage===0?p.titleA:stage===1?p.titleB:p.titleC;\n const sub=stage===0?p.subA:stage===1?p.subB:p.subC;\n const nodes=[p.actionA,p.actionB,p.actionC];\n const phase=Math.max(0,Math.min(2,Math.floor((f-65)/22)));\n return <div style={rootStyle}>\n <div style={{position:\"absolute\",left:280,top:10,color:p.accent,fontSize:30,letterSpacing:4,textShadow:\"2px 2px 4px \"+p.ink,opacity:out}}>{p.kicker}</div>\n <div style={{position:\"absolute\",left:275,top:60,color:p.color,fontSize:stage===2?90:110,lineHeight:1.1,whiteSpace:\"nowrap\",WebkitTextStroke:\"2px \"+p.ink,textShadow:\"5px 6px 0 \"+p.ink,transform:\"translateX(\"+(1-en)*120+\"px) scale(\"+en+\")\",transformOrigin:\"left\",opacity:out}}>{line}</div>\n {stage===0&&chars.map((ch,i)=>{const a=i/chars.length*Math.PI*2+f*.035;const z=Math.sin(a);return <div key={i} style={{position:\"absolute\",left:580+Math.cos(a)*250-70,top:275+z*100-35,width:140,textAlign:\"center\",fontSize:62,whiteSpace:\"nowrap\",color:p.accent,WebkitTextStroke:\"1px \"+p.ink,textShadow:\"0 0 12px \"+p.ink,opacity:out*(.4+.6*(z+1)/2),transform:\"perspective(600px) rotateY(\"+(-Math.cos(a)*55)+\"deg) scale(\"+(0.75+(z+1)*.18)+\")\",backfaceVisibility:\"hidden\"}}>{ch}</div>})}\n <div style={{position:\"absolute\",left:stage===0?410:315,top:245,color:p.color,fontSize:stage===0?84:68,whiteSpace:\"nowrap\",textShadow:\"3px 4px 0 \"+p.ink,WebkitTextStroke:\"1px \"+p.ink,opacity:out,transform:\"translateY(\"+((1-en)*50)+\"px)\"}}>{sub}</div>\n {stage>0&&nodes.map((t,i)=>{const x=300+i*190;const active=stage===2||i<=phase;return <div key={i} style={{position:\"absolute\",left:x,top:360,opacity:out*(active?1:.2)}}>\n <div style={{fontSize:54,color:active?p.accent:p.color,textShadow:\"2px 3px 4px \"+p.ink,transform:\"scale(\"+(stage===1&&i===phase?1+.04*Math.sin(f*.3):1)+\")\"}}>{t}</div>\n <div style={{position:\"absolute\",left:0,top:76,width:145,height:4,backgroundColor:p.accent}}/>\n </div>})}\n {stage>0&&[0,1,2,3].map(i=>{const travel=((f*8+i*95)%560);return <div key={i} style={{position:\"absolute\",left:300+travel,top:437,width:16,height:5,borderRadius:5,backgroundColor:p.color,boxShadow:\"0 0 16px \"+p.accent,opacity:out*(1-i*.14)}}/>})}\n <div style={{position:\"absolute\",left:280,top:500,color:p.color,fontSize:25,textShadow:\"2px 2px 4px \"+p.ink,opacity:out*.9}}>{p.note}</div>\n </div>;};",
+    "revision": "sha256:e9755d3e33c74f0ccb45bd81c1586b9f19ce3d86c99342ab2e21f4fe1fe46d49"
+  },
+  {
+    "id": "ref-f1793ffe7d67",
+    "name": "v4r3｜情绪弹字｜重点放大与错位裂字",
+    "type": "motion-graphic",
+    "durationMs": 1800,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 250,
+      "width": 780
+    },
+    "editableProperties": [
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Xinqingnian Ti"
+      },
+      {
+        "key": "text",
+        "type": "text",
+        "defaultValue": "怎么还有？！"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "defaultValue": "#F7F7F2"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "defaultValue": "#D7FF3F"
+      },
+      {
+        "key": "ink",
+        "type": "color",
+        "defaultValue": "#111319"
+      },
+      {
+        "key": "emphasis",
+        "type": "number",
+        "defaultValue": 2
+      },
+      {
+        "key": "count",
+        "type": "number",
+        "defaultValue": 2
+      },
+      {
+        "key": "crack",
+        "type": "boolean",
+        "defaultValue": true
+      },
+      {
+        "key": "tilt",
+        "type": "number",
+        "defaultValue": -4
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Xinqingnian Ti"
+      },
+      {
+        "key": "text",
+        "type": "text",
+        "label": "反应文字",
+        "defaultValue": "怎么还有？！"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "字色",
+        "defaultValue": "#F7F7F2"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "label": "重点字色",
+        "defaultValue": "#D7FF3F"
+      },
+      {
+        "key": "ink",
+        "type": "color",
+        "label": "描边",
+        "defaultValue": "#111319"
+      },
+      {
+        "key": "emphasis",
+        "max": 10,
+        "min": 0,
+        "type": "number",
+        "label": "强调起始字",
+        "defaultValue": 2
+      },
+      {
+        "key": "count",
+        "max": 5,
+        "min": 1,
+        "type": "number",
+        "label": "强调字数",
+        "defaultValue": 2
+      },
+      {
+        "key": "crack",
+        "type": "boolean",
+        "label": "裂字效果",
+        "defaultValue": true
+      },
+      {
+        "key": "tilt",
+        "max": 10,
+        "min": -10,
+        "type": "number",
+        "label": "倾角",
+        "defaultValue": -4
+      }
+    ],
+    "code": "const Component=({item})=>{\nconst f=useCurrentFrame();const p=item.props;\nconst rootStyle={position:\"relative\",width:\"100%\",height:\"100%\",overflow:\"visible\",fontFamily:p.font};\nconst out=interpolate(f,[46,53],[1,0],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"});\nconst chars=Array.from(p.text);let cursor=34;\nconst letters=chars.map((c,i)=>{const big=i>=p.emphasis&&i<p.emphasis+p.count;const size=big?112:72;const x=cursor;cursor+=big?119:77;return {c,i,big,size,x};});\nconst enter=interpolate(f,[0,3,7,11],[0.42,1.12,0.97,1],{extrapolateRight:\"clamp\"});\nconst fracture=p.crack?interpolate(f,[10,13,19],[0,13,7],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"}):0;\nreturn <div style={rootStyle}><div style={{position:\"absolute\",left:0,top:5,width:750,height:220,opacity:out,transform:\"rotate(\"+p.tilt+\"deg)\",transformOrigin:\"50% 60%\"}}>\n{letters.map(l=>{const k=Math.max(0,f-l.i);const sc=interpolate(k,[0,3,8],[0.3,l.big?1.22:1.1,1],{extrapolateRight:\"clamp\"});const y=l.big?36:75;const common={position:\"absolute\",left:l.x,top:y,width:l.size+16,height:l.size*1.25,fontSize:l.size,lineHeight:1.08,whiteSpace:\"nowrap\",color:l.big?p.accent:p.color,WebkitTextStroke:\"2px \"+p.ink,textShadow:\"4px 5px 0 \"+p.ink,opacity:Math.min(1,k/2),transformOrigin:\"50% 65%\"};\nreturn <div key={l.i}>\n{[0,1].map(j=><div key={j} style={{...common,color:p.accent,opacity:Math.max(0,1-k/6)*(0.16-j*0.05),transform:\"translate(\"+(20+j*17)+\"px,\"+(-10-j*8)+\"px) scale(\"+sc+\")\",filter:\"blur(3px)\"}}>{l.c}</div>)}\n{l.big&&p.crack?<div><div style={{...common,clipPath:\"polygon(0 0,100% 0,100% 43%,68% 48%,51% 39%,34% 57%,0 50%)\",transform:\"translate(\"+(-fracture)+\"px,\"+(-fracture*.5)+\"px) rotate(\"+(-fracture*.35)+\"deg) scale(\"+sc+\")\"}}>{l.c}</div><div style={{...common,clipPath:\"polygon(0 50%,34% 57%,51% 39%,68% 48%,100% 43%,100% 100%,0 100%)\",transform:\"translate(\"+fracture+\"px,\"+(fracture*.55)+\"px) rotate(\"+(fracture*.3)+\"deg) scale(\"+sc+\")\"}}>{l.c}</div></div>:<div style={{...common,transform:\"scale(\"+sc+\")\"}}>{l.c}</div>}\n</div>;})}\n<div style={{position:\"absolute\",left:34,top:174,height:5,width:Math.min(630,cursor-40),background:p.accent,opacity:.9,transform:\"scaleX(\"+Math.min(1,f/10)+\")\",transformOrigin:\"left\"}}/>\n{[0,1,2,3,4,5].map(i=>{const active=p.crack?f-11:f;const a=i*Math.PI/3;const visible=active>=0?Math.max(0,1-active/13):0;return <div key={i} style={{position:\"absolute\",left:355+Math.cos(a)*(245+Math.max(0,active)*6),top:105+Math.sin(a)*(72+Math.max(0,active)*4),width:18,height:5,background:p.accent,opacity:visible,transform:\"rotate(\"+(i*60)+\"deg)\"}}/>})}\n</div></div>;};",
+    "revision": "sha256:cab4596e411b72aacc1e3aa756595b5f27ca7de04ca5b3a9c8241eed57e52bb3"
+  },
+  {
+    "id": "ref-3b49570e615c",
+    "name": "v4r3｜厨房台面四角透视投影",
+    "type": "motion-graphic",
+    "durationMs": 3000,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 245,
+      "width": 540
+    },
+    "editableProperties": [
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Xinqingnian Ti"
+      },
+      {
+        "key": "text",
+        "type": "text",
+        "defaultValue": "陌生厨房"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "defaultValue": "#06758A"
+      },
+      {
+        "key": "ink",
+        "type": "color",
+        "defaultValue": "#014455"
+      },
+      {
+        "key": "glow",
+        "type": "color",
+        "defaultValue": "#C3FFFF"
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Xinqingnian Ti"
+      },
+      {
+        "key": "text",
+        "type": "text",
+        "label": "投影文字",
+        "defaultValue": "陌生厨房"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "字色",
+        "defaultValue": "#06758A"
+      },
+      {
+        "key": "ink",
+        "type": "color",
+        "label": "边缘色",
+        "defaultValue": "#014455"
+      },
+      {
+        "key": "glow",
+        "type": "color",
+        "label": "光色",
+        "defaultValue": "#C3FFFF"
+      }
+    ],
+    "code": "const Component=({item})=>{\nconst f=useCurrentFrame();const p=item.props;\nconst rootStyle={position:\"relative\",width:\"100%\",height:\"100%\",overflow:\"visible\",fontFamily:p.font};\nconst opacity=interpolate(f,[0,8,70,84],[0,1,1,0],{extrapolateRight:\"clamp\"});\nconst reveal=interpolate(f,[0,14],[100,0],{extrapolateRight:\"clamp\"});\nreturn <div style={rootStyle}><div style={{position:\"absolute\",left:0,top:0,width:500,height:150,transformOrigin:\"0px 0px\",transform:\"matrix3d(0.ref-b2b6ff686f81,-0.ref-74f189ce92ea,0,-0.ref-ce7501cfe360,0.ref-98eacaffbe0f,0.ref-2e7cceb1cec4,0,-0.ref-2deb3b5c548f,0,0,1,0,15,185,0,1)\",opacity,clipPath:\"inset(0 \"+reveal+\"% 0 0)\"}}>\n<div style={{position:\"absolute\",left:12,top:0,fontSize:116,lineHeight:1.1,letterSpacing:4,color:p.color,WebkitTextStroke:\"1px \"+p.ink,textShadow:\"0 0 5px \"+p.glow,whiteSpace:\"nowrap\"}}>{p.text}</div>\n<div style={{position:\"absolute\",left:16,top:133,width:465,height:4,background:p.color,opacity:.5}}/>\n<div style={{position:\"absolute\",left:interpolate(f,[0,18],[0,490],{extrapolateRight:\"clamp\"}),top:7,width:7,height:124,background:p.glow,boxShadow:\"0 0 14px \"+p.glow,opacity:f<18?.55:0}}/>\n</div></div>;};",
+    "revision": "sha256:355cf16f45b8da047fbc11deb244df419c4a5b873e2a20cce51c33b5ac218344"
+  },
+  {
+    "id": "ref-bd0c2980b7e2",
+    "name": "v4 轻量来源角标",
+    "type": "motion-graphic",
+    "durationMs": 62967,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 52,
+      "width": 560
+    },
+    "editableProperties": [
+      {
+        "key": "text",
+        "type": "text",
+        "defaultValue": "2025 研究回看 · PI 官方演示"
+      },
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Xinqingnian Ti"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "defaultValue": "#F7F7F2"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "defaultValue": "#D7FF3F"
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "text",
+        "type": "text",
+        "label": "来源标识",
+        "defaultValue": "2025 研究回看 · PI 官方演示"
+      },
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Xinqingnian Ti"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "字色",
+        "defaultValue": "#F7F7F2"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "label": "提示色",
+        "defaultValue": "#D7FF3F"
+      }
+    ],
+    "code": "const Component=({item})=>{const p=item.props;const rootStyle={position:\"absolute\",inset:0,backgroundColor:\"transparent\",display:\"flex\",gap:12,alignItems:\"center\",justifyContent:\"flex-end\",padding:6};const t={fontFamily:p.font,fontSize:25,color:p.color,textShadow:\"0 2px 6px #000\",lineHeight:1.2};const dot={width:7,height:7,backgroundColor:p.accent,borderRadius:9};return <div style={rootStyle}><div style={dot}/><div style={t}>{p.text}</div></div>;};",
+    "revision": "sha256:c8d4b0b18aaa92487965bd1aaa8afc443e7f3987f2fde19e7abca2a4142c7db2"
+  },
+  {
+    "id": "ref-19d6bc11f59c",
+    "name": "v4 重点词｜方向拖影揭示",
+    "type": "motion-graphic",
+    "durationMs": 2000,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 140,
+      "width": 700
+    },
+    "editableProperties": [
+      {
+        "key": "text",
+        "type": "text",
+        "defaultValue": "又给关了"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "defaultValue": "#D7FF3F"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "defaultValue": "#F7F7F2"
+      },
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Xinqingnian Ti"
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "text",
+        "type": "text",
+        "label": "重点词",
+        "defaultValue": "又给关了"
+      },
+      {
+        "key": "accent",
+        "type": "color",
+        "label": "强调色",
+        "defaultValue": "#D7FF3F"
+      },
+      {
+        "key": "color",
+        "type": "color",
+        "label": "字色",
+        "defaultValue": "#F7F7F2"
+      },
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Xinqingnian Ti"
+      }
+    ],
+    "code": "const Component=({item})=>{const frame=useCurrentFrame();const {durationInFrames}=useVideoConfig();const p=item.props;const enter=interpolate(frame,[0,5,9],[0,1.06,1],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"});const opacity=interpolate(frame,[0,3,durationInFrames-6,durationInFrames-1],[0,1,1,0],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"});const slide=interpolate(frame,[0,7],[65,0],{extrapolateRight:\"clamp\"});const blur=interpolate(frame,[0,7],[9,0],{extrapolateRight:\"clamp\"});const rootStyle={position:\"absolute\",inset:0,backgroundColor:\"transparent\",display:\"flex\",alignItems:\"center\",padding:\"12px 22px\",opacity};const textStyle={fontFamily:p.font,fontSize:78,lineHeight:1.15,color:p.color,textShadow:\"0 3px 10px #000\",WebkitTextStroke:\"1px #111\",transform:\"translateX(\"+slide+\"px) scale(\"+enter+\")\",transformOrigin:\"left center\",filter:\"blur(\"+blur+\"px)\",whiteSpace:\"nowrap\"};const barStyle={position:\"absolute\",left:22,bottom:10,width:88,height:6,backgroundColor:p.accent,transform:\"scaleX(\"+Math.min(1,enter)+\")\",transformOrigin:\"left center\",boxShadow:\"0 0 12px \"+p.accent};return <div style={rootStyle}><div style={barStyle}/><div style={textStyle}>{p.text}</div></div>;};",
+    "revision": "sha256:11dfc57efbc595d26e0944a61152ae2cb778465b10a2144bca6611934e2ac5a2"
+  }
+]
