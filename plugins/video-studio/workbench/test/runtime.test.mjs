@@ -3,7 +3,42 @@ import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,chmod,rm,readFile,realpath} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import {compareVersions,inspectCodex,readModelCompatibility,sourceCapabilities,dependencyFailures} from '../runtime.mjs';
+
+test('CLI checks keep working when the installer removes the parent process working directory',async()=>{
+  const root=await mkdtemp(path.join(os.tmpdir(),'cli-deleted-cwd-'));
+  try{
+    const cache=path.join(root,'plugin-cache'),stable=path.join(root,'user-data'),fake=path.join(root,'codex.mjs'),log=path.join(root,'cwd.jsonl');await mkdir(cache);await mkdir(stable);
+    await writeFile(fake,`#!/usr/bin/env node
+import fs from 'node:fs';fs.appendFileSync(${JSON.stringify(log)},JSON.stringify(process.cwd())+'\\n');
+console.log(process.argv.includes('--version')?'codex-cli 0.164.0':process.argv.includes('login')?'Logged in using fixture':'--ephemeral --json --output-schema --add-dir');
+`);await chmod(fake,0o755);
+    const runner=path.join(root,'runner.mjs');await writeFile(runner,`
+import {rename,rm} from 'node:fs/promises';import {inspectCodex} from ${JSON.stringify(new URL('../runtime.mjs',import.meta.url).href)};
+process.chdir(${JSON.stringify(cache)});await rename(${JSON.stringify(cache)},${JSON.stringify(cache+'-backup')});await rm(${JSON.stringify(cache+'-backup')},{recursive:true});
+const result=await inspectCodex({cwd:${JSON.stringify(stable)},env:{...process.env,VIDEO_DEMO_CODEX_BIN:${JSON.stringify(fake)}},modelProbe:async()=>({model:'gpt-6-astra'})});console.log(JSON.stringify(result));
+`);
+    const response=await promisify(execFile)(process.execPath,[runner],{cwd:root});assert.equal(JSON.parse(response.stdout).compatible,true);
+    const calls=(await readFile(log,'utf8')).trim().split('\n').map(JSON.parse);assert.equal(calls.length,3);for(const directory of calls)assert.equal(await realpath(directory),await realpath(stable));
+  }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('parameter-check failures preserve verified login and report a separate stage without leaking output',async()=>{
+  const root=await mkdtemp(path.join(os.tmpdir(),'cli-check-failure-'));
+  try{
+    const file=path.join(root,'codex');await writeFile(file,'fixture');await chmod(file,0o755);
+    const env={...process.env,VIDEO_DEMO_CODEX_BIN:file};
+    const run=async(binary,args)=>{
+      if(args[0]==='exec')throw Object.assign(new Error('private subprocess output'),{cmd:'fixture exec --help',code:1,stderr:'sensitive output'});
+      return {stdout:args[0]==='--version'?'codex-cli 0.164.0':'Logged in',stderr:''};
+    };
+    const result=await inspectCodex({env,cwd:root,run});assert.equal(result.authenticated,true);assert.equal(result.authenticationStatus,'logged_in');assert.equal(result.compatible,false);assert.equal(result.cliCheckFailure.stage,'parameters');assert.match(result.error,/执行参数/);assert.doesNotMatch(JSON.stringify(result),/private subprocess|sensitive output/);
+    const timeout=await inspectCodex({env,cwd:root,run:async(binary,args)=>{if(args[0]==='login')throw Object.assign(new Error('timeout'),{killed:true});return {stdout:args[0]==='--version'?'codex-cli 0.164.0':'--ephemeral --json --output-schema --add-dir',stderr:''};}});
+    assert.equal(timeout.authenticationStatus,'unknown');assert.equal(timeout.cliCheckFailure.kind,'timeout');assert.match(timeout.error,/登录状态检查超时/);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
 
 test('version checks compare numeric and prerelease components without accepting unknown versions',()=>{
   assert.ok(compareVersions('codex-cli 0.164.0-alpha.11.1','0.153.0')>0);

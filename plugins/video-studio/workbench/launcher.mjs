@@ -27,7 +27,7 @@ export async function ensureWorkbench({env=process.env, timeoutMs=30000}={}) {
   const root=path.dirname(fileURLToPath(import.meta.url));
   let child,exitCode,spawnError;
   try {
-    child=spawn(process.execPath,[path.join(root,'studio-server.mjs')],{cwd:root,env:{...env,VIDEO_STUDIO_WEB_DATA:dataDirectory},detached:true,stdio:['ignore',log.fd,log.fd]});
+    child=spawn(process.execPath,[path.join(root,'studio-server.mjs')],{cwd:dataDirectory,env:{...env,VIDEO_STUDIO_WEB_DATA:dataDirectory},detached:true,stdio:['ignore',log.fd,log.fd]});
     child.on('error',error=>{spawnError=error;});child.on('exit',code=>{exitCode=code;});child.unref();
   } finally {await log.close();}
   const deadline=Date.now()+timeoutMs;

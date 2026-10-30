@@ -74,9 +74,9 @@ export function readModelCompatibility(codex,{cwd,env=process.env,timeoutMs=1000
 
 export async function inspectCodex({env=process.env,cwd,platform=process.platform,run=execute,modelProbe=readModelCompatibility}={}){
   const checkedAt=new Date().toISOString(),candidates=await codexCandidates(env,platform),checked=[];
-  const result={codex:false,authenticated:false,compatible:false,codexPath:null,codexVersion:null,model:null,minimumCodexVersion,checkedAt,error:null,candidates:checked};
+  const result={codex:false,authenticated:false,authenticationStatus:'unknown',compatible:false,codexPath:null,codexVersion:null,model:null,reasoningEffort:null,modelMinimumVersion:null,cliCheckFailure:null,minimumCodexVersion,checkedAt,error:null,candidates:checked};
   for(const file of candidates){
-    try{const version=(await run(file,['--version'],{env,timeout:5000,maxBuffer:32000})).stdout.trim();
+    try{const version=(await run(file,['--version'],{cwd,env,timeout:5000,maxBuffer:32000})).stdout.trim();
       const valid=!!versionParts(version)&&compareVersions(version,minimumCodexVersion)>=0;
       checked.push({path:file,version,ok:valid,reason:valid?'':'低于工作台支持版本 '+minimumCodexVersion});
     }catch{checked.push({path:file,version:null,ok:false,reason:'无法执行或识别版本'});}
@@ -85,14 +85,26 @@ export async function inspectCodex({env=process.env,cwd,platform=process.platfor
   if(!usable.length)return {...result,error:checked.length?`Codex CLI 版本不满足要求（工作台至少 ${minimumCodexVersion}）。请更新 Codex 应用或 CLI，再重新检测。`:'没有找到可执行的 Codex CLI。请安装并登录后重新检测；显式指定的路径不会被自动替换。'};
   const chosen=usable[0];Object.assign(result,{codex:true,codexPath:chosen.path,codexVersion:chosen.version});
   try{
-    const [auth,help]=await Promise.all([run(chosen.path,['login','status'],{env,timeout:5000,maxBuffer:32000}),run(chosen.path,['exec','--help'],{env,timeout:5000,maxBuffer:64000})]);
-    result.authenticated=/Logged in/i.test(auth.stdout+auth.stderr);
+    const checks=await Promise.allSettled([run(chosen.path,['login','status'],{cwd,env,timeout:5000,maxBuffer:32000}),run(chosen.path,['exec','--help'],{cwd,env,timeout:5000,maxBuffer:64000})]);
+    const [auth,help]=checks.map(check=>check.status==='fulfilled'?check.value:null);
+    if(auth){result.authenticated=/Logged in/i.test(auth.stdout+auth.stderr);result.authenticationStatus=result.authenticated?'logged_in':'not_logged_in';}
+    else if(/not logged in/i.test(String(checks[0].reason?.stdout||'')+String(checks[0].reason?.stderr||'')))result.authenticationStatus='not_logged_in';
+    const failed=checks.findIndex(check=>check.status==='rejected');
+    if(failed>=0){
+      const error=checks[failed].reason,stage=failed===0?'登录状态':'执行参数';
+      const detail=String(error.stderr||'')+String(error.message||'');
+      const directoryError=/getcwd|uv_cwd|current (?:working )?directory|failed to determine.*directory/i.test(detail);
+      const kind=directoryError?'working_directory':error.killed?'timeout':result.authenticationStatus==='not_logged_in'&&failed===0?'not_logged_in':'process_failed';
+      result.cliCheckFailure={stage:failed===0?'login':'parameters',kind,code:typeof error.code==='number'?error.code:null,signal:error.signal||null};
+      result.error=directoryError?'CLI 检查的运行目录已失效，请重新启动工作台；账号登录状态未被修改。':kind==='timeout'?`CLI ${stage}检查超时，暂时未能确认结果，请重新检测。`:kind==='not_logged_in'?'此 Codex CLI 尚未登录，请登录后重新检测。':`CLI ${stage}检查进程未能完成，请重新检测；仍失败时查看运行环境。`;
+      return result;
+    }
     if(!result.authenticated)throw new Error('请先登录此 Codex CLI，再重新检测。');
     if(requiredFlags.some(flag=>!help.stdout.includes(flag)))throw new Error('当前 CLI 不支持工作台需要的执行参数，请更新 Codex 后重新检测。');
     const proof=await modelProbe(chosen.path,{cwd,env});
     if(proof.minimumVersion&&compareVersions(chosen.version,proof.minimumVersion)<0)throw new Error(`模型 ${proof.model} 要求 CLI ${proof.minimumVersion} 或更新版本，请升级后重新检测。`);
     Object.assign(result,{compatible:true,model:proof.model,reasoningEffort:proof.reasoningEffort,modelMinimumVersion:proof.minimumVersion});
-  }catch(error){result.error=error.cmd?'CLI 登录或执行参数检查未通过，请登录或更新实际使用的 Codex 后重新检测。':error.message||'CLI 兼容检查失败，请重新检测。';}
+  }catch(error){result.error=error.message||'CLI 兼容检查失败，请重新检测。';}
   return result;
 }
 

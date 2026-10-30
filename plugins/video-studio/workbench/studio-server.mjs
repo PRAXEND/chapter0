@@ -25,6 +25,9 @@ const dataDir=workbenchDataDirectory();
 const port=Number(process.env.PORT||4317);
 const execute=promisify(execFile),stateFile=path.join(dataDir,'workbench-v2.json');
 await mkdir(dataDir,{recursive:true});
+// Plugin installs may rename/remove their code directory while this server runs.
+// Keep all inherited subprocess working directories in persistent user storage.
+process.chdir(dataDir);
 const plugin=await findPlugin(root),bridge=createPluginBridge(plugin,path.join(dataDir,'requests'));
 const library=await new MediaLibrary(path.join(dataDir,'material-library'),file=>bridge('inspect-media',{file})).init();
 await library.backfill(path.join(dataDir,'runs'));
@@ -270,7 +273,7 @@ const server=http.createServer(async(req,res)=>{
     const url=new URL(req.url,'http://'+host),route=url.pathname;
     if(req.method==='POST' && (req.headers['x-video-demo']!=='1'||(req.headers.origin&&!['http://127.0.0.1:'+port,'http://localhost:'+port].includes(req.headers.origin))))return send(res,403,{error:'请求来源无效。'});
     if(req.method==='POST' && req.headers['x-video-project'] && req.headers['x-video-project']!==project.id)return send(res,409,{error:'当前项目已在其他页面切换。请刷新后再操作，待保存的内容仍留在此页面。'});
-    if(req.method==='GET' && route==='/api/health')return send(res,200,{app:'video-studio-workbench',version:plugin.version,dataDirectory:dataDir});
+    if(req.method==='GET' && route==='/api/health')return send(res,200,{app:'video-studio-workbench',version:plugin.version,dataDirectory:dataDir,workingDirectory:process.cwd()});
     if(req.method==='GET' && route==='/api/state'){await refreshLibrary();return send(res,200,publicState());}
     if(req.method==='GET' && route==='/api/projects')return send(res,200,{projects:projectStore.list(project.id),errors:projectStore.errors});
     if(req.method==='GET' && route==='/api/library'){await refreshLibrary();return send(res,200,libraryState());}

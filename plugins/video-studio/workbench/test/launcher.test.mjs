@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,rm,realpath} from 'node:fs/promises';
 import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
@@ -24,6 +24,7 @@ test('plugin launcher starts the actual bundled server and reuses it without cre
     launched=await ensureWorkbench({env});assert.equal(launched.reused,false);assert.ok(launched.pid);
     const again=await ensureWorkbench({env});assert.equal(again.reused,true);assert.equal(again.url,launched.url);
     const state=await (await fetch(again.url+'/api/state')).json();assert.equal(state.project.jobs.length,0);assert.equal(state.project.topic,'');
+    const health=await (await fetch(again.url+'/api/health')).json();assert.equal(await realpath(health.workingDirectory),await realpath(env.VIDEO_STUDIO_WEB_DATA));
     assert.equal((await fetch(again.url+'/token-usage-view.js')).status,200);
     await assert.rejects(ensureWorkbench({env:{...env,VIDEO_STUDIO_WEB_DATA:path.join(directory,'other')}}),/另一个数据目录/);
   } finally {if(launched?.pid)process.kill(launched.pid,'SIGTERM');await delay(150);await rm(directory,{recursive:true,force:true});}
