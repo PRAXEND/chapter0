@@ -20,7 +20,7 @@ test('real HTTP voice intake survives restart, branches both ways and isolates t
     // Pure protocol fixture. No ChatCut account, cloning, TTS or network calls occur.
     await writeFile(fake,`#!/usr/bin/env node
 if(process.argv.includes('--version'))console.log('codex-cli 0.164.0');
-else if(process.argv.includes('--help'))console.log('--ephemeral --json --output-schema --add-dir');
+else if(process.argv.includes('--help'))console.log('--ephemeral --json --output-schema --add-dir --approve-for-me');
 else if(process.argv.includes('app-server')){
  let buffer='';process.stdin.on('data',block=>{buffer+=block;let i;while((i=buffer.indexOf('\\n'))>=0){const request=JSON.parse(buffer.slice(0,i));buffer=buffer.slice(i+1);if(!request.id)continue;
  const result=request.method==='config/read'?{config:{model:'gpt-6-astra'}}:request.method==='model/list'?{data:[{id:'gpt-6-astra',model:'gpt-6-astra',isDefault:true}],nextCursor:null}:{};
