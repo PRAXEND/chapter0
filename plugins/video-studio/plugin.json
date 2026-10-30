@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "video-studio",
-  "version": "0.3.0-web.19",
+  "version": "0.3.0-web.20",
   "description": "自选题材、风格与素材的通用视频工作流，支持从参考保存可复用风格技能。",
   "extensions": {
     "com.openai": {

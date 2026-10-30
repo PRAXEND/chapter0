@@ -46,6 +46,8 @@
 
 执行 studio.py audit 前，按实际时间线读回登记 run.beats 的 from_frame/to_frame、source_ids 和 visual_anchor；有旁白时登记实际音频资产与时长。不能把网页预计时段当成已核实的工程时序，也不能因为网页已有方案就省略插件分镜记录。
 
+方案采用 [风格分镜结构](style-storyboard.md)：stylePlan 保存全部规则的本期处理与参考对照，shots[].design 保存可执行的画面设计，网页逐镜展示并允许编辑。save-plan 按本期快照校验并保存到 run.style_plan；确认同时绑定可读方案和结构化数据，核心视觉设计遗漏或版本不匹配不能进入制作。实际 beat 的 shot_id/design_results 用于最终核对。旧确认记录仍可恢复，不自动升级风格或把旧片标为通过。
+
 文件校验通过与感知验收通过分开显示。无法完整观看/听审的项目保持 unverified/needs_review，仍可交付实际已完成文件，但不声称全部质量项通过。
 
 

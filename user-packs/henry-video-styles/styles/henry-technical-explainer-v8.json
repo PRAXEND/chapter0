@@ -1,0 +1,2194 @@
+{
+  "schema_version": 1,
+  "id": "henry-technical-explainer",
+  "version": 8,
+  "name": "技术科普型",
+  "description": "以真实动作提出问题、自然口语讲清机制的中文技术科普：1.2倍旁白、恒定纯音乐、丰富相关视频、随语义推进的蒙版与动效；适合150秒内的解释型短片。",
+  "adaptation": "使用一套统一表达，不设置变体；核心规则始终落实，条件手法仅在对应问题与素材条件成立时使用。先保留“动作问题→因果机制→证据→能力边界”的表达，再用本期真实对象、专家说明和视频素材替换案例。默认150秒内；用户本期规格优先。\n\n开始制作前读取同目录 style.json 的 reproduction_blueprint：它完整保存六类图形的几何与逐帧运动配方、图层、声音基线、字幕、参考脚本、语义段落及源窗口。核心制作数据就保存在这两个快照文件中，不依赖聊天记忆或过期成片直链。参考文件与工程链接用于核对，不作为新项目运行参数。新片先以最终旁白重新定位语义锚点，再调整停留、版式与来源；不能把试片的秒点、曲目增益或主体裁切直接套到任意素材。\n\n复现范围：试片为91.5秒可编辑时间线、1080p/30fps，成片完整解码通过，关键合成帧与组件参数已核对。完整原速观看、全混音听审及1.2倍保音高听感仍未完成；这些是后续每次成片须执行的验证，不能在保存技能时预先标为通过。",
+  "references": [
+    {
+      "id": "ref-05",
+      "kind": "video",
+      "title": "因果智能系统",
+      "locator": "resource:media/references/ref-05.mp4",
+      "source_url": "https://www.douyin.com/video/7694908975363542310",
+      "sha256": "45f6e70abb9e65ff4071c00475c7ee4ebb92a6bd21953731ca5fdcaa355f1c19",
+      "duration_s": 156.338503,
+      "analyzed_ranges": [
+        {
+          "range_seconds": [
+            0,
+            156.338503
+          ],
+          "method": "24 frames distributed across duration; all existing ASR text read",
+          "sample_times": [
+            0.0,
+            6.79,
+            13.58,
+            20.37,
+            27.15,
+            33.94,
+            40.73,
+            47.52,
+            54.31,
+            61.1,
+            67.89,
+            74.67,
+            81.46,
+            88.25,
+            95.04,
+            101.83,
+            108.62,
+            115.41,
+            122.2,
+            128.98,
+            135.77,
+            142.56,
+            149.35,
+            156.14
+          ]
+        },
+        {
+          "range_seconds": [
+            0,
+            5.5
+          ],
+          "method": "2 fps contact sheet"
+        },
+        {
+          "range_seconds": [
+            65.7,
+            66.433
+          ],
+          "method": "15 fps original content-band contact sheet"
+        },
+        {
+          "range_seconds": [
+            67.3,
+            67.633
+          ],
+          "method": "15 fps content-band contact sheet"
+        },
+        {
+          "range_seconds": [
+            66.5,
+            66.767
+          ],
+          "method": "native 30 fps title-dropout sequence"
+        }
+      ]
+    },
+    {
+      "id": "ref-06",
+      "kind": "video",
+      "title": "聊天 AI 与机器人大脑",
+      "locator": "resource:media/references/ref-06.mp4",
+      "source_url": "https://www.douyin.com/video/7695084941771672858",
+      "sha256": "46d92d0c5a319d4fab4568d2416981d6b5e09ebb245a62f1ebab9523589e26a3",
+      "duration_s": 298.733333,
+      "analyzed_ranges": [
+        {
+          "range_seconds": [
+            0,
+            298.733333
+          ],
+          "method": "24 frames distributed across duration; all existing ASR text read",
+          "sample_times": [
+            0.0,
+            12.98,
+            25.96,
+            38.94,
+            51.92,
+            64.9,
+            77.88,
+            90.86,
+            103.84,
+            116.82,
+            129.8,
+            142.78,
+            155.76,
+            168.74,
+            181.72,
+            194.7,
+            207.68,
+            220.66,
+            233.63,
+            246.61,
+            259.59,
+            272.57,
+            285.55,
+            298.53
+          ]
+        },
+        {
+          "range_seconds": [
+            0,
+            5.5
+          ],
+          "method": "2 fps contact sheet"
+        },
+        {
+          "range_seconds": [
+            25.4,
+            27.4
+          ],
+          "method": "8fps_sequence_inspection"
+        },
+        {
+          "range_seconds": [
+            159.3,
+            161.3
+          ],
+          "method": "8fps_sequence_inspection"
+        }
+      ]
+    },
+    {
+      "id": "ref-07",
+      "kind": "video",
+      "title": "机器人三大技术流派",
+      "locator": "resource:media/references/ref-07.mp4",
+      "source_url": "https://www.douyin.com/video/7615916521222720822",
+      "sha256": "3ee0edd4cf56dfd88137e38805b136747626d31d2eeefe32c383e70bb5868327",
+      "duration_s": 221.448707,
+      "analyzed_ranges": [
+        {
+          "range_seconds": [
+            0,
+            221.448707
+          ],
+          "method": "24 frames distributed across duration; all existing ASR text read",
+          "sample_times": [
+            0.0,
+            9.62,
+            19.24,
+            28.86,
+            38.48,
+            48.1,
+            57.72,
+            67.34,
+            76.96,
+            86.58,
+            96.2,
+            105.81,
+            115.43,
+            125.05,
+            134.67,
+            144.29,
+            153.91,
+            163.53,
+            173.15,
+            182.77,
+            192.39,
+            202.01,
+            211.63,
+            221.25
+          ]
+        },
+        {
+          "range_seconds": [
+            0,
+            5.5
+          ],
+          "method": "2 fps contact sheet"
+        },
+        {
+          "range_seconds": [
+            79.2,
+            81.2
+          ],
+          "method": "8fps_sequence_inspection"
+        },
+        {
+          "range_seconds": [
+            149,
+            151
+          ],
+          "method": "8fps_sequence_inspection"
+        }
+      ]
+    },
+    {
+      "id": "ref-08",
+      "kind": "video",
+      "title": "为什么需要全身触觉",
+      "locator": "resource:media/references/ref-08.mp4",
+      "source_url": "https://www.douyin.com/video/7695753859708325161",
+      "sha256": "344dc930cd90add9d53a56f77e9e3ebd163f8a48e38e4b6c1b16fa7e4c69bc88",
+      "duration_s": 52.918005,
+      "analyzed_ranges": [
+        {
+          "range_seconds": [
+            0,
+            52.918005
+          ],
+          "method": "24 frames distributed across duration; all existing ASR text read",
+          "sample_times": [
+            0.0,
+            2.29,
+            4.58,
+            6.88,
+            9.17,
+            11.46,
+            13.75,
+            16.04,
+            18.34,
+            20.63,
+            22.92,
+            25.21,
+            27.51,
+            29.8,
+            32.09,
+            34.38,
+            36.67,
+            38.97,
+            41.26,
+            43.55,
+            45.84,
+            48.13,
+            50.43,
+            52.72
+          ]
+        },
+        {
+          "range_seconds": [
+            0,
+            5.5
+          ],
+          "method": "2 fps contact sheet"
+        }
+      ]
+    },
+    {
+      "id": "ref-09",
+      "kind": "video",
+      "title": "波士顿动力训练中心",
+      "locator": "resource:media/references/ref-09.mp4",
+      "source_url": "https://www.douyin.com/video/7691269255903464704",
+      "sha256": "365e73eb4518dd68fda083d80e81e17c971e8e2261ac0d0bb3716376606fed87",
+      "duration_s": 52.244989,
+      "analyzed_ranges": [
+        {
+          "range_seconds": [
+            0,
+            52.244989
+          ],
+          "method": "24 frames distributed across duration; all existing ASR text read",
+          "sample_times": [
+            0.0,
+            2.26,
+            4.53,
+            6.79,
+            9.05,
+            11.31,
+            13.58,
+            15.84,
+            18.1,
+            20.37,
+            22.63,
+            24.89,
+            27.15,
+            29.42,
+            31.68,
+            33.94,
+            36.21,
+            38.47,
+            40.73,
+            42.99,
+            45.26,
+            47.52,
+            49.78,
+            52.04
+          ]
+        },
+        {
+          "range_seconds": [
+            0,
+            5.5
+          ],
+          "method": "2 fps contact sheet"
+        },
+        {
+          "range_seconds": [
+            32,
+            34
+          ],
+          "method": "8fps_sequence_inspection"
+        },
+        {
+          "range_seconds": [
+            48.5,
+            50.5
+          ],
+          "method": "8fps_sequence_inspection"
+        }
+      ]
+    },
+    {
+      "id": "ref-10",
+      "kind": "video",
+      "title": "Clone 仿生手",
+      "locator": "resource:media/references/ref-10.mp4",
+      "source_url": "https://www.douyin.com/video/7691882568119012623",
+      "sha256": "e6f9a54cc24161f1d87f26932cae7cacb2fda1f6d629d198f3fa5468dbc44951",
+      "duration_s": 54.101995,
+      "analyzed_ranges": [
+        {
+          "range_seconds": [
+            0,
+            54.101995
+          ],
+          "method": "24 frames distributed across duration; all existing ASR text read",
+          "sample_times": [
+            0.0,
+            2.34,
+            4.69,
+            7.03,
+            9.37,
+            11.72,
+            14.06,
+            16.4,
+            18.75,
+            21.09,
+            23.44,
+            25.78,
+            28.12,
+            30.47,
+            32.81,
+            35.15,
+            37.5,
+            39.84,
+            42.18,
+            44.53,
+            46.87,
+            49.21,
+            51.56,
+            53.9
+          ]
+        },
+        {
+          "range_seconds": [
+            0,
+            5.5
+          ],
+          "method": "2 fps contact sheet"
+        },
+        {
+          "range_seconds": [
+            3.5,
+            5.5
+          ],
+          "method": "8fps_sequence_inspection"
+        },
+        {
+          "range_seconds": [
+            32.3,
+            34.3
+          ],
+          "method": "8fps_sequence_inspection"
+        }
+      ]
+    },
+    {
+      "id": "user-direction",
+      "kind": "user_direction",
+      "locator": "pack:evidence/technical-explainer/user-direction.txt",
+      "sha256": "f19bf6109563df1054caa1bb1cab283f74396ef838be7e61edac2126e9451b84"
+    },
+    {
+      "id": "atlas-benchmark",
+      "kind": "video",
+      "title": "Atlas搬冰箱技术科普试片",
+      "locator": "resource:media/benchmarks/technical-explainer.mp4",
+      "sha256": "eedeb259a8394fef511d9b3528c90c6b1df7d120e8c85f2ac5b4099db0c6f216",
+      "duration_s": 91.584,
+      "timeline_duration_s": 91.5,
+      "project_url": "reference-project (see packaged timeline records)",
+      "analysis": "完整时间线和组件参数读回；合成关键帧与剪点检查；最终MP4完整解码通过。没有完成正常速度全片观看、全混音听审或保音高听感核验。"
+    },
+    {
+      "id": "atlas-script",
+      "kind": "script",
+      "title": "Atlas搬重物旁白",
+      "locator": "pack:evidence/technical-explainer/atlas-script.txt",
+      "sha256": "a3de4bac2b2481232c60ffd86bfdd33424001bc6834cd902e30c4695a7aeadc4"
+    },
+    {
+      "id": "expert-method",
+      "kind": "script",
+      "title": "Boston Dynamics工程团队：Training a Humanoid Robot for Hard Work",
+      "locator": "https://bostondynamics.com/blog/training-a-humanoid-robot-for-hard-work/"
+    }
+  ],
+  "rules": [
+    {
+      "id": "one-style",
+      "dimension": "narrative",
+      "basis": "user_direction",
+      "instruction": "使用一套统一的技术科普表达：具体动作提出问题，沿同一任务解释机制，用结果和能力边界收束。不设变体。默认中文、总时长不超过150秒；画幅服从本期平台，未指定时可采用试片的1920×1080、30fps。新题材替换对象、事实和素材，不照搬机器人或冰箱案例。",
+      "check": "本期brief明确题材、规格和上限；风格全部规则生效，不为不同作者拆分制作模板。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        }
+      ]
+    },
+    {
+      "id": "first-five-seconds",
+      "dimension": "narrative",
+      "basis": "user_direction",
+      "instruction": "先找到能看清任务的运动镜头，再写前五秒。首句直说动作与难点，随后补一个观众需要理解的矛盾；不先报机构履历或念“今天带大家了解”。试片“搬起这台冰箱，光有力气还不够”展示动作并引出协调问题。新片写自己的事实句，不复制这一句式当口号。",
+      "check": "单独检查前五秒：对象、动作和继续看的理由明确；后文确实回答开头，时长用最终旁白实测。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "0–4.9秒"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "0–6秒并列动作"
+        }
+      ]
+    },
+    {
+      "id": "causal-progression",
+      "dimension": "narrative",
+      "basis": "observed",
+      "instruction": "让每段解决一个具体问题，再用剩下的困难引出下一段。试片按“身体怎样配合→为什么要训练→参考动作与奖励→变化中的稳定性→真机反馈→能力边界”推进。段数服从本题机制，不机械列三点。过渡句可以是“但只会照着练，还不够”“最后，还得上真机”这种有真实因果的连接。",
+      "check": "逐段写明新增信息和衔接理由；删除“首先其次最后”后仍能理解逻辑，不出现独立功能点堆叠。",
+      "evidence": [
+        {
+          "reference_id": "atlas-script",
+          "location": "第1–6段"
+        },
+        {
+          "reference_id": "ref-06",
+          "location": "48.73–56.25、89.35–102.69、132.37–174.75秒"
+        }
+      ]
+    },
+    {
+      "id": "expert-explanation",
+      "dimension": "language",
+      "basis": "inferred",
+      "instruction": "先读本题研究者或工程团队的原始说明，提取任务、难点、方法、验证及限制，再改写为口语。每次引入术语都解释它解决当前动作中的什么问题；概念跟在动作之后。类比只保留一处对应关系，随后回到真实机制；不能把类比或拟人说成技术事实。",
+      "check": "有事实表与来源；术语可用一句具体动作说明；同一任务贯穿不同概念。",
+      "evidence": [
+        {
+          "reference_id": "expert-method",
+          "location": "Physical Intelligence、Training Montage、Closing the Sim-to-Real Gap"
+        },
+        {
+          "reference_id": "atlas-script",
+          "location": "参考动作→尝试打分→奖励→强化学习"
+        }
+      ]
+    },
+    {
+      "id": "natural-script",
+      "dimension": "language",
+      "basis": "user_direction",
+      "instruction": "像懂行的人给朋友讲清一件事：用具体主语和动作动词，长短句交替。删掉“震撼、赋能、未来已来”等空评价、连续口号和无新增信息的设问；不用口癖、语病或虚构机器人内心来制造人味。保留“你看”“但”“所以”等能指向画面或因果的自然连接。",
+      "check": "逐句朗读并写出新增信息；连续两句只有评价就重写；不虚构亲历、情绪或失败。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-script",
+          "location": "第1、2、4段"
+        }
+      ]
+    },
+    {
+      "id": "script-picture-map",
+      "dimension": "language",
+      "basis": "user_direction",
+      "instruction": "写稿顺序为事实核实→问题链→前五秒→中段衔接→朗读删改。每句标明讲什么、画面证明什么、需要何种叠加及证据/示意身份。需要整屏静态知识卡才能讲完时，先减少名词串和多余分支，再设计动效。 分镜记录每个机制状态怎样可视化、具体触发词/动作、声音与素材前提；能用直接画面讲清时不添加无信息装饰。",
+      "check": "脚本、句子对应素材、动效用途和事实来源可互相追溯；没有为了填满镜头而保留的句子。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        }
+      ]
+    },
+    {
+      "id": "payoff-and-boundary",
+      "dimension": "narrative",
+      "basis": "observed",
+      "instruction": "结尾用真实动作结果回答开头，再说演示已证明到哪里、换对象或条件还需要验证什么。不给未验证的泛化、量产和商业能力背书；不加无实质内容的评论区尬问。用一条短结论落回观众刚看见的过程。",
+      "check": "开头问题在结尾得到明确回答；演示结果与尚待验证的能力分开。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "75.9–91.5秒"
+        },
+        {
+          "reference_id": "atlas-script",
+          "location": "第6段"
+        }
+      ]
+    },
+    {
+      "id": "video-first",
+      "dimension": "shots",
+      "basis": "user_direction",
+      "instruction": "以真实运动视频、实验实录、操作录屏、明确标注的仿真为画面主体，流程与知识解释直接叠在相应视频上。试片的23个主轨片段连续覆盖全片。新片以有信息作用的运动画面覆盖整段讲解为默认；必要静态证据只短暂出现。禁止静图轮播、独立流程PPT或无关循环视频充当背景。",
+      "check": "底层视频确实在展示本句对象或相关过程；讲解不依靠大面积静态卡片，图形退出后素材仍有信息。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "主轨0–2745帧"
+        }
+      ]
+    },
+    {
+      "id": "material-roles",
+      "dimension": "shots",
+      "basis": "user_direction",
+      "instruction": "按“任务证据、机制近景、训练/测试过程、相关装配与应用、比较材料”采集多个来源，不局限一条新闻。相关机器人B-roll可丰富语境，但不冒充本产品的能力证据。试片把官方训练演示与另一条制造资料组合，并在画面标明身份。",
+      "check": "每个核心论点有直接证据；B-roll相关且有新信息；不同产品、日期、实物/仿真在必要处标注。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "实验演示与制造资料"
+        }
+      ]
+    },
+    {
+      "id": "deduplicate-source-windows",
+      "dimension": "shots",
+      "basis": "user_direction",
+      "instruction": "记录原始出处、主体、下载偏移及源入出区间；按原始来源和动作去重，不能以不同文件名、裁切、镜像或变速掩盖重复。回扣主题优先换角度、阶段或结果；确需回放时交代比较目的。采集有效区间时为完整动作与转场留余量。",
+      "check": "检查原始时间区间交集，也回看同一动作被原发布者重复剪入的情况；剪辑前为素材缺口补充真实相关视频。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "23个主轨片段与分屏源区间"
+        }
+      ]
+    },
+    {
+      "id": "continuous-actions",
+      "dimension": "shots",
+      "basis": "user_direction",
+      "instruction": "保留接近、接触、操作和结果所需的上下文。同一动作换角度时匹配方向、姿态与物体位置；换场景用建立镜头或标注交代。特别检查每个选区和转场余量中原视频自带的访谈、片头或旁镜，避免仅几帧突然混入。",
+      "check": "逐个源窗口及剪点查看前后序列；完整素材文件可解码不代表所选窗口连续。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "33–38.8、58.6–59.3、28.9、72.7秒附近的剪点修复"
+        }
+      ]
+    },
+    {
+      "id": "speech-led-pacing",
+      "dimension": "pacing",
+      "basis": "observed",
+      "instruction": "先确定最终1.2倍旁白，再按语义落点排镜头、图形与字幕。试片镜头多数2.4–6.2秒，平均约4秒；这些是起步范围，完整动作可以更长。关键解释给看懂的时间，不按平均时长或音乐节拍硬切。旁白加速不要求所有视频也加速。",
+      "check": "每段时长来自真实音频；关键指示词对应对象出现；章节、结果与结尾不被截断。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "91.5秒时间线，23个主轨片段"
+        },
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        }
+      ]
+    },
+    {
+      "id": "visual-language",
+      "dimension": "graphics",
+      "basis": "observed",
+      "instruction": "统一字体Noto Sans SC；白色#FFFFFF为正文，青色#48E1D1标机制，黄色#F7CB52标重点差异。1080高画面中，主要短标题以54–68px、900字重起步；小标签22–32px，步骤文字38–46px。长标题可降到44–50px或缩短文案。只在对比不足处加半透明深色底。",
+      "check": "字体实际可渲染；相同信息角色颜色一致；手机尺寸下标题、字幕与来源均可读，字不压住手、脸、接触点和结果。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "六类MG实际字体、颜色和属性"
+        }
+      ]
+    },
+    {
+      "id": "layer-and-layout",
+      "dimension": "graphics",
+      "basis": "observed",
+      "instruction": "视频为底层，第二视频层用于比较，透明解释图形在其上，来源标记独立，字幕在底部稳定区域，旁白/配乐/音效分轨。主解释图形优先放主体旁的空白，不固定一直在左边。1920×1080基准：主标题框约750×230，步骤框600×250，顶部流程框1400×120；位置先看本期画面再定。",
+      "check": "不同画幅重排布局；同画幅按宽高比例换算起点，再逐帧检查主体运动与图层是否冲突。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "V1–V5、A1–A3及字幕"
+        }
+      ]
+    },
+    {
+      "id": "impact-title",
+      "dimension": "graphics",
+      "basis": "observed",
+      "instruction": "动词/结论强调采用短眉题、粗主句和青色下划线。参考框750×230，眉题24px，标题默认62px，内边距上下12/左右24。以30fps为基准：透明度0→1用10帧；标题Y位移在0/7/13帧为28/−3/0px；下划线15帧由0伸到390px、高5px；最后10帧淡出。总长参考4秒，随语句调整停留。",
+      "check": "入场后整字稳定；只保留一处主强调；缩短片段须重算出场，不硬截动效。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "0–4、49.33–53.33、55–59、71.5–75.5、80–84、87.5–91.5秒"
+        }
+      ]
+    },
+    {
+      "id": "staggered-explanation",
+      "dimension": "graphics",
+      "basis": "observed",
+      "instruction": "拆解部位或条件时使用逐项出现的短标签，直接叠在对应视频。参考600×250透明框，46px/800字重；行间14px、点与字间16px、圆点11px。30fps下各行在0/18/36帧开始，9帧内从左移32px归位并淡入；整体首7帧入、末8帧退。试片用三行，新题材项数和触发时点按实际讲解调整。",
+      "check": "出现顺序与所讲对象一致；不把整句旁白挤到画面上；稳定期无重叠、跳字或错指对象。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "5–10、19.17–24.17、44.33–49.33、63.33–68.33秒"
+        }
+      ]
+    },
+    {
+      "id": "process-rail",
+      "dimension": "graphics",
+      "basis": "observed",
+      "instruction": "较长机制说明用窄流程条放在运动素材上方，保留上下文与当前步骤。参考1400×120，画面位置(260,70)，步骤38px/800字重、间隔18px、细边框2px、圆角12px、底色rgba(5,16,25,0.70)。试片三步在该图形局部0/150/270帧依次激活，激活项9帧上移20→0px；已激活项保留清晰，未讲项降低对比。",
+      "check": "新片触发点改为真实关键词时点，不照抄150/270帧；每一步有相关视频，流程条不遮主体。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "27.833–43.333秒"
+        }
+      ]
+    },
+    {
+      "id": "comparison-mask",
+      "dimension": "graphics",
+      "basis": "observed",
+      "instruction": "比较时让两路视频同时持续播放，分别标明对象或“仿真/实物”。试片用左右各半画布、中线4px青色、上方32px短标签；视频以主体和动作可见为先选择裁切。分屏是语义对照，不把仿真与实物包装成同步或同条件测试。",
+      "check": "入点、中段、出点均检查主体完整与运动路径；源内部换镜不得使比较栏突然变成访谈；新画幅可改上下比较。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "33–38.8秒"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "0–6、33.3–37秒"
+        }
+      ]
+    },
+    {
+      "id": "detail-and-push",
+      "dimension": "graphics",
+      "basis": "observed",
+      "instruction": "解释真实结构时可用圆形局部放大，试片为1.3倍、半径参数0.20、3px边框、中心归一化(0.58,0.55)；解释能力结果时可缓慢推近，试片5.4秒由1.0到1.4倍，焦点约(0.50,0.37)。中心、半径、倍率和持续时间都随本期关键对象调整。",
+      "check": "整个动作期间目标仍在放大区域，主体与证据文字未被裁掉；没有跳放、冻结或清晰度误导。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "9.5–12.333秒局部放大；75.9–81.3秒推近"
+        }
+      ]
+    },
+    {
+      "id": "fragment-title",
+      "dimension": "graphics",
+      "basis": "observed",
+      "instruction": "真正进入下一解释层时使用纵条聚字。参考760×150透明框，64px/900字重；12条约64px宽的窄窗，把同一短标题交错从Y=±80px汇合。30fps下第i条从0.9i帧开始，到15+0.4i帧归位；22帧起切换成一份完整文字，最后10帧淡出。下方青线240×5px。底层视频继续播放。",
+      "check": "稳定期直接显示完整标题，碎条不能残留或突然闪空；总时长参考4秒，实际随章节短语，不对普通字幕使用。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "59.1–63.1秒"
+        },
+        {
+          "reference_id": "ref-05",
+          "location": "65.7–66.433秒聚字；缺字帧为排除项"
+        }
+      ]
+    },
+    {
+      "id": "source-label",
+      "dimension": "graphics",
+      "basis": "observed",
+      "instruction": "来源标签独立、克制而清晰。参考画面右上角约22px字体、82%不透明度、轻阴影，随镜头更换来源、日期及“资料/实验/示意”身份。不能把试片的作者或日期固定进新片。",
+      "check": "逐片段与来源台账核对；不同来源或历史画面没有被同一标签误标。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "全片来源条与制造资料区间"
+        }
+      ]
+    },
+    {
+      "id": "purposeful-transitions",
+      "dimension": "transitions",
+      "basis": "observed",
+      "instruction": "普通剪点用动作连续的硬切；解释层级变化再用短转场。试片使用清线擦拭10帧、焦点虚实转换14帧、甩镜运动模糊12帧，均以30fps计；换fps按秒换算。转场连接注意点和语义，不每个切点都套效果。",
+      "check": "每次转场能说明用途；首中尾连续，模糊及时恢复，不露底、不留前镜残帧；四次是试片用量，不是固定配额。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "12.333、43.4、59.1、81.3秒切点"
+        }
+      ]
+    },
+    {
+      "id": "source-handles",
+      "dimension": "transitions",
+      "basis": "user_direction",
+      "instruction": "转场前核对真实源余量及内部剪点。使用半个转场所需的前后读取区间检查连续性；源范围不足就换切点或改用硬切，不能拿空白、冻结尾帧或复制帧补齐。变速后重新计算可用源窗口。",
+      "check": "所有转场、视频和图形的入出点均有上下文检查；主视频从0到结尾无意外空隙。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "四处转场与尾帧修复"
+        }
+      ]
+    },
+    {
+      "id": "voice-speed",
+      "dimension": "audio",
+      "basis": "user_direction",
+      "instruction": "复用当前任务已确认的中文解说音色；本用户试片选“我的科技解说”，实际可用性由声音工具实时解析。最终有效速度为基准的1.2倍，只加速一次，保持音高和清楚咬字；实际结果须听审确认。先确定速度与停顿处理，再测时和排字幕。试片基准108.644秒，变速后约90.533秒；换稿不能套用该时长。",
+      "check": "最终音频时长、速度、实际发音与音高分别验证；仅设置1.2并不能宣称保音高听审通过。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "旁白0–2716帧"
+        }
+      ]
+    },
+    {
+      "id": "instrumental-bed",
+      "dimension": "audio",
+      "basis": "user_direction",
+      "instruction": "使用持续、克制、有推进感的纯音乐，无歌词或人声采样争抢解释。优先试配平稳的轻电子器乐；试片曲目为Kevin MacLeod的Wallpaper，源选段16–107.5秒。可在许可条件满足时复用，也可换同类曲目，但须重新测量与混音试听；不机械沿用上一首的增益。",
+      "check": "开头、术语密集段、停顿与结尾都能听清旁白且能感到音乐；保存曲目来源与署名。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "全片BGM"
+        }
+      ]
+    },
+    {
+      "id": "constant-music-gain",
+      "dimension": "audio",
+      "basis": "user_direction",
+      "instruction": "全片音乐使用同一固定增益，不自动ducking、不在停顿或段落间抬升。只允许首尾极短防爆音处理。试片选段原响度−11.37 LUFS/LRA1.5，降低18.7dB，推算音乐约−30.07 LUFS；旁白源−17.4 LUFS加1.4dB，推算约−16 LUFS。两者相差约14 LU只是该素材的工程基线。换音源先测量，活动人声与BGM可从相差12–18 LU试起，以实际听感定值后保持固定。",
+      "check": "核对整条音乐的增益恒定，并听全混音；最终混音需实测综合响度与真峰值，推算值不当作输出实测结果。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "A1/A2实际属性与选段响度测量"
+        }
+      ]
+    },
+    {
+      "id": "sfx-to-motion",
+      "dimension": "audio",
+      "basis": "observed",
+      "instruction": "重点词落定、步骤出现配轻短pop/click；章节或方向性转场配短whoosh。试片短pop约0.13秒、降低12dB，whoosh约0.73秒、降低18dB；按声音的冲击点对齐视觉落点，不只对齐文件起点。一般一处主强调配一次，不给每个字加声音。",
+      "check": "关键词清楚，不与人声抢频段；音效落点与对应图形/转场一致，配乐增益不随音效变化。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "14处pop、4处whoosh"
+        },
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        }
+      ]
+    },
+    {
+      "id": "caption-segmentation",
+      "dimension": "captions",
+      "basis": "observed",
+      "instruction": "只从最终应显示的旁白轨生成字幕；专名与同音字对照稿件和实际音频。按语义短句分卡，尽量一行，不把“抱稳”这种词拆开，不留孤字或1–2帧闪空。拆分合并后重新核对全部受影响文字、起止时点与最终画面。",
+      "check": "旁白、源转录、显示字幕与外置SRT分别核对，导出成功不能证明一致；外置字幕必须对应最终显示分段。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "52条字幕；55.133–58.733秒语义断句修复"
+        },
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        }
+      ]
+    },
+    {
+      "id": "caption-design",
+      "dimension": "captions",
+      "basis": "observed",
+      "instruction": "普通字幕保持稳定底部位置，不逐字弹跳。1080高基准48px/700字重、白字、2px深色描边，深色半透明小背景、圆角约10px；目标底部安全区约画高的85%–94%，按实际主体和原字幕避让。单行通常不超过约20个汉字；超长先按语义拆句。",
+      "check": "进出、基线、背景宽度与字号不抖动；在手机尺寸检查；字幕、来源与主解释文字不互相覆盖。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "Caption Cards和实际合成帧"
+        }
+      ]
+    },
+    {
+      "id": "shared-final-timebase",
+      "dimension": "pacing",
+      "basis": "inferred",
+      "instruction": "旁白变速、裁切或停顿调整后，字幕、图形、音效和画面锚点统一跟随最终时间。恒速片段的时间映射为“时间线入点＋(源词时间−源入点)/速度”；存在非线性处理时重新取得最终词时间。换fps只换算帧数，不改变动作真实秒长。",
+      "check": "检查片头、中段、末尾和每次局部修改，无累计漂移；任何变速都同时确认目标占用时长和源出点。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "1.2倍旁白、最终52条字幕、两处0.8与一处0.85画面变速"
+        },
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        }
+      ]
+    },
+    {
+      "id": "composed-continuity-review",
+      "dimension": "shots",
+      "basis": "user_direction",
+      "instruction": "检查最终合成画面而非仅原片：先正常速度全片看，再看所有素材内部切点、转场、字幕、图形、蒙版和变速边界的前后序列。查访谈尾帧、闪空、露底、字幕残留、裁掉手与物体、遮罩跳动以及冻结帧。修复后复查受影响区间并核对新导出。",
+      "check": "文件解码、抽帧、完整观看分别记录；不能将局部抽帧未见问题写成全片无bug。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "剪点修复记录与最终MP4技术检查"
+        }
+      ]
+    },
+    {
+      "id": "full-mix-and-reproduction",
+      "dimension": "audio",
+      "basis": "inferred",
+      "instruction": "最终完整听审语速、发音、音高、配乐存在感、动态一致性、SFX冲击和首尾，再与字幕及画面合看。新题材复现至少覆盖动作钩子、中段机制、比较或细节解释、章节变化与结尾，不以照搬原素材当复现验证。技能保存与参数读回不等于感知通过。",
+      "check": "每项结论带实际证据；不能听或不能连续观看就明确未验证，不用ASR、响度或截图代替。 同时核对已确认的设计是否真实实现；流程条只有入场而不随解释变化，不能算机制动态通过。",
+      "evidence": [
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求及150秒限制；2026-10-27复现要求"
+        },
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "试片技术解码通过，完整感知验收未完成"
+        }
+      ]
+    },
+    {
+      "id": "semantic-explanation-motion",
+      "dimension": "graphics",
+      "basis": "inferred",
+      "instruction": "每个关键机制把当前状态、变化与结果落实为随语义推进的画面：在持续相关视频上逐项指示、切换重点、展示步骤关系，或用有证据的比较/细节解释。文字和图形在讲到对应对象时改变，不只做一次入场后整段静止；普通标题或装饰性转场不能代替机制讲解。具体组件由本题决定。",
+      "check": "分镜可指出每个机制的触发词/动作、状态变化、位置与退场；成片按真实词时间逐段核对。关闭旁白仍能看出图形在指向什么变化；不能理解时调整表达，未连续观看记未验证。",
+      "evidence": [
+        {
+          "reference_id": "atlas-benchmark",
+          "location": "5–10秒逐项解释；27.833–43.333秒流程推进；33–38.8秒比较"
+        },
+        {
+          "reference_id": "user-direction",
+          "location": "2026-10-26六项要求：随语义推进的蒙版与动效"
+        }
+      ]
+    }
+  ],
+  "unknown_dimensions": [],
+  "material_requirements": [
+    {
+      "role": "任务直接证据",
+      "search_hint": "{topic} {product} official full demonstration {task}",
+      "acceptance": "能看见动作前因、接触与结果；主体版本和时间可确认。",
+      "rule_id": "material-roles"
+    },
+    {
+      "role": "机制和结构近景",
+      "search_hint": "{mechanism} how it works lab close-up simulation demonstration",
+      "acceptance": "有实质运动，可解释本句；仿真、资料与实物身份清楚。",
+      "rule_id": "video-first"
+    },
+    {
+      "role": "训练测试和扩展场景",
+      "search_hint": "{product} test training assembly repair previous demo {related_robot_category}",
+      "acceptance": "可以跨新闻/日期和来源，提供新步骤或角度；相关B-roll不冒充性能证据。",
+      "rule_id": "material-roles"
+    },
+    {
+      "role": "同一任务比较",
+      "search_hint": "{alternative} {same_task} demonstration comparable conditions",
+      "acceptance": "对照对象与条件清楚，持续播放，动作完整且有可用裁切余量。",
+      "rule_id": "comparison-mask"
+    },
+    {
+      "role": "专家方法与限制",
+      "search_hint": "{topic} researcher engineer project paper methods limitations",
+      "acceptance": "可核实任务、机制与适用条件，改写为口语，不抄宣传结论。",
+      "rule_id": "expert-explanation"
+    },
+    {
+      "role": "恒定纯音乐床",
+      "search_hint": "instrumental minimal electronic technology steady dynamics no vocals",
+      "acceptance": "源段动态平稳，足够长，许可明确；以本期全混音试听确认清晰与存在感。",
+      "rule_id": "instrumental-bed"
+    },
+    {
+      "role": "弹字与转场声音",
+      "search_hint": "short soft pop click light airy whoosh",
+      "acceptance": "短干净、无语音，冲击点可对齐视觉，不争抢旁白。",
+      "rule_id": "sfx-to-motion"
+    }
+  ],
+  "reproduction_blueprint": {
+    "schema": "technical-explainer-reproduction-notes-1",
+    "purpose": "同目录机器可读复现配方；由风格读取，不是工具API请求。原项目ID/片段时点只用于证据，不可在新工程直接调用。",
+    "base_canvas": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "timeline_frames": 2745,
+      "export_duration_seconds": 91.584,
+      "default_max_seconds": 150
+    },
+    "time_adaptation": "时间均先换成秒再换目标fps；入/出动画保持约定秒长，停留与阶段触发改为最终旁白词锚点。位置按目标画布归一化，并依据真实主体重排。",
+    "palette": {
+      "text": "#FFFFFF",
+      "mechanism": "#48E1D1",
+      "contrast": "#F7CB52",
+      "support_background": "rgba(6,15,24,0.82)"
+    },
+    "font": "Noto Sans SC",
+    "layer_roles": [
+      "连续主视频",
+      "第二路比较视频",
+      "透明解释图形",
+      "独立来源条",
+      "比较标识",
+      "独立旁白",
+      "独立BGM",
+      "独立SFX",
+      "旁白字幕呈现"
+    ],
+    "components": [
+      {
+        "id": "impact-title",
+        "role": "动词/结论强调",
+        "box_px": [
+          750,
+          230
+        ],
+        "font": {
+          "label": 24,
+          "label_weight": 600,
+          "label_tracking": 5,
+          "title": 62,
+          "title_weight": 900,
+          "line_height": 1.16
+        },
+        "padding_px": [
+          12,
+          24
+        ],
+        "entry": {
+          "alpha_keyframes": [
+            [
+              0,
+              0
+            ],
+            [
+              10,
+              1
+            ]
+          ],
+          "title_y_keyframes": [
+            [
+              0,
+              28
+            ],
+            [
+              7,
+              -3
+            ],
+            [
+              13,
+              0
+            ]
+          ]
+        },
+        "underline": {
+          "size_px": [
+            390,
+            5
+          ],
+          "grow_frames": 15,
+          "margin_top_px": 17
+        },
+        "exit_frames": 10,
+        "reference_duration_frames": 120,
+        "background": {
+          "default": "transparent",
+          "contrast_option": "rgba(6,15,24,0.82)"
+        },
+        "shadow": "0 3px 12px rgba(0,0,0,0.65)",
+        "editable": [
+          "眉题",
+          "主句",
+          "字号",
+          "字体",
+          "正文色",
+          "强调色",
+          "透明底"
+        ],
+        "observed_component_revision": "sha256:c984b30483c357a48878f71d7115294956626f92f3cbdebb402a25ec8bdd96cd"
+      },
+      {
+        "id": "staggered-explanation",
+        "role": "部位或条件的逐项解释",
+        "box_px": [
+          600,
+          250
+        ],
+        "font_px": 46,
+        "weight": 800,
+        "padding_px": 18,
+        "row_gap_px": 14,
+        "dot_gap_px": 16,
+        "dot_size_px": 11,
+        "row_start_frames": [
+          0,
+          18,
+          36
+        ],
+        "row_entry_frames": 9,
+        "row_x_px": [
+          -32,
+          0
+        ],
+        "overall_entry_frames": 7,
+        "overall_exit_frames": 8,
+        "reference_duration_frames": 150,
+        "editable": [
+          "每行文字",
+          "字体",
+          "颜色",
+          "背景",
+          "真实词锚点"
+        ],
+        "observed_component_revision": "sha256:a3fc4698dad35ce20f3a0471c648567306b2865628ba5c6992b0f936d58a6346"
+      },
+      {
+        "id": "process-rail",
+        "role": "贯穿一段机制解释的阶段关系",
+        "box_px": [
+          1400,
+          120
+        ],
+        "anchor_px": [
+          260,
+          70
+        ],
+        "cell_height_px": 104,
+        "gap_px": 18,
+        "font_px": 38,
+        "weight": 800,
+        "border_px": 2,
+        "radius_px": 12,
+        "background": "rgba(5,16,25,0.70)",
+        "relative_active_frames": [
+          0,
+          150,
+          270
+        ],
+        "active_entry_frames": 9,
+        "active_y_px": [
+          20,
+          0
+        ],
+        "overall_entry_frames": 8,
+        "overall_exit_frames": 9,
+        "reference_duration_frames": 465,
+        "state": "已激活步骤保留亮边；未到步骤降低文字/边框对比",
+        "editable": [
+          "步骤文字",
+          "步骤数",
+          "激活时间",
+          "颜色",
+          "字体"
+        ],
+        "observed_component_revision": "sha256:75a368a3ed6fd33bace96d35d58581f1a9b8ab57cbbba7bab738b64790f933eb"
+      },
+      {
+        "id": "fragment-title",
+        "role": "进入下一解释层",
+        "box_px": [
+          760,
+          150
+        ],
+        "font_px": 64,
+        "weight": 900,
+        "title_top_px": 18,
+        "slices": 12,
+        "slice_width_px": 64,
+        "slice_height_px": 130,
+        "shift_y_px": [
+          80,
+          -80
+        ],
+        "start_frame_formula": "0.9*i",
+        "end_frame_formula": "15+0.4*i",
+        "settled_whole_text_from_frame": 22,
+        "underline_px": [
+          240,
+          5
+        ],
+        "underline_bottom_px": 12,
+        "exit_frames": 10,
+        "reference_duration_frames": 120,
+        "editable": [
+          "标题",
+          "字体",
+          "颜色",
+          "随画幅调整的几何"
+        ],
+        "observed_component_revision": "sha256:249a6a55644102464e1981d48953dab612dbbce848928910133e654776d88b17"
+      },
+      {
+        "id": "comparison-guide",
+        "role": "实物和仿真等双视频对照标识",
+        "box_px": [
+          1920,
+          680
+        ],
+        "anchor_px": [
+          0,
+          235
+        ],
+        "video_visible_rects_px": [
+          [
+            0,
+            0,
+            960,
+            1080
+          ],
+          [
+            960,
+            0,
+            960,
+            1080
+          ]
+        ],
+        "divider_local_px": [
+          958,
+          0,
+          4,
+          680
+        ],
+        "label_positions_local_px": [
+          [
+            72,
+            0
+          ],
+          [
+            1032,
+            0
+          ]
+        ],
+        "label_font_px": 32,
+        "weight": 800,
+        "label_padding_px": [
+          9,
+          18
+        ],
+        "label_background": "rgba(6,18,28,0.80)",
+        "reference_duration_frames": 174,
+        "editable": [
+          "两侧标签",
+          "字体",
+          "颜色",
+          "布局位置"
+        ],
+        "observed_component_revision": "sha256:54c4e57335c952c748552f9e3b8e7ebfa200f15a96e49d9fc9574821a0660f4d"
+      },
+      {
+        "id": "source-label",
+        "role": "资料/实物/仿真来源身份",
+        "box_px": [
+          1700,
+          44
+        ],
+        "anchor_px": [
+          110,
+          12
+        ],
+        "font_px": 22,
+        "opacity": 0.82,
+        "align": "right",
+        "shadow": "0 1px 5px #000",
+        "duration": "对应片段或全片随来源切换",
+        "editable": [
+          "来源",
+          "日期",
+          "资料身份",
+          "字号",
+          "布局"
+        ],
+        "observed_component_revision": "sha256:95bc66b175a4a055727a4cc29b61f3d496e133c0f72da68c648e11bdea2b9f4a"
+      }
+    ],
+    "effect_recipes": [
+      {
+        "name": "局部圆形放大",
+        "timeline_frames": [
+          285,
+          370
+        ],
+        "magnification": 1.3,
+        "radius_control": 0.2,
+        "center_normalized": [
+          0.58,
+          0.55
+        ],
+        "border_px": 3
+      },
+      {
+        "name": "缓慢推进",
+        "timeline_frames": [
+          2277,
+          2439
+        ],
+        "duration_s": 5.4,
+        "scale": [
+          1,
+          1.4
+        ],
+        "focal_point_normalized": [
+          0.5,
+          0.37
+        ]
+      },
+      {
+        "name": "清线擦拭",
+        "seam_frames": [
+          370,
+          2439
+        ],
+        "duration_frames": 10
+      },
+      {
+        "name": "焦点虚实转换",
+        "seam_frames": [
+          1302
+        ],
+        "duration_frames": 14
+      },
+      {
+        "name": "甩镜运动模糊",
+        "seam_frames": [
+          1773
+        ],
+        "duration_frames": 12
+      }
+    ],
+    "audio": {
+      "voice": {
+        "preferred_saved_name": "我的科技解说",
+        "speed": 1.2,
+        "source_duration_s": 108.644,
+        "timeline_frames": [
+          0,
+          2716
+        ],
+        "source_lufs": -17.4,
+        "gain_db": 1.4,
+        "estimated_after_gain_lufs": -16,
+        "pitch_preservation": "尚未完成听感核验，不能把速度参数当保音高证明"
+      },
+      "music": {
+        "title": "Wallpaper",
+        "author": "Kevin MacLeod",
+        "url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100843",
+        "license": "CC BY 4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_seconds": [
+          16,
+          107.5
+        ],
+        "gain_db": -18.7,
+        "selected_source_lufs": -11.37,
+        "selected_source_lra_lu": 1.5,
+        "estimated_after_gain_lufs": -30.07,
+        "edge_fade_s": 0.03,
+        "automatic_ducking": false,
+        "gain_automation": false,
+        "audition_status": "未完成全混音听审"
+      },
+      "sfx": [
+        {
+          "role": "轻弹字",
+          "reference_name": "tiny-bubble-pop-r1.mp3",
+          "used_frames": 4,
+          "gain_db": -12,
+          "impact_offset_s": 0.021,
+          "impact_timeline_frames": [
+            12,
+            168,
+            590,
+            853,
+            995,
+            1116,
+            1348,
+            1492,
+            1662,
+            1795,
+            1918,
+            2157,
+            2412,
+            2637
+          ]
+        },
+        {
+          "role": "短转场风声",
+          "reference_name": "airy-short-whoosh-r1.mp3",
+          "used_frames": 22,
+          "gain_db": -18,
+          "impact_offset_s": 0.429,
+          "impact_timeline_frames": [
+            370,
+            1302,
+            1773,
+            2439
+          ]
+        }
+      ],
+      "adaptation": "音量数值仅适用于对应原文件；换声音后先测量与试听，再确定固定增益；SFX按真实冲击点贴视觉落点。"
+    },
+    "captions": {
+      "font_px": 48,
+      "weight": 700,
+      "text_color": "#FFFFFF",
+      "stroke_px": 2,
+      "stroke_color": "#111820",
+      "background": "rgba(9,16,24,0.65)",
+      "radius_px": 10,
+      "padding_px": [
+        4,
+        10
+      ],
+      "max_lines": 1,
+      "max_hanzi_per_line": 20,
+      "word_highlight": false,
+      "position": "底部安全区，随本期主体避让；实际像素优先于缓存布局值",
+      "count": 52,
+      "corrected_phrase": "把东西抱稳的控制办法",
+      "corrected_boundary_frame": 1703,
+      "srt_origin": "由最终Caption Cards派生，已记录与工具自动导出的分页差异"
+    },
+    "script_reference": [
+      {
+        "role": "任务和协调难点",
+        "timeline_frames": [
+          0,
+          368
+        ],
+        "text": "搬起这台冰箱，光有力气还不够。阿特拉斯得一边抱紧，一边稳住自己。你看，冰箱贴着躯干，手臂负责抱住，双腿还得撑住重量。真正难的，是这些动作要一起配合。",
+        "why_next": "身体配合解释了动作，但真实负载还会变。"
+      },
+      {
+        "role": "变化引出训练",
+        "timeline_frames": [
+          368,
+          835
+        ],
+        "text": "人搬重东西，会先贴近，再试着抬一下，感觉不对就换个姿势。机器人也得应付这种变化：冰箱到底多重，地面滑不滑，抱住以后会不会偏。工程师没法把每种情况都写成一条指令，所以先把它放进仿真里练。",
+        "why_next": "变化无法逐一手写，所以引入仿真训练。"
+      },
+      {
+        "role": "参考动作与奖励",
+        "timeline_frames": [
+          835,
+          1300
+        ],
+        "text": "第一步，给它一个参考动作。这次搬冰箱，起点是一段简单动画。接下来，系统给每次尝试打分：动作接近目标，冰箱拿得稳，就得到奖励。机器人反复试，慢慢学会怎样调整身体。这就是强化学习。",
+        "why_next": "会照着做还不够，下一段解释遇到变化怎么办。"
+      },
+      {
+        "role": "扰动与稳定性",
+        "timeline_frames": [
+          1300,
+          1762
+        ],
+        "text": "但只会照着练，还不够。训练时，工程师会改变重量、摩擦和电机出力，还会推它、拉它，让它遇上各种不理想的情况。这样练出来的，才不只是固定动作，而是遇到变化还能继续把东西抱稳的控制办法。",
+        "why_next": "训练中的稳定性必须到真机上验证。"
+      },
+      {
+        "role": "真机测试和迭代",
+        "timeline_frames": [
+          1772,
+          2276
+        ],
+        "text": "最后，还得上真机。仿真算得再细，也会漏掉现实里的摩擦、延迟和传感器误差。团队要看它实际怎么搬，把测试数据带回去，再改训练。你看到的这一下抱起，背后其实是仿真、测试、再调整，一轮轮磨出来的。",
+        "why_next": "迭代能说明这次演示；结尾限定泛化边界。"
+      },
+      {
+        "role": "能力边界和回扣",
+        "timeline_frames": [
+          2276,
+          2716
+        ],
+        "text": "所以，这段演示证明的是：它已经能在这项任务里，协调全身去适应负载。至于换一件家具、换一个房间，还能不能稳定完成，需要继续测。机器人学搬重物，学的正是怎么在变化里，把这一趟搬稳。",
+        "why_next": "把开头的有力气与能稳定完成区别讲完。"
+      }
+    ],
+    "graphic_placements": [
+      {
+        "component": "impact-title",
+        "timeline_frames": [
+          0,
+          120
+        ],
+        "rect_px": [
+          70,
+          65,
+          750,
+          230
+        ],
+        "rect_normalized": [
+          0.036458,
+          0.060185,
+          0.390625,
+          0.212963
+        ],
+        "reference_text": "光有力气，还不够"
+      },
+      {
+        "component": "staggered-explanation",
+        "timeline_frames": [
+          150,
+          300
+        ],
+        "rect_px": [
+          70,
+          210,
+          600,
+          250
+        ],
+        "rect_normalized": [
+          0.036458,
+          0.194444,
+          0.3125,
+          0.231481
+        ],
+        "reference_text": "手臂/躯干/双腿"
+      },
+      {
+        "component": "staggered-explanation",
+        "timeline_frames": [
+          575,
+          725
+        ],
+        "rect_px": [
+          1220,
+          110,
+          600,
+          250
+        ],
+        "rect_normalized": [
+          0.635417,
+          0.101852,
+          0.3125,
+          0.231481
+        ],
+        "reference_text": "重量/摩擦/抱持姿态"
+      },
+      {
+        "component": "process-rail",
+        "timeline_frames": [
+          835,
+          1300
+        ],
+        "rect_px": [
+          260,
+          70,
+          1400,
+          120
+        ],
+        "rect_normalized": [
+          0.135417,
+          0.064815,
+          0.729167,
+          0.111111
+        ],
+        "reference_text": "参考动作→反复尝试→稳定/奖励"
+      },
+      {
+        "component": "comparison-guide",
+        "timeline_frames": [
+          990,
+          1164
+        ],
+        "rect_px": [
+          0,
+          235,
+          1920,
+          680
+        ],
+        "rect_normalized": [
+          0.0,
+          0.217593,
+          1.0,
+          0.62963
+        ],
+        "reference_text": "仿真/实物"
+      },
+      {
+        "component": "staggered-explanation",
+        "timeline_frames": [
+          1330,
+          1480
+        ],
+        "rect_px": [
+          75,
+          120,
+          600,
+          250
+        ],
+        "rect_normalized": [
+          0.039062,
+          0.111111,
+          0.3125,
+          0.231481
+        ],
+        "reference_text": "改变重量/摩擦/电机出力"
+      },
+      {
+        "component": "impact-title",
+        "timeline_frames": [
+          1480,
+          1600
+        ],
+        "rect_px": [
+          1110,
+          100,
+          750,
+          230
+        ],
+        "rect_normalized": [
+          0.578125,
+          0.092593,
+          0.390625,
+          0.212963
+        ],
+        "reference_text": "推/拉"
+      },
+      {
+        "component": "impact-title",
+        "timeline_frames": [
+          1650,
+          1770
+        ],
+        "rect_px": [
+          70,
+          100,
+          750,
+          230
+        ],
+        "rect_normalized": [
+          0.036458,
+          0.092593,
+          0.390625,
+          0.212963
+        ],
+        "reference_text": "变化里，仍能抱稳"
+      },
+      {
+        "component": "fragment-title",
+        "timeline_frames": [
+          1773,
+          1893
+        ],
+        "rect_px": [
+          80,
+          120,
+          760,
+          150
+        ],
+        "rect_normalized": [
+          0.041667,
+          0.111111,
+          0.395833,
+          0.138889
+        ],
+        "reference_text": "上真机，才知道"
+      },
+      {
+        "component": "staggered-explanation",
+        "timeline_frames": [
+          1900,
+          2050
+        ],
+        "rect_px": [
+          100,
+          130,
+          600,
+          250
+        ],
+        "rect_normalized": [
+          0.052083,
+          0.12037,
+          0.3125,
+          0.231481
+        ],
+        "reference_text": "摩擦/延迟/传感器误差"
+      },
+      {
+        "component": "impact-title",
+        "timeline_frames": [
+          2145,
+          2265
+        ],
+        "rect_px": [
+          70,
+          110,
+          750,
+          230
+        ],
+        "rect_normalized": [
+          0.036458,
+          0.101852,
+          0.390625,
+          0.212963
+        ],
+        "reference_text": "仿真→测试→调整"
+      },
+      {
+        "component": "impact-title",
+        "timeline_frames": [
+          2400,
+          2520
+        ],
+        "rect_px": [
+          70,
+          80,
+          750,
+          230
+        ],
+        "rect_normalized": [
+          0.036458,
+          0.074074,
+          0.390625,
+          0.212963
+        ],
+        "reference_text": "换场景，还得继续测"
+      },
+      {
+        "component": "impact-title",
+        "timeline_frames": [
+          2625,
+          2745
+        ],
+        "rect_px": [
+          65,
+          90,
+          750,
+          230
+        ],
+        "rect_normalized": [
+          0.033854,
+          0.083333,
+          0.390625,
+          0.212963
+        ],
+        "reference_text": "把这一趟搬稳"
+      },
+      {
+        "component": "source-label",
+        "timeline_frames": [
+          0,
+          2745
+        ],
+        "rect_px": [
+          110,
+          12,
+          1700,
+          44
+        ],
+        "rect_normalized": [
+          0.057292,
+          0.011111,
+          0.885417,
+          0.040741
+        ],
+        "reference_text": "来源随视频片段变化"
+      }
+    ],
+    "source_catalog": {
+      "atlas-training": "https://www.youtube.com/watch?v=xKK5ze3FukQ",
+      "atlas-manufacturing": "https://www.youtube.com/watch?v=dP_i7hRvGpE"
+    },
+    "shot_reference": [
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          0,
+          162
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          6.0,
+          11.4
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-34122533c0e9"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          162,
+          285
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          11.5,
+          15.6
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-d485b67c6632"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          285,
+          370
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          54.0,
+          56.833333
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-3b86fd6a47d4"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          370,
+          510
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          144.7,
+          149.366667
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-325b593a4036"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          510,
+          690
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          98.0,
+          104.0
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-7bb5288df0c2"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          690,
+          780
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          212.0,
+          215.0
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-72933e823f22"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          780,
+          870
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          193.0,
+          195.4
+        ],
+        "speed": 0.8,
+        "trial_item_reference": "ref-fbb890c4adb7"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          870,
+          990
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          139.5,
+          143.5
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-43204c061451"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          990,
+          1164
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          263.8,
+          269.6
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-20aee46f9527"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          1164,
+          1302
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          175.5,
+          180.1
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-b2b892b98f3c"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          1302,
+          1398
+        ],
+        "source_role": "atlas-manufacturing",
+        "original_source_seconds": [
+          16.3,
+          19.5
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-f0bda5c2b90c"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          1398,
+          1470
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          58.0,
+          60.4
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-1b5704454992"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          1470,
+          1572
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          217.8,
+          221.2
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-27a97e2f63aa"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          1572,
+          1650
+        ],
+        "source_role": "atlas-manufacturing",
+        "original_source_seconds": [
+          76.0,
+          78.6
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-34be1c0e8d6a"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          1650,
+          1773
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          221.4,
+          225.5
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-15e2559e2735"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          1773,
+          1884
+        ],
+        "source_role": "atlas-manufacturing",
+        "original_source_seconds": [
+          30.9,
+          34.6
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-0321a2a479df"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          1884,
+          1980
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          187.0,
+          190.2
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-0a9601be0ca2"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          1980,
+          2091
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          240.0,
+          243.7
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-f8349b2dae54"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          2091,
+          2184
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          119.4,
+          121.88
+        ],
+        "speed": 0.8,
+        "trial_item_reference": "ref-c1db5dae7da1"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          2184,
+          2277
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          83.2,
+          86.3
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-8b2a4a6488cc"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          2277,
+          2439
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          104.0,
+          109.4
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-f4281c297254"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          2439,
+          2559
+        ],
+        "source_role": "atlas-manufacturing",
+        "original_source_seconds": [
+          22.0,
+          26.0
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-cf80cc8e0863"
+      },
+      {
+        "layer_role": "main-video",
+        "timeline_frames": [
+          2559,
+          2745
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          280.0,
+          286.2
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-1b076050cb10"
+      },
+      {
+        "layer_role": "comparison-right",
+        "timeline_frames": [
+          990,
+          1131
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          166.0,
+          169.995
+        ],
+        "speed": 0.85,
+        "trial_item_reference": "ref-e90e2b318715"
+      },
+      {
+        "layer_role": "comparison-right",
+        "timeline_frames": [
+          1131,
+          1164
+        ],
+        "source_role": "atlas-training",
+        "original_source_seconds": [
+          170.0,
+          171.1
+        ],
+        "speed": 1.0,
+        "trial_item_reference": "ref-8745ecb97d16"
+      }
+    ],
+    "scope": "全部试片时点、文字、取材仅作可核对基准；新片须重新取证、写稿与选材，不复制新闻事实或项目资产身份。",
+    "validation": {
+      "technical_decode": "pass",
+      "timeline_and_component_readback": "pass",
+      "selected_composited_frames": "inspected",
+      "full_speed_continuous_playback": "unverified",
+      "full_mix_listening": "unverified",
+      "new_topic_reproduction": "unverified"
+    }
+  },
+  "distribution": {
+    "source_style": "technical-explainer@8",
+    "pack": "henry-video-styles@2",
+    "resources": "pack:resources.json",
+    "resource_locator_base": "Package root in the cloned repository; resource: paths refer to it. Read the package README before reconstruction.",
+    "project_ids": "Pseudonymous reference keys only; bind newly imported assets to these keys in a new project.",
+    "text_evidence": [
+      "pack:evidence/technical-explainer/user-direction.txt",
+      "pack:evidence/technical-explainer/atlas-script.txt",
+      "pack:reproduction/technical-explainer/timeline.json",
+      "pack:reproduction/technical-explainer/items.json",
+      "pack:reproduction/technical-explainer/captions.json",
+      "pack:reproduction/technical-explainer/motion-graphics.json"
+    ],
+    "reference_media_pack": "henry-video-styles@1"
+  },
+  "storyboard_contract": {
+    "core_rule_ids": [
+      "first-five-seconds",
+      "causal-progression",
+      "script-picture-map",
+      "video-first",
+      "speech-led-pacing",
+      "semantic-explanation-motion",
+      "layer-and-layout",
+      "shared-final-timebase"
+    ],
+    "visual_rule_ids": [
+      "semantic-explanation-motion"
+    ],
+    "conditional_rules": [
+      {
+        "rule_id": "staggered-explanation",
+        "when": "需要拆解多个部位、条件或短步骤；单一解释不凑三行标签。"
+      },
+      {
+        "rule_id": "process-rail",
+        "when": "机制有需要保留上下文的多个连续阶段；简单因果可以直接在视频上逐步指示。"
+      },
+      {
+        "rule_id": "comparison-mask",
+        "when": "有真实比较问题和身份/条件可说明的两路运动素材；无可靠比较依据不强做分屏。"
+      },
+      {
+        "rule_id": "detail-and-push",
+        "when": "局部结构或结果需要放大观察，且源清晰度、主体运动和安全裁切允许。"
+      },
+      {
+        "rule_id": "fragment-title",
+        "when": "真正进入新的解释层级且有阅读时间；短片或连续单一机制不强加章节。"
+      }
+    ],
+    "planning_guidance": "核心是动作问题→因果机制→证据→能力边界。每个关键机制写清当前状态、发生的变化与可见结果，再决定指示、逐项揭示、流程激活、对比或细节放大的形式。图形随讲解逐步改变重点，底层相关视频持续提供证据；整段静态流程图或只换标题不能替代机制解释。节奏为看懂因果服务，不套热点资讯的反应字密度、强冲击或频繁甩镜。组件是一套可适配方法，不是每片必用的清单。",
+    "reference_guidance": "分镜前读取 reproduction_blueprint 中 components、effect_recipes、graphic_placements 和相应 script_reference，结合 atlas-benchmark 的动作钩子、中段机制、比较/细节与收束节点。观察时注明实际媒体范围；配方与参数核对不等于连续观看。新片按最终旁白词锚点和主体重排，仅迁移解释关系与运动方法，不照搬试片秒点、帧号、增益或裁切。"
+  }
+}

@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 import uuid
 
 import styles
+import style_plan
 import check_connection
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -340,6 +341,12 @@ def record(directory, kind, payload):
                 if not all(need.get(k) for k in ("id", "purpose", "query", "acceptance")):
                     raise StudioError("Material need requires id, purpose, topic/style-aware query and acceptance")
             data["material_plan"] = payload
+        elif kind == "style_plan":
+            style_plan.validate(payload, data)
+            stored = {"plan": payload, "sha256": digest(payload)}
+            if data.get("style_plan") == stored:
+                return data
+            data["style_plan"] = stored
         elif kind == "review":
             key = payload.get("check")
             if key not in REVIEW_KEYS or payload.get("result") not in {"pass", "fail", "unverified", "not_applicable"}:
@@ -592,6 +599,13 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
         except (OSError, ValueError, KeyError):
             failures.append("style_snapshot_missing_or_changed")
     frames = round(duration * fps)
+    style_implementation = []
+    if snapshot or data.get("style_plan"):
+        try:
+            style_implementation = style_plan.implementation_errors(data, review_base, frames)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            style_implementation = ["style_plan_invalid:" + str(exc)]
+        failures.extend(style_implementation)
     check_results = {key: {"status": "not_applicable"} for key in REVIEW_KEYS - required}
     for key in sorted(required):
         review = data["reviews"].get(key, {})
@@ -610,8 +624,21 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
             rows = review.get("rules", {})
             valid = valid and review.get("style") == snapshot["selector"] and set(rows) == {r["id"] for r in style_rules}
             overrides = data["brief"].get("style_overrides", {})
-            valid = valid and all(isinstance(v, dict) and v.get("observations") and
-                (v.get("result") == "pass" or (v.get("result") == "overridden" and k in overrides)) for k, v in rows.items())
+            planned = data.get("style_plan")
+            decisions = {r["ruleId"]: r for r in planned["plan"]["stylePlan"]["rules"]} if planned and planned["plan"].get("stylePlan") else {}
+            def rule_passes(rid, row):
+                if not isinstance(row, dict) or not row.get("observations"):
+                    return False
+                state = decisions.get(rid, {}).get("disposition")
+                if rid in overrides:
+                    return row.get("result") == "overridden"
+                if state == "not_applicable":
+                    return row.get("result") == "not_applicable"
+                return row.get("result") == "pass"
+            valid = valid and all(rule_passes(k, v) for k, v in rows.items())
+            if planned:
+                valid = valid and review.get("style_plan_sha256") == planned["sha256"]
+            valid = valid and not style_implementation
         if not valid:
             pending.append(key)
         check_results[key] = {"status": review.get("result") if valid else
@@ -812,7 +839,7 @@ def main(argv=None):
     p = subs.add_parser("profile"); p.add_argument("--merge-file")
     p = subs.add_parser("new"); p.add_argument("--title", required=True); p.add_argument("--output-root"); p.add_argument("--brief")
     p = subs.add_parser("status"); p.add_argument("--run", required=True)
-    p = subs.add_parser("record"); p.add_argument("--run", required=True); p.add_argument("--kind", choices=["source", "beat", "selection", "project", "brief", "material_plan", "review"], required=True); p.add_argument("--file", required=True)
+    p = subs.add_parser("record"); p.add_argument("--run", required=True); p.add_argument("--kind", choices=["source", "beat", "selection", "project", "brief", "material_plan", "style_plan", "review"], required=True); p.add_argument("--file", required=True)
     p = subs.add_parser("operation"); p.add_argument("action", choices=["reserve", "resolve"]); p.add_argument("--run", required=True); p.add_argument("--key", required=True); p.add_argument("--file", required=True); p.add_argument("--state", choices=["submitted", "completed", "failed"])
     p = subs.add_parser("probe"); p.add_argument("--url", required=True)
     p = subs.add_parser("fetch"); p.add_argument("--run", required=True); p.add_argument("--source", required=True); p.add_argument("--start", type=float, required=True); p.add_argument("--end", type=float, required=True)
