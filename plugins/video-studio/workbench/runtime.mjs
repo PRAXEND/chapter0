@@ -96,9 +96,9 @@ export async function inspectCodex({env=process.env,cwd,platform=process.platfor
   return result;
 }
 
-export function sourceCapabilities(source){
+export function sourceCapabilities(source,{direct=false}={}){
   const capabilities=['python','media'];
-  if(source?.sourceType==='x_repository')capabilities.push('repository');
+  if(source?.sourceType==='x_repository')capabilities.push(direct?'repository_media':'repository');
   let youtube=source?.sourceType==='youtube';try{youtube||=['youtube.com','www.youtube.com','m.youtube.com','youtu.be'].includes(new URL(source?.url).hostname);}catch{}
   if(youtube)capabilities.push('downloader');
   return capabilities;

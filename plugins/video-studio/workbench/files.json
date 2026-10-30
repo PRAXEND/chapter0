@@ -41,5 +41,7 @@
   "test/launcher.test.mjs",
   "files.json",
   "runtime.mjs",
-  "test/runtime.test.mjs"
+  "test/runtime.test.mjs",
+  "collection.mjs",
+  "test/collection.test.mjs"
 ]

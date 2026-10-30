@@ -688,8 +688,8 @@ def doctor():
 
 def preflight(capabilities=None):
     """Check only the capabilities needed for the next operation; never install or download."""
-    requested = capabilities if capabilities is not None else ["python", "media", "repository", "downloader"]
-    allowed = {"python", "media", "repository", "downloader"}
+    requested = capabilities if capabilities is not None else ["python", "media", "repository", "downloader", "repository_media"]
+    allowed = {"python", "media", "repository", "downloader", "repository_media"}
     if not isinstance(requested, list) or any(item not in allowed for item in requested):
         raise StudioError("Unknown preflight capability.")
     report = doctor()
@@ -717,7 +717,18 @@ def preflight(capabilities=None):
             repository_ok = True
         except StudioError:
             pass
+    curl = shutil.which("curl")
+    curl_ok = False
+    if "repository_media" in requested and curl:
+        try:
+            execute([curl, "--version"], timeout=5)
+            curl_ok = True
+        except StudioError:
+            pass
     results = {
+        "repository_media": {"id": "repository_media", "label": "仓库媒体下载", "ok": curl_ok,
+                             "message": "curl 可用，沿用现有代理设置" if curl_ok else "curl 缺失或无法运行",
+                             "remedy": "安装可用的 curl 并重新检测；固定版本公开媒体直采不需要调用 Agent 或登录 GitHub。"},
         "python": {"id": "python", "label": "Python 与 HTTPS", "ok": bool(python_ok),
                    "message": f"Python {report['python_version']} · HTTPS 证书{'可用' if ca_ready else '不可用'}",
                    "remedy": "使用完整的 Python 3.10+，确保 venv、ssl、email.encoders、urllib.request 及 CA 证书可用；修复后重新检测。"},
@@ -734,7 +745,7 @@ def preflight(capabilities=None):
     }
     selected = [results[item] for item in dict.fromkeys(requested)]
     return {"ready": all(item["ok"] for item in selected), "checkedAt": now(), "checks": selected,
-            "python": report["python"], "programs": {**report["programs"], "gh": gh}, "chatcut": "requires_live_mcp_probe"}
+            "python": report["python"], "programs": {**report["programs"], "gh": gh, "curl": curl}, "chatcut": "requires_live_mcp_probe"}
 
 
 def bootstrap():
@@ -795,7 +806,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest="command", required=True)
     subs.add_parser("doctor")
-    p = subs.add_parser("preflight"); p.add_argument("--capability", action="append", choices=["python", "media", "repository", "downloader"])
+    p = subs.add_parser("preflight"); p.add_argument("--capability", action="append", choices=["python", "media", "repository", "downloader", "repository_media"])
     subs.add_parser("bootstrap")
     p = subs.add_parser("connection"); p.add_argument("--file", required=True); p.add_argument("--run")
     p = subs.add_parser("profile"); p.add_argument("--merge-file")

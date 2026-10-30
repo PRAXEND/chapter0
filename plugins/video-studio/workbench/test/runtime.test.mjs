@@ -42,6 +42,7 @@ const result=request.method==='config/read'?{config:{model:process.env.FIXTURE_M
 
 test('capabilities follow the actual source and missing optional tools do not block cached or repository media',()=>{
   assert.deepEqual(sourceCapabilities({sourceType:'x_repository'}),['python','media','repository']);
+  assert.deepEqual(sourceCapabilities({sourceType:'x_repository'},{direct:true}),['python','media','repository_media']);
   assert.deepEqual(sourceCapabilities({sourceType:'official',url:'https://youtu.be/actual'}),['python','media','downloader']);
   const report={checks:[{id:'python',ok:true},{id:'media',ok:true},{id:'repository',ok:true},{id:'downloader',ok:false}]};
   assert.deepEqual(dependencyFailures(report,sourceCapabilities({sourceType:'x_repository'})),[]);

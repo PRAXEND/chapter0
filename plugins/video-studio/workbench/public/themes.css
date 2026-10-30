@@ -349,3 +349,6 @@ dialog::backdrop,#style-dialog::backdrop{background:var(--backdrop);backdrop-fil
 .runtime-path code{display:block;margin:10px 0;line-height:1.8}
 .runtime-readiness>button{margin-top:12px}
 @media(max-width:600px){.runtime-check-grid{grid-template-columns:1fr}}
+
+.settings-heading{flex-wrap:wrap}
+.settings-heading>span{white-space:normal}
