@@ -2,7 +2,7 @@
 
 按用户选择的题材和风格制作视频，并把参考脚本、视频提炼成下次可调用的风格技能。
 
-**插件内置网页工作台版 0.3.0-web.19 · 基于团队默认分支 · macOS / Codex · 依赖已安装且登录的 ChatCut**
+**插件内置网页工作台版 0.3.0-web.20 · 基于团队默认分支 · macOS / Codex · 依赖已安装且登录的 ChatCut**
 
 ## 组成
 
@@ -91,14 +91,18 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 [完整验收技能](plugins/video-studio/skills/video-quality-review/SKILL.md)与[记录规范](plugins/video-studio/references/quality-review.md)区分自动检测线索、实际观看/听审通过和未验证。没有感知证据不能填通过，旧导出审核不能替代新导出审核；有意的风格效果按当前要求判断。
 
+## 风格如何落实到成片
+
+所选风格在分镜前读取规则和相关复现配方。方案逐条关联规则与镜头，并展示具体画面变化、触发、避让、声音及受限时的替代设计；核心表达不能漏掉，条件手法不用凑数量。正式剪辑登记实际对象和帧范围，验收再核对是否完成。详细结构见 [风格分镜与实现核验](plugins/video-studio/references/style-storyboard.md)。这些检查不会自动认证审美或听感，仍需真实观看与听审。
+
 ## 安装与验证
 
-安装包：`dist/video-studio-0.3.0-web.19.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
+安装包：`dist/video-studio-0.3.0-web.20.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
 
 ```sh
-shasum -a 256 -c video-studio-0.3.0-web.19.zip.sha256
-unzip video-studio-0.3.0-web.19.zip
-codex plugin marketplace add ./video-studio-0.3.0-web.19
+shasum -a 256 -c video-studio-0.3.0-web.20.zip.sha256
+unzip video-studio-0.3.0-web.20.zip
+codex plugin marketplace add ./video-studio-0.3.0-web.20
 ```
 
 在插件目录选择 Video Studio 本地来源安装，并在新聊天验证技能。安装缓存与市场源不是同一份文件；不要手工改缓存。插件目录与本地市场机制见 [OpenAI 官方文档](https://developers.openai.com/plugins/build/plugins)。
@@ -136,7 +140,7 @@ doctor 本地成功不表示 ChatCut 已连接。使用宿主完整 Python；损
 
 ### 上传到 GitHub 分支
 
-`dist/video-studio-plugin-0.3.0-web.19.zip` 是仅含插件的包，根目录直接包含 `plugin.json`、`skills/`、`scripts/` 和 `workbench/`。解压到目标仓库的 `plugins/video-studio/` 后可提交分支；保留 `.agents/plugins/marketplace.json` 对该目录的引用。`dist/video-studio-0.3.0-web.19.zip` 是含 marketplace、测试、打包工具和说明的源码发行包。发行包采用白名单，不包含本机项目、素材、账号、个人风格和成片。
+`dist/video-studio-plugin-0.3.0-web.20.zip` 是仅含插件的包，根目录直接包含 `plugin.json`、`skills/`、`scripts/` 和 `workbench/`。解压到目标仓库的 `plugins/video-studio/` 后可提交分支；保留 `.agents/plugins/marketplace.json` 对该目录的引用。`dist/video-studio-0.3.0-web.20.zip` 是含 marketplace、测试、打包工具和说明的源码发行包。发行包采用白名单，不包含本机项目、素材、账号、个人风格和成片。
 
 
 网页的风格卡片由真实个人库和仓库可选用户包读取；可查看对应规则、检查方法、案例与原始证据，显示版本及未验证边界。选用未导入的条目时显式导入所在风格包，不应用默认偏好。

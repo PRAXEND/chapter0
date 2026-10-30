@@ -91,13 +91,28 @@ def prepare_collection(payload):
 
 def save_plan(payload):
     run = Path(payload["run"])
-    studio.load_run(run)
+    data = studio.load_run(run)
     plan = payload["plan"]
+    studio.style_plan.validate(plan, data)
     lines = [f"# {plan['title']}", "", plan.get("summary", ""), "", "## 文案", "", plan["script"], "", "## 分镜（预计时间）", ""]
     for shot in plan["shots"]:
         lines += [f"### {shot['id']} · {shot['from']}–{shot['to']} 秒", "",
                   f"素材：{', '.join(shot['sourceIds'])}", f"旁白：{shot['narration']}",
                   f"画面：{shot['visual']}", f"屏幕文字：{shot['screenText']}", f"剪辑：{shot['transition']}", ""]
+        for design in shot.get("design", []):
+            lines += [f"#### 画面设计 {design['id']} · {', '.join(design['ruleIds'])}",
+                      f"用途：{design['purpose']}", f"触发：{design['trigger']}",
+                      f"进入 / 变化 / 退出：{design['phases']}", f"预计持续：{design['durationSeconds']} 秒",
+                      f"位置与动作保护：{design['placement']}", f"声音落点：{design['sound']}",
+                      f"实现与素材前提：{design['implementation']}", f"替代处理：{design['fallback']}", ""]
+    mapping = plan.get("stylePlan")
+    if mapping:
+        lines += ["## 风格落实与参考对照", f"风格：{mapping['selector']}", mapping["contrastReview"], ""]
+        for row in mapping["rules"]:
+            lines += [f"- {row['ruleId']} · {row['disposition']} · 镜头 {', '.join(row['shotIds'])}：{row['treatment']}"]
+        for ref in mapping["referenceChecks"]:
+            lines += [f"- 参考 {ref['referenceId']} @ {ref['location']}：{ref['observation']}；本期适配：{ref['adaptation']}"]
+        lines += [""]
     lines += ["## 待补素材 / 事实缺口", "", *[f"- {item}" for item in plan.get("gaps", [])], "",
               "## 制作说明", "", *[f"- {item}" for item in plan.get("notes", [])], ""]
     if plan.get("limitations"):
@@ -112,8 +127,12 @@ def save_plan(payload):
     file = run / f"script-storyboard-v{version}.md"
     write(file, text)
     write(run / "workbench-plan.json", plan)
+    style_hash = None
+    if mapping or any(s.get("design") for s in plan["shots"]):
+        style_hash = studio.record(run, "style_plan", plan)["style_plan"]["sha256"]
     result = {"version": version, "file": str(file), "file_sha256": plan_hash,
-              "input_hash": payload["inputHash"], "status": "awaiting_confirmation"}
+              "input_hash": payload["inputHash"], "status": "awaiting_confirmation",
+              "plan_data_sha256": studio.digest(plan), "style_plan_sha256": style_hash}
     write(approval_file, result)
     return result
 
@@ -126,6 +145,7 @@ def approve(payload):
         raise ValueError("方案已发生变化，请重新审阅。")
     if digest(Path(current["file"]).read_bytes()) != current["file_sha256"]:
         raise ValueError("方案文件已发生变化，请重新审阅。")
+    check_plan_data(run, current)
     authority = payload.get("authority", {"kind": "user_click"})
     if authority.get("kind") == "delegated_review":
         request = authority.get("userRequest")
@@ -148,12 +168,27 @@ def approve(payload):
     return current
 
 
+def check_plan_data(run, approval):
+    if not approval.get("plan_data_sha256"):
+        return  # Previously approved plans retain their original recovery path.
+    plan = read(Path(run) / "workbench-plan.json")
+    data = studio.load_run(run)
+    if studio.digest(plan) != approval["plan_data_sha256"]:
+        raise ValueError("结构化方案已变化，请重新保存并审阅。")
+    studio.style_plan.validate(plan, data)
+    expected = approval.get("style_plan_sha256")
+    if expected and (data.get("style_plan", {}).get("sha256") != expected or
+                     studio.digest(data["style_plan"]["plan"]) != expected):
+        raise ValueError("风格设计已变化，请重新保存并审阅。")
+
+
 def check_approval(payload):
     result = read(Path(payload["run"]) / "script-storyboard-approval.json")
     if result.get("status") != "confirmed" or result["file_sha256"] != payload["planHash"] or result["input_hash"] != payload["inputHash"]:
         raise ValueError("当前方案尚未确认，或已被修改。")
     if digest(Path(result["file"]).read_bytes()) != result["file_sha256"]:
         raise ValueError("方案文件校验失败，请重新审阅。")
+    check_plan_data(payload["run"], result)
     return result
 
 
