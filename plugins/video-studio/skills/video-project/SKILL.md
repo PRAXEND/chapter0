@@ -42,7 +42,7 @@ description: 用 Video Studio 制作、继续或修改视频，按用户指定�
 - 缺依赖或首次配置：`setup-video-studio`。
 - 查资料、选材、下载、检查来源：`video-source-tools`。
 - 项目、导入、镜头、MG、转场：`chatcut-edit-tools`。
-- 配音、音乐、字幕、同步：`video-audio-tools`。
+- 配音、音乐、字幕、同步：`video-audio-tools`；正式 TTS 前先解决音色。没有可用克隆且尚未选择时，先询问是否克隆；已有有效选择直接复用。
 - 完整声画验收、问题定位与修复复查：`video-quality-review`。
 - 导出、两版封面与发布文案交付：`video-delivery-tools`。
 

@@ -48,6 +48,7 @@ FILES = [
     'plugins/video-studio/skills/chatcut-edit-tools/SKILL.md',
     'plugins/video-studio/skills/chatcut-edit-tools/agents/openai.yaml',
     'plugins/video-studio/skills/video-audio-tools/SKILL.md',
+    'plugins/video-studio/skills/video-audio-tools/references/voice-selection.md',
     'plugins/video-studio/skills/video-audio-tools/agents/openai.yaml',
     'plugins/video-studio/skills/video-delivery-tools/SKILL.md',
     'plugins/video-studio/skills/video-delivery-tools/agents/openai.yaml',
