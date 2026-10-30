@@ -1,5 +1,7 @@
 # 插件内置网页入口
 
+所有新制作方案还遵循 [通用素材连续性与竖版构图](common-production.md)：独立于风格的 productionPlan、sourceUses/layout、production_plan 记录与最终 material_continuity / portrait_layout 验收。历史已确认记录可继续恢复，新生成/保存的方案采用新校验。
+
 网页代码与服务位于本插件 `workbench/`，由 [open-video-workbench](../skills/open-video-workbench/SKILL.md) 启动和打开。`scripts/open-workbench.mjs` 核对已有服务后返回实际地址，不依赖仓库外的 sites 目录。项目数据使用独立用户应用数据目录，或 VIDEO_STUDIO_WEB_DATA 指定的位置，不能写到插件版本缓存里。
 
 # 网页制作工作台

@@ -5,6 +5,8 @@ description: 用 Video Studio 制作、继续或修改视频，按用户指定�
 
 # 视频项目与技能组合
 
+所有项目先读 [通用素材与构图流程](../../references/common-production.md)。无风格项目也保存 productionPlan、每镜 sourceUses 与 layout，并通过 `record --kind production_plan` 登记；网页保存会自动登记。先检查重复动作、规划相关补充，再按实际画幅安排构图。所有竖版采用本期 portrait_bottom_inset（默认 18%），关键画面与字幕共同上移；横版/方形不套用。通用记录纳入原有方案确认及验收，不写入个人风格库。风格中的构图意图在这项通用避让边界内适配具体坐标。
+
 插件根目录为本技能上两级，命令入口为 `scripts/studio.py`。本技能只组织工具，不规定题材、语言、时长、视频比例、音色或剪辑模板。
 
 网页宿主发起的选材、审稿和制片请求，按[网页工作台约定](../../references/web-workbench.md)读取真实运行目录、确认哈希与任务记录；适配器是 `scripts/web_bridge.py`。独立会话不重置项目，不把网页保存/选材当作制片授权。

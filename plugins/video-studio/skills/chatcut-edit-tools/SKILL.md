@@ -5,6 +5,8 @@ description: 在 Video Studio 中调用 ChatCut 项目、素材导入、可编�
 
 # ChatCut 编辑工具
 
+编辑任何题材或风格前，读取 [通用素材与构图流程](../../references/common-production.md) 及已确认 production_plan。严格用批准的 sourceUses 窗口，避免源片内部回放、转载重复及变速/裁切重用；主题相关素材可自然衔接，不额外加跨事件说明。每个 beat 保存 shot_id、实际 source_uses 与证据；所有竖版重新安排主体/动作和字幕的位置，保持画面铺满及动作完整，保存实际 layout_result。最终连续观看并检查接缝、动作极值与字幕动画，不能只凭目标坐标声称完成。
+
 沿当前已安装 ChatCut 技能与实时 schema 操作，不硬编码缓存版本、assetId 或工具参数。首次连接读 chatcut-plugin-basics；桌面和 hosted 表面使用各自适用说明。
 
 新片正式排镜或制作 MG 前，遵循 [video-project 的文案与分镜确认步骤](../video-project/SKILL.md)，检查当前方案已确认或用户明确跳过确认。确认选材不等于确认剪辑方案；已授权的局部修改不重复审稿。

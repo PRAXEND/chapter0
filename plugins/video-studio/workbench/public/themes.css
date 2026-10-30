@@ -355,3 +355,7 @@ dialog::backdrop,#style-dialog::backdrop{background:var(--backdrop);backdrop-fil
 
 .delegated-review{margin:24px 0 12px;padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:12px;color:var(--body)}
 .delegated-review>label:first-child{display:flex;align-items:center;gap:8px}.delegated-review input{accent-color:var(--green)}.delegated-review .editor-label{margin-top:12px}.delegated-review small{font-weight:400;color:var(--muted)}
+
+.production-plan-summary{margin:20px 0;padding:18px;border:1px solid var(--border,#ddd);border-radius:12px}.production-plan-summary textarea{display:block;width:100%;box-sizing:border-box}.portrait-guide{width:108px;height:192px;border:1px solid #789;margin:12px 0;overflow:hidden}.portrait-guide-content,.portrait-guide-bottom{box-sizing:border-box;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;padding:4px}.portrait-guide-bottom{border-top:2px dashed #b75;background:#fbecd9}.shot-source-uses{margin:14px 0;border-top:1px solid #ddd;padding-top:10px}.shot-source-uses article{padding:10px 0}
+
+.portrait-guide {display:block;width:108px;height:192px}.portrait-guide-content {fill:#edf4f0}.portrait-guide-bottom {fill:#ffdca8}.portrait-guide text {font-size:10px;fill:#213d32}

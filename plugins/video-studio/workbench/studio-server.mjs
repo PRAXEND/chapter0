@@ -210,7 +210,7 @@ async function startJob(action,options={}){
   requireDependencies(capabilities);
   if(action==='discover'){const query=String(options.query||project.topic).trim();if(!query)throw new Error('请输入要查找的素材关键词。');adoptTopic(query);}
   if(action==='collect'){const source=project.sources.find(s=>s.id===options.sourceId);if(!source)throw new Error('找不到选中的内容。');adoptTopic(source.title);}
-  if(action==='plan')adoptTopic(project.sources.find(s=>project.selected.includes(s.id))?.title);
+  if(action==='plan'){adoptTopic(project.sources.find(s=>project.selected.includes(s.id))?.title);project.workflowVersion=1;project.portraitBottomInset??=.18;project.approval=null;}
   await ensureRun();
   if(['plan','produce'].includes(action))await checkSelected();
   if(action==='produce')await bridge('check-approval',{run:project.run,planHash:project.approval.planHash,inputHash:inputHash(project)});
@@ -359,7 +359,7 @@ const server=http.createServer(async(req,res)=>{
         return send(res,404,{error:'没有此操作。'});
       });
     }
-    const files={'/':'index.html','/app.js':'app.js','/voice-ui.js':'voice-ui.js','/style-plan-view.js':'style-plan-view.js','/material-dates.js':'material-dates.js','/token-usage.js':'token-usage.js','/token-usage-view.js':'token-usage-view.js','/styles.css':'styles.css','/theme.js':'theme.js','/themes.css':'themes.css'};
+    const files={'/':'index.html','/app.js':'app.js','/voice-ui.js':'voice-ui.js','/style-plan-view.js':'style-plan-view.js','/production-plan.js':'production-plan.js','/material-dates.js':'material-dates.js','/token-usage.js':'token-usage.js','/token-usage-view.js':'token-usage-view.js','/styles.css':'styles.css','/theme.js':'theme.js','/themes.css':'themes.css'};
     if(req.method==='GET' && files[route]){const file=files[route];res.writeHead(200,{'Content-Type':({html:'text/html',js:'text/javascript',css:'text/css'})[file.split('.').pop()]+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https:; media-src 'self' blob: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"});return res.end(await readFile(path.join(root,'public',file)));}
     send(res,404,{error:'页面不存在。'});
   }catch(e){if(res.headersSent){res.destroy();return;}send(res,/已有操作/.test(e.message)?409:400,{error:cleanError(e.message),...(e.code==='preflight_failed'?{code:e.code,runtime}:{})});}

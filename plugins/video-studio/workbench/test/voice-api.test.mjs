@@ -56,7 +56,7 @@ else{
     const uploaded=await fetch(base+'/api/upload?name=fixture.mp4',{method:'POST',headers:{'X-Video-Demo':'1'},body:await readFile(video)}),source=(await uploaded.json()).source;
     assert.equal(uploaded.status,201);
     settings.selected=[source.id];await api('/api/project',settings);
-    const plan={title:'测试',script:'这是测试旁白。',shots:[{id:'1',from:0,to:2,sourceIds:[source.id],narration:'这是测试旁白。',visual:'测试画面',screenText:'',transition:'无'}],gaps:[],notes:[]};
+    const plan={productionPlan:{version:1,materialReview:'Synthetic HTTP fixture',layout:{mode:'unchanged',bottomInset:0}},title:'测试',script:'这是测试旁白。',shots:[{id:'1',from:0,to:2,sourceIds:[source.id],sourceUses:[{id:'u1',sourceId:source.id,inSeconds:0,outSeconds:1,actionGroup:'diagnostic-segment',role:'primary',purpose:'HTTP fixture',compatibility:'Synthetic, no news claims'}],layout:{composition:'Full frame diagnostic',contentBottom:null,captionBottom:null},narration:'这是测试旁白。',visual:'测试画面',screenText:'',transition:'无'}],gaps:[],notes:[]};
     const saved=await api('/api/plan',{plan});assert.equal(saved.status,200);
     const planHash=saved.value.plan.planHash;assert.equal((await api('/api/approve',{planHash})).status,200);
     async function produce(){

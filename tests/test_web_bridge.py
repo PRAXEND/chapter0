@@ -24,8 +24,8 @@ class WebBridgeTests(unittest.TestCase):
                  'requirements': {'width': 160, 'height': 90, 'fps': 25, 'target_seconds': 2,
                                   'max_seconds': 2, 'narration': False, 'captions': False, 'audio_required': False}}
         self.run = Path(web_bridge.create({'title': '适配器测试', 'outputRoot': str(self.root / 'runs'), 'brief': brief})['run'])
-        self.plan = {'title': '已审阅方案', 'summary': '测试', 'script': '用户文案', 'shots': [
-            {'id': '1', 'from': 0, 'to': 2, 'sourceIds': [], 'narration': '', 'visual': '素材画面', 'screenText': '文字', 'transition': '直接剪接'}]}
+        self.plan = {'productionPlan': {'version': 1, 'materialReview': 'Synthetic observations', 'layout': {'mode': 'unchanged', 'bottomInset': 0}}, 'title': '已审阅方案', 'summary': '测试', 'script': '用户文案', 'shots': [
+            {'id': '1', 'from': 0, 'to': 2, 'sourceIds': [], 'sourceUses': [], 'layout': {'composition': 'Full frame graphics', 'contentBottom': None, 'captionBottom': None}, 'narration': '', 'visual': '素材画面', 'screenText': '文字', 'transition': '直接剪接'}]}
 
     def tearDown(self):
         self.env.stop()

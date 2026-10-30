@@ -53,6 +53,9 @@ export async function recoverLegacyProjects(dataDir,current,store){
       const rows=unsorted.sort((a,b)=>a.at.localeCompare(b.at)),latest=rows.at(-1).context,record=await read(path.join(run,'run.json'));
       if(!record||!rows.some(r=>r.action!=='connect'))continue;
       const p=initialStudio(),r=latest.brief.requirements||{};
+      // Preserve the approval input format of the recorded run, not today's new-project defaults.
+      if(record.production_policy_version!==1)delete p.workflowVersion;
+      p.portraitBottomInset=r.portrait_bottom_inset??.18;p.replayAuthorization=r.replay_authorization??null;
       Object.assign(p,{id:'restored-'+key(run),title:latest.brief.topic,topic:latest.brief.topic,purpose:latest.brief.purpose||'',duration:r.max_seconds||r.target_seconds||30,ratio:r.width===r.height?'1:1':r.width>r.height?'16:9':'9:16',fps:r.fps||30,language:r.language||'zh-CN',narration:!!r.narration,captions:!!r.captions,music:latest.settings?.music||'none',voiceDirection:latest.settings?.voiceDirection||'',styleSelector:latest.brief.style||null,styleDescription:latest.settings?.styleDescription||'',outputRoot:path.isAbsolute(latest.outputDirectory||'')?latest.outputDirectory:current.outputRoot,run,createdAt:record.created_at||rows[0].at,updatedAt:record.updated_at||rows.at(-1).at,recovery:{kind:'legacy_workbench',recoveredAt:new Date().toISOString(),note:'从现存任务请求、方案与制作文件恢复。未保存的旧网页编辑和完整执行日志无法还原。'}});
       const sources=new Map();for(const row of rows)for(const source of [...(row.context.knownSources||[]),...(row.context.source?[row.context.source]:[]),...(row.context.selectedSources||[])])if(source?.id)sources.set(source.id,source);
       p.sources=[...sources.values()];

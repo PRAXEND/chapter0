@@ -44,7 +44,7 @@ test('legacy recovery restores only recorded projects and hash-matching files, w
   try{
     const current=initialStudio(),store=await new ProjectStore(data).init(current),run=path.join(data,'runs','prior-project'),job=path.join(data,'jobs','old-production'),output=path.join(data,'output'),delivery=path.join(output,'prior-delivery');
     for(const folder of [run,job,delivery])await mkdir(folder,{recursive:true});
-    const previous=initialStudio();Object.assign(previous,{topic:'可恢复旧项目',title:'可恢复旧项目',run,outputRoot:output});
+    const previous=initialStudio();delete previous.workflowVersion;Object.assign(previous,{topic:'可恢复旧项目',title:'可恢复旧项目',run,outputRoot:output});
     const request={run,brief:brief(previous),settings:{music:'none'},outputDirectory:output,selectedSources:[],planHash:'not-evidence-of-approval',inputHash:inputHash(previous)};
     await writeFile(path.join(job,'request.json'),JSON.stringify(request));await writeFile(path.join(job,'output.schema.json'),JSON.stringify({properties:{status:{}}}));
     const identity={projectId:'recorded-project',timelineId:'recorded-timeline',editorUrl:'https://app.chatcut.io/editor/recorded-project'};
@@ -55,7 +55,7 @@ test('legacy recovery restores only recorded projects and hash-matching files, w
     await writeFile(path.join(delivery,'project.json'),JSON.stringify(identity));
     await writeFile(path.join(delivery,'delivery-report.json'),JSON.stringify({video:{decodeVerified:true,path:exported,bytes:24,sha256:await fileHash(video)}}));
     assert.equal(await recoverLegacyProjects(data,current,store),1);
-    const restored=store.load(store.list(current.id).find(p=>p.recovered).id);assert.equal(restored.topic,previous.topic);assert.equal(restored.approval,null);assert.equal(restored.plan.script,'真实保存的旧文本');assert.equal(restored.deliveries.length,1);assert.equal(restored.jobs[0].status,'completed');
+    const restored=store.load(store.list(current.id).find(p=>p.recovered).id);assert.equal(restored.topic,previous.topic);assert.equal(restored.workflowVersion,undefined);assert.equal(restored.approval,null);assert.equal(restored.plan.script,'真实保存的旧文本');assert.equal(restored.deliveries.length,1);assert.equal(restored.jobs[0].status,'completed');
     assert.equal(restored.deliveries[0].verified.sha256,await fileHash(video));assert.equal(await recoverLegacyProjects(data,current,store),0);
     await writeFile(video,'changed after export');
     const otherData=await mkdtemp(path.join(os.tmpdir(),'studio-recovery-reject-test-'));

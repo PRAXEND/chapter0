@@ -4,7 +4,7 @@ import {validatePlan,initialStudio,schemas} from '../studio-workflow.mjs';
 import {renderShotDesign,readShotDesign,renderStylePlan} from '../public/style-plan-view.js';
 
 const design=()=>({id:'motion-1',ruleIds:['mechanism'],purpose:'解释状态变化',trigger:'说到转向时',phases:'进入、切换指示、退出',durationSeconds:2,placement:'手部旁空白',sound:'轻提示',implementation:'可编辑指示线',fallback:'侧边分步标签'});
-const plan=()=>({title:'测试',script:'测试',shots:[{id:'s1',from:0,to:5,sourceIds:[],narration:'测试',visual:'动作',screenText:'转向',transition:'硬切',design:[design()]}],stylePlan:{selector:'sample@8',rules:[{ruleId:'mechanism',disposition:'planned',shotIds:['s1'],treatment:'随台词变化'}],referenceChecks:[{referenceId:'ref',location:'测试',observation:'仅为测试',adaptation:'解释本题'}],contrastReview:'机制推进与动作间留阅读时间'}});
+const plan=()=>({productionPlan:{version:1,materialReview:'Synthetic observations',layout:{mode:'portrait-safe',bottomInset:.18}},title:'测试',script:'测试',shots:[{id:'s1',from:0,to:5,sourceIds:[],sourceUses:[],layout:{composition:'Graphics above reserved area',contentBottom:.8,captionBottom:null},narration:'测试',visual:'动作',screenText:'转向',transition:'硬切',design:[design()]}],stylePlan:{selector:'sample@8',rules:[{ruleId:'mechanism',disposition:'planned',shotIds:['s1'],treatment:'随台词变化'}],referenceChecks:[{referenceId:'ref',location:'测试',observation:'仅为测试',adaptation:'解释本题'}],contrastReview:'机制推进与动作间留阅读时间'}});
 
 test('style plan and editable motion survive normalization; missing planning and invalid timing are rejected',()=>{
   const project={...initialStudio(),styleSelector:'sample@8'};

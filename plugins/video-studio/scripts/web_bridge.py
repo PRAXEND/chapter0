@@ -94,11 +94,18 @@ def save_plan(payload):
     data = studio.load_run(run)
     plan = payload["plan"]
     studio.style_plan.validate(plan, data)
+    studio.production_plan.validate(plan, data)
     lines = [f"# {plan['title']}", "", plan.get("summary", ""), "", "## 文案", "", plan["script"], "", "## 分镜（预计时间）", ""]
+    policy = plan["productionPlan"]
+    lines += ["## 通用素材与布局", policy["materialReview"],
+              "布局：" + json.dumps(policy["layout"], ensure_ascii=False), ""]
     for shot in plan["shots"]:
         lines += [f"### {shot['id']} · {shot['from']}–{shot['to']} 秒", "",
                   f"素材：{', '.join(shot['sourceIds'])}", f"旁白：{shot['narration']}",
                   f"画面：{shot['visual']}", f"屏幕文字：{shot['screenText']}", f"剪辑：{shot['transition']}", ""]
+        lines += ["构图：" + json.dumps(shot["layout"], ensure_ascii=False)]
+        for use in shot["sourceUses"]:
+            lines += ["素材片段：" + json.dumps(use, ensure_ascii=False)]
         for design in shot.get("design", []):
             lines += [f"#### 画面设计 {design['id']} · {', '.join(design['ruleIds'])}",
                       f"用途：{design['purpose']}", f"触发：{design['trigger']}",
@@ -121,18 +128,25 @@ def save_plan(payload):
     plan_hash = digest(text.encode("utf-8"))
     approval_file = run / "script-storyboard-approval.json"
     previous = read(approval_file) if approval_file.is_file() else {}
-    if previous.get("file_sha256") == plan_hash and previous.get("input_hash") == payload["inputHash"]:
+    used = {u["sourceId"] for shot in plan["shots"] for u in shot["sourceUses"]}
+    signatures = {s["id"]: studio.digest(studio.production_plan.source_identity(s))
+                  for s in data["sources"] if s["id"] in used}
+    stored = data.get("production_plan") or {}
+    if (previous.get("file_sha256") == plan_hash and previous.get("input_hash") == payload["inputHash"]
+            and stored.get("source_signatures") == signatures):
         return previous
     version = previous.get("version", 0) + 1
     file = run / f"script-storyboard-v{version}.md"
     write(file, text)
     write(run / "workbench-plan.json", plan)
+    production_hash = studio.record(run, "production_plan", plan)["production_plan"]["sha256"]
     style_hash = None
     if mapping or any(s.get("design") for s in plan["shots"]):
         style_hash = studio.record(run, "style_plan", plan)["style_plan"]["sha256"]
     result = {"version": version, "file": str(file), "file_sha256": plan_hash,
               "input_hash": payload["inputHash"], "status": "awaiting_confirmation",
-              "plan_data_sha256": studio.digest(plan), "style_plan_sha256": style_hash}
+              "plan_data_sha256": studio.digest(plan), "style_plan_sha256": style_hash,
+              "production_plan_sha256": production_hash}
     write(approval_file, result)
     return result
 
@@ -176,6 +190,12 @@ def check_plan_data(run, approval):
     if studio.digest(plan) != approval["plan_data_sha256"]:
         raise ValueError("结构化方案已变化，请重新保存并审阅。")
     studio.style_plan.validate(plan, data)
+    common = approval.get("production_plan_sha256")
+    if common:
+        studio.production_plan.validate(plan, data)
+        stored = data.get("production_plan") or {}
+        if stored.get("sha256") != common or studio.digest(stored.get("plan")) != common:
+            raise ValueError("素材或布局方案已变化，请重新保存并审阅。")
     expected = approval.get("style_plan_sha256")
     if expected and (data.get("style_plan", {}).get("sha256") != expected or
                      studio.digest(data["style_plan"]["plan"]) != expected):

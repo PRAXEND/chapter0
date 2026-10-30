@@ -27,8 +27,8 @@ class StylePlanTests(unittest.TestCase):
         selector = f"{spec['id']}@8"
         run, media = self.fixture(selector)
         conditional = {r['rule_id'] for r in spec['storyboard_contract']['conditional_rules']}
-        plan = {"title": "测试方案", "summary": "合成测试记录，不是制作或验收结论", "script": "fixture",
-                "shots": [{"id": "s1", "from": 0, "to": 180, "sourceIds": [], "narration": "", "visual": "测试真实动作指示",
+        plan = {"productionPlan": {"version": 1, "materialReview": "Synthetic observations", "layout": {"mode": "unchanged", "bottomInset": 0}}, "title": "测试方案", "summary": "合成测试记录，不是制作或验收结论", "script": "fixture",
+                "shots": [{"id": "s1", "from": 0, "to": 180, "sourceIds": [], "sourceUses": [], "layout": {"composition": "Full frame graphics", "contentBottom": None, "captionBottom": None}, "narration": "", "visual": "测试真实动作指示",
                            "screenText": "", "transition": "硬切", "design": []}], "gaps": [], "notes": [], "limitations": [],
                 "stylePlan": {"selector": selector, "rules": [
                     {"ruleId": r['id'], "disposition": "not_applicable" if r['id'] in conditional else "planned",

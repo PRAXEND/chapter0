@@ -24,6 +24,7 @@ import uuid
 
 import styles
 import style_plan
+import production_plan
 import check_connection
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,9 +35,10 @@ DEFAULTS = {
     "max_video_sources": 6, "max_download_seconds": 300,
     "voice": None, "default_style": None,
     "narration": None, "captions": None, "audio_required": None,
-    "production_preferences": {},
+    "production_preferences": {}, "portrait_bottom_inset": .18, "replay_authorization": None,
 }
-REVIEW_METHODS = {"visuals": "continuous_playback", "audio_listening": "full_mix_listening",
+REVIEW_METHODS = {"material_continuity": "source_windows_and_playback",
+                  "portrait_layout": "composited_sequence_inspection", "visuals": "continuous_playback", "audio_listening": "full_mix_listening",
                   "caption_sync": "word_alignment_and_frames", "facts": "source_review",
                   "style_match": "reference_comparison",
                   "av_sync": "timeline_alignment_and_playback",
@@ -178,6 +180,9 @@ def profile():
 
 
 def validate_settings(result, complete=False):
+    production_plan.layout(result)
+    if result.get("replay_authorization") is not None and not production_plan.text(result["replay_authorization"]):
+        raise StudioError("Replay exception needs the actual user request")
     if not isinstance(result.get("production_preferences", {}), dict):
         raise StudioError("production_preferences must be an object of explicit user preferences")
     for key in ("width", "height", "fps", "target_seconds", "min_seconds", "max_seconds",
@@ -259,6 +264,7 @@ def new_run(title, output_root=None, brief=None):
         "project": {}, "sources": [], "beats": [], "downloads": {},
         "operations": {}, "reviews": {}, "revision": 0, "history": [],
         "brief": None, "style_snapshot": None, "material_plan": None,
+        "production_policy_version": 1, "production_plan": None,
     }
     if brief is not None:
         apply_brief(manifest, brief, directory)
@@ -341,6 +347,16 @@ def record(directory, kind, payload):
                 if not all(need.get(k) for k in ("id", "purpose", "query", "acceptance")):
                     raise StudioError("Material need requires id, purpose, topic/style-aware query and acceptance")
             data["material_plan"] = payload
+        elif kind == "production_plan":
+            production_plan.validate(payload, data)
+            used = {u["sourceId"] for s in payload["shots"] for u in s["sourceUses"]}
+            stored = {"plan": payload, "sha256": digest(payload),
+                      "source_hashes": {s["id"]: s.get("sha256") for s in data["sources"] if s["id"] in used},
+                      "source_signatures": {s["id"]: digest(production_plan.source_identity(s)) for s in data["sources"] if s["id"] in used}}
+            if data.get("production_plan") == stored:
+                return data
+            data["production_policy_version"] = 1
+            data["production_plan"] = stored
         elif kind == "style_plan":
             style_plan.validate(payload, data)
             stored = {"plan": payload, "sha256": digest(payload)}
@@ -606,6 +622,16 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
         except (OSError, ValueError, KeyError, TypeError) as exc:
             style_implementation = ["style_plan_invalid:" + str(exc)]
         failures.extend(style_implementation)
+    common_implementation = []
+    if data.get("production_policy_version") == 1 or data.get("production_plan"):
+        required.add("material_continuity")
+        try:
+            if production_plan.layout(settings)["mode"] == "portrait-safe":
+                required.add("portrait_layout")
+            common_implementation = production_plan.implementation_errors(data, review_base, frames)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            common_implementation = ["production_plan_invalid:" + str(exc)]
+        failures.extend(common_implementation)
     check_results = {key: {"status": "not_applicable"} for key in REVIEW_KEYS - required}
     for key in sorted(required):
         review = data["reviews"].get(key, {})
@@ -620,6 +646,8 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
             valid = valid and review.get("coverage_frames") == [0, frames]
         if key in {"caption_sync", "caption_flow"}:
             valid = valid and review.get("subtitle_sha256") == subtitle_hash
+        if key in {"material_continuity", "portrait_layout"}:
+            valid = valid and not common_implementation and review.get("production_plan_sha256") == data.get("production_plan", {}).get("sha256")
         if key == "style_match":
             rows = review.get("rules", {})
             valid = valid and review.get("style") == snapshot["selector"] and set(rows) == {r["id"] for r in style_rules}
@@ -839,7 +867,7 @@ def main(argv=None):
     p = subs.add_parser("profile"); p.add_argument("--merge-file")
     p = subs.add_parser("new"); p.add_argument("--title", required=True); p.add_argument("--output-root"); p.add_argument("--brief")
     p = subs.add_parser("status"); p.add_argument("--run", required=True)
-    p = subs.add_parser("record"); p.add_argument("--run", required=True); p.add_argument("--kind", choices=["source", "beat", "selection", "project", "brief", "material_plan", "style_plan", "review"], required=True); p.add_argument("--file", required=True)
+    p = subs.add_parser("record"); p.add_argument("--run", required=True); p.add_argument("--kind", choices=["source", "beat", "selection", "project", "brief", "material_plan", "production_plan", "style_plan", "review"], required=True); p.add_argument("--file", required=True)
     p = subs.add_parser("operation"); p.add_argument("action", choices=["reserve", "resolve"]); p.add_argument("--run", required=True); p.add_argument("--key", required=True); p.add_argument("--file", required=True); p.add_argument("--state", choices=["submitted", "completed", "failed"])
     p = subs.add_parser("probe"); p.add_argument("--url", required=True)
     p = subs.add_parser("fetch"); p.add_argument("--run", required=True); p.add_argument("--source", required=True); p.add_argument("--start", type=float, required=True); p.add_argument("--end", type=float, required=True)

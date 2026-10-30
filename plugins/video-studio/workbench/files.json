@@ -49,5 +49,7 @@
   "test/voices.test.mjs",
   "test/voice-api.test.mjs",
   "public/style-plan-view.js",
-  "test/style-plan.test.mjs"
+  "test/style-plan.test.mjs",
+  "public/production-plan.js",
+  "test/production-plan.test.mjs"
 ]

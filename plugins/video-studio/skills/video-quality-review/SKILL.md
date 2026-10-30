@@ -5,6 +5,8 @@ description: 对 Video Studio 成片独立做完整质量验收，逐项检查�
 
 # 完整成片验收
 
+完整审阅还必须执行 [通用素材与构图验收](../../references/common-production.md)：所有视频检查 source_uses 与最终连续播放，登记 material_continuity；所有竖版额外检查主体/完整动作与字幕共同避让、无露边/裁切/动画越界，登记 portrait_layout。两项都绑定 production_plan_sha256 和当前导出。检查器只能校验已登记区间及证据，不能自动发现所有视觉重复；未实看则记 unverified。这些检查不取决于是否选择风格。
+
 本技能独立于制作风格与导出操作。可被制片流程调用，也可单独验收用户已有项目/视频。验收依据是用户要求、选定风格和真实媒体，不建立快切、男声、静帧长度等通用模板。读取 [验收记录与方法](../../references/quality-review.md)。
 
 ## 工具使用

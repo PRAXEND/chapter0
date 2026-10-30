@@ -1,5 +1,7 @@
 # 本地记录与命令
 
+所有新制作方案还遵循 [通用素材连续性与竖版构图](common-production.md)：独立于风格的 productionPlan、sourceUses/layout、production_plan 记录与最终 material_continuity / portrait_layout 验收。历史已确认记录可继续恢复，新生成/保存的方案采用新校验。
+
 使用当前完整 Python 3.10+；PLUGIN 是本次安装根目录，RUN 是实际 run 目录。命令参数使用路径字符串；JSON 从文件读取，不通过 shell 拼接用户文本。
 
 ## 配置和制作要求

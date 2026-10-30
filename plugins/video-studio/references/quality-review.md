@@ -1,5 +1,7 @@
 # 验收记录与执行方法
 
+所有新制作方案还遵循 [通用素材连续性与竖版构图](common-production.md)：独立于风格的 productionPlan、sourceUses/layout、production_plan 记录与最终 material_continuity / portrait_layout 验收。历史已确认记录可继续恢复，新生成/保存的方案采用新校验。
+
 ## 逐项方法
 
 | check | method | 覆盖范围 |

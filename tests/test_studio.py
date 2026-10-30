@@ -146,6 +146,7 @@ class StudioTests(unittest.TestCase):
 
     def fixture(self):
         data = studio.load_run(self.run)
+        data.pop("production_policy_version", None)  # Legacy audit recovery fixture.
         data.update(selection={"topic": "fixture", "confirmed_by_user": True}, project={"projectId": "p", "timelineId": "t"}, sources=[{"id": "s1", "rights": "unknown"}], beats=[{"id": "b1", "narration": "fixture", "visual_anchor": "fixture", "source_ids": ["s1"], "audio_asset_id": "a1", "audio_duration_seconds": 90, "from_frame": 0, "to_frame": 2700}])
         media = {"format": {"duration": "90"}, "streams": [{"codec_type": "video", "codec_name": "h264", "width": 1080, "height": 1920, "avg_frame_rate": "30/1"}, {"codec_type": "audio"}]}
         cards = [{"start": 0, "end": 3, "lines": ["fixture"]}]
