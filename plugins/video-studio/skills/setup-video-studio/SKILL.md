@@ -30,6 +30,8 @@ ChatCut 是剪辑、配音与导出的必需集成；Video Studio 自带的 `cha
 
 需要保存分层诊断或断点清单时，按 [连接检测与断点恢复](../../references/connection-recovery.md) 将本次真实只读结果写入 `studio.py connection`。它不代替 MCP 调用，也不修改 run/revision 或重新提交任务。
 
+工作台独立 CLI 会话必须等待 MCP 工具初始化：启动参数使用 `-c mcp_optional_startup_grace_ms=0`，沿用每个服务已有的启动时限，不写入用户配置或新增同名连接。若旧版会话提示 hosted ChatCut 工具未加载，先更新工作台执行代码并用同一执行入口实际调用 `list_projects` 验证，再复用原 run、有效确认哈希和已有远端记录继续。不要将工具缺失当成要求用户重新审稿的理由；若初始化实际失败，保留具体错误并按 ChatCut 基础技能诊断。
+
 汇报分别列出本地环境、依赖安装、认证/连接和下一步。只有本地检查通过且必需依赖实时验证成功，才报告制片环境就绪。`doctor` 的 `local_ready` 仅表示本地工具就绪，不能证明 ChatCut 或远端生成额度可用。仅在当前制作请求明确需要其他插件时复用上述流程。
 
 ## 网页插件连接与首次体验

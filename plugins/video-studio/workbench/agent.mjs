@@ -62,7 +62,9 @@ export function runAgent({codex,job,context,event,onFinish,onSourceProgress,time
     const schemaPath=path.join(context.jobDirectory,'output.schema.json');
     await writeFile(schemaPath,JSON.stringify(schemas[job.action]));
     await writeFile(path.join(context.jobDirectory,'request.json'),JSON.stringify(context,null,2));
-    const args=['exec','--ephemeral','--sandbox',job.action==='connect'?'read-only':'workspace-write','--skip-git-repo-check','--json','--color','never','--output-schema',schemaPath,'-C',context.run,'--add-dir',context.jobDirectory,'-'];
+    // Optional MCP servers otherwise get only a short catalog-building grace period.
+    // Wait for their bounded startup before this independent session sees its tools.
+    const args=['exec','-c','mcp_optional_startup_grace_ms=0','--ephemeral','--sandbox',job.action==='connect'?'read-only':'workspace-write','--skip-git-repo-check','--json','--color','never','--output-schema',schemaPath,'-C',context.run,'--add-dir',context.jobDirectory,'-'];
     if(job.execution?.model)args.splice(1,0,'--model',job.execution.model);
     if(job.action!=='connect')args.splice(1,0,'-c','sandbox_workspace_write.network_access=true');
     const programDirs=Object.values(context.environment?.programs||{}).filter(Boolean).map(file=>path.dirname(file));
