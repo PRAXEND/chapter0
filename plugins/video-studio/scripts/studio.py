@@ -648,7 +648,10 @@ def audit(directory, video, subtitles=None, evidence=None):
 def doctor():
     programs = {name: shutil.which(name) for name in ("ffmpeg", "ffprobe", "node", "deno")}
     for name in ("ffmpeg", "ffprobe"):
-        programs[name] = native_tool(name)
+        try:
+            programs[name] = native_tool(name)
+        except StudioError:
+            programs[name] = None
     try:
         programs["yt-dlp"] = downloader()
     except StudioError:
@@ -681,6 +684,57 @@ def doctor():
     return {"local_ready": bool(ready), "python": sys.executable, "python_version": sys.version.split()[0], "stdlib": modules,
             "programs": programs, "executable_checks": executable_checks, "diagnostic_filters_available": filters_ok,
             "chatcut": "requires_live_mcp_probe", "state_directory": str(home())}
+
+
+def preflight(capabilities=None):
+    """Check only the capabilities needed for the next operation; never install or download."""
+    requested = capabilities if capabilities is not None else ["python", "media", "repository", "downloader"]
+    allowed = {"python", "media", "repository", "downloader"}
+    if not isinstance(requested, list) or any(item not in allowed for item in requested):
+        raise StudioError("Unknown preflight capability.")
+    report = doctor()
+    checks = report["executable_checks"]
+    ca_ready = False
+    try:
+        import ssl
+        ca_ready = ssl.create_default_context().cert_store_stats().get("x509_ca", 0) > 0
+    except (ImportError, OSError, ValueError):
+        pass
+    python_ok = sys.version_info >= (3, 10) and all(report["stdlib"].values()) and ca_ready
+    media_ok = all(checks[name]["ok"] for name in ("ffmpeg", "ffprobe")) and report["diagnostic_filters_available"]
+    yt_version = re.search(r"(\d{4})\.(\d+)\.(\d+)", checks["yt-dlp"].get("version", ""))
+    pinned_version = re.search(r"==(\d{4})\.(\d+)\.(\d+)", (ROOT / "requirements-runtime.txt").read_text())
+    yt_ready = checks["yt-dlp"]["ok"] and bool(yt_version and pinned_version and tuple(map(int, yt_version.groups())) >= tuple(map(int, pinned_version.groups())))
+    node_version = re.search(r"v?(\d+)\.", checks["node"].get("version", ""))
+    js_ready = checks["deno"]["ok"] or bool(checks["node"]["ok"] and node_version and int(node_version[1]) >= 20)
+    downloader_ok = yt_ready and js_ready
+    gh = shutil.which("gh")
+    repository_ok = False
+    if "repository" in requested and gh:
+        try:
+            execute([gh, "--version"], timeout=10)
+            execute([gh, "auth", "status"], timeout=10)
+            repository_ok = True
+        except StudioError:
+            pass
+    results = {
+        "python": {"id": "python", "label": "Python 与 HTTPS", "ok": bool(python_ok),
+                   "message": f"Python {report['python_version']} · HTTPS 证书{'可用' if ca_ready else '不可用'}",
+                   "remedy": "使用完整的 Python 3.10+，确保 venv、ssl、email.encoders、urllib.request 及 CA 证书可用；修复后重新检测。"},
+        "media": {"id": "media", "label": "媒体探测与校验", "ok": bool(media_ok),
+                  "message": "FFmpeg、ffprobe 与诊断滤镜可用" if media_ok else "FFmpeg、ffprobe 或 blackdetect/silencedetect/freezedetect 滤镜缺失或无法运行",
+                  "remedy": "安装完整 FFmpeg（macOS 可用 brew install ffmpeg），或将 VIDEO_STUDIO_FFMPEG_DIR 指向包含 ffmpeg 和 ffprobe 的目录，再重新检测。"},
+        "repository": {"id": "repository", "label": "GitHub 仓库访问", "ok": repository_ok,
+                       "message": "GitHub CLI 已安装且已登录" if repository_ok else "GitHub CLI 缺失、无法运行或尚未登录",
+                       "remedy": "安装 GitHub CLI（macOS 可用 brew install gh），完成 gh auth login 后重新检测。仓库访问权限仍以实际读取响应为准。"},
+        "downloader": {"id": "downloader", "label": "网页视频下载", "ok": bool(downloader_ok),
+                       "message": "yt-dlp 与 JavaScript 运行时可用" if downloader_ok else "yt-dlp / JavaScript 运行时缺失、版本过旧或无法运行",
+                       "remedy": "点击补齐下载依赖，在插件独立虚拟环境安装固定版本 yt-dlp；同时确保 Node.js 20+ 或 Deno 可用。",
+                       "canPrepare": not yt_ready and bool(python_ok)},
+    }
+    selected = [results[item] for item in dict.fromkeys(requested)]
+    return {"ready": all(item["ok"] for item in selected), "checkedAt": now(), "checks": selected,
+            "python": report["python"], "programs": {**report["programs"], "gh": gh}, "chatcut": "requires_live_mcp_probe"}
 
 
 def bootstrap():
@@ -741,6 +795,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest="command", required=True)
     subs.add_parser("doctor")
+    p = subs.add_parser("preflight"); p.add_argument("--capability", action="append", choices=["python", "media", "repository", "downloader"])
     subs.add_parser("bootstrap")
     p = subs.add_parser("connection"); p.add_argument("--file", required=True); p.add_argument("--run")
     p = subs.add_parser("profile"); p.add_argument("--merge-file")
@@ -756,6 +811,7 @@ def main(argv=None):
     try:
         command = args.command
         if command == "doctor": result = doctor()
+        elif command == "preflight": result = preflight(args.capability)
         elif command == "bootstrap": result = bootstrap()
         elif command == "connection": result = connection(read(args.file), args.run)
         elif command == "profile": result = save_profile(read(args.merge_file)) if args.merge_file else profile()
@@ -776,6 +832,7 @@ def main(argv=None):
         elif command == "audit": result = audit(args.run, args.video, args.subtitles, args.evidence)
         print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
         if command in {"doctor", "bootstrap"} and not result["local_ready"]: return 2
+        if command == "preflight" and not result["ready"]: return 2
         if command == "connection" and not result["ready"]: return 2
         if command == "audit" and not result["completed"]: return 2
         return 0

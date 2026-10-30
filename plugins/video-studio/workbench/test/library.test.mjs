@@ -47,6 +47,7 @@ test('candidate metadata survives restart and repeated searches without inspecti
     const reopened=await new MediaLibrary(temp,inspect).init();assert.equal((await reopened.candidateList())[0].localCacheIds.length,0);assert.equal(reopened.entries.length,0);
     assert.equal(reopened.candidates[0].origins.find(o=>o.jobId==='first').reason,'具体理由');
     await reopened.rememberCandidates([{...source,url:'file:///private/file'},{...source,url:'http://127.0.0.1/private'}]);assert.equal(reopened.candidates.length,1);
+    await reopened.rememberCandidates([source],{...contexts[1],events:[{event_id:'final',source_ids:['a'],decision:'reserve',reason:'完整筛选后的理由'}]});assert.equal(reopened.candidates[0].origins.length,2);assert.equal(reopened.candidates[0].origins.find(o=>o.jobId==='second').reason,'完整筛选后的理由');
     assert.equal(candidateId(source),candidateId({...source,url:'https://example.org/video'}));
   }finally{await rm(temp,{recursive:true,force:true});}
 });

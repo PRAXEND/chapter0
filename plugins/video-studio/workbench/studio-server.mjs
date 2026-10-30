@@ -10,6 +10,7 @@ import {randomUUID} from 'node:crypto';
 import {initialStudio,validateSettings,updateSettings,validatePlan,inputHash,brief,assertReady,taskNames,safeUrl,sourceId,approvalAuthority} from './studio-workflow.mjs';
 import {findPlugin,createPluginBridge} from './plugin.mjs';
 import {runAgent,cleanError,jobStopState} from './agent.mjs';
+import {inspectCodex,sourceCapabilities,dependencyFailures} from './runtime.mjs';
 import {rememberUsage} from './public/token-usage.js';
 import {fileHash,contained,mediaExtensions,mimeTypes,streamFile,saveUpload,publicUrl} from './media.mjs';
 import {sourceDetails,materialPlan,normalizeReview,materialSelection,verifySourceIdentity} from './sources.mjs';
@@ -20,7 +21,7 @@ import {recoverLegacyProjects} from './recover-projects.mjs';
 
 const root=path.dirname(fileURLToPath(import.meta.url));
 const dataDir=workbenchDataDirectory();
-const port=Number(process.env.PORT||4317),codex=process.env.VIDEO_DEMO_CODEX_BIN||'codex';
+const port=Number(process.env.PORT||4317);
 const execute=promisify(execFile),stateFile=path.join(dataDir,'workbench-v2.json');
 await mkdir(dataDir,{recursive:true});
 const plugin=await findPlugin(root),bridge=createPluginBridge(plugin,path.join(dataDir,'requests'));
@@ -46,12 +47,28 @@ await persist();
 async function exclusive(fn){if(mutation||active)throw new Error('已有操作正在进行，请等待完成后再试。');mutation=true;try{return await fn();}finally{mutation=false;}}
 async function getCatalog(){catalog=await bridge('catalog');return catalog;}
 await getCatalog();
-const runtime={codex:false,authenticated:false,codexVersion:null,pluginVersion:plugin.version,chatcut:'not_checked',chatcutCheckedAt:null,message:'尚未检查 ChatCut 实际连接'};
-async function checkLocal(){
-  try{const [v,a]=await Promise.all([execute(codex,['--version'],{timeout:10000}),execute(codex,['login','status'],{timeout:10000})]);runtime.codex=true;runtime.codexVersion=v.stdout.trim();runtime.authenticated=/Logged in/i.test(a.stdout+a.stderr);}catch{runtime.codex=false;runtime.authenticated=false;}
+const runtime={codex:false,authenticated:false,compatible:false,codexVersion:null,pluginVersion:plugin.version,chatcut:'not_checked',chatcutCheckedAt:null,message:'尚未检查 ChatCut 实际连接',dependencies:null,preparing:false};
+let rejectedRuntime=null;
+const rejectedRuntimeFile=path.join(dataDir,'incompatible-cli.json');
+try{rejectedRuntime=JSON.parse(await readFile(rejectedRuntimeFile,'utf8'));}catch{}
+function rememberDependencies(report){const previous=runtime.dependencies?.checks||[];const next=(report.checks||[]).map(check=>({...check,checkedAt:report.checkedAt}));runtime.dependencies={...report,checks:[...previous.filter(check=>!next.some(item=>item.id===check.id)),...next]};return runtime.dependencies;}
+async function checkLocal(capabilities=['python','media','downloader','repository']){
+  const cwd=project.run||path.join(dataDir,'runs');await mkdir(cwd,{recursive:true});
+  const [cli,dependencies]=await Promise.all([inspectCodex({cwd}),bridge('preflight',{capabilities}).catch(error=>({ready:false,checks:[],error:cleanError(error.message)}))]);
+  Object.assign(runtime,cli);rememberDependencies(dependencies);
+  if(rejectedRuntime&&rejectedRuntime.path===runtime.codexPath&&rejectedRuntime.version===runtime.codexVersion&&rejectedRuntime.model===runtime.model){runtime.compatible=false;runtime.error=rejectedRuntime.error;}
+  else if(rejectedRuntime){rejectedRuntime=null;await unlink(rejectedRuntimeFile).catch(()=>{});}
   return runtime;
 }
+function preflightError(message){return Object.assign(new Error(message),{code:'preflight_failed'});}
+function requireDependencies(capabilities){const missing=dependencyFailures(runtime.dependencies,capabilities);if(missing.length)throw preflightError(missing.map(item=>`${item.label}：${item.message}。${item.remedy||''}`).join('\n'));}
+async function checkMedia(){rememberDependencies(await bridge('preflight',{capabilities:['python','media']}));requireDependencies(['python','media']);}
 await checkLocal();
+for(const job of project.jobs.filter(j=>j.action==='discover'&&j.status==='interrupted')){
+  try{const directory=path.join(dataDir,'jobs',job.id),context=JSON.parse(await readFile(path.join(directory,'request.json'),'utf8'));
+    if(context.jobId===job.id&&context.run===project.run&&context.brief.topic===project.topic&&context.brief.style===project.styleSelector&&context.sourceProgressPath===path.join(directory,'source-progress.json'))await saveSourceProgress(job,context,JSON.parse(await readFile(context.sourceProgressPath,'utf8')));
+  }catch{}
+}
 function addEvent(job,type,message){job.events.push({type,message:cleanError(message),time:new Date().toISOString()});job.events=job.events.slice(-180);persist().catch(()=>{});}
 function sourceRecord(s){return {id:s.id,kind:s.kind,title:s.title,url:s.url||undefined,local_path:s.localPath||undefined,author:s.author||'',rights:s.rights||'unknown',need_ids:s.needIds?.length?s.needIds:['workbench-selection'],topic_fit:s.topicFit||s.description||'用户选择',style_fit:s.styleFit||'按本期风格评估',source_type:s.sourceType||'other',event_date:s.eventDate||'',date_evidence:s.dateEvidence||'',verification:s.verification||'',caveats:s.caveats||[],repository_commit:s.repositoryCommit||'',repository_path:s.repositoryPath||'',expected_sha256:s.expectedSha256||'',expected_bytes:s.expectedBytes||0,sha256:s.sha256,bytes:s.bytes,duration:s.duration,width:s.width,height:s.height,source_start_seconds:s.start||0,source_end_seconds:s.end||0};}
 async function saveMaterialSelection(){if(project.run)await writeFile(path.join(project.run,'material-selection.json'),JSON.stringify(materialSelection(project),null,2));}
@@ -71,7 +88,7 @@ async function registerMedia(file,metadata={}){
   const source={...sourceDetails(metadata),id:metadata.id || 's-'+randomUUID().slice(0,12),candidateCacheId:metadata.candidateCacheId||null,title:metadata.title||path.basename(file),kind,url:metadata.url||'',mediaUrl:metadata.mediaUrl||'',author:metadata.author||'',rights:metadata.rights||'unknown',publishedAt:metadata.publishedAt||'',description:metadata.description||'',start:Number(metadata.start)||0,end:Number(metadata.end)||inspected.duration,localPath:file,status:'ready',duration:inspected.duration,width:inspected.width,height:inspected.height,sha256:inspected.sha256,bytes:inspected.bytes,thumbnailPath:null};
   if(inspected.hasVideo){
     const thumbnail=path.join(project.run,'previews',source.id+'.jpg');await mkdir(path.dirname(thumbnail),{recursive:true});
-    try{await execute('ffmpeg',['-v','error','-y','-ss',String(kind==='image'?0:Math.min(.5,inspected.duration/3)),'-i',file,'-frames:v','1','-vf','scale=480:-2',thumbnail],{timeout:30000});source.thumbnailPath=thumbnail;}catch{}
+    try{await execute(runtime.dependencies?.programs?.ffmpeg||'ffmpeg',['-v','error','-y','-ss',String(kind==='image'?0:Math.min(.5,inspected.duration/3)),'-i',file,'-frames:v','1','-vf','scale=480:-2',thumbnail],{timeout:30000});source.thumbnailPath=thumbnail;}catch{}
   }
   const index=project.sources.findIndex(s=>s.id===source.id);if(index>=0)project.sources[index]=source;else project.sources.push(source);
   project.revision++;if(project.selected.includes(source.id)){project.approval=null;if(project.plan)project.plan.stale=true;}await cacheMedia(source);return source;
@@ -88,6 +105,17 @@ async function normalizeCandidates(items){
     const existing=project.sources.find(s=>s.id===entry.id);normalized.push(existing?.status==='ready'?existing:entry);
   }
   return normalized;
+}
+async function saveSourceProgress(job,context,snapshot){
+  if(snapshot.schema!==1||snapshot.jobId!==job.id||snapshot.topic!==context.brief.topic||(snapshot.style||null)!==(context.brief.style||null)||!Array.isArray(snapshot.sources)||snapshot.sources.length>80)throw new Error('中间候选与当前任务不一致。');
+  if(snapshot.sources.some(source=>source.localPath||source.local_path||source.status==='ready'))throw new Error('中间候选只能登记来源链接，不能声明媒体已经下载。');
+  const unseen=snapshot.sources.filter(source=>!project.sources.some(existing=>existing.url===source.url));
+  const sources=await normalizeCandidates(unseen.map(source=>({...source,verification:'检索中间记录，尚未完成本轮核验',caveats:[...(Array.isArray(source.caveats)?source.caveats:[]),'本轮检索尚未完成；候选未下载、未选用。']})));
+  if(!sources.length)return;
+  project.sources.push(...sources);job.partialSourceIds=[...new Set([...(job.partialSourceIds||[]),...sources.map(source=>source.id)])];
+  job.partialSavedAt=new Date().toISOString();
+  await library.rememberCandidates(sources,{run:project.run,topic:context.brief.topic,style:context.brief.style,query:context.query,jobId:job.id});
+  await refreshLibrary();await persist();addEvent(job,'partial',`已保存 ${job.partialSourceIds.length} 条中间候选，仍在检索与核实；尚未下载。`);
 }
 function cleanEditor(raw){try{const url=new URL(raw);if(url.protocol!=='https:'||url.hostname!=='app.chatcut.io')return '';url.searchParams.delete('editor-boot-token');url.searchParams.delete('dockviewLayout');return url.href;}catch{return '';}}
 async function deliver(result,job){
@@ -123,6 +151,10 @@ async function deliver(result,job){
 async function savePlan(plan){plan=validatePlan(plan,project);const saved=await bridge('save-plan',{run:await ensureRun(),plan,inputHash:inputHash(project)});project.plan={...plan,version:saved.version,planHash:saved.file_sha256,inputHash:saved.input_hash,file:saved.file};project.approval=null;project.revision++;return project.plan;}
 async function finishJob(job,context,{code,error,finalText}){
   try{
+    if(job.failureKind==='cli_incompatible'){
+      rejectedRuntime={path:job.execution?.cliPath,version:job.execution?.cliVersion,model:job.execution?.model,error:cleanError(error)};
+      runtime.compatible=false;runtime.error=rejectedRuntime.error;await writeFile(rejectedRuntimeFile,JSON.stringify(rejectedRuntime),{mode:0o600});
+    }
     if(job.cancelRequested){Object.assign(job,jobStopState(job));addEvent(job,job.stopReason==='timeout'?'error':'cancelled',job.error);return;}
     if(code!==0)throw new Error(cleanError(error||'Codex 未完成任务。'));
     let text=finalText.trim();if(text.startsWith('```'))text=text.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');
@@ -162,13 +194,19 @@ async function finishJob(job,context,{code,error,finalText}){
 }
 function adoptTopic(value){if(!project.topic.trim()&&String(value||'').trim())updateSettings(project,{topic:String(value).trim().slice(0,200),selected:project.selected});}
 async function startJob(action,options={}){
+  assertReady(project,action);
+  if(runtime.preparing)throw preflightError('正在补齐下载依赖，完成并复检后才能开始任务。');
+  const capabilities=action==='collect'?sourceCapabilities(project.sources.find(s=>s.id===options.sourceId)):action==='discover'?['python','media','downloader']:['plan','produce'].includes(action)?['python','media']:['python'];
+  await checkLocal(capabilities);
+  if(!runtime.compatible)throw preflightError(runtime.error||'请先完成 CLI 兼容检查。');
+  requireDependencies(capabilities);
   if(action==='discover'){const query=String(options.query||project.topic).trim();if(!query)throw new Error('请输入要查找的素材关键词。');adoptTopic(query);}
   if(action==='collect'){const source=project.sources.find(s=>s.id===options.sourceId);if(!source)throw new Error('找不到选中的内容。');adoptTopic(source.title);}
   if(action==='plan')adoptTopic(project.sources.find(s=>project.selected.includes(s.id))?.title);
-  assertReady(project,action);if(!runtime.codex||!runtime.authenticated)throw new Error('请先安装并登录 Codex，再重新检测本地环境。');await ensureRun();
+  await ensureRun();
   if(['plan','produce'].includes(action))await checkSelected();
   if(action==='produce')await bridge('check-approval',{run:project.run,planHash:project.approval.planHash,inputHash:inputHash(project)});
-  const job={id:randomUUID(),action,label:taskNames[action],status:'running',startedAt:new Date().toISOString(),events:[],toolCalls:[],inputHash:inputHash(project),planHash:action==='produce'?project.approval?.planHash:null};
+  const job={id:randomUUID(),action,label:taskNames[action],status:'running',startedAt:new Date().toISOString(),events:[],toolCalls:[],inputHash:inputHash(project),planHash:action==='produce'?project.approval?.planHash:null,execution:{cliPath:runtime.codexPath,cliVersion:runtime.codexVersion,model:runtime.model,checkedAt:runtime.checkedAt}};
   const jobDirectory=path.join(dataDir,'jobs',job.id);await mkdir(jobDirectory,{recursive:true});
   let source=project.sources.find(s=>s.id===options.sourceId)||null;
   if(source && action==='collect'){
@@ -186,10 +224,10 @@ async function startJob(action,options={}){
   let previousPlanHash=previousProduction?.planHash;
   if(previousProduction&&!previousPlanHash)try{previousPlanHash=JSON.parse(await readFile(path.join(dataDir,'jobs',previousProduction.id,'request.json'),'utf8')).planHash;}catch{}
   const productionMode=previousProduction&&previousProduction.inputHash===inputHash(project)&&previousPlanHash===project.approval?.planHash?'recover':'new';
-  const context={productionMode,previousProduction:previousProduction?{id:previousProduction.id,status:previousProduction.status,inputHash:previousProduction.inputHash,planHash:previousPlanHash}:null,pluginRoot:plugin.root,run:project.run,jobDirectory,brief:brief(project),settings:{music:project.music,voiceDirection:project.voiceDirection,styleDescription:project.styleDescription},query:String(options.query||project.topic).slice(0,2000),source,knownSources:['discover','collect'].includes(action)?project.sources:undefined,sourceReview:project.sourceReview||null,selectedSources:project.sources.filter(s=>project.selected.includes(s.id)),plan:project.plan,planHash:project.approval?.planHash||null,inputHash:inputHash(project),userFollowup:String(options.followup||'').slice(0,4000),outputDirectory:project.outputRoot};
+  const context={environment:{python:runtime.dependencies?.python,programs:runtime.dependencies?.programs},jobId:job.id,sourceProgressPath:path.join(jobDirectory,'source-progress.json'),productionMode,previousProduction:previousProduction?{id:previousProduction.id,status:previousProduction.status,inputHash:previousProduction.inputHash,planHash:previousPlanHash}:null,pluginRoot:plugin.root,run:project.run,jobDirectory,brief:brief(project),settings:{music:project.music,voiceDirection:project.voiceDirection,styleDescription:project.styleDescription},query:String(options.query||project.topic).slice(0,2000),source,knownSources:['discover','collect'].includes(action)?project.sources:undefined,sourceReview:project.sourceReview||null,selectedSources:project.sources.filter(s=>project.selected.includes(s.id)),plan:project.plan,planHash:project.approval?.planHash||null,inputHash:inputHash(project),userFollowup:String(options.followup||'').slice(0,4000),outputDirectory:project.outputRoot};
   if(action==='produce'){await unlink(path.join(project.run,'workbench-cancelled.json')).catch(()=>{});await unlink(path.join(project.run,'workbench-progress.json')).catch(()=>{});}
   project.jobs.unshift(job);rememberUsage(project);project.jobs=project.jobs.slice(0,50);active={job,controller:null};addEvent(job,'queued',['discover','collect'].includes(action)?'网页已提交任务，正在加载插件的素材采集工具及适用来源规则':'网页已提交任务，正在加载 Video Studio 与 ChatCut 插件');await persist();
-  active.controller=runAgent({codex,job,context,event:(type,message)=>addEvent(job,type,message),onFinish:value=>finishJob(job,context,value)});return job;
+  active.controller=runAgent({codex:runtime.codexPath,job,context,event:(type,message)=>addEvent(job,type,message),onSourceProgress:snapshot=>saveSourceProgress(job,context,snapshot),onFinish:value=>finishJob(job,context,value)});return job;
 }
 function send(res,status,value){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));}
 async function body(req){let text='';for await(const block of req){text+=block;if(text.length>512000)throw new Error('请求内容过大。');}return JSON.parse(text||'{}');}
@@ -215,7 +253,7 @@ const server=http.createServer(async(req,res)=>{
     if(['GET','HEAD'].includes(req.method) && route.startsWith('/api/source-reports/')){const job=project.jobs.find(j=>j.id===route.split('/').pop());if(!job?.sourceReport)return send(res,404,{error:'检索记录不存在。'});return await streamFile(req,res,await contained(job.sourceReport,project.run),{download:true,name:'material-search-'+job.id.slice(0,8)+'.json'});}
     if(['GET','HEAD'].includes(req.method) && route.startsWith('/api/media/')){const source=project.sources.find(s=>s.id===route.split('/').pop());if(!source||source.status!=='ready')return send(res,404,{error:'素材尚未采集完成。'});const file=url.searchParams.has('thumbnail')?source.thumbnailPath:source.localPath;if(!file)return send(res,404,{error:'暂无预览。'});return await streamFile(req,res,await contained(file,project.run),{download:url.searchParams.has('download')});}
     if(['GET','HEAD'].includes(req.method) && route.startsWith('/api/files/')){const id=route.split('/').pop();let delivery,file;for(const d of project.deliveries){const found=d.files.find(f=>f.id===id);if(found){delivery=d;file=found;break;}}if(!file)return send(res,404,{error:'交付文件不存在。'});return await streamFile(req,res,await contained(file.path,delivery.directory),{download:url.searchParams.has('download'),name:file.name});}
-    if(req.method==='POST' && route==='/api/upload')return await exclusive(async()=>{const name=path.basename(url.searchParams.get('name')||'');const ext=path.extname(name).toLowerCase();if(!mediaExtensions.has(ext))throw new Error('请上传视频、图片或音频文件。');adoptTopic(name);await ensureRun();const file=path.join(project.run,'materials',randomUUID()+ext);await saveUpload(req,file);const source=await registerMedia(file,{title:name,description:'用户上传的本地素材',rights:'user_provided'});await persist();return send(res,201,{source});});
+    if(req.method==='POST' && route==='/api/upload')return await exclusive(async()=>{const name=path.basename(url.searchParams.get('name')||'');const ext=path.extname(name).toLowerCase();if(!mediaExtensions.has(ext))throw new Error('请上传视频、图片或音频文件。');await checkMedia();adoptTopic(name);await ensureRun();const file=path.join(project.run,'materials',randomUUID()+ext);await saveUpload(req,file);const source=await registerMedia(file,{title:name,description:'用户上传的本地素材',rights:'user_provided'});await persist();return send(res,201,{source});});
     if(req.method==='POST'){
       if(!/^application\/json/.test(req.headers['content-type']||''))return send(res,415,{error:'需要 JSON 请求。'});const payload=await body(req);
       if(req.headers['x-video-project'] && req.headers['x-video-project']!==project.id)return send(res,409,{error:'当前项目已在其他页面切换，请刷新后再操作。'});
@@ -225,7 +263,7 @@ const server=http.createServer(async(req,res)=>{
       if(route==='/api/library/open-folder'){const {file}=await library.resolve(payload.id);const directory=path.dirname(file),command=process.platform==='darwin'?['open',[directory]]:process.platform==='win32'?['explorer.exe',[directory]]:['xdg-open',[directory]];await execute(command[0],command[1],{timeout:10000});return send(res,200,{ok:true});}
       if(route==='/api/choose-folder'){if(process.platform!=='darwin')throw new Error('当前系统请直接填写输出文件夹的完整路径。');const result=await execute('osascript',['-e','POSIX path of (choose folder with prompt "选择视频输出文件夹")'],{timeout:180000});return send(res,200,{directory:result.stdout.trim()});}
       return await exclusive(async()=>{
-        if(route==='/api/library/sync-repository'){
+        if(route==='/api/library/sync-repository'){rememberDependencies(await bridge('preflight',{capabilities:['python','repository']}));requireDependencies(['python','repository']);
           const {sources,coverage}=await repositoryCatalog();
           await library.rememberCandidates(sources,{query:'每日仓库完整目录',reviewedAt:coverage.checkedAt});
           library.repositorySync=coverage;await library.persist();await refreshLibrary();return send(res,200,libraryState());
@@ -241,7 +279,7 @@ const server=http.createServer(async(req,res)=>{
           await persist();const job=await startJob('collect',{sourceId:source.id,candidateCacheId:candidate.id,...(payload.start!==undefined?{start:payload.start}:{}),...(payload.end!==undefined?{end:payload.end}:{})});return send(res,202,{job});
         }
         if(route==='/api/library/use'){
-          const {entry,file}=await library.resolve(payload.id);adoptTopic(entry.title);await ensureRun();
+          const {entry,file}=await library.resolve(payload.id);await checkMedia();adoptTopic(entry.title);await ensureRun();
           let source=project.sources.find(s=>s.status==='ready'&&s.sha256===entry.sha256);
           if(source){if(await fileHash(await contained(source.localPath,project.run))!==source.sha256)throw new Error('本期同一素材已经变化，请重新采集。');}
           else{
@@ -252,11 +290,20 @@ const server=http.createServer(async(req,res)=>{
           updateSettings(project,{selected:[...new Set([...project.selected,source.id])]});await ensureRun();await persist();return send(res,200,{source,...publicState()});
         }
         if(route==='/api/project'){updateSettings(project,validateSettings(payload,catalog.styles.options));await saveMaterialSelection();await persist();return send(res,200,{project});}
+        if(route==='/api/runtime/check'){await checkLocal();return send(res,200,{runtime});}
+        if(route==='/api/runtime/prepare'){
+          requireDependencies(['python']);
+          if(!runtime.dependencies?.checks?.some(check=>check.id==='downloader'&&check.canPrepare))return send(res,200,{runtime});
+          if(runtime.preparing)return send(res,202,{runtime});
+          runtime.preparing=true;runtime.preparationError=null;
+          bridge('bootstrap').then(()=>checkLocal()).catch(error=>{runtime.preparationError=cleanError(error.message);}).finally(()=>{runtime.preparing=false;runtime.preparedAt=new Date().toISOString();});
+          return send(res,202,{runtime});
+        }
         if(route==='/api/catalog/refresh'){await checkLocal();await getCatalog();return send(res,200,publicState());}
         if(route==='/api/styles/select'){const result=await bridge('style-select',{key:payload.key});await getCatalog();updateSettings(project,validateSettings({...project,styleSelector:result.selector},catalog.styles.options));await persist();return send(res,200,{...publicState(),selection:result});}
         if(route==='/api/styles/import'){if(typeof payload.path!=='string'||!path.isAbsolute(payload.path))throw new Error('请填写风格包 manifest.json 的完整路径。');const result=await execute(process.env.VIDEO_STUDIO_PYTHON||'python3',[path.join(plugin.root,'scripts/studio.py'),'styles','import','--file',payload.path],{timeout:30000,maxBuffer:1024*1024});await getCatalog();return send(res,200,{result:JSON.parse(result.stdout),catalog:catalog.styles});}
         if(route==='/api/sources/url'){const sourceUrl=await publicUrl(payload.url);const entry={id:sourceId({url:sourceUrl}),title:String(payload.title||new URL(sourceUrl).hostname).slice(0,300),kind:'article',url:sourceUrl,mediaUrl:'',thumbnailUrl:'',description:'用户添加的内容链接',rights:'unknown',status:'candidate',start:0,end:0};if(!project.sources.some(s=>s.id===entry.id))project.sources.unshift(entry);await library.rememberCandidates([entry],{run:project.run,topic:project.topic,style:project.styleSelector,query:'手动添加链接'});await refreshLibrary();await persist();return send(res,201,{source:project.sources.find(s=>s.id===entry.id)});}
-        if(route==='/api/sources/local'){let file=String(payload.path||'');if(file.startsWith('~/'))file=path.join(os.homedir(),file.slice(2));if(!path.isAbsolute(file))throw new Error('请输入本地素材绝对路径。');file=await realpath(file);const ext=path.extname(file).toLowerCase();if(!mediaExtensions.has(ext))throw new Error('请选择媒体文件。');if((await stat(file)).size>350*1024*1024)throw new Error('单个素材需小于 350 MB。');adoptTopic(path.basename(file));await ensureRun();const destination=path.join(project.run,'materials',randomUUID()+ext);await mkdir(path.dirname(destination),{recursive:true});await copyFile(file,destination);const source=await registerMedia(destination,{title:path.basename(file),rights:'user_provided',description:'用户选择的本地文件'});await persist();return send(res,201,{source});}
+        if(route==='/api/sources/local'){let file=String(payload.path||'');if(file.startsWith('~/'))file=path.join(os.homedir(),file.slice(2));if(!path.isAbsolute(file))throw new Error('请输入本地素材绝对路径。');file=await realpath(file);const ext=path.extname(file).toLowerCase();if(!mediaExtensions.has(ext))throw new Error('请选择媒体文件。');if((await stat(file)).size>350*1024*1024)throw new Error('单个素材需小于 350 MB。');await checkMedia();adoptTopic(path.basename(file));await ensureRun();const destination=path.join(project.run,'materials',randomUUID()+ext);await mkdir(path.dirname(destination),{recursive:true});await copyFile(file,destination);const source=await registerMedia(destination,{title:path.basename(file),rights:'user_provided',description:'用户选择的本地文件'});await persist();return send(res,201,{source});}
         if(route==='/api/plan'){await ensureRun();await checkSelected();await savePlan(payload.plan);await persist();return send(res,200,{plan:project.plan});}
         if(route==='/api/approve'){if(!project.plan||project.plan.stale||project.plan.gaps.length)throw new Error('请先更新方案并解决素材缺口。');await checkSelected();if(payload.planHash!==project.plan.planHash||project.plan.inputHash!==inputHash(project))throw new Error('方案或素材已经变化，请重新审阅。');const authority=approvalAuthority(payload.authority);const approved=await bridge('approve',{run:project.run,planHash:project.plan.planHash,inputHash:inputHash(project),authority});project.approval={status:'confirmed',planHash:approved.file_sha256,inputHash:approved.input_hash,version:approved.version,confirmedAt:approved.confirmed_at,authority:approved.authority};await persist();return send(res,200,{approval:project.approval});}
         if(route==='/api/jobs'){const job=await startJob(payload.action,payload);return send(res,202,{job});}
@@ -268,7 +315,7 @@ const server=http.createServer(async(req,res)=>{
     const files={'/':'index.html','/app.js':'app.js','/material-dates.js':'material-dates.js','/token-usage.js':'token-usage.js','/token-usage-view.js':'token-usage-view.js','/styles.css':'styles.css','/theme.js':'theme.js','/themes.css':'themes.css'};
     if(req.method==='GET' && files[route]){const file=files[route];res.writeHead(200,{'Content-Type':({html:'text/html',js:'text/javascript',css:'text/css'})[file.split('.').pop()]+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"});return res.end(await readFile(path.join(root,'public',file)));}
     send(res,404,{error:'页面不存在。'});
-  }catch(e){if(res.headersSent){res.destroy();return;}send(res,/已有操作/.test(e.message)?409:400,{error:cleanError(e.message)});}
+  }catch(e){if(res.headersSent){res.destroy();return;}send(res,/已有操作/.test(e.message)?409:400,{error:cleanError(e.message),...(e.code==='preflight_failed'?{code:e.code,runtime}:{})});}
 });
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?`端口 ${port} 已被占用，请关闭旧工作台后启动。`:e.message);process.exitCode=1;});
 server.listen(port,'127.0.0.1',()=>{console.log(`Video Agent Demo: http://127.0.0.1:${port}`);console.log(`Video Studio ${plugin.version} · ${runtime.authenticated?'Codex 已登录':'请登录 Codex'}`);});

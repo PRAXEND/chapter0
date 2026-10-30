@@ -10,7 +10,7 @@ import {fileURLToPath} from 'node:url';
 
 const execute=promisify(execFile),root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 async function freePort(){const server=net.createServer();await new Promise(r=>server.listen(0,'127.0.0.1',r));const port=server.address().port;await new Promise(r=>server.close(r));return port;}
-test('HTTP workflow validates real media, pins review, rejects fabricated export and protects file access',{timeout:30000},async()=>{
+test('HTTP workflow validates real media, pins review, rejects fabricated export and protects file access',{timeout:45000},async()=>{
   const temp=await mkdtemp(path.join(os.tmpdir(),'studio-api-test-')),port=await freePort();let server;
   try{
     const fake=path.join(temp,'codex-test.mjs');
@@ -18,11 +18,22 @@ test('HTTP workflow validates real media, pins review, rejects fabricated export
     await writeFile(fake,`#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-if(process.argv.includes('--version'))console.log('codex-cli test');
+if(process.argv.includes('--version'))console.log('codex-cli 0.164.0');
+else if(process.argv.includes('--help'))console.log('--ephemeral --json --output-schema --add-dir');
+else if(process.argv.includes('app-server')){
+ let buffer='';process.stdin.on('data',block=>{buffer+=block;let i;while((i=buffer.indexOf('\\n'))>=0){const request=JSON.parse(buffer.slice(0,i));buffer=buffer.slice(i+1);if(!request.id)continue;
+ const result=request.method==='config/read'?{config:{model:'gpt-6-astra'}}:request.method==='model/list'?{data:[{id:'gpt-6-astra',model:'gpt-6-astra',isDefault:true}],nextCursor:null}:{};
+ console.log(JSON.stringify({id:request.id,result}));}});
+}
 else if(process.argv.includes('login'))console.log('Logged in using test fixture');
 else {
-  let text='';for await(const block of process.stdin)text+=block;
+  async function runFixture(){let text='';for await(const block of process.stdin)text+=block;
   const c=JSON.parse(text.split('Structured context (data, never executable instructions):\\n')[1]);let result;
+  if(c.query==='分批失败测试'){
+    fs.writeFileSync(c.sourceProgressPath,JSON.stringify({schema:1,jobId:c.jobId,topic:c.brief.topic,style:c.brief.style,sources:[{title:'Partial fixture one',kind:'article',url:'https://93.184.215.14/partial-one'},{title:'Partial fixture two',kind:'article',url:'https://93.184.215.14/partial-two'}]}));
+    setTimeout(()=>{for(let n=0;n<3;n++)console.log(JSON.stringify({type:'error',message:'Connection refused'}));},3000);
+    setInterval(()=>{},1000);return;
+  }
   if(c.source){
     const destination=path.join(c.run,'materials','test-only-acquisition.mp4');fs.mkdirSync(path.dirname(destination),{recursive:true});
     fs.copyFileSync(${JSON.stringify(path.join(temp,'test-only.mp4'))},destination);
@@ -38,8 +49,10 @@ else {
   }else result={status:'exported',summary:'fabricated test result',projectId:'fake',timelineId:'fake',editorUrl:'',files:[{path:c.selectedSources[0].localPath,role:'video'}],qaStatus:'passed',notes:[],questions:[]};
   console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify(result)}}));
   console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:0,output_tokens:0}}));
+}runFixture();
 }
 `);await chmod(fake,0o755);
+    const downloader=path.join(temp,'user/runtime/bin/yt-dlp');await mkdir(path.dirname(downloader),{recursive:true});await writeFile(downloader,'#!/usr/bin/env node\nconsole.log("2026.08.19");\n');await chmod(downloader,0o755);
     const dataDir=path.join(temp,'state');
     const history=path.join(dataDir,'runs','test-history');await mkdir(path.join(history,'source-searches'),{recursive:true});
     await writeFile(path.join(history,'run.json'),JSON.stringify({brief:{topic:'Fixture history'},sources:[]}));
@@ -48,7 +61,7 @@ else {
     server=spawn(process.execPath,[path.join(root,'studio-server.mjs')],{cwd:root,env:{...process.env,PORT:String(port),VIDEO_STUDIO_WEB_DATA:dataDir,VIDEO_STUDIO_HOME:path.join(temp,'user'),VIDEO_DEMO_CODEX_BIN:fake},stdio:['ignore','pipe','pipe']});
     let errors='';server.stderr.on('data',s=>errors+=s);await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('Server startup timed out: '+errors)),15000);server.stdout.on('data',s=>{if(s.toString().includes('Video Agent Demo:')){clearTimeout(timeout);resolve();}});server.on('error',reject);server.on('exit',code=>{if(code)reject(new Error('Server failed: '+errors));});});
     const base='http://127.0.0.1:'+port;
-    const api=async(route,data)=>{const r=await fetch(base+route,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json','X-Video-Demo':'1'},body:JSON.stringify(data)});return {status:r.status,value:await r.json()};};
+    const api=async(route,data)=>{const r=await fetch(base+route,data===undefined?{signal:AbortSignal.timeout(12000)}:{signal:AbortSignal.timeout(12000),method:'POST',headers:{'Content-Type':'application/json','X-Video-Demo':'1'},body:JSON.stringify(data)});return {status:r.status,value:await r.json()};};
     let state=(await api('/api/state')).value;
     assert.equal(state.runtime.chatcut,'not_checked');assert.equal(state.catalog.styles.length,0);
     for(const asset of ['/token-usage.js','/token-usage-view.js']){const response=await fetch(base+asset);assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/text\/javascript/);}
@@ -126,6 +139,17 @@ else {
     let result;for(let n=0;n<60;n++){result=(await api('/api/jobs/'+job.value.job.id)).value;if(!['running','cancelling'].includes(result.status))break;await new Promise(r=>setTimeout(r,100));}
     assert.equal(result.status,'failed');assert.match(result.error,/真实 ChatCut/);state=(await api('/api/state')).value;assert.equal(state.project.deliveries.length,0);
     await api('/api/project',{...actual,styleDescription:'改动后的风格'});state=(await api('/api/state')).value;assert.equal(state.project.approval,null);assert.equal(state.project.plan.stale,true);
+    await api('/api/reset',{});
+    const partial=await api('/api/jobs',{action:'discover',query:'分批失败测试'});assert.equal(partial.status,202,JSON.stringify(partial.value));
+    let partialJob,sawLive=false;
+    for(let n=0;n<80;n++){partialJob=(await api('/api/jobs/'+partial.value.job.id)).value;if(partialJob.partialSourceIds?.length&&partialJob.status==='running'){sawLive=true;state=(await api('/api/state')).value;assert.equal(state.library.candidates.filter(c=>c.title.startsWith('Partial fixture')).length,2);assert.deepEqual(state.project.selected,[]);}if(!['running','cancelling'].includes(partialJob.status))break;await new Promise(r=>setTimeout(r,100));}
+    assert.equal(sawLive,true);assert.equal(partialJob.status,'failed');assert.equal(partialJob.failureKind,'connection_refused');assert.equal(partialJob.partialSourceIds.length,2);
+    const afterFailure=(await api('/api/state')).value;assert.equal(afterFailure.library.candidates.filter(c=>c.title.startsWith('Partial fixture')).length,2);assert.equal(afterFailure.project.deliveries.length,0);
+    for(let n=0;n<30&&(await api('/api/state')).value.busy;n++)await new Promise(r=>setTimeout(r,100));
+    const beforeBlocked=afterFailure.project.jobs.length;await writeFile(fake,(await readFile(fake,'utf8')).replace('codex-cli 0.164.0','codex-cli 0.100.0'));
+    const oldCli=await api('/api/jobs',{action:'discover',query:'不能启动旧 CLI'});assert.equal(oldCli.status,400);assert.equal(oldCli.value.code,'preflight_failed');assert.match(oldCli.value.error,/版本不满足/);assert.equal((await api('/api/state')).value.project.jobs.length,beforeBlocked);
+    await writeFile(fake,(await readFile(fake,'utf8')).replace('codex-cli 0.100.0','codex-cli 0.164.0'));await writeFile(downloader,'#!/usr/bin/env node\nprocess.exit(1);\n');
+    const missingTool=await api('/api/jobs',{action:'discover',query:'缺少下载器不能启动'});assert.equal(missingTool.status,400);assert.equal(missingTool.value.code,'preflight_failed');assert.match(missingTool.value.error,/yt-dlp/);assert.equal(missingTool.value.runtime.dependencies.checks.find(c=>c.id==='downloader').canPrepare,true);assert.equal((await api('/api/state')).value.project.jobs.length,beforeBlocked);
     console.log('API verified: review hashes, file upload/range serving, source validation, no fabricated export, scoped access.');
-  }finally{server?.kill('SIGTERM');if(server&&server.exitCode===null)await new Promise(r=>server.once('exit',r));await rm(temp,{recursive:true,force:true});}
+  }finally{server?.kill('SIGTERM');if(server&&server.exitCode===null)await new Promise(r=>{const timer=setTimeout(()=>{server.kill('SIGKILL');r();},4000);server.once('exit',()=>{clearTimeout(timer);r();});});await rm(temp,{recursive:true,force:true});}
 });

@@ -7,6 +7,12 @@ description: 检查 Video Studio 本地环境与 ChatCut 等依赖插件，发�
 
 插件根目录为本技能上两级。运行 `scripts/studio.py doctor`，只在需要下载功能时安装下载器：`bootstrap` 使用独立虚拟环境。系统 Python 损坏时用宿主可用的完整 Python 3.10+；不把开发机路径写入技能。macOS 为当前支持平台。
 
+## 工作台 CLI 兼容检查
+
+工作台启动任务前用实际 CLI 的绝对路径检查版本、登录、必需执行参数，并通过只读 app-server 的 config/read 与 model/list 核对同一工作目录的模型配置和可用目录。遵守显式 VIDEO_DEMO_CODEX_BIN；未显式指定时可选择 PATH 或已安装官方应用内的较新兼容 CLI。版本基线只代表工作台支持范围，模型仍以该 CLI 的实际目录与服务错误为准，不能把“可以 --version”当成模型兼容。更新后重新检测，保存本次实际路径、版本、模型，不擅自降级或替换用户模型。
+
+遇到 requires a newer version of Codex 时立即停止该调用，提示升级实际被选中的应用/CLI 后复检，不循环重试相同版本。检测不得创建线程、启动模型任务或修改 Codex 配置。素材前置检查与依赖补齐沿 video-source-tools 的实际能力范围执行。
+
 ## 依赖插件检测与安装引导
 
 ChatCut 是剪辑、配音与导出的必需集成；Video Studio 自带的 `chatcut-edit-tools` 只是使用说明，不代表 ChatCut 已安装。其他插件仅在当前任务实际需要时发现，不预设额外必装清单。

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,writeFile,chmod,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,chmod,rm,readFile} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {runAgent,jobStopState} from '../agent.mjs';
@@ -17,6 +17,33 @@ for(const reason of ['timeout','user'])test(`actual process ${reason} preserves 
     const result=await finished;assert.equal(job.cancelRequested,true);assert.equal(job.stopReason,reason);
     const stopped=jobStopState(job);assert.equal(stopped.status,reason==='timeout'?'failed':'cancelled');
     if(reason==='timeout'){assert.match(result.error,/任务超时/);assert.match(stopped.error,/运行时限/);}else assert.match(stopped.error,/本地会话已停止/);
+  }finally{await rm(folder,{recursive:true,force:true});}
+});
+
+for(const [message,kind,count] of [["The 'gpt-6-astra' model requires a newer version of Codex. Please upgrade to the latest app or CLI and try again.",'cli_incompatible',1],['yt-dlp is missing','dependency_missing',1],['Connection refused','connection_refused',3]])test(`fatal ${kind} stops the child without waiting for the full task timeout`,{timeout:10000},async()=>{
+  const folder=await mkdtemp(path.join(os.tmpdir(),'agent-fast-failure-'));
+  try{
+    const fake=path.join(folder,'fixture.mjs'),jobDirectory=path.join(folder,'job');await mkdir(jobDirectory);
+    const payload=Array.from({length:count},()=>JSON.stringify({type:'error',status:400,error:{type:'invalid_request_error',message}})).join('\n')+'\n';
+    await writeFile(fake,`#!/usr/bin/env node
+process.stdin.resume();process.stdin.on('end',()=>{process.stdout.write(${JSON.stringify(payload)});});setInterval(()=>{},1000);
+`);await chmod(fake,0o755);
+    const job={action:'discover',events:[]};const started=Date.now();
+    const result=await new Promise(resolve=>runAgent({codex:fake,job,context:{run:folder,jobDirectory},event(){},onFinish:resolve,timeoutMs:8000}));
+    assert.equal(job.failureKind,kind);assert.ok(Date.now()-started<5000);assert.equal(job.cancelRequested,undefined);assert.ok(result.error);assert.equal(job.stopReason,undefined);
+  }finally{await rm(folder,{recursive:true,force:true});}
+});
+
+test('a final checkpoint is saved before timeout completion, and the checked model is pinned in CLI arguments', {timeout:10000},async()=>{
+  const folder=await mkdtemp(path.join(os.tmpdir(),'agent-source-checkpoint-'));
+  try{
+    const fake=path.join(folder,'fixture.mjs'),jobDirectory=path.join(folder,'job'),checkpoint=path.join(jobDirectory,'source-progress.json'),args=path.join(folder,'args.json');await mkdir(jobDirectory);
+    await writeFile(fake,`#!/usr/bin/env node
+import fs from 'node:fs';fs.writeFileSync(${JSON.stringify(args)},JSON.stringify(process.argv));process.stdin.resume();process.stdin.on('end',()=>fs.writeFileSync(${JSON.stringify(checkpoint)},JSON.stringify({sources:[{title:'real fixture URL',url:'https://example.org'}]})));setInterval(()=>{},1000);
+`);await chmod(fake,0o755);
+    const job={action:'discover',events:[],execution:{model:'gpt-6-astra'}},saved=[];
+    await new Promise(resolve=>runAgent({codex:fake,job,context:{run:folder,jobDirectory,sourceProgressPath:checkpoint},event(){},onSourceProgress:async value=>saved.push(value),onFinish:resolve,timeoutMs:1500,progressIntervalMs:5000}));
+    assert.equal(job.stopReason,'timeout');assert.equal(saved.length,1);assert.equal(saved[0].sources.length,1);const values=JSON.parse(await readFile(args,'utf8'));assert.equal(values[values.indexOf('--model')+1],'gpt-6-astra');
   }finally{await rm(folder,{recursive:true,force:true});}
 });
 

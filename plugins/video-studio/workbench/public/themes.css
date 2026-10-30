@@ -334,3 +334,18 @@ dialog::backdrop,#style-dialog::backdrop{background:var(--backdrop);backdrop-fil
 .token-history li>div{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .token-history li>div>span{font-size:10px;line-height:1.7;min-width:0}.token-history strong{font-size:11px;color:var(--ink);white-space:nowrap}
 .token-history time{font-size:9px;color:var(--muted)}
+
+.runtime-readiness{margin:24px 0;padding:20px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.runtime-readiness .section-heading{margin-bottom:12px}
+.runtime-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.runtime-check{padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--inset);min-width:0}
+.runtime-check strong{display:block;color:var(--ink);font-size:12px;margin-bottom:5px}
+.runtime-check span,.runtime-check small,.runtime-check p{display:block;color:var(--muted);font-size:11px;line-height:1.8;overflow-wrap:anywhere}
+.runtime-check.ready strong{color:var(--accent-text)}
+.runtime-check.needs-fix{border-color:var(--warning-line);background:var(--warning-bg)}
+.runtime-check.needs-fix strong,.runtime-problem{color:var(--warning)}
+.runtime-path{color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+.runtime-path summary{cursor:pointer}
+.runtime-path code{display:block;margin:10px 0;line-height:1.8}
+.runtime-readiness>button{margin-top:12px}
+@media(max-width:600px){.runtime-check-grid{grid-template-columns:1fr}}

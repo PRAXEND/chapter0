@@ -73,7 +73,8 @@ export class MediaLibrary{
         if(context.query==='每日仓库完整目录'){details.topicFit=entry.topicFit||details.topicFit;details.styleFit=entry.styleFit||details.styleFit;details.needIds=entry.needIds||details.needIds;details.caveats=[...new Set([...(entry.caveats||[]),...details.caveats])];}
         Object.assign(entry,details,{kind:source.kind,thumbnailUrl:cleanUrl(source.thumbnailUrl)||entry.thumbnailUrl,lastSeenAt:seenAt,localPath:'',status:'candidate'});
       }
-      if(!entry.origins.some(o=>o.run===origin.run&&o.jobId===origin.jobId&&o.sourceId===origin.sourceId&&o.query===origin.query&&o.topic===origin.topic&&o.style===origin.style))entry.origins.push(origin);
+      const priorOrigin=entry.origins.find(o=>o.run===origin.run&&o.jobId===origin.jobId&&o.sourceId===origin.sourceId&&o.query===origin.query&&o.topic===origin.topic&&o.style===origin.style);
+      if(!priorOrigin)entry.origins.push(origin);else if(event)Object.assign(priorOrigin,origin);
       entry.origins=entry.origins.sort((a,b)=>b.seenAt.localeCompare(a.seenAt)).slice(0,30);saved.push(entry);
     }
     if(saved.length)await this.persist();return saved;

@@ -194,6 +194,8 @@ def verify_video(payload):
 
 
 ACTIONS = {"catalog": catalog, "create": create, "sync": sync, "save-plan": save_plan,
+           "preflight": lambda p: studio.preflight(p.get("capabilities")),
+           "bootstrap": lambda p: studio.bootstrap(),
            "style-details": lambda p: web_styles.details(p["key"]),
            "style-reference": lambda p: web_styles.reference(p["key"], p["referenceId"]),
            "style-select": lambda p: web_styles.select(p["key"]),

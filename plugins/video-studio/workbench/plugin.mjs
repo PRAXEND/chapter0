@@ -15,7 +15,7 @@ export function createPluginBridge(plugin,dataDir){
   return async function bridge(action,payload){
     const args=[path.join(plugin.root,'scripts/web_bridge.py'),action];let file;
     if(payload!==undefined){await mkdir(dataDir,{recursive:true});file=path.join(dataDir,'bridge-'+randomUUID()+'.json');await writeFile(file,JSON.stringify(payload),{mode:0o600});args.push('--file',file);}
-    try{const result=await execute(python,args,{timeout:action==='verify-video'?360000:45000,maxBuffer:5*1024*1024});return JSON.parse(result.stdout);}
+    try{const result=await execute(python,args,{timeout:action==='bootstrap'?660000:action==='verify-video'?360000:45000,maxBuffer:5*1024*1024});return JSON.parse(result.stdout);}
     catch(e){let message;try{message=JSON.parse(e.stderr).error;}catch{}throw new Error(message || (e.code==='ENOENT'?'找不到 Python 3.10+，请检查本地环境。':`插件步骤 ${action} 执行失败。`));}
     finally{if(file)await unlink(file).catch(()=>{});}
   };
