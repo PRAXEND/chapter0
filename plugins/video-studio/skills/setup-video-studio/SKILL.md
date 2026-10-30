@@ -46,7 +46,7 @@ ChatCut 是剪辑、配音与导出的必需集成；Video Studio 自带的 `cha
 
 ## 偏好与迁移
 
-`profile` 返回用户配置；`profile --merge-file <json>` 只更新指定字段。新安装没有默认题材或创作风格，不默认男声、语言、比例或目标时长。当前项目规格放在 brief；用户明确要求记住的偏好才存 profile。首次实际需要 TTS 时沿 ChatCut voice 技能试听具体音色，筛选条件来自用户。
+`profile` 返回用户配置；`profile --merge-file <json>` 只更新指定字段。新安装没有默认题材或创作风格，不默认男声、语言、比例或目标时长。当前项目规格放在 brief；用户明确要求记住的偏好才存 profile。首次实际需要 TTS 时按 [音色选择流程](../video-audio-tools/references/voice-selection.md) 检查平台音色；没有可用克隆时先问是否克隆，需要则收集录音和授权，不需要则让用户试听并选择官方音色。已有明确选定的可用音色直接复用。
 
 风格库由 `styles list/show/add` 管理。用户要求设置默认风格时保存 `default_style:"id@version"`；清除用 null。个人库位于 Video Studio 状态目录，升级代码不覆盖。
 

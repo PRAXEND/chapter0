@@ -39,7 +39,7 @@ export async function publicUrl(raw){
 }
 export async function saveUpload(readable,destination,maxBytes=350*1024*1024){
   let count=0;
-  const limiter=new Transform({transform(chunk,encoding,callback){count+=chunk.length;callback(count>maxBytes?new Error('单个文件不能超过 350 MB。'):null,chunk);}});
+  const limiter=new Transform({transform(chunk,encoding,callback){count+=chunk.length;callback(count>maxBytes?new Error(`单个文件不能超过 ${Math.floor(maxBytes/1024/1024)} MB。`):null,chunk);}});
   await mkdir(path.dirname(destination),{recursive:true});
   try{await pipeline(readable,limiter,createWriteStream(destination,{flags:'wx'}));if(!count)throw new Error('文件为空。');return count;}
   catch(e){await unlink(destination).catch(()=>{});throw e;}

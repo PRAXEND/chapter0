@@ -19,6 +19,7 @@ import {repositoryCatalog} from './repository.mjs';
 import {ProjectStore} from './projects.mjs';
 import {recoverLegacyProjects} from './recover-projects.mjs';
 import {canCollectRepository,collectRepository,scopedCollectionContext} from './collection.mjs';
+import {normalizeVoiceRequest,pendingVoiceRequest,requireVoiceRequest,voiceAnswer,recordVoiceAnswer,voiceContext,saveVoiceRecording} from './voices.mjs';
 
 const root=path.dirname(fileURLToPath(import.meta.url));
 const dataDir=workbenchDataDirectory();
@@ -188,6 +189,7 @@ async function finishJob(job,context,{code,error,finalText}){
     }
     else if(job.action==='plan'){await checkSelected();await savePlan(result);job.status='completed';}
     else if(job.action==='produce'){
+      job.voiceRequest=project.narration&&result.status==='needs_input'?await normalizeVoiceRequest(result.voiceRequest,job):null;
       job.editorUrl=cleanEditor(result.editorUrl)||job.editorUrl;job.questions=Array.isArray(result.questions)?result.questions.map(String):[];
       if(result.status!=='exported'){job.status=result.status==='needs_input'?'needs_input':'blocked';job.error=result.summary||'制片步骤需要处理。';return;}
       await checkSelected();job.deliveryId=(await deliver(result,job)).id;job.status='completed';
@@ -200,6 +202,7 @@ function adoptTopic(value){if(!project.topic.trim()&&String(value||'').trim())up
 async function startJob(action,options={}){
   assertReady(project,action);
   if(runtime.preparing)throw preflightError('正在补齐下载依赖，完成并复检后才能开始任务。');
+  if(action==='produce'&&pendingVoiceRequest(project,inputHash(project)))throw new Error('请先完成下方音色选择或录音提交。');
   const directCollection=action==='collect'&&canCollectRepository(project.sources.find(s=>s.id===options.sourceId));
   const capabilities=action==='collect'?sourceCapabilities(project.sources.find(s=>s.id===options.sourceId),{direct:directCollection}):action==='discover'?['python','media','downloader']:['plan','produce'].includes(action)?['python','media']:['python'];
   if(directCollection)rememberDependencies(await bridge('preflight',{capabilities}));else await checkLocal(capabilities);
@@ -236,7 +239,11 @@ async function startJob(action,options={}){
     context.acquisitionUsage={videoSources:acquired.length,videoSeconds:acquired.reduce((sum,s)=>sum+s.duration,0)};
     context=scopedCollectionContext(context);
   }
-  if(action==='produce'){await unlink(path.join(project.run,'workbench-cancelled.json')).catch(()=>{});await unlink(path.join(project.run,'workbench-progress.json')).catch(()=>{});}
+  if(action==='produce'){
+    const currentCatalog=await getCatalog();
+    context.voice=voiceContext(project,inputHash(project),currentCatalog.profile?.voice||null);
+    for(const answer of context.voice.answers)if(answer.recording){const file=await contained(answer.recording.path,path.join(project.run,'voice-references'));if(await fileHash(file)!==answer.recording.sha256)throw new Error('已提交的音色录音发生变化，请恢复原录音后继续。');}
+    await unlink(path.join(project.run,'workbench-cancelled.json')).catch(()=>{});await unlink(path.join(project.run,'workbench-progress.json')).catch(()=>{});}
   project.jobs.unshift(job);rememberUsage(project);project.jobs=project.jobs.slice(0,50);active={job,controller:null};addEvent(job,'queued',directCollection?'正在直接采集所选仓库媒体并校验固定版本':['discover','collect'].includes(action)?'网页已提交任务，正在加载插件的素材采集工具及适用来源规则':'网页已提交任务，正在加载 Video Studio 与 ChatCut 插件');await persist();
   active.controller=directCollection?runRepositoryCollection(job,context):runAgent({codex:runtime.codexPath,job,context,event:(type,message)=>addEvent(job,type,message),onSourceProgress:snapshot=>saveSourceProgress(job,context,snapshot),onFinish:value=>finishJob(job,context,value)});return job;
 }
@@ -285,6 +292,13 @@ const server=http.createServer(async(req,res)=>{
     if(['GET','HEAD'].includes(req.method) && route.startsWith('/api/source-reports/')){const job=project.jobs.find(j=>j.id===route.split('/').pop());if(!job?.sourceReport)return send(res,404,{error:'检索记录不存在。'});return await streamFile(req,res,await contained(job.sourceReport,project.run),{download:true,name:'material-search-'+job.id.slice(0,8)+'.json'});}
     if(['GET','HEAD'].includes(req.method) && route.startsWith('/api/media/')){const source=project.sources.find(s=>s.id===route.split('/').pop());if(!source||source.status!=='ready')return send(res,404,{error:'素材尚未采集完成。'});const file=url.searchParams.has('thumbnail')?source.thumbnailPath:source.localPath;if(!file)return send(res,404,{error:'暂无预览。'});return await streamFile(req,res,await contained(file,project.run),{download:url.searchParams.has('download')});}
     if(['GET','HEAD'].includes(req.method) && route.startsWith('/api/files/')){const id=route.split('/').pop();let delivery,file;for(const d of project.deliveries){const found=d.files.find(f=>f.id===id);if(found){delivery=d;file=found;break;}}if(!file)return send(res,404,{error:'交付文件不存在。'});return await streamFile(req,res,await contained(file.path,delivery.directory),{download:url.searchParams.has('download'),name:file.name});}
+    if(req.method==='POST' && route==='/api/voice/recording')return await exclusive(async()=>{
+      const payload=JSON.parse(decodeURIComponent(req.headers['x-voice-intake']||''));
+      const request=requireVoiceRequest(project,inputHash(project),payload.requestId),answer=voiceAnswer(request,{...payload,action:'recording'});
+      await checkMedia();
+      const recording=await saveVoiceRecording(req,{name:url.searchParams.get('name')||'',run:project.run,inspect:file=>bridge('inspect-media',{file})});
+      recordVoiceAnswer(project,request,{...answer,recording});await persist();return send(res,201,{ok:true});
+    });
     if(req.method==='POST' && route==='/api/upload')return await exclusive(async()=>{const name=path.basename(url.searchParams.get('name')||'');const ext=path.extname(name).toLowerCase();if(!mediaExtensions.has(ext))throw new Error('请上传视频、图片或音频文件。');await checkMedia();adoptTopic(name);await ensureRun();const file=path.join(project.run,'materials',randomUUID()+ext);await saveUpload(req,file);const source=await registerMedia(file,{title:name,description:'用户上传的本地素材',rights:'user_provided'});await persist();return send(res,201,{source});});
     if(req.method==='POST'){
       if(!/^application\/json/.test(req.headers['content-type']||''))return send(res,415,{error:'需要 JSON 请求。'});const payload=await body(req);
@@ -338,14 +352,15 @@ const server=http.createServer(async(req,res)=>{
         if(route==='/api/sources/local'){let file=String(payload.path||'');if(file.startsWith('~/'))file=path.join(os.homedir(),file.slice(2));if(!path.isAbsolute(file))throw new Error('请输入本地素材绝对路径。');file=await realpath(file);const ext=path.extname(file).toLowerCase();if(!mediaExtensions.has(ext))throw new Error('请选择媒体文件。');if((await stat(file)).size>350*1024*1024)throw new Error('单个素材需小于 350 MB。');await checkMedia();adoptTopic(path.basename(file));await ensureRun();const destination=path.join(project.run,'materials',randomUUID()+ext);await mkdir(path.dirname(destination),{recursive:true});await copyFile(file,destination);const source=await registerMedia(destination,{title:path.basename(file),rights:'user_provided',description:'用户选择的本地文件'});await persist();return send(res,201,{source});}
         if(route==='/api/plan'){await ensureRun();await checkSelected();await savePlan(payload.plan);await persist();return send(res,200,{plan:project.plan});}
         if(route==='/api/approve'){if(!project.plan||project.plan.stale||project.plan.gaps.length)throw new Error('请先更新方案并解决素材缺口。');await checkSelected();if(payload.planHash!==project.plan.planHash||project.plan.inputHash!==inputHash(project))throw new Error('方案或素材已经变化，请重新审阅。');const authority=approvalAuthority(payload.authority);const approved=await bridge('approve',{run:project.run,planHash:project.plan.planHash,inputHash:inputHash(project),authority});project.approval={status:'confirmed',planHash:approved.file_sha256,inputHash:approved.input_hash,version:approved.version,confirmedAt:approved.confirmed_at,authority:approved.authority};await persist();return send(res,200,{approval:project.approval});}
+        if(route==='/api/voice/answer'){const request=requireVoiceRequest(project,inputHash(project),payload.requestId);if(payload.action==='recording')throw new Error('请使用录音上传入口。');recordVoiceAnswer(project,request,voiceAnswer(request,payload));await persist();return send(res,200,{ok:true});}
         if(route==='/api/jobs'){const job=await startJob(payload.action,payload);return send(res,202,{job});}
         if(route==='/api/projects/switch'){const next=projectStore.load(payload.projectId);for(const job of next.jobs)if(['running','cancelling'].includes(job.status)){job.status='interrupted';job.error='该项目的本地会话已结束；继续前应核对已有远端任务。';}await activateProject(next);return send(res,200,publicState());}
         if(route==='/api/reset'){const next=initialStudio();next.outputRoot=project.outputRoot;await activateProject(next);return send(res,200,publicState());}
         return send(res,404,{error:'没有此操作。'});
       });
     }
-    const files={'/':'index.html','/app.js':'app.js','/material-dates.js':'material-dates.js','/token-usage.js':'token-usage.js','/token-usage-view.js':'token-usage-view.js','/styles.css':'styles.css','/theme.js':'theme.js','/themes.css':'themes.css'};
-    if(req.method==='GET' && files[route]){const file=files[route];res.writeHead(200,{'Content-Type':({html:'text/html',js:'text/javascript',css:'text/css'})[file.split('.').pop()]+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"});return res.end(await readFile(path.join(root,'public',file)));}
+    const files={'/':'index.html','/app.js':'app.js','/voice-ui.js':'voice-ui.js','/material-dates.js':'material-dates.js','/token-usage.js':'token-usage.js','/token-usage-view.js':'token-usage-view.js','/styles.css':'styles.css','/theme.js':'theme.js','/themes.css':'themes.css'};
+    if(req.method==='GET' && files[route]){const file=files[route];res.writeHead(200,{'Content-Type':({html:'text/html',js:'text/javascript',css:'text/css'})[file.split('.').pop()]+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https:; media-src 'self' blob: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"});return res.end(await readFile(path.join(root,'public',file)));}
     send(res,404,{error:'页面不存在。'});
   }catch(e){if(res.headersSent){res.destroy();return;}send(res,/已有操作/.test(e.message)?409:400,{error:cleanError(e.message),...(e.code==='preflight_failed'?{code:e.code,runtime}:{})});}
 });

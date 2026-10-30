@@ -43,5 +43,9 @@
   "runtime.mjs",
   "test/runtime.test.mjs",
   "collection.mjs",
-  "test/collection.test.mjs"
+  "test/collection.test.mjs",
+  "voices.mjs",
+  "public/voice-ui.js",
+  "test/voices.test.mjs",
+  "test/voice-api.test.mjs"
 ]
