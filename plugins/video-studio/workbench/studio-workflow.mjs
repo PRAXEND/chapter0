@@ -39,7 +39,9 @@ export function brief(project){const [width,height]={'9:16':[1080,1920],'16:9':[
 export function inputHash(project){return createHash('sha256').update(JSON.stringify({brief:brief(project),voiceDirection:project.voiceDirection,music:project.music,sources:project.selected.map(id=>{const s=project.sources.find(s=>s.id===id);return s?{id:s.id,sha256:s.sha256,url:s.url,start:s.start,end:s.end}:null;})})).digest('hex');}
 export function updateSettings(project,data){
   if(data.selected.some(id=>!project.sources.some(s=>s.id===id && s.status==='ready')))throw new Error('请先采集素材，校验完成后才能用于制作。');
-  const previous=inputHash(project);Object.assign(project,data);project.title=project.topic||'未命名视频';
+  const previous=inputHash(project);Object.assign(project,data);
+  if(!project.topic.trim())project.topic=project.selected.map(id=>project.sources.find(s=>s.id===id)?.title).find(title=>title?.trim())?.trim().slice(0,200)||'';
+  project.title=project.topic||'未命名视频';
   if(inputHash(project)!==previous){project.approval=null;project.revision++;if(project.plan)project.plan.stale=true;}
 }
 export function validatePlan(plan,project){
@@ -59,7 +61,6 @@ export function validatePlan(plan,project){
 export function assertReady(project,action){
   if(!Object.hasOwn(taskNames,action))throw new Error('未知任务。');
   if(action==='connect')return;
-  if(!project.topic.trim())throw new Error('请先填写视频主题。');
   if(['plan','produce'].includes(action)&&!project.selected.length)throw new Error('请至少采集并选择一条真实素材。');
   if(action==='produce' && (!project.plan||project.plan.stale||project.plan.gaps.length||project.approval?.status!=='confirmed'||project.approval.inputHash!==inputHash(project)))throw new Error('请先审阅并确认当前文案与分镜，解决素材缺口后再制作。');
 }

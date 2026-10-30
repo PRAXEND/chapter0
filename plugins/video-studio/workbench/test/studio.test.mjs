@@ -32,3 +32,16 @@ test('a confirmation expressed in chat keeps the actual user words and prior rev
   assert.deepEqual(approvalAuthority(authority),authority);
   assert.throws(()=>approvalAuthority({kind:'user_message'}));assert.throws(()=>approvalAuthority({...authority,priorReviewedPlanHash:'not-a-hash'}));
 });
+
+test('choosing media supplies the project topic without a separate topic field',()=>{
+  const p=initialStudio();p.sources=[{id:'clip',title:'机器人动作演示',status:'ready',sha256:'a'.repeat(64)}];
+  assert.throws(()=>assertReady(p,'plan'),/至少采集并选择/);
+  updateSettings(p,{...settings(p),selected:['clip']});
+  assert.equal(p.topic,'机器人动作演示');assert.equal(p.title,p.topic);assert.doesNotThrow(()=>assertReady(p,'plan'));
+  p.approval={status:'confirmed',inputHash:inputHash(p)};
+  updateSettings(p,{...settings(p),outputRoot:'/tmp/another-output'});
+  assert.equal(p.topic,'机器人动作演示');assert.ok(p.approval);
+  p.sources.push({id:'next',title:'另一个素材',status:'ready',sha256:'b'.repeat(64)});
+  updateSettings(p,{...settings(p),selected:['clip','next']});
+  assert.equal(p.topic,'机器人动作演示');assert.equal(p.approval,null);
+});

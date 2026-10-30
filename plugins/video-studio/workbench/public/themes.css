@@ -137,9 +137,10 @@ h1 span{color:var(--accent)}
 .brief-fields input{color:var(--ink);font-size:16px;line-height:1.8;font-weight:500}
 .brief-meta{font-size:10px;color:var(--muted)}
 .meta-pill{background:var(--surface);color:var(--body);border-color:var(--line);padding:2px 7px;border-radius:5px}
-.workbench-settings{margin-top:15px;padding:0 18px}
-.workbench-settings>summary{color:var(--body);font-size:12px;padding-top:15px;padding-bottom:15px}
-.workbench-settings>summary span{color:var(--muted)}
+.workbench-settings{margin-top:0;padding:0 18px}
+.settings-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 0}
+.settings-heading h2{margin:0;color:var(--ink);font-size:13px;font-weight:600;line-height:1.6}
+.settings-heading>span{color:var(--muted);font-size:11px;white-space:nowrap}
 .settings-grid label,.shot-edit-fields label,.editor-label,.collect-range label{color:var(--body);font-size:12px}
 .settings-grid small,.shot-edit small{color:var(--muted);font-size:11px}
 .settings-grid input:not([type=checkbox]),.settings-grid select,.style-fields select,.style-fields textarea,.shot-edit input,.shot-edit textarea,.shot-edit select,.editor-label textarea,.inline-field input,.search-row input,.collect-range input,.cache-query{background:var(--inset);border-color:var(--line);color:var(--ink);border-radius:9px;padding:11px 13px;font-size:12px}

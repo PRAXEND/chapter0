@@ -2,7 +2,7 @@
 
 按用户选择的题材和风格制作视频，并把参考脚本、视频提炼成下次可调用的风格技能。
 
-**插件内置网页工作台版 0.3.0-web.14 · 基于团队默认分支 · macOS / Codex · 依赖已安装且登录的 ChatCut**
+**插件内置网页工作台版 0.3.0-web.15 · 基于团队默认分支 · macOS / Codex · 依赖已安装且登录的 ChatCut**
 
 ## 组成
 
@@ -93,12 +93,12 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 ## 安装与验证
 
-安装包：`dist/video-studio-0.3.0-web.14.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
+安装包：`dist/video-studio-0.3.0-web.15.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
 
 ```sh
-shasum -a 256 -c video-studio-0.3.0-web.14.zip.sha256
-unzip video-studio-0.3.0-web.14.zip
-codex plugin marketplace add ./video-studio-0.3.0-web.14
+shasum -a 256 -c video-studio-0.3.0-web.15.zip.sha256
+unzip video-studio-0.3.0-web.15.zip
+codex plugin marketplace add ./video-studio-0.3.0-web.15
 ```
 
 在插件目录选择 Video Studio 本地来源安装，并在新聊天验证技能。安装缓存与市场源不是同一份文件；不要手工改缓存。插件目录与本地市场机制见 [OpenAI 官方文档](https://developers.openai.com/plugins/build/plugins)。
@@ -130,11 +130,13 @@ doctor 本地成功不表示 ChatCut 已连接。使用宿主完整 Python；损
 
 插件的 `workbench/` 目录已包含完整网页、本地服务、启动器和 Token 用量组件，安装插件时一起分发；无需另取 sites 目录。安装后可对 Codex 说「打开 Video Studio 网页工作台」，或调用 `$open-video-workbench`。源码运行 `node plugins/video-studio/scripts/open-workbench.mjs` 会启动/复用服务并返回真实地址，再用宿主浏览器打开。双击插件 `workbench/start-macos.command` 则在终端运行。旧命令 `node sites/video-agent-demo/start.mjs` 保留为兼容入口。
 
+工作台直接选择风格和素材，无需单独填写主题；项目名称会从搜索词或所选素材带入。时长上限、画幅和输出文件夹始终展开显示。
+
 项目和素材缓存默认位于用户应用数据目录：macOS 为 `~/Library/Application Support/Video Studio/workbench/`，Windows 为 `%LOCALAPPDATA%/Video Studio/workbench/`，Linux 为 `$XDG_DATA_HOME/Video Studio/workbench/`（未设置时使用 `~/.local/share`）。可用 `VIDEO_STUDIO_WEB_DATA` 指定原目录。数据不放在插件安装缓存，升级后继续使用。工作台需要 Node.js 20+、Python 3.10+、Codex、ChatCut 连接及本地媒体工具；打开页面本身不开始制作。
 
 ### 上传到 GitHub 分支
 
-`dist/video-studio-plugin-0.3.0-web.14.zip` 是仅含插件的包，根目录直接包含 `plugin.json`、`skills/`、`scripts/` 和 `workbench/`。解压到目标仓库的 `plugins/video-studio/` 后可提交分支；保留 `.agents/plugins/marketplace.json` 对该目录的引用。`dist/video-studio-0.3.0-web.14.zip` 是含 marketplace、测试、打包工具和说明的源码发行包。发行包采用白名单，不包含本机项目、素材、账号、个人风格和成片。
+`dist/video-studio-plugin-0.3.0-web.15.zip` 是仅含插件的包，根目录直接包含 `plugin.json`、`skills/`、`scripts/` 和 `workbench/`。解压到目标仓库的 `plugins/video-studio/` 后可提交分支；保留 `.agents/plugins/marketplace.json` 对该目录的引用。`dist/video-studio-0.3.0-web.15.zip` 是含 marketplace、测试、打包工具和说明的源码发行包。发行包采用白名单，不包含本机项目、素材、账号、个人风格和成片。
 
 
 网页的风格卡片由真实个人库和仓库可选用户包读取；可查看对应规则、检查方法、案例与原始证据，显示版本及未验证边界。选用未导入的条目时显式导入所在风格包，不应用默认偏好。

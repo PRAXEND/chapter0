@@ -30,6 +30,11 @@ else {
     run.material_plan={topic:c.brief.topic,style:c.brief.style||null,needs:[{id:'fixture',purpose:'HTTP collection handoff test',query:'fixture only',acceptance:'actual probed diagnostic media'}]};
     fs.writeFileSync(path.join(c.run,'run.json'),JSON.stringify(run));
     result={summary:'Isolated fixture acquisition; no remote media or ChatCut calls',sources:[{...c.source,url:'https://93.184.215.14/test-only-media',localPath:destination,sourceType:'other',expectedSha256:'',expectedBytes:0}]};
+  }else if(!c.selectedSources.length){
+    const run=JSON.parse(fs.readFileSync(path.join(c.run,'run.json'),'utf8'));
+    run.material_plan={topic:c.brief.topic,style:c.brief.style||null,needs:[{id:'fixture-search',purpose:'Search handoff test',query:c.query,acceptance:'Isolated empty search'}]};
+    fs.writeFileSync(path.join(c.run,'run.json'),JSON.stringify(run));
+    result={summary:'Isolated empty search',sources:[],review:{scope:'Test fixture only',methods:[],gaps:[],events:[]}};
   }else result={status:'exported',summary:'fabricated test result',projectId:'fake',timelineId:'fake',editorUrl:'',files:[{path:c.selectedSources[0].localPath,role:'video'}],qaStatus:'passed',notes:[],questions:[]};
   console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify(result)}}));
   console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:0,output_tokens:0}}));
@@ -59,6 +64,14 @@ else {
     assert.equal((await api('/api/sources/url',{url:'http://127.0.0.1/private'})).status,400);
     const fixture=path.join(temp,'test-only.mp4');await execute('ffmpeg',['-v','error','-f','lavfi','-i','color=c=green:s=160x90:r=30','-t','2','-c:v','libx264','-pix_fmt','yuv420p',fixture]);
     await api('/api/reset',{});
+    const emptySearch=await api('/api/jobs',{action:'discover',query:'  '});assert.equal(emptySearch.status,400);assert.match(emptySearch.value.error,/素材关键词/);
+    const search=await api('/api/jobs',{action:'discover',query:'机器人素材检索'});assert.equal(search.status,202,JSON.stringify(search.value));
+    let searchJob;for(let n=0;n<80;n++){searchJob=(await api('/api/jobs/'+search.value.job.id)).value;if(!['running','cancelling'].includes(searchJob.status))break;await new Promise(r=>setTimeout(r,100));}
+    assert.equal(searchJob.status,'blocked');assert.equal(searchJob.error,'Isolated empty search');
+    const searchContext=JSON.parse(await readFile(path.join(dataDir,'jobs',searchJob.id,'request.json'),'utf8'));assert.equal(searchContext.brief.topic,'机器人素材检索');assert.equal(searchContext.query,'机器人素材检索');
+    await api('/api/reset',{});
+    const linked=await api('/api/sources/url',{url:historySources[0].url,title:historySources[0].title});assert.equal(linked.status,201);
+    assert.equal((await api('/api/state')).value.project.topic,'');
     assert.equal((await api('/api/library/collect',{candidateId:'missing'})).status,400);
     assert.equal((await api('/api/library/collect',{candidateId:wanted.id,start:5,end:3})).status,400);
     const collected=await api('/api/library/collect',{candidateId:wanted.id});assert.equal(collected.status,202,JSON.stringify(collected.value));
@@ -70,8 +83,7 @@ else {
     const request=JSON.parse(await readFile(path.join(dataDir,'jobs',acquisition.id,'request.json'),'utf8'));assert.equal(request.source.url,historySources[0].url);
     await api('/api/reset',{});state=(await api('/api/state')).value;assert.equal(state.library.candidates.length,2);assert.equal(state.library.entries.length,1);
     const reuse=await api('/api/library/collect',{candidateId:wanted.id});assert.equal(reuse.value.reused,true);assert.equal(reuse.value.project.jobs.length,0);assert.equal(reuse.value.project.topic,'');
-    await api('/api/project',settings);
-    const upload=await fetch(base+'/api/upload?name=fixture.mp4',{method:'POST',headers:{'X-Video-Demo':'1','Content-Type':'application/octet-stream'},body:await readFile(fixture)});assert.equal(upload.status,201);let source=(await upload.json()).source;assert.equal(source.status,'ready');assert.equal(source.kind,'video');
+    const upload=await fetch(base+'/api/upload?name=fixture.mp4',{method:'POST',headers:{'X-Video-Demo':'1','Content-Type':'application/octet-stream'},body:await readFile(fixture)});assert.equal(upload.status,201);let source=(await upload.json()).source;assert.equal(source.status,'ready');assert.equal(source.kind,'video');assert.equal((await api('/api/state')).value.project.topic,'fixture.mp4');
     const range=await fetch(base+'/api/media/'+source.id,{headers:{Range:'bytes=0-9'}});assert.equal(range.status,206);assert.equal((await range.arrayBuffer()).byteLength,10);
     const download=await fetch(base+'/api/media/'+source.id+'?download=1');assert.match(download.headers.get('content-disposition'),/attachment/);assert.equal((await download.arrayBuffer()).byteLength,source.bytes);
     assert.equal((await fetch(base+'/api/media/not-registered')).status,404);
@@ -79,8 +91,9 @@ else {
     const cacheRange=await fetch(base+'/api/library/media/'+cached.id,{headers:{Range:'bytes=0-9'}});assert.equal(cacheRange.status,206);assert.equal((await cacheRange.arrayBuffer()).byteLength,10);
     assert.equal((await fetch(base+'/api/library/media/unregistered')).status,404);
     await api('/api/reset',{});state=(await api('/api/state')).value;assert.equal(state.project.sources.length,0);assert.equal(state.library.entries.length,1);
-    assert.equal((await api('/api/library/use',{id:cached.id})).status,400);
-    await api('/api/project',settings);const used=await api('/api/library/use',{id:cached.id});assert.equal(used.status,200,JSON.stringify(used.value));source=used.value.source;
+    const imported=await api('/api/sources/local',{path:fixture});assert.equal(imported.status,201);assert.equal((await api('/api/state')).value.project.topic,'test-only.mp4');
+    await api('/api/reset',{});
+    const used=await api('/api/library/use',{id:cached.id});assert.equal(used.status,200,JSON.stringify(used.value));assert.equal(used.value.project.topic,cached.title);source=used.value.source;
     assert.deepEqual(used.value.project.selected,[source.id]);assert.equal(used.value.project.jobs.length,0);assert.equal(used.value.project.deliveries.length,0);
     const again=await api('/api/library/use',{id:cached.id});assert.equal(again.value.project.sources.length,1);assert.deepEqual(again.value.project.selected,[source.id]);
     const actual={...settings,selected:[source.id]};await api('/api/project',actual);
