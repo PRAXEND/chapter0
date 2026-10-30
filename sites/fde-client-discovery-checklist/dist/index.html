@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="FDE 前期客户访谈、需求确认、报价与交付边界管理工作台">
+  <meta name="theme-color" content="#16324f">
+  <title>FDE 客户需求沟通工作台</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">F</div>
+        <div>
+          <strong>FDE 工作台</strong>
+          <span>客户需求沟通与确认</span>
+        </div>
+      </div>
+
+      <div class="progress-card">
+        <div class="progress-top">
+          <span>整体进度</span>
+          <strong id="progressPercent">0%</strong>
+        </div>
+        <div class="progress-track"><i id="progressBar"></i></div>
+        <p id="progressText">尚未开始</p>
+      </div>
+
+      <nav class="nav-list" id="navList" aria-label="清单导航"></nav>
+
+      <div class="sidebar-note">
+        <strong>隐私说明</strong>
+        <p>填写内容只保存在当前浏览器，不会上传到服务器。请按客户的数据安全要求使用。</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menuButton" aria-label="打开导航">☰</button>
+        <div class="meeting-meta">
+          <label>
+            <span>客户</span>
+            <input id="clientName" placeholder="客户名称">
+          </label>
+          <label>
+            <span>项目</span>
+            <input id="projectName" placeholder="项目名称">
+          </label>
+          <label>
+            <span>会议日期</span>
+            <input id="meetingDate" type="date">
+          </label>
+        </div>
+        <div class="top-actions">
+          <span class="save-state" id="saveState">已自动保存</span>
+          <button class="button secondary" id="printButton">打印 / PDF</button>
+          <button class="button primary" id="exportButton">导出记录</button>
+        </div>
+      </header>
+
+      <div class="content-wrap">
+        <section class="hero" id="hero">
+          <div>
+            <span class="eyebrow">FIELD DISCOVERY PLAYBOOK</span>
+            <h1>在承诺之前，把需求讲清楚。</h1>
+            <p>用于首次访谈、技术调研、方案评估与报价前确认。将客户表达转成可验证的范围、交付物和验收条件。</p>
+          </div>
+          <div class="hero-stats">
+            <div><strong id="confirmedCount">0</strong><span>已确认模块</span></div>
+            <div><strong id="openCount">17</strong><span>待推进模块</span></div>
+            <div><strong id="questionCount">0</strong><span>已核对问题</span></div>
+          </div>
+        </section>
+
+        <section class="workspace" id="workspace"></section>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>

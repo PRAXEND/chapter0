@@ -7,6 +7,18 @@ description: 根据当前视频题材和选定风格查找、核实、探测与�
 
 先读 run 的 brief、style_snapshot 及选定风格 SKILL.md；未选风格就采用本次要求，不加载旧的主题指南。
 
+## 开始前配齐所需依赖
+
+先用当前实际 Python 运行 `scripts/studio.py preflight`，通过 `--capability` 指定本步需要的能力：多来源搜索及 YouTube 探测用 `python`、`media`、`downloader`；每日仓库获取用 `python`、`media`、`repository`；官网直链或本地文件用 `python`、`media`。检查报告包括 Python/HTTPS 证书、可运行的 FFmpeg/ffprobe 及滤镜、yt-dlp/JS 运行时，仓库路径另验 gh 安装和登录。只浏览已有文字候选不需要下载工具。
+
+缺少 yt-dlp 时，先沿 setup-video-studio 用 `scripts/studio.py bootstrap` 在插件独立虚拟环境补齐固定依赖，再执行同一 preflight，确认成功后才探测或下载。其他缺项按报告修复并复检；安装与登录遵守用户已给授权和宿主支持的方式。禁止在工具缺失、无法执行或证书损坏时继续同样的下载尝试，不能把 doctor 的本地工具检查当成 ChatCut 已连接。
+
+## 中间候选与失败恢复
+
+网页上下文提供 sourceProgressPath 时，每完成一个来源批次（或约 5 条实际候选）、开始慢速探测或重试前，原子保存累计候选：`{schema:1,jobId:context.jobId,topic:brief.topic,style:brief.style,sources:[实际来源字段]}`。最多 80 条，保留真实 URL、日期依据和待核实项；localPath 为空，不声明已下载或已选用。该文件仅是中间候选，不代替最终筛选记录。网页会分批持久保存并展示，任务失败或超时也保留。
+
+同一连接拒绝最多尝试 3 次，保存已完成结果并明确哪一路未完成；不靠反复重连耗尽整轮 15 分钟。只有实际收到拒绝的服务才被标记为失败，不推断其他网络均不可用。继续时复用 knownSources、保存的需求及完整性校验通过的文件，补未完成的来源；不重复整轮搜索或已完成下载。
+
 ## 把需求转换为采集条件
 
 按每个画面用途建立 needs：当前题材/实体/事件、需证明的内容、所需镜头或图像角色、风格适配条件、检索词、采用标准、可替代方式。每个查询将题材词与所需表现形式结合；不只搜索题材关键词后随便拼接。风格 material_requirements 是跨题材的素材角色，将其中对象替换为本期真实对象。

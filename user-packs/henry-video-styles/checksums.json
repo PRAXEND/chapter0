@@ -1,12 +1,13 @@
 {
   "algorithm": "sha256",
   "files": {
-    "README.md": "541d4257219264977e8e6539a758f19c455b940a87de390b561ae322971b56f3",
+    "README.md": "00540ef6ba974d6684b92350ee3b3b55e8d86f96891112256da92556e4ff1453",
     "evidence/hot-news/current-directions.md": "a7d8ed4122856cf1e26f2dc23f952e890d9509d2dd907080a5058a3399144852",
     "evidence/hot-news/portrait-default-20261027.txt": "50d79a0cd374e957bac7b881aad3cb17e515c5e55f7fa78d047b7ef4b25a9356",
     "evidence/technical-explainer/atlas-script.txt": "a3de4bac2b2481232c60ffd86bfdd33424001bc6834cd902e30c4695a7aeadc4",
     "evidence/technical-explainer/user-direction.txt": "f19bf6109563df1054caa1bb1cab283f74396ef838be7e61edac2126e9451b84",
-    "manifest.json": "114145cf21a89240c4f00984226c07b16be688377d3e5bfbaf0ba6072a800cdd",
+    "manifest-v1.json": "114145cf21a89240c4f00984226c07b16be688377d3e5bfbaf0ba6072a800cdd",
+    "manifest.json": "a5c39d7cce2edcf7d83a381ae6bbc0a57d9a0834d0355df30e06868c808694df",
     "media/benchmarks/hot-news.mp4": "2bf2e4e4f5b1afd7ec54ca658a7e34767ecc610a36c8d3a7a90c02dbaacfe45d",
     "media/benchmarks/technical-explainer.mp4": "eedeb259a8394fef511d9b3528c90c6b1df7d120e8c85f2ac5b4099db0c6f216",
     "media/hot-news/airy-short-whoosh-r1.mp3": "ad00c275c00175ac3beb06b714ee77450e713c72974030ff4e787cc38e1cbdf8",
@@ -70,7 +71,9 @@
     "reproduction/technical-explainer/timeline.json": "2fd85092daa4e948d0d13afd0147798efe33a942aa4fdde8fe784d371a9dabbc",
     "reproduction/technical-explainer/timeline.xml": "2200c0478e4a093e2fef3b43a8eb909b6ef0e1dd22a4a5edc3953a33d14bd912",
     "resources.json": "585358023be685c8204e43ecf1dc49fb11bdec7968ae0af062a6bd63456974c0",
+    "styles/henry-hot-news-v8.json": "a7b82d9575a10e7ea3717b32aef72c0716f0c5c7509ab1ca43d68bd12d192a71",
     "styles/henry-hot-news.json": "95cc83d08b298ca512dbf1d732a701fe4a1308b1ad2102c5ac285fc4522b746f",
+    "styles/henry-technical-explainer-v8.json": "565e244eb1f469b94787410f505a604121fa7c06303d5114cde71dff15341ffb",
     "styles/henry-technical-explainer.json": "dbb46c60ddfd58bf6c7bb406f9b9cc47d0d2dc6fd36e0faa3c42f1cdff26462a",
     "verify.py": "7aefe2b46deaae618e65ce0d180f4f63d289843c0116216d21527860e15ee77d"
   }

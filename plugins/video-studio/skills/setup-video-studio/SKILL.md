@@ -7,6 +7,12 @@ description: 检查 Video Studio 本地环境与 ChatCut 等依赖插件，发�
 
 插件根目录为本技能上两级。运行 `scripts/studio.py doctor`，只在需要下载功能时安装下载器：`bootstrap` 使用独立虚拟环境。系统 Python 损坏时用宿主可用的完整 Python 3.10+；不把开发机路径写入技能。macOS 为当前支持平台。
 
+## 工作台 CLI 兼容检查
+
+工作台启动任务前用实际 CLI 的绝对路径检查版本、登录、必需执行参数，并通过只读 app-server 的 config/read 与 model/list 核对同一工作目录的模型配置和可用目录。遵守显式 VIDEO_DEMO_CODEX_BIN；未显式指定时可选择 PATH 或已安装官方应用内的较新兼容 CLI。版本基线只代表工作台支持范围，模型仍以该 CLI 的实际目录与服务错误为准，不能把“可以 --version”当成模型兼容。更新后重新检测，保存本次实际路径、版本、模型，不擅自降级或替换用户模型。
+
+遇到 requires a newer version of Codex 时立即停止该调用，提示升级实际被选中的应用/CLI 后复检，不循环重试相同版本。检测不得创建线程、启动模型任务或修改 Codex 配置。素材前置检查与依赖补齐沿 video-source-tools 的实际能力范围执行。
+
 ## 依赖插件检测与安装引导
 
 ChatCut 是剪辑、配音与导出的必需集成；Video Studio 自带的 `chatcut-edit-tools` 只是使用说明，不代表 ChatCut 已安装。其他插件仅在当前任务实际需要时发现，不预设额外必装清单。
@@ -24,6 +30,10 @@ ChatCut 是剪辑、配音与导出的必需集成；Video Studio 自带的 `cha
 
 需要保存分层诊断或断点清单时，按 [连接检测与断点恢复](../../references/connection-recovery.md) 将本次真实只读结果写入 `studio.py connection`。它不代替 MCP 调用，也不修改 run/revision 或重新提交任务。
 
+工作台独立 CLI 会话必须等待 MCP 工具初始化：启动参数使用 `-c mcp_optional_startup_grace_ms=0`，沿用每个服务已有的启动时限，不写入用户配置或新增同名连接。若旧版会话提示 hosted ChatCut 工具未加载，先更新工作台执行代码并用同一执行入口实际调用 `list_projects` 验证，再复用原 run、有效确认哈希和已有远端记录继续。不要将工具缺失当成要求用户重新审稿的理由；若初始化实际失败，保留具体错误并按 ChatCut 基础技能诊断。
+
+工作台可写任务通过受支持的 `--approve-for-me` 提交原生自动审批，连接检查保持只读；CLI 前检必须核验该参数。不得通过跳过审批、忽略规则、修改 MCP 权限或切换未授权传输路径绕过拒绝。遇到 `MCP tool call requires approval, but approval policy is never` 时，更新工作台执行模式并保留原 run/确认记录；实际审批拒绝仍需报告具体动作与原因。
+
 汇报分别列出本地环境、依赖安装、认证/连接和下一步。只有本地检查通过且必需依赖实时验证成功，才报告制片环境就绪。`doctor` 的 `local_ready` 仅表示本地工具就绪，不能证明 ChatCut 或远端生成额度可用。仅在当前制作请求明确需要其他插件时复用上述流程。
 
 ## 网页插件连接与首次体验
@@ -38,7 +48,7 @@ ChatCut 是剪辑、配音与导出的必需集成；Video Studio 自带的 `cha
 
 ## 偏好与迁移
 
-`profile` 返回用户配置；`profile --merge-file <json>` 只更新指定字段。新安装没有默认题材或创作风格，不默认男声、语言、比例或目标时长。当前项目规格放在 brief；用户明确要求记住的偏好才存 profile。首次实际需要 TTS 时沿 ChatCut voice 技能试听具体音色，筛选条件来自用户。
+`profile` 返回用户配置；`profile --merge-file <json>` 只更新指定字段。新安装没有默认题材或创作风格，不默认男声、语言、比例或目标时长。当前项目规格放在 brief；用户明确要求记住的偏好才存 profile。首次实际需要 TTS 时按 [音色选择流程](../video-audio-tools/references/voice-selection.md) 检查平台音色；没有可用克隆时先问是否克隆，需要则收集录音和授权，不需要则让用户试听并选择官方音色。已有明确选定的可用音色直接复用。
 
 风格库由 `styles list/show/add` 管理。用户要求设置默认风格时保存 `default_style:"id@version"`；清除用 null。个人库位于 Video Studio 状态目录，升级代码不覆盖。
 
