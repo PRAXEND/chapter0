@@ -1,0 +1,24 @@
+{
+  "topic": "从表演到工时：具身智能开始进入生产力验证",
+  "style": "shawn-case-synthesis@1",
+  "needs": [
+    {
+      "id": "n1",
+      "purpose": "案例一：展示人形机器人进入真实家庭执行清洁任务，以及其当前依赖远程操控的边界",
+      "query": "Tau Robotics humanoid home cleaning full sequence teleoperation official service terms",
+      "acceptance": "动作起止可见；明确标注4倍速；来源和日期清楚；不把遥操作说成自主"
+    },
+    {
+      "id": "n2",
+      "purpose": "案例二：展示智元从产品发布转向以有效工作衡量机器人的主张，并给出工业搬运画面",
+      "query": "AGIBOT Innovation Day 2026 Worken G2 Max industrial handling official demo",
+      "acceptance": "发布会与工业动作至少各一处；Worken只表述为智元提出的建议框架；未核实参数不进入口播"
+    },
+    {
+      "id": "n3",
+      "purpose": "结论图卡：把真实任务、有效工时和当前边界连成统一观察框架",
+      "query": "original motion graphic based on verified claims",
+      "acceptance": "只使用已核实事实；图卡不伪造统计数据或排名"
+    }
+  ]
+}

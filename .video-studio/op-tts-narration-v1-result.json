@@ -1,0 +1,14 @@
+{
+  "status": "completed_but_superseded_for_timing",
+  "jobs": [
+    {"jobId": "b6415a17-df67-40de-916f-9d2d01858581", "assetId": "deaa4116e0", "durationMs": 4056},
+    {"jobId": "7672fd73-3db5-43c3-b37e-a8226624b84a", "assetId": "7c19ba7dad", "durationMs": 13571},
+    {"jobId": "26163420-9f08-4de9-85cd-b974b3dd4fee", "assetId": "5cb3cd5201", "durationMs": 12143},
+    {"jobId": "5415e0c3-ce3f-4bf7-86aa-e01d164d3759", "assetId": "8aece2024b", "durationMs": 6905},
+    {"jobId": "9dacaf06-5d42-4f2c-bf27-e02039bfb073", "assetId": "b5abdfc7e7", "durationMs": 12143},
+    {"jobId": "10e2caab-3e38-4aaf-b2ad-4cadcc13a81a", "assetId": "30cc5fa5e0", "durationMs": 7619},
+    {"jobId": "63b354dd-ef26-42ef-abfc-9ce031a96388", "assetId": "3f3c631cf2", "durationMs": 19762}
+  ],
+  "totalNarrationMs": 76199,
+  "observed_failure": "与9秒频道开场组合后超出60秒上限；不进入正式时间线，改用保留原意的紧凑v2。"
+}

@@ -13,7 +13,7 @@ test('CLI checks keep working when the installer removes the parent process work
     const cache=path.join(root,'plugin-cache'),stable=path.join(root,'user-data'),fake=path.join(root,'codex.mjs'),log=path.join(root,'cwd.jsonl');await mkdir(cache);await mkdir(stable);
     await writeFile(fake,`#!/usr/bin/env node
 import fs from 'node:fs';fs.appendFileSync(${JSON.stringify(log)},JSON.stringify(process.cwd())+'\\n');
-console.log(process.argv.includes('--version')?'codex-cli 0.164.0':process.argv.includes('login')?'Logged in using fixture':'--ephemeral --json --output-schema --add-dir');
+console.log(process.argv.includes('--version')?'codex-cli 0.164.0':process.argv.includes('login')?'Logged in using fixture':'--ephemeral --json --output-schema --add-dir --approve-for-me');
 `);await chmod(fake,0o755);
     const runner=path.join(root,'runner.mjs');await writeFile(runner,`
 import {rename,rm} from 'node:fs/promises';import {inspectCodex} from ${JSON.stringify(new URL('../runtime.mjs',import.meta.url).href)};
@@ -35,7 +35,7 @@ test('parameter-check failures preserve verified login and report a separate sta
       return {stdout:args[0]==='--version'?'codex-cli 0.164.0':'Logged in',stderr:''};
     };
     const result=await inspectCodex({env,cwd:root,run});assert.equal(result.authenticated,true);assert.equal(result.authenticationStatus,'logged_in');assert.equal(result.compatible,false);assert.equal(result.cliCheckFailure.stage,'parameters');assert.match(result.error,/执行参数/);assert.doesNotMatch(JSON.stringify(result),/private subprocess|sensitive output/);
-    const timeout=await inspectCodex({env,cwd:root,run:async(binary,args)=>{if(args[0]==='login')throw Object.assign(new Error('timeout'),{killed:true});return {stdout:args[0]==='--version'?'codex-cli 0.164.0':'--ephemeral --json --output-schema --add-dir',stderr:''};}});
+    const timeout=await inspectCodex({env,cwd:root,run:async(binary,args)=>{if(args[0]==='login')throw Object.assign(new Error('timeout'),{killed:true});return {stdout:args[0]==='--version'?'codex-cli 0.164.0':'--ephemeral --json --output-schema --add-dir --approve-for-me',stderr:''};}});
     assert.equal(timeout.authenticationStatus,'unknown');assert.equal(timeout.cliCheckFailure.kind,'timeout');assert.match(timeout.error,/登录状态检查超时/);
   }finally{await rm(root,{recursive:true,force:true});}
 });
@@ -47,12 +47,23 @@ test('version checks compare numeric and prerelease components without accepting
   assert.throws(()=>compareVersions('codex-cli unknown','0.153.0'));
 });
 
+test('CLI without automatic review support is rejected before creating a model session',async()=>{
+  const root=await mkdtemp(path.join(os.tmpdir(),'cli-review-support-'));
+  try{
+    const fake=path.join(root,'codex');await writeFile(fake,'fixture');await chmod(fake,0o755);
+    let modelProbes=0;
+    const result=await inspectCodex({cwd:root,env:{...process.env,VIDEO_DEMO_CODEX_BIN:fake},run:async(binary,args)=>({stdout:args[0]==='--version'?'codex-cli 0.164.0':args[0]==='login'?'Logged in':'--ephemeral --json --output-schema --add-dir',stderr:''}),modelProbe:async()=>{modelProbes++;return {model:'gpt-6.1-sol'};}});
+    assert.equal(result.authenticated,true);assert.equal(result.compatible,false);assert.equal(modelProbes,0);
+    assert.deepEqual(result.cliCheckFailure,{stage:'parameters',kind:'missing_flags',missing:['--approve-for-me']});assert.match(result.error,/--approve-for-me/);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
+
 test('the actual newer executable is selected, while an explicitly pinned old CLI is blocked',async()=>{
   const root=await mkdtemp(path.join(os.tmpdir(),'cli-select-'));
   try{
     for(const folder of ['old','new']){await mkdir(path.join(root,folder));const file=path.join(root,folder,'codex');await writeFile(file,'fixture only');await chmod(file,0o755);}
     const env={PATH:[path.join(root,'old'),path.join(root,'new')].join(path.delimiter)};
-    const run=async(file,args)=>({stdout:args[0]==='--version'?file.includes('/old/')?'codex-cli 0.100.0':'codex-cli 0.164.0':args[0]==='login'?'Logged in':'--ephemeral --json --output-schema --add-dir',stderr:''});
+    const run=async(file,args)=>({stdout:args[0]==='--version'?file.includes('/old/')?'codex-cli 0.100.0':'codex-cli 0.164.0':args[0]==='login'?'Logged in':'--ephemeral --json --output-schema --add-dir --approve-for-me',stderr:''});
     let probes=0;const modelProbe=async()=>{probes++;return {model:'gpt-6-astra'};};
     const current=await inspectCodex({env,platform:'linux',run,modelProbe});assert.equal(current.compatible,true);assert.equal(current.codexPath,await realpath(path.join(root,'new/codex')));assert.equal(current.model,'gpt-6-astra');assert.equal(probes,1);
     const pinned=await inspectCodex({env:{...env,VIDEO_DEMO_CODEX_BIN:path.join(root,'old/codex')},platform:'linux',run,modelProbe});assert.equal(pinned.compatible,false);assert.match(pinned.error,/版本不满足/);assert.equal(probes,1);

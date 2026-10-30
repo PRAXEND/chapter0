@@ -1,0 +1,14 @@
+{
+  "id": "tau-clean-video",
+  "kind": "video",
+  "title": "Tau Robotics 人形机器人卫生间清洁演示（4倍速）",
+  "url": "https://x.com/alexkoch_ai/status/2115871971393331663",
+  "local_path": "/Users/guochenghui/Movies/Video Studio/20261030T130028Z-2026-10-30-具身智能报告-从表演到工时-82198e/assets/001/videos/01.mp4",
+  "author": "Alexander Koch / Tau Robotics",
+  "published_at": "2026-10-30T02:22:43+08:00",
+  "rights": "unknown; credit required by source pack",
+  "claims": ["视频展示机器人在卫生间清洁台面、洗手池和马桶", "原视频为4倍速"],
+  "need_ids": ["n1"],
+  "topic_fit": "直接展示机器人进入真实家庭任务",
+  "style_fit": "完整动作证据，可与第二案例沿任务/方案/边界统一比较"
+}

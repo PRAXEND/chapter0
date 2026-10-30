@@ -7,7 +7,7 @@ import path from 'node:path';
 const execute=promisify(execFile);
 // Workbench support floor, not a universal vendor minimum for every model.
 export const minimumCodexVersion='0.153.0';
-const requiredFlags=['--ephemeral','--json','--output-schema','--add-dir'];
+const requiredFlags=['--ephemeral','--json','--output-schema','--add-dir','--approve-for-me'];
 export function versionParts(value){
   const match=String(value).match(/(?:^|\s|v)(\d+)\.(\d+)\.(\d+)(?:-([\w.-]+))?(?:\+[\w.-]+)?(?:\s|$)/);
   return match?{numbers:match.slice(1,4).map(Number),pre:match[4]?.split('.')||[]}:null;
@@ -100,7 +100,8 @@ export async function inspectCodex({env=process.env,cwd,platform=process.platfor
       return result;
     }
     if(!result.authenticated)throw new Error('请先登录此 Codex CLI，再重新检测。');
-    if(requiredFlags.some(flag=>!help.stdout.includes(flag)))throw new Error('当前 CLI 不支持工作台需要的执行参数，请更新 Codex 后重新检测。');
+    const missing=requiredFlags.filter(flag=>!help.stdout.includes(flag));
+    if(missing.length){result.cliCheckFailure={stage:'parameters',kind:'missing_flags',missing};throw new Error('当前 CLI 缺少工作台需要的执行参数（'+missing.join('、')+'），请更新 Codex 后重新检测。');}
     const proof=await modelProbe(chosen.path,{cwd,env});
     if(proof.minimumVersion&&compareVersions(chosen.version,proof.minimumVersion)<0)throw new Error(`模型 ${proof.model} 要求 CLI ${proof.minimumVersion} 或更新版本，请升级后重新检测。`);
     Object.assign(result,{compatible:true,model:proof.model,reasoningEffort:proof.reasoningEffort,modelMinimumVersion:proof.minimumVersion});

@@ -50,7 +50,11 @@ export function runAgent({codex,job,context,event,onFinish,onSourceProgress,time
     if(item?.type==='mcp_tool_call'){
       const tool=String(item.tool||item.name||'tool'),server=String(item.server||'');
       if(data.type==='item.started'){job.toolCalls.push({server,tool,status:'started'});event('tool',`调用 ${server?server+' · ':''}${tool}`);}
-      if(data.type==='item.completed'){job.toolCalls.push({server,tool,status:item.status||'completed'});event(item.status==='failed'?'warning':'tool',`${tool} ${item.status==='failed'?'返回失败':'已返回'}`);}
+      if(data.type==='item.completed'){
+        const error=item.status==='failed'&&typeof item.error?.message==='string'?cleanError(item.error.message):'';
+        job.toolCalls.push({server,tool,status:item.status||'completed',...(error?{error}:{})});
+        event(item.status==='failed'?'warning':'tool',`${tool} ${item.status==='failed'?'返回失败':'已返回'}${error?'：'+error:''}`);
+      }
     }
     if(item?.type==='command_execution' && data.type==='item.started')event('local',localStepMessage(item));
     if(item?.type==='command_execution' && data.type==='item.completed'&&item.exit_code)stopOnFailure(item.aggregated_output);
@@ -64,7 +68,10 @@ export function runAgent({codex,job,context,event,onFinish,onSourceProgress,time
     await writeFile(path.join(context.jobDirectory,'request.json'),JSON.stringify(context,null,2));
     // Optional MCP servers otherwise get only a short catalog-building grace period.
     // Wait for their bounded startup before this independent session sees its tools.
-    const args=['exec','-c','mcp_optional_startup_grace_ms=0','--ephemeral','--sandbox',job.action==='connect'?'read-only':'workspace-write','--skip-git-repo-check','--json','--color','never','--output-schema',schemaPath,'-C',context.run,'--add-dir',context.jobDirectory,'-'];
+    // Non-interactive exec otherwise rejects tools that require approval outright.
+    // The supported reviewer preserves workspace restrictions and can still deny calls.
+    const permissions=job.action==='connect'?['--sandbox','read-only']:['--approve-for-me'];
+    const args=['exec','-c','mcp_optional_startup_grace_ms=0','--ephemeral',...permissions,'--skip-git-repo-check','--json','--color','never','--output-schema',schemaPath,'-C',context.run,'--add-dir',context.jobDirectory,'-'];
     if(job.execution?.model)args.splice(1,0,'--model',job.execution.model);
     if(job.action!=='connect')args.splice(1,0,'-c','sandbox_workspace_write.network_access=true');
     const programDirs=Object.values(context.environment?.programs||{}).filter(Boolean).map(file=>path.dirname(file));

@@ -1,0 +1,35 @@
+{
+  "provider": "chatcut_hosted",
+  "projectId": "f1f1197e-f04d-49fa-b60a-52d7467f22c4",
+  "timelineId": "c7e09779-b4c8-4971-ab14-f63005eb588c",
+  "name": "Tau Robotics｜机器人保洁订阅真相｜产业脉络型 v1",
+  "editorUrl": "https://app.chatcut.io/editor/f1f1197e-f04d-49fa-b60a-52d7467f22c4",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "duration_frames": 2931,
+  "duration_seconds": 97.7,
+  "status": "editable_rough_cut_ready",
+  "style": "shawn-industry-context@1",
+  "narration_version": "script-storyboard-v2.md",
+  "voice": "大壹",
+  "captions": "中文旁白字幕（已校正专名与关键错字）",
+  "music": "轻科技产业观察纯器乐（旁白期间自动压低）",
+  "includes_channel_opener": "频道开场 v4（9 秒）",
+  "timeline_layers": {
+    "V1": "频道片头 + 深色网格背景",
+    "V2": "Tau Robotics 连续实拍切片",
+    "V3": "钩子、遥操作、价格、数据、隐私与产业路径图解",
+    "V4": "持续标题与素材来源",
+    "A1": "8 段最终旁白",
+    "A2": "纯器乐配乐",
+    "C1": "中文旁白字幕"
+  },
+  "verification": {
+    "timeline_readback": true,
+    "viewer_contact_sheet_checked": true,
+    "audio_duration_measured": true,
+    "under_120_seconds": true,
+    "exported": false
+  }
+}

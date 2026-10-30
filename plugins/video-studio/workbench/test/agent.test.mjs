@@ -5,14 +5,27 @@ import path from 'node:path';
 import os from 'node:os';
 import {runAgent,jobStopState} from '../agent.mjs';
 
-test('connection checks and production both wait for MCP startup without replacing server configuration',async()=>{
+test('failed MCP calls expose a bounded redacted cause without saving tool inputs or results',async()=>{
+  const folder=await mkdtemp(path.join(os.tmpdir(),'agent-mcp-error-'));
+  try{
+    const fake=path.join(folder,'fixture.mjs'),jobDirectory=path.join(folder,'job');await mkdir(jobDirectory);
+    const item={type:'mcp_tool_call',server:'chatcut',tool:'import_media',status:'failed',error:{message:'Executor lease expired: https://example.org/?token=secret-query Bearer secret-bearer'},arguments:{secret:'private-input'},result:{secret:'private-result'}};
+    await writeFile(fake,'#!/usr/bin/env node\nprocess.stdin.resume();process.stdin.on("end",()=>console.log('+JSON.stringify(JSON.stringify({type:'item.completed',item}))+'));\n');await chmod(fake,0o755);
+    const job={action:'connect',toolCalls:[]},events=[];
+    await new Promise(resolve=>runAgent({codex:fake,job,context:{run:folder,jobDirectory},event:(type,message)=>events.push({type,message}),onFinish:resolve,timeoutMs:5000}));
+    assert.equal(job.toolCalls[0].status,'failed');assert.match(job.toolCalls[0].error,/Executor lease expired/);assert.match(events[0].message,/Executor lease expired/);
+    assert.doesNotMatch(JSON.stringify({job,events}),/secret-query|secret-bearer|private-input|private-result/);
+  }finally{await rm(folder,{recursive:true,force:true});}
+});
+
+test('independent tasks wait for MCP startup and writable tasks use review without bypassing policy',async()=>{
   const folder=await mkdtemp(path.join(os.tmpdir(),'agent-mcp-startup-'));
   try{
     const fake=path.join(folder,'fixture.mjs'),argsFile=path.join(folder,'args.json');
     await writeFile(fake,`#!/usr/bin/env node
 import fs from 'node:fs';fs.writeFileSync(${JSON.stringify(argsFile)},JSON.stringify(process.argv.slice(2)));process.stdin.resume();
 `);await chmod(fake,0o755);
-    for(const action of ['connect','produce']){
+    for(const action of ['connect','discover','plan','produce']){
       const jobDirectory=path.join(folder,action);await mkdir(jobDirectory);
       const job={action,events:[],toolCalls:[],execution:{model:'gpt-6.1-sol'}};
       const result=await new Promise(resolve=>runAgent({codex:fake,job,context:{run:folder,jobDirectory},event(){},onFinish:resolve,timeoutMs:5000}));
@@ -21,7 +34,9 @@ import fs from 'node:fs';fs.writeFileSync(${JSON.stringify(argsFile)},JSON.strin
       const overrides=args.flatMap((arg,i)=>arg==='-c'?[args[i+1]]:[]);
       assert.ok(overrides.includes('mcp_optional_startup_grace_ms=0'));
       assert.ok(overrides.every(value=>!value.startsWith('mcp_servers.')&&!value.startsWith('plugins.')));
-      assert.equal(args[args.indexOf('--sandbox')+1],action==='connect'?'read-only':'workspace-write');
+      if(action==='connect'){assert.equal(args[args.indexOf('--sandbox')+1],'read-only');assert.ok(!args.includes('--approve-for-me'));}
+      else{assert.ok(args.includes('--approve-for-me'));assert.ok(!args.includes('--sandbox'));}
+      assert.ok(!args.some(arg=>/dangerously-bypass|ignore-user-config|ignore-rules|danger-full-access/.test(arg)));
       assert.equal(args[args.indexOf('--model')+1],'gpt-6.1-sol');
     }
   }finally{await rm(folder,{recursive:true,force:true});}

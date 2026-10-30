@@ -352,3 +352,6 @@ dialog::backdrop,#style-dialog::backdrop{background:var(--backdrop);backdrop-fil
 
 .settings-heading{flex-wrap:wrap}
 .settings-heading>span{white-space:normal}
+
+.delegated-review{margin:24px 0 12px;padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:12px;color:var(--body)}
+.delegated-review>label:first-child{display:flex;align-items:center;gap:8px}.delegated-review input{accent-color:var(--green)}.delegated-review .editor-label{margin-top:12px}.delegated-review small{font-weight:400;color:var(--muted)}
