@@ -47,5 +47,7 @@
   "voices.mjs",
   "public/voice-ui.js",
   "test/voices.test.mjs",
-  "test/voice-api.test.mjs"
+  "test/voice-api.test.mjs",
+  "public/style-plan-view.js",
+  "test/style-plan.test.mjs"
 ]

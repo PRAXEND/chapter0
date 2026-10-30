@@ -80,7 +80,7 @@ else {
     const api=async(route,data)=>{const r=await fetch(base+route,data===undefined?{signal:AbortSignal.timeout(12000)}:{signal:AbortSignal.timeout(12000),method:'POST',headers:{'Content-Type':'application/json','X-Video-Demo':'1'},body:JSON.stringify(data)});return {status:r.status,value:await r.json()};};
     let state=(await api('/api/state')).value;
     assert.equal(state.runtime.chatcut,'not_checked');assert.equal(state.catalog.styles.length,0);
-    for(const asset of ['/token-usage.js','/token-usage-view.js']){const response=await fetch(base+asset);assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/text\/javascript/);}
+    for(const asset of ['/token-usage.js','/token-usage-view.js','/style-plan-view.js']){const response=await fetch(base+asset);assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/text\/javascript/);}
     assert.equal(state.library.candidates.length,3);assert.equal(state.library.entries.length,0);assert.equal(state.project.jobs.length,0);
     const wanted=state.library.candidates.find(c=>c.title===historySources[0].title),untouched=state.library.candidates.find(c=>c.title===historySources[1].title);
     const skill=(await api('/api/source-skill')).value;assert.match(skill.skill,/name: video-source-tools/);assert.ok(skill.references.some(r=>r.name==='robotics-x-repository.md'&&r.text.includes('video-daily')));

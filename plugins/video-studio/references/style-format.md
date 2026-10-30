@@ -15,6 +15,7 @@
 - basis 为 observed/inferred/user_direction；evidence 为 [{reference_id,location}]，location 指真实段落、行号或时间范围。
 - unknown_dimensions：恰好列出无规则的维度。
 - material_requirements：[{role,search_hint,acceptance,rule_id}]；search_hint 使用可替换的题材角色，不固定原视频事件。
+- storyboard_contract（可选）：core_rule_ids 为核心规则 id 数组；visual_rule_ids 为其中需要具体画面设计的子集；conditional_rules 为 [{rule_id,when}]，与核心规则不重叠。planning_guidance 和 reference_guidance 分别说明本风格怎样落实与对照。未列为条件手法的规则继续执行；保存时检查所有关联 id。对应方案与验收见 [风格分镜](style-storyboard.md)。旧风格格式继续可读。
 
 仅为 schema 演示的脚本风格（不是发行预置）：
 
