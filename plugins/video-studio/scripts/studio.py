@@ -25,6 +25,7 @@ import uuid
 import styles
 import style_plan
 import production_plan
+import style_media
 import check_connection
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -741,12 +742,19 @@ def doctor():
             "chatcut": "requires_live_mcp_probe", "state_directory": str(home())}
 
 
-def preflight(capabilities=None):
+def preflight(capabilities=None, style_selector=None, pack_root=None):
     """Check only the capabilities needed for the next operation; never install or download."""
-    requested = capabilities if capabilities is not None else ["python", "media", "repository", "downloader", "repository_media"]
-    allowed = {"python", "media", "repository", "downloader", "repository_media"}
+    requested = list(capabilities) if isinstance(capabilities, list) else capabilities
+    if requested is None:
+        requested = ["python", "media", "repository", "downloader", "repository_media", "git_lfs", *style_media.CHECKS.values()]
+    allowed = {"python", "media", "repository", "downloader", "repository_media", "git_lfs", *style_media.CHECKS.values()}
     if not isinstance(requested, list) or any(item not in allowed for item in requested):
         raise StudioError("Unknown preflight capability.")
+    if style_selector is not None and not isinstance(style_selector, str):
+        raise StudioError("Style selector must be text")
+    style_check = style_media.CHECKS.get((style_selector or '').split('@')[0])
+    if style_check:
+        requested.extend(["git_lfs", style_check])
     report = doctor()
     checks = report["executable_checks"]
     ca_ready = False
@@ -798,8 +806,12 @@ def preflight(capabilities=None):
                        "remedy": "点击补齐下载依赖，在插件独立虚拟环境安装固定版本 yt-dlp；同时确保 Node.js 20+ 或 Deno 可用。",
                        "canPrepare": not yt_ready and bool(python_ok)},
     }
+    if "git_lfs" in requested:
+        results["git_lfs"] = style_media.git_lfs_check()
+    if any(key in requested for key in style_media.CHECKS.values()):
+        results.update({row["id"]: row for row in style_media.check_media(style_selector, pack_root)})
     selected = [results[item] for item in dict.fromkeys(requested)]
-    return {"ready": all(item["ok"] for item in selected), "checkedAt": now(), "checks": selected,
+    return {"styleSelector": style_selector, "ready": all(item["ok"] or item.get("required") is False for item in selected), "checkedAt": now(), "checks": selected,
             "python": report["python"], "programs": {**report["programs"], "gh": gh, "curl": curl}, "chatcut": "requires_live_mcp_probe"}
 
 
@@ -861,7 +873,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest="command", required=True)
     subs.add_parser("doctor")
-    p = subs.add_parser("preflight"); p.add_argument("--capability", action="append", choices=["python", "media", "repository", "downloader", "repository_media"])
+    p = subs.add_parser("preflight"); p.add_argument("--capability", action="append", choices=["python", "media", "repository", "downloader", "repository_media", "git_lfs", *style_media.CHECKS.values()]); p.add_argument("--style"); p.add_argument("--pack-root")
     subs.add_parser("bootstrap")
     p = subs.add_parser("connection"); p.add_argument("--file", required=True); p.add_argument("--run")
     p = subs.add_parser("profile"); p.add_argument("--merge-file")
@@ -872,12 +884,12 @@ def main(argv=None):
     p = subs.add_parser("probe"); p.add_argument("--url", required=True)
     p = subs.add_parser("fetch"); p.add_argument("--run", required=True); p.add_argument("--source", required=True); p.add_argument("--start", type=float, required=True); p.add_argument("--end", type=float, required=True)
     p = subs.add_parser("audit"); p.add_argument("--run", required=True); p.add_argument("--video", required=True); p.add_argument("--subtitles"); p.add_argument("--evidence")
-    p = subs.add_parser("styles"); p.add_argument("action", choices=["list", "show", "add", "choices", "import"]); p.add_argument("--selector"); p.add_argument("--file"); p.add_argument("--apply-preferences", action="store_true")
+    p = subs.add_parser("styles"); p.add_argument("action", choices=["list", "show", "add", "choices", "import", "link-pack"]); p.add_argument("--selector"); p.add_argument("--file"); p.add_argument("--apply-preferences", action="store_true")
     args = parser.parse_args(argv)
     try:
         command = args.command
         if command == "doctor": result = doctor()
-        elif command == "preflight": result = preflight(args.capability)
+        elif command == "preflight": result = preflight(args.capability, args.style, args.pack_root)
         elif command == "bootstrap": result = bootstrap()
         elif command == "connection": result = connection(read(args.file), args.run)
         elif command == "profile": result = save_profile(read(args.merge_file)) if args.merge_file else profile()
@@ -886,6 +898,7 @@ def main(argv=None):
             if args.action == "list": result = styles.catalog()
             elif args.action == "show": result = styles.resolve(args.selector)
             elif args.action == "choices": result = styles.choices()
+            elif args.action == "link-pack": result = style_media.link_pack(args.file)
             elif args.action == "import":
                 import user_packs
                 result = user_packs.install(args.file, args.apply_preferences)

@@ -1,6 +1,6 @@
 {
   "name": "video-studio-workbench",
-  "version": "0.3.0-web.21",
+  "version": "0.3.0-web.22",
   "private": true,
   "type": "module",
   "scripts": {

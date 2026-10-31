@@ -4,7 +4,7 @@
 
 素材采集、分镜和剪辑共同遵循[通用素材与竖版构图](plugins/video-studio/references/common-production.md)：相关补充可跨事件自然衔接，检查源片回放与重复动作；所有竖版让关键画面和字幕共同避让底部（默认 18%）。两项均不依赖风格，个人风格库不变。
 
-**插件内置网页工作台版 0.3.0-web.21 · 基于团队默认分支 · macOS / Codex · 依赖已安装且登录的 ChatCut**
+**插件内置网页工作台版 0.3.0-web.22 · 基于团队默认分支 · macOS / Codex · 依赖已安装且登录的 ChatCut**
 
 ## 组成
 
@@ -77,6 +77,8 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 源码还提供可选个人包 `user-packs/henry-video-styles/README.md`，包含热点资讯型与技术科普型各自最新的 v7 规则，无变体。风格 ID 为 `henry-hot-news@7`、`henry-technical-explainer@7`，需显式导入，不改全局偏好或默认风格，不随通用 ZIP 分发。
 
+前检会显示 Git LFS 与两套风格素材的完整性。首次导入记住包位置；已导入的风格可用 `studio.py styles link-pack --file <风格包 manifest.json>` 单独登记素材位置。选择风格后，相关文件缺失、仍是 LFS 指针或哈希改变会阻止对应任务，并给出补齐提示。已有完整本地文件时不强制安装 Git LFS；未选用风格的问题不阻止其他制作。详见[诊断说明](plugins/video-studio/references/diagnostics.md)。
+
 该可选包附实际参考原片、两条试片与源媒体、MG 源码及时间线记录，媒体约 473 MB，通过 Git LFS 获取。在源码仓库执行 `git lfs pull --include='user-packs/henry-video-styles/media/**'`，再运行 `python3 user-packs/henry-video-styles/verify.py`；完整导入与复现步骤见包内 README。
 
 ## 独立完整验收
@@ -99,12 +101,12 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 ## 安装与验证
 
-安装包：`dist/video-studio-0.3.0-web.21.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
+安装包：`dist/video-studio-0.3.0-web.22.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
 
 ```sh
-shasum -a 256 -c video-studio-0.3.0-web.21.zip.sha256
-unzip video-studio-0.3.0-web.21.zip
-codex plugin marketplace add ./video-studio-0.3.0-web.21
+shasum -a 256 -c video-studio-0.3.0-web.22.zip.sha256
+unzip video-studio-0.3.0-web.22.zip
+codex plugin marketplace add ./video-studio-0.3.0-web.22
 ```
 
 在插件目录选择 Video Studio 本地来源安装，并在新聊天验证技能。安装缓存与市场源不是同一份文件；不要手工改缓存。插件目录与本地市场机制见 [OpenAI 官方文档](https://developers.openai.com/plugins/build/plugins)。
@@ -142,7 +144,7 @@ doctor 本地成功不表示 ChatCut 已连接。使用宿主完整 Python；损
 
 ### 上传到 GitHub 分支
 
-`dist/video-studio-plugin-0.3.0-web.21.zip` 是仅含插件的包，根目录直接包含 `plugin.json`、`skills/`、`scripts/` 和 `workbench/`。解压到目标仓库的 `plugins/video-studio/` 后可提交分支；保留 `.agents/plugins/marketplace.json` 对该目录的引用。`dist/video-studio-0.3.0-web.21.zip` 是含 marketplace、测试、打包工具和说明的源码发行包。发行包采用白名单，不包含本机项目、素材、账号、个人风格和成片。
+`dist/video-studio-plugin-0.3.0-web.22.zip` 是仅含插件的包，根目录直接包含 `plugin.json`、`skills/`、`scripts/` 和 `workbench/`。解压到目标仓库的 `plugins/video-studio/` 后可提交分支；保留 `.agents/plugins/marketplace.json` 对该目录的引用。`dist/video-studio-0.3.0-web.22.zip` 是含 marketplace、测试、打包工具和说明的源码发行包。发行包采用白名单，不包含本机项目、素材、账号、个人风格和成片。
 
 
 网页的风格卡片由真实个人库和仓库可选用户包读取；可查看对应规则、检查方法、案例与原始证据，显示版本及未验证边界。选用未导入的条目时显式导入所在风格包，不应用默认偏好。

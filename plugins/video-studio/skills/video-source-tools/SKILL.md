@@ -5,6 +5,8 @@ description: 根据当前视频题材和选定风格查找、核实、探测与�
 
 # 素材采集工具
 
+当前选择 henry-hot-news 或 henry-technical-explainer 时，前检附加 `--style <当前 selector>`，同时校验该风格的参考媒体；实际 packRoot 和补齐提示见返回记录。Git LFS/素材缺失的处理见 [诊断说明](../../references/diagnostics.md#可选风格包git-lfs-与素材完整性)。下载当前新闻与补齐风格参考是不同任务，不用新下载的相似片段冒充原参考。
+
 采集与选窗必须先读 [通用素材与构图流程](../../references/common-production.md)：所有题材都区分主内容证据与相关补充，可跨新闻/日期寻找自然过渡，内部保留出处和相容性，不因跨事件额外加成片说明。连续检查原片回放、转载及变速/裁切重复；不同主体做相似动作不算重复。沿用资源预算、缓存复用和现有选材授权。
 
 先读 run 的 brief、style_snapshot 及选定风格 SKILL.md；未选风格就采用本次要求，不加载旧的主题指南。

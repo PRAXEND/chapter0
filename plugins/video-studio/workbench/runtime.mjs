@@ -118,3 +118,14 @@ export function sourceCapabilities(source,{direct=false}={}){
 }
 
 export function dependencyFailures(report,capabilities){return capabilities.flatMap(id=>{const check=report?.checks?.find(c=>c.id===id);return check?.ok?[]:[check||{id,label:id,message:'尚未检查此依赖，请重新检测。'}];});}
+
+// Optional packs are checked generally, but only the chosen style gates a task.
+export const styleMediaChecks=['style_media_hot_news','style_media_technical_explainer'];
+export function styleCapabilities(selector){
+  return {'henry-hot-news':['style_media_hot_news'],'henry-technical-explainer':['style_media_technical_explainer']}[String(selector||'').split('@')[0]]||[];
+}
+
+export function failedDependencyReport(capabilities,selector,message){
+  return {ready:false,checkedAt:new Date().toISOString(),styleSelector:selector,error:message,
+    checks:[...new Set([...capabilities,...styleCapabilities(selector)])].map(id=>({id,label:id,ok:false,required:true,message:'本次环境检查未完成',remedy:message+'；修复后重新检测。'}))};
+}

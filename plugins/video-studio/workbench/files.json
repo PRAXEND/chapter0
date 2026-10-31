@@ -51,5 +51,7 @@
   "public/style-plan-view.js",
   "test/style-plan.test.mjs",
   "public/production-plan.js",
-  "test/production-plan.test.mjs"
+  "test/production-plan.test.mjs",
+  "public/dependency-view.js",
+  "test/dependency-view.test.mjs"
 ]

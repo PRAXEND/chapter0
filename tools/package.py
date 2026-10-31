@@ -23,6 +23,8 @@ FILES = [
     'plugins/video-studio/scripts/styles.py',
     'plugins/video-studio/scripts/style_plan.py',
     'plugins/video-studio/scripts/production_plan.py',
+    'plugins/video-studio/scripts/style_media.py',
+    'tests/test_style_media.py',
     'plugins/video-studio/references/common-production.md',
     'tests/test_production_plan.py',
     'plugins/video-studio/scripts/check_connection.py',

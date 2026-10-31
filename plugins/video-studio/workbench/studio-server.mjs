@@ -10,7 +10,7 @@ import {randomUUID} from 'node:crypto';
 import {initialStudio,validateSettings,updateSettings,validatePlan,inputHash,brief,assertReady,taskNames,safeUrl,sourceId,approvalAuthority} from './studio-workflow.mjs';
 import {findPlugin,createPluginBridge} from './plugin.mjs';
 import {runAgent,cleanError,jobStopState} from './agent.mjs';
-import {inspectCodex,sourceCapabilities,dependencyFailures} from './runtime.mjs';
+import {inspectCodex,sourceCapabilities,dependencyFailures,styleCapabilities,styleMediaChecks,failedDependencyReport} from './runtime.mjs';
 import {rememberUsage} from './public/token-usage.js';
 import {fileHash,contained,mediaExtensions,mimeTypes,streamFile,saveUpload,publicUrl,nativeMediaTool} from './media.mjs';
 import {sourceDetails,materialPlan,normalizeReview,materialSelection,verifySourceIdentity} from './sources.mjs';
@@ -57,9 +57,9 @@ let rejectedRuntime=null;
 const rejectedRuntimeFile=path.join(dataDir,'incompatible-cli.json');
 try{rejectedRuntime=JSON.parse(await readFile(rejectedRuntimeFile,'utf8'));}catch{}
 function rememberDependencies(report){const previous=runtime.dependencies?.checks||[];const next=(report.checks||[]).map(check=>({...check,checkedAt:report.checkedAt}));runtime.dependencies={...report,checks:[...previous.filter(check=>!next.some(item=>item.id===check.id)),...next]};return runtime.dependencies;}
-async function checkLocal(capabilities=['python','media','downloader','repository','repository_media']){
+async function checkLocal(capabilities=['python','media','downloader','repository','repository_media','git_lfs',...styleMediaChecks],styleSelector=project.styleSelector){
   const cwd=project.run||path.join(dataDir,'runs');await mkdir(cwd,{recursive:true});
-  const [cli,dependencies]=await Promise.all([inspectCodex({cwd}),bridge('preflight',{capabilities}).catch(error=>({ready:false,checks:[],error:cleanError(error.message)}))]);
+  const [cli,dependencies]=await Promise.all([inspectCodex({cwd}),bridge('preflight',{capabilities,styleSelector}).catch(error=>failedDependencyReport(capabilities,styleSelector,cleanError(error.message)))]);
   Object.assign(runtime,cli);rememberDependencies(dependencies);
   if(rejectedRuntime&&rejectedRuntime.path===runtime.codexPath&&rejectedRuntime.version===runtime.codexVersion&&rejectedRuntime.model===runtime.model){runtime.compatible=false;runtime.error=rejectedRuntime.error;}
   else if(rejectedRuntime){rejectedRuntime=null;await unlink(rejectedRuntimeFile).catch(()=>{});}
@@ -205,9 +205,9 @@ async function startJob(action,options={}){
   if(action==='produce'&&pendingVoiceRequest(project,inputHash(project)))throw new Error('请先完成下方音色选择或录音提交。');
   const directCollection=action==='collect'&&canCollectRepository(project.sources.find(s=>s.id===options.sourceId));
   const capabilities=action==='collect'?sourceCapabilities(project.sources.find(s=>s.id===options.sourceId),{direct:directCollection}):action==='discover'?['python','media','downloader']:['plan','produce'].includes(action)?['python','media']:['python'];
-  if(directCollection)rememberDependencies(await bridge('preflight',{capabilities}));else await checkLocal(capabilities);
+  if(directCollection)rememberDependencies(await bridge('preflight',{capabilities}));else await checkLocal(capabilities,['discover','plan','produce'].includes(action)?project.styleSelector:null);
   if(!directCollection&&!runtime.compatible)throw preflightError(runtime.error||'请先完成 CLI 兼容检查。');
-  requireDependencies(capabilities);
+  requireDependencies([...capabilities,...(['discover','plan','produce'].includes(action)?styleCapabilities(project.styleSelector):[])]);
   if(action==='discover'){const query=String(options.query||project.topic).trim();if(!query)throw new Error('请输入要查找的素材关键词。');adoptTopic(query);}
   if(action==='collect'){const source=project.sources.find(s=>s.id===options.sourceId);if(!source)throw new Error('找不到选中的内容。');adoptTopic(source.title);}
   if(action==='plan'){adoptTopic(project.sources.find(s=>project.selected.includes(s.id))?.title);project.workflowVersion=1;project.portraitBottomInset??=.18;project.approval=null;}
@@ -233,7 +233,7 @@ async function startJob(action,options={}){
   let previousPlanHash=previousProduction?.planHash;
   if(previousProduction&&!previousPlanHash)try{previousPlanHash=JSON.parse(await readFile(path.join(dataDir,'jobs',previousProduction.id,'request.json'),'utf8')).planHash;}catch{}
   const productionMode=previousProduction&&previousProduction.inputHash===inputHash(project)&&previousPlanHash===project.approval?.planHash?'recover':'new';
-  let context={environment:{python:runtime.dependencies?.python,programs:runtime.dependencies?.programs},jobId:job.id,sourceProgressPath:path.join(jobDirectory,'source-progress.json'),productionMode,previousProduction:previousProduction?{id:previousProduction.id,status:previousProduction.status,inputHash:previousProduction.inputHash,planHash:previousPlanHash}:null,pluginRoot:plugin.root,run:project.run,jobDirectory,brief:brief(project),settings:{music:project.music,voiceDirection:project.voiceDirection,styleDescription:project.styleDescription},query:String(options.query||project.topic).slice(0,2000),source,knownSources:['discover','collect'].includes(action)?project.sources:undefined,sourceReview:project.sourceReview||null,selectedSources:project.sources.filter(s=>project.selected.includes(s.id)),plan:project.plan,planHash:project.approval?.planHash||null,inputHash:inputHash(project),userFollowup:String(options.followup||'').slice(0,4000),outputDirectory:project.outputRoot};
+  let context={environment:{python:runtime.dependencies?.python,programs:runtime.dependencies?.programs},jobId:job.id,sourceProgressPath:path.join(jobDirectory,'source-progress.json'),productionMode,previousProduction:previousProduction?{id:previousProduction.id,status:previousProduction.status,inputHash:previousProduction.inputHash,planHash:previousPlanHash}:null,pluginRoot:plugin.root,styleMedia:runtime.dependencies?.checks?.filter(c=>styleCapabilities(project.styleSelector).includes(c.id)),run:project.run,jobDirectory,brief:brief(project),settings:{music:project.music,voiceDirection:project.voiceDirection,styleDescription:project.styleDescription},query:String(options.query||project.topic).slice(0,2000),source,knownSources:['discover','collect'].includes(action)?project.sources:undefined,sourceReview:project.sourceReview||null,selectedSources:project.sources.filter(s=>project.selected.includes(s.id)),plan:project.plan,planHash:project.approval?.planHash||null,inputHash:inputHash(project),userFollowup:String(options.followup||'').slice(0,4000),outputDirectory:project.outputRoot};
   if(action==='collect'){
     const acquired=[...new Map(project.sources.filter(s=>s.status==='ready'&&s.kind==='video'&&s.sha256!==source.expectedSha256).map(s=>[s.sha256,s])).values()];
     context.acquisitionUsage={videoSources:acquired.length,videoSeconds:acquired.reduce((sum,s)=>sum+s.duration,0)};
@@ -335,7 +335,7 @@ const server=http.createServer(async(req,res)=>{
           }
           updateSettings(project,{selected:[...new Set([...project.selected,source.id])]});await ensureRun();await persist();return send(res,200,{source,...publicState()});
         }
-        if(route==='/api/project'){updateSettings(project,validateSettings(payload,catalog.styles.options));await saveMaterialSelection();await persist();return send(res,200,{project});}
+        if(route==='/api/project'){const oldStyle=project.styleSelector;updateSettings(project,validateSettings(payload,catalog.styles.options));if(oldStyle!==project.styleSelector)rememberDependencies(await bridge('preflight',{capabilities:['git_lfs',...styleMediaChecks],styleSelector:project.styleSelector}));await saveMaterialSelection();await persist();return send(res,200,{project});}
         if(route==='/api/runtime/check'){await checkLocal();return send(res,200,{runtime});}
         if(route==='/api/runtime/prepare'){
           requireDependencies(['python']);
@@ -346,7 +346,7 @@ const server=http.createServer(async(req,res)=>{
           return send(res,202,{runtime});
         }
         if(route==='/api/catalog/refresh'){await checkLocal();await getCatalog();return send(res,200,publicState());}
-        if(route==='/api/styles/select'){const result=await bridge('style-select',{key:payload.key});await getCatalog();updateSettings(project,validateSettings({...project,styleSelector:result.selector},catalog.styles.options));await persist();return send(res,200,{...publicState(),selection:result});}
+        if(route==='/api/styles/select'){const result=await bridge('style-select',{key:payload.key});await getCatalog();updateSettings(project,validateSettings({...project,styleSelector:result.selector},catalog.styles.options));rememberDependencies(await bridge('preflight',{capabilities:['git_lfs',...styleMediaChecks],styleSelector:project.styleSelector}));await persist();return send(res,200,{...publicState(),selection:result});}
         if(route==='/api/styles/import'){if(typeof payload.path!=='string'||!path.isAbsolute(payload.path))throw new Error('请填写风格包 manifest.json 的完整路径。');const result=await execute(process.env.VIDEO_STUDIO_PYTHON||'python3',[path.join(plugin.root,'scripts/studio.py'),'styles','import','--file',payload.path],{timeout:30000,maxBuffer:1024*1024});await getCatalog();return send(res,200,{result:JSON.parse(result.stdout),catalog:catalog.styles});}
         if(route==='/api/sources/url'){const sourceUrl=await publicUrl(payload.url);const entry={id:sourceId({url:sourceUrl}),title:String(payload.title||new URL(sourceUrl).hostname).slice(0,300),kind:'article',url:sourceUrl,mediaUrl:'',thumbnailUrl:'',description:'用户添加的内容链接',rights:'unknown',status:'candidate',start:0,end:0};if(!project.sources.some(s=>s.id===entry.id))project.sources.unshift(entry);await library.rememberCandidates([entry],{run:project.run,topic:project.topic,style:project.styleSelector,query:'手动添加链接'});await refreshLibrary();await persist();return send(res,201,{source:project.sources.find(s=>s.id===entry.id)});}
         if(route==='/api/sources/local'){let file=String(payload.path||'');if(file.startsWith('~/'))file=path.join(os.homedir(),file.slice(2));if(!path.isAbsolute(file))throw new Error('请输入本地素材绝对路径。');file=await realpath(file);const ext=path.extname(file).toLowerCase();if(!mediaExtensions.has(ext))throw new Error('请选择媒体文件。');if((await stat(file)).size>350*1024*1024)throw new Error('单个素材需小于 350 MB。');await checkMedia();adoptTopic(path.basename(file));await ensureRun();const destination=path.join(project.run,'materials',randomUUID()+ext);await mkdir(path.dirname(destination),{recursive:true});await copyFile(file,destination);const source=await registerMedia(destination,{title:path.basename(file),rights:'user_provided',description:'用户选择的本地文件'});await persist();return send(res,201,{source});}
@@ -354,12 +354,12 @@ const server=http.createServer(async(req,res)=>{
         if(route==='/api/approve'){if(!project.plan||project.plan.stale||project.plan.gaps.length)throw new Error('请先更新方案并解决素材缺口。');await checkSelected();if(payload.planHash!==project.plan.planHash||project.plan.inputHash!==inputHash(project))throw new Error('方案或素材已经变化，请重新审阅。');const authority=approvalAuthority(payload.authority);const approved=await bridge('approve',{run:project.run,planHash:project.plan.planHash,inputHash:inputHash(project),authority});project.approval={status:'confirmed',planHash:approved.file_sha256,inputHash:approved.input_hash,version:approved.version,confirmedAt:approved.confirmed_at,authority:approved.authority};await persist();return send(res,200,{approval:project.approval});}
         if(route==='/api/voice/answer'){const request=requireVoiceRequest(project,inputHash(project),payload.requestId);if(payload.action==='recording')throw new Error('请使用录音上传入口。');recordVoiceAnswer(project,request,voiceAnswer(request,payload));await persist();return send(res,200,{ok:true});}
         if(route==='/api/jobs'){const job=await startJob(payload.action,payload);return send(res,202,{job});}
-        if(route==='/api/projects/switch'){const next=projectStore.load(payload.projectId);for(const job of next.jobs)if(['running','cancelling'].includes(job.status)){job.status='interrupted';job.error='该项目的本地会话已结束；继续前应核对已有远端任务。';}await activateProject(next);return send(res,200,publicState());}
-        if(route==='/api/reset'){const next=initialStudio();next.outputRoot=project.outputRoot;await activateProject(next);return send(res,200,publicState());}
+        if(route==='/api/projects/switch'){const next=projectStore.load(payload.projectId);for(const job of next.jobs)if(['running','cancelling'].includes(job.status)){job.status='interrupted';job.error='该项目的本地会话已结束；继续前应核对已有远端任务。';}await activateProject(next);rememberDependencies(await bridge('preflight',{capabilities:['git_lfs',...styleMediaChecks],styleSelector:project.styleSelector}));return send(res,200,publicState());}
+        if(route==='/api/reset'){const next=initialStudio();next.outputRoot=project.outputRoot;await activateProject(next);rememberDependencies(await bridge('preflight',{capabilities:['git_lfs',...styleMediaChecks],styleSelector:project.styleSelector}));return send(res,200,publicState());}
         return send(res,404,{error:'没有此操作。'});
       });
     }
-    const files={'/':'index.html','/app.js':'app.js','/voice-ui.js':'voice-ui.js','/style-plan-view.js':'style-plan-view.js','/production-plan.js':'production-plan.js','/material-dates.js':'material-dates.js','/token-usage.js':'token-usage.js','/token-usage-view.js':'token-usage-view.js','/styles.css':'styles.css','/theme.js':'theme.js','/themes.css':'themes.css'};
+    const files={'/':'index.html','/app.js':'app.js','/dependency-view.js':'dependency-view.js','/voice-ui.js':'voice-ui.js','/style-plan-view.js':'style-plan-view.js','/production-plan.js':'production-plan.js','/material-dates.js':'material-dates.js','/token-usage.js':'token-usage.js','/token-usage-view.js':'token-usage-view.js','/styles.css':'styles.css','/theme.js':'theme.js','/themes.css':'themes.css'};
     if(req.method==='GET' && files[route]){const file=files[route];res.writeHead(200,{'Content-Type':({html:'text/html',js:'text/javascript',css:'text/css'})[file.split('.').pop()]+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https:; media-src 'self' blob: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"});return res.end(await readFile(path.join(root,'public',file)));}
     send(res,404,{error:'页面不存在。'});
   }catch(e){if(res.headersSent){res.destroy();return;}send(res,/已有操作/.test(e.message)?409:400,{error:cleanError(e.message),...(e.code==='preflight_failed'?{code:e.code,runtime}:{})});}

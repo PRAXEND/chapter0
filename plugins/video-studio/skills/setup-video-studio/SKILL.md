@@ -5,6 +5,8 @@ description: 检查 Video Studio 本地环境与 ChatCut 等依赖插件，发�
 
 # 配置工具
 
+Git LFS 与可选风格素材检查见 [诊断说明](../../references/diagnostics.md#可选风格包git-lfs-与素材完整性)。运行 preflight 展示这两套素材状态；指定 --style 后，所选风格的缺失会阻止制作。已完整下载的文件不依赖 Git LFS 持续可用。新导入记住包位置；旧风格可用 styles link-pack 登记素材目录，不重写风格库。只读检查不给出已自动补齐的承诺。
+
 插件根目录为本技能上两级。运行 `scripts/studio.py doctor`，只在需要下载功能时安装下载器：`bootstrap` 使用独立虚拟环境。系统 Python 损坏时用宿主可用的完整 Python 3.10+；不把开发机路径写入技能。macOS 为当前支持平台。
 
 ## 工作台 CLI 兼容检查

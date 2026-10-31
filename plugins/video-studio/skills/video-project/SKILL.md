@@ -5,6 +5,8 @@ description: 用 Video Studio 制作、继续或修改视频，按用户指定�
 
 # 视频项目与技能组合
 
+选用 henry-hot-news 或 henry-technical-explainer 时，在搜索、分镜和制片前运行 `preflight --capability python --capability media --style <当前 selector>`；网页已执行同一检查。所选风格素材缺失先按结果补齐，不能跳过参考或把 LFS 指针当媒体。使用检查返回的 packRoot 解析 resource: 路径，位置登记与补齐方法见 [诊断说明](../../references/diagnostics.md#可选风格包git-lfs-与素材完整性)。不改风格版本、用户偏好或既有方案确认。
+
 所有项目先读 [通用素材与构图流程](../../references/common-production.md)。无风格项目也保存 productionPlan、每镜 sourceUses 与 layout，并通过 `record --kind production_plan` 登记；网页保存会自动登记。先检查重复动作、规划相关补充，再按实际画幅安排构图。所有竖版采用本期 portrait_bottom_inset（默认 18%），关键画面与字幕共同上移；横版/方形不套用。通用记录纳入原有方案确认及验收，不写入个人风格库。风格中的构图意图在这项通用避让边界内适配具体坐标。
 
 插件根目录为本技能上两级，命令入口为 `scripts/studio.py`。本技能只组织工具，不规定题材、语言、时长、视频比例、音色或剪辑模板。

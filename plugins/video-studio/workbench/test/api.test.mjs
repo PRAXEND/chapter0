@@ -74,13 +74,13 @@ else {
     await writeFile(path.join(history,'run.json'),JSON.stringify({brief:{topic:'Fixture history'},sources:[]}));
     const historySources=[{id:'wanted',title:'Test-only requested candidate',kind:'article',url:'https://93.184.215.14/test-only-requested'},{id:'not-wanted',title:'Test-only untouched candidate',kind:'article',url:'https://93.184.215.14/test-only-untouched'}];
     await writeFile(path.join(history,'source-searches','fixture-job.json'),JSON.stringify({topic:'Fixture history',jobId:'fixture-job',reviewed_at:'2026-10-27T01:00:00Z',sources:[...historySources,pinned]}));
-    server=spawn(process.execPath,[path.join(root,'studio-server.mjs')],{cwd:root,env:{...process.env,PATH:curlBin+path.delimiter+process.env.PATH,PORT:String(port),VIDEO_STUDIO_WEB_DATA:dataDir,VIDEO_STUDIO_HOME:path.join(temp,'user'),VIDEO_DEMO_CODEX_BIN:fake},stdio:['ignore','pipe','pipe']});
+    server=spawn(process.execPath,[path.join(root,'studio-server.mjs')],{cwd:root,env:{...process.env,PATH:curlBin+path.delimiter+process.env.PATH,PORT:String(port),VIDEO_STUDIO_WEB_DATA:dataDir,VIDEO_STUDIO_HOME:path.join(temp,'user'),VIDEO_STUDIO_PACK_ROOT:path.join(temp,'missing-packs'),VIDEO_DEMO_CODEX_BIN:fake},stdio:['ignore','pipe','pipe']});
     let errors='';server.stderr.on('data',s=>errors+=s);await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('Server startup timed out: '+errors)),15000);server.stdout.on('data',s=>{if(s.toString().includes('Video Agent Demo:')){clearTimeout(timeout);resolve();}});server.on('error',reject);server.on('exit',code=>{if(code)reject(new Error('Server failed: '+errors));});});
     const base='http://127.0.0.1:'+port;
     const api=async(route,data)=>{const r=await fetch(base+route,data===undefined?{signal:AbortSignal.timeout(12000)}:{signal:AbortSignal.timeout(12000),method:'POST',headers:{'Content-Type':'application/json','X-Video-Demo':'1'},body:JSON.stringify(data)});return {status:r.status,value:await r.json()};};
     let state=(await api('/api/state')).value;
     assert.equal(state.runtime.chatcut,'not_checked');assert.equal(state.catalog.styles.length,0);
-    for(const asset of ['/token-usage.js','/token-usage-view.js','/style-plan-view.js']){const response=await fetch(base+asset);assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/text\/javascript/);}
+    for(const asset of ['/token-usage.js','/token-usage-view.js','/style-plan-view.js','/dependency-view.js']){const response=await fetch(base+asset);assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/text\/javascript/);}
     assert.equal(state.library.candidates.length,3);assert.equal(state.library.entries.length,0);assert.equal(state.project.jobs.length,0);
     const wanted=state.library.candidates.find(c=>c.title===historySources[0].title),untouched=state.library.candidates.find(c=>c.title===historySources[1].title);
     const skill=(await api('/api/source-skill')).value;assert.match(skill.skill,/name: video-source-tools/);assert.ok(skill.references.some(r=>r.name==='robotics-x-repository.md'&&r.text.includes('video-daily')));
@@ -162,6 +162,18 @@ else {
     assert.equal(sawLive,true);assert.equal(partialJob.status,'failed');assert.equal(partialJob.failureKind,'connection_refused');assert.equal(partialJob.partialSourceIds.length,2);
     const afterFailure=(await api('/api/state')).value;assert.equal(afterFailure.library.candidates.filter(c=>c.title.startsWith('Partial fixture')).length,2);assert.equal(afterFailure.project.deliveries.length,0);
     for(let n=0;n<30&&(await api('/api/state')).value.busy;n++)await new Promise(r=>setTimeout(r,100));
+    // The selected style's missing media must block before any Agent job is created.
+    const styleSpec=path.join(root,'../../../user-packs/henry-video-styles/styles/henry-hot-news-v8.json');
+    await execute(process.env.VIDEO_STUDIO_PYTHON||'python3',[path.join(root,'../scripts/studio.py'),'styles','add','--file',styleSpec],{env:{...process.env,VIDEO_STUDIO_HOME:path.join(temp,'user')}});
+    assert.equal((await api('/api/catalog/refresh',{})).status,200);
+    const selectedStyle=await api('/api/styles/select',{key:'library:henry-hot-news@8'});
+    assert.equal(selectedStyle.status,200,JSON.stringify(selectedStyle.value));
+    assert.equal(selectedStyle.value.runtime.dependencies.checks.find(c=>c.id==='style_media_hot_news').required,true);
+    const styleBlocked=await api('/api/jobs',{action:'discover',query:'素材缺失不能启动'});
+    assert.equal(styleBlocked.status,400);assert.equal(styleBlocked.value.code,'preflight_failed');assert.match(styleBlocked.value.error,/风格素材/);assert.match(styleBlocked.value.error,/git lfs pull/);
+    assert.equal((await api('/api/state')).value.project.jobs.length,afterFailure.project.jobs.length);
+    const selectedState=(await api('/api/state')).value.project;
+    assert.equal((await api('/api/project',{...selectedState,styleSelector:null})).status,200);
     const beforeBlocked=afterFailure.project.jobs.length;await writeFile(fake,(await readFile(fake,'utf8')).replace('codex-cli 0.164.0','codex-cli 0.100.0'));
     const oldCli=await api('/api/jobs',{action:'discover',query:'不能启动旧 CLI'});assert.equal(oldCli.status,400);assert.equal(oldCli.value.code,'preflight_failed');assert.match(oldCli.value.error,/版本不满足/);assert.equal((await api('/api/state')).value.project.jobs.length,beforeBlocked);
     await writeFile(fake,(await readFile(fake,'utf8')).replace('codex-cli 0.100.0','codex-cli 0.164.0'));await writeFile(downloader,'#!/usr/bin/env node\nprocess.exit(1);\n');
