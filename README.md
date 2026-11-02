@@ -4,7 +4,7 @@
 
 素材采集、分镜和剪辑共同遵循[通用素材与竖版构图](plugins/video-studio/references/common-production.md)：相关补充可跨事件自然衔接，检查源片回放与重复动作；所有竖版让关键画面和字幕共同避让底部（默认 18%）。两项均不依赖风格，个人风格库不变。
 
-**插件内置网页工作台版 0.3.0-web.22 · 基于团队默认分支 · macOS / Codex · 依赖已安装且登录的 ChatCut**
+**插件内置网页工作台版 0.3.0-web.23 · 基于团队默认分支 · macOS / Codex · 依赖已安装且登录的 ChatCut**
 
 ## 组成
 
@@ -14,7 +14,7 @@
 | 可选个人风格技能 | 从用户参考提炼的叙事、镜头、节奏、文字、图形与声音规则 |
 | 通用工具技能 | 素材采集、ChatCut 编辑、声音字幕、完整验收与交付 |
 
-通用层不预置机器人主题、男声、科技风、竖屏、90秒、快切或MG模板。个人风格库初始为空。选择风格后，素材采集同时考虑“内容相关”和“表现形式合适”；未指定风格时按本次需求创作，不自动保存为默认风格。
+通用层不预置机器人主题、男声、科技风、竖屏、90秒、快切或MG模板。个人风格库初始为空；聊天和网页均可浏览随插件附带的 9 种已公开风格，选用时再导入。选择风格后，素材采集同时考虑“内容相关”和“表现形式合适”；未指定风格时按本次需求创作，不自动保存为默认风格。
 
 ## 技能
 
@@ -46,11 +46,11 @@
 
 已给题材直接采用；未给题材询问或按明确委托选题。仅提供脚本时提炼叙事/语言，无法观察的画面、节奏、动画、声音维度保持未知。提供视频时分析连续片段与实际声音。规则保存有证据位置、检验方法和跨题材适配说明；工具不会把“保存成功”冒充“风格复现已通过”。
 
-风格文件位于 `~/Library/Application Support/Video Studio/styles/<id>/<version>/`，含真正的 SKILL.md、style.json 和校验清单。由插件主动发现读取，下一次聊天可选择；不是自动注册到全局技能列表。升级插件不会覆盖个人库，发行包不包含用户参考和个人风格。每期固定风格版本及内容快照，本期覆盖不会修改库。
+风格文件位于 `~/Library/Application Support/Video Studio/styles/<id>/<version>/`，含真正的 SKILL.md、style.json 和校验清单。由插件主动发现读取，下一次聊天可选择；不是自动注册到全局技能列表。升级插件不会覆盖个人库，发行包不复制本机私人风格库；携带仓库已公开风格的规则与必要文本证据，原片和音频另从素材包取得。每期固定风格版本及内容快照，本期覆盖不会修改库。
 
 需要可点击选择时，`styles choices` 返回真实名称、版本、维度和验证状态，由宿主按[风格选择流程](plugins/video-studio/references/style-selection.md)显示单选卡片。选择风格不自动提交生成任务。
 
-本分支保留原有视频技能，并增加打开网页工作台入口。源码中的可选 `user-packs/shawn-robotics/` 保存本项目“反差故事型”“动作拆解型”、BOTPIE有限样本分析与制作经验，不随通用ZIP分发、不作为他人默认。明确导入本人的风格与偏好：
+本分支保留原有视频技能，并增加打开网页工作台入口。源码中的可选 `user-packs/shawn-robotics/` 保存本项目“反差故事型”“动作拆解型”、BOTPIE有限样本分析与制作经验，文本规则与证据随插件分发，不作为他人默认。明确导入本人的风格与偏好：
 
 ```sh
 python3 plugins/video-studio/scripts/studio.py styles import \
@@ -59,7 +59,7 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 去掉 `--apply-preferences` 只导入风格。两种风格均保持 unverified；总体试片好评不等于逐项风格验收。原始录音、视频、账号状态与会话连接编号不进用户包。
 
-后续整合17条用户参考的七类个人风格位于源码仓库的 `user-packs/shawn-style-fusion/README.md`：能力快报、反差故事、动作拆解、类比科普、案例归纳、产业脉络、观点论证。导入该包后，原两类使用v2，原v1保留；新五类为v1。该包不改偏好和默认，不进入通用ZIP；仅下载通用ZIP时，需要另从源码仓库获取可选个人包。证据为全长机器转录、分布抽帧和代表区间连续抽帧，未完成所有原片的完整实时播放与听审，保存状态仍为unverified。
+后续整合17条用户参考的七类个人风格位于源码仓库的 `user-packs/shawn-style-fusion/README.md`：能力快报、反差故事、动作拆解、类比科普、案例归纳、产业脉络、观点论证。导入该包后，原两类使用v2，原v1保留；新五类为v1。该包不改偏好和默认，文本规则与证据随插件分发，浏览后可选用，不自动导入。证据为全长机器转录、分布抽帧和代表区间连续抽帧，未完成所有原片的完整实时播放与听审，保存状态仍为unverified。
 
 ## 默认交付物
 
@@ -75,7 +75,7 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 封面分别排版，建议 1440×1920 与 1920×1440；3:4、4:3 仅指封面比例，视频规格仍由本期要求决定。TXT 使用 UTF-8，含定稿发布标题、正文和可复制的话题标签。正文从真实反差、具体问题或观点切入，补足背景和观看理由，吸引观看与讨论。日期按用户本地时区，重名及改版目录保留后缀以避免覆盖。工程链接、字幕、脚本、来源及验收记录保存在工作 run，用户要求时再额外交付。准备发布包不执行发布。
 
-源码还提供可选个人包 `user-packs/henry-video-styles/README.md`，包含热点资讯型与技术科普型各自最新的 v7 规则，无变体。风格 ID 为 `henry-hot-news@7`、`henry-technical-explainer@7`，需显式导入，不改全局偏好或默认风格，不随通用 ZIP 分发。
+源码还提供可选个人包 `user-packs/henry-video-styles/README.md`，包含热点资讯型与技术科普型各自最新的 v8 规则，无变体。风格 ID 为 `henry-hot-news@8`、`henry-technical-explainer@8`，需显式导入，不改全局偏好或默认风格，文本规则与证据随插件分发，媒体仍需另行获取。
 
 前检会显示 Git LFS 与两套风格素材的完整性。首次导入记住包位置；已导入的风格可用 `studio.py styles link-pack --file <风格包 manifest.json>` 单独登记素材位置。选择风格后，相关文件缺失、仍是 LFS 指针或哈希改变会阻止对应任务，并给出补齐提示。已有完整本地文件时不强制安装 Git LFS；未选用风格的问题不阻止其他制作。详见[诊断说明](plugins/video-studio/references/diagnostics.md)。
 
@@ -101,12 +101,12 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 ## 安装与验证
 
-安装包：`dist/video-studio-0.3.0-web.22.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
+安装包：`dist/video-studio-0.3.0-web.23.zip`，校验文件同目录。解压后的根目录包含 marketplace 和 plugins：
 
 ```sh
-shasum -a 256 -c video-studio-0.3.0-web.22.zip.sha256
-unzip video-studio-0.3.0-web.22.zip
-codex plugin marketplace add ./video-studio-0.3.0-web.22
+shasum -a 256 -c video-studio-0.3.0-web.23.zip.sha256
+unzip video-studio-0.3.0-web.23.zip
+codex plugin marketplace add ./video-studio-0.3.0-web.23
 ```
 
 在插件目录选择 Video Studio 本地来源安装，并在新聊天验证技能。安装缓存与市场源不是同一份文件；不要手工改缓存。插件目录与本地市场机制见 [OpenAI 官方文档](https://developers.openai.com/plugins/build/plugins)。
@@ -144,7 +144,15 @@ doctor 本地成功不表示 ChatCut 已连接。使用宿主完整 Python；损
 
 ### 上传到 GitHub 分支
 
-`dist/video-studio-plugin-0.3.0-web.22.zip` 是仅含插件的包，根目录直接包含 `plugin.json`、`skills/`、`scripts/` 和 `workbench/`。解压到目标仓库的 `plugins/video-studio/` 后可提交分支；保留 `.agents/plugins/marketplace.json` 对该目录的引用。`dist/video-studio-0.3.0-web.22.zip` 是含 marketplace、测试、打包工具和说明的源码发行包。发行包采用白名单，不包含本机项目、素材、账号、个人风格和成片。
+`dist/video-studio-plugin-0.3.0-web.23.zip` 是仅含插件的包，根目录直接包含 `plugin.json`、`skills/`、`scripts/` 和 `workbench/`。解压到目标仓库的 `plugins/video-studio/` 后可提交分支；保留 `.agents/plugins/marketplace.json` 对该目录的引用。`dist/video-studio-0.3.0-web.23.zip` 是含 marketplace、测试、打包工具和说明的源码发行包。发行包采用白名单，包含已公开风格的轻量文本副本，不包含本机项目、媒体、账号、私人风格库和成片。
 
 
 网页的风格卡片由真实个人库和仓库可选用户包读取；可查看对应规则、检查方法、案例与原始证据，显示版本及未验证边界。选用未导入的条目时显式导入所在风格包，不应用默认偏好。
+
+## 风格目录与安装一致性
+
+`styles list` / `styles choices` 和网页使用同一可用目录：个人库、styles link-pack 已登记位置、源码 user-packs、插件内 style-packs 文本副本。按 selector 去重，优先使用个人库；历史版本单列。`--installed` 仅列个人库。浏览详情用 `styles details --selector <id@version>`，选用时 `styles select --selector <id@version>`；不改默认偏好，也不把缺少媒体隐藏成没有风格。新安装提供 9 种当前风格与 2 个历史版本，用户自己的风格另行保留。
+
+VIDEO_STUDIO_PACK_ROOT 可指定单个包或包集合；显式指定后不混入其他位置。无效目录和坏文件在列表 errors 中显示，单个坏风格不影响其他条目。源码公开包更新后运行 `python3 tools/bundle_style_packs.py` 同步轻量副本，`--check` 校验与源文件一致，不能手改副本。原素材和个人库不改写。
+
+启动器仅复用同版本、代码目录、数据目录及风格目录的服务。身份不同或旧服务缺少身份时提示先等待已有任务结束、停止原服务后重启，不静默展示另一份工作台。

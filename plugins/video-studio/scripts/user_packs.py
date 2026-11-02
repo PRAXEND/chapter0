@@ -85,7 +85,10 @@ def install(manifest_file, apply_preferences=False):
                     shutil.rmtree(stage)
     entries = [existing.get(selector) or styles.register(spec) for selector, spec in zip(selectors, specs)]
     import style_media
-    style_media.link_pack(manifest_path)
+    import pack_sources
+    # Bundled copies carry text only; never replace the real source-media location.
+    if not pack_sources.is_bundled(source):
+        style_media.link_pack(manifest_path)
     if apply_preferences:
         save_profile(preferences)
     return {"pack": f"{slug}@{version}", "path": str(destination),

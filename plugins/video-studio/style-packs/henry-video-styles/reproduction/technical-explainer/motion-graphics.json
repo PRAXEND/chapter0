@@ -1,0 +1,530 @@
+[
+  {
+    "id": "ref-6a182c3ec1d3",
+    "name": "技术科普｜动词强调",
+    "type": "motion-graphic",
+    "durationMs": 4000,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 230,
+      "width": 750
+    },
+    "editableProperties": [
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "label",
+        "type": "text",
+        "defaultValue": "ATLAS / 全身协调"
+      },
+      {
+        "key": "title",
+        "type": "text",
+        "defaultValue": "光有力气，还不够"
+      },
+      {
+        "key": "size",
+        "type": "number",
+        "defaultValue": 62
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "defaultValue": "#FFFFFF"
+      },
+      {
+        "key": "cyan",
+        "type": "color",
+        "defaultValue": "#48E1D1"
+      },
+      {
+        "key": "transparentBackground",
+        "type": "boolean",
+        "defaultValue": true
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "label",
+        "type": "text",
+        "label": "眉题",
+        "defaultValue": "ATLAS / 全身协调"
+      },
+      {
+        "key": "title",
+        "type": "text",
+        "label": "主句",
+        "defaultValue": "光有力气，还不够"
+      },
+      {
+        "key": "size",
+        "max": 90,
+        "min": 30,
+        "type": "number",
+        "label": "字号",
+        "defaultValue": 62
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "label": "正文",
+        "defaultValue": "#FFFFFF"
+      },
+      {
+        "key": "cyan",
+        "type": "color",
+        "label": "强调",
+        "defaultValue": "#48E1D1"
+      },
+      {
+        "key": "transparentBackground",
+        "type": "boolean",
+        "label": "透明底",
+        "defaultValue": true
+      }
+    ],
+    "code": "const Component = ({item}) => {\n const f=useCurrentFrame(); const {durationInFrames}=useVideoConfig(); const p=item.props;\n const en=interpolate(f,[0,10],[0,1],{extrapolateRight:\"clamp\"});\n const out=interpolate(f,[durationInFrames-10,durationInFrames-1],[1,0],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"});\n const y=interpolate(f,[0,7,13],[28,-3,0],{extrapolateRight:\"clamp\"});\n const rootStyle={position:\"absolute\",inset:0,display:\"flex\",flexDirection:\"column\",justifyContent:\"center\",fontFamily:p.font,opacity:en*out,color:p.white,padding:\"12px 24px\",backgroundColor:p.transparentBackground?\"transparent\":\"rgba(6,15,24,.82)\",overflow:\"hidden\"};\n const labelStyle={fontSize:24,fontWeight:600,letterSpacing:5,color:p.cyan,marginBottom:10};\n const titleStyle={fontSize:p.size,fontWeight:900,lineHeight:1.16,transform:\"translateY(\"+y+\"px)\",textShadow:\"0 3px 12px rgba(0,0,0,.65)\"};\n const lineStyle={height:5,width:interpolate(f,[0,15],[0,390],{extrapolateRight:\"clamp\"}),backgroundColor:p.cyan,marginTop:17};\n return <div style={rootStyle}><div style={labelStyle}>{p.label}</div><div style={titleStyle}>{p.title}</div><div style={lineStyle}/></div>;\n};",
+    "revision": "sha256:c984b30483c357a48878f71d7115294956626f92f3cbdebb402a25ec8bdd96cd"
+  },
+  {
+    "id": "ref-7520224646f1",
+    "name": "来源｜实验与资料区分",
+    "type": "motion-graphic",
+    "durationMs": 91500,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 44,
+      "width": 1700
+    },
+    "editableProperties": [
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "lab",
+        "type": "text",
+        "defaultValue": "画面：Boston Dynamics · 实验室演示 · 2026.05"
+      },
+      {
+        "key": "hardware",
+        "type": "text",
+        "defaultValue": "画面：Boston Dynamics · 制造资料 · 2026.10"
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "defaultValue": "#FFFFFF"
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "lab",
+        "type": "text",
+        "label": "实验来源",
+        "defaultValue": "画面：Boston Dynamics · 实验室演示 · 2026.05"
+      },
+      {
+        "key": "hardware",
+        "type": "text",
+        "label": "资料来源",
+        "defaultValue": "画面：Boston Dynamics · 制造资料 · 2026.10"
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "label": "颜色",
+        "defaultValue": "#FFFFFF"
+      }
+    ],
+    "code": "const Component=({item})=>{const f=useCurrentFrame();const p=item.props;const hardware=(f>=1302&&f<1398)||(f>=1572&&f<1650)||(f>=1773&&f<1884)||(f>=2439&&f<2559);const label=hardware?p.hardware:p.lab;const rootStyle={position:\"absolute\",inset:0,display:\"flex\",justifyContent:\"flex-end\",alignItems:\"center\",fontFamily:p.font,fontSize:22,color:p.white,textShadow:\"0 1px 5px #000\",opacity:.82};return <div style={rootStyle}>{label}</div>;};",
+    "revision": "sha256:95bc66b175a4a055727a4cc29b61f3d496e133c0f72da68c648e11bdea2b9f4a"
+  },
+  {
+    "id": "ref-17ce0aa939d4",
+    "name": "技术科普｜训练路径",
+    "type": "motion-graphic",
+    "durationMs": 15500,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 120,
+      "width": 1400
+    },
+    "editableProperties": [
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "a",
+        "type": "text",
+        "defaultValue": "01  参考动作"
+      },
+      {
+        "key": "b",
+        "type": "text",
+        "defaultValue": "02  反复尝试"
+      },
+      {
+        "key": "c",
+        "type": "text",
+        "defaultValue": "03  稳定 → 奖励"
+      },
+      {
+        "key": "second",
+        "type": "number",
+        "defaultValue": 150
+      },
+      {
+        "key": "third",
+        "type": "number",
+        "defaultValue": 270
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "defaultValue": "#FFFFFF"
+      },
+      {
+        "key": "cyan",
+        "type": "color",
+        "defaultValue": "#48E1D1"
+      },
+      {
+        "key": "transparentBackground",
+        "type": "boolean",
+        "defaultValue": true
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "a",
+        "type": "text",
+        "label": "起点",
+        "defaultValue": "01  参考动作"
+      },
+      {
+        "key": "b",
+        "type": "text",
+        "label": "过程",
+        "defaultValue": "02  反复尝试"
+      },
+      {
+        "key": "c",
+        "type": "text",
+        "label": "反馈",
+        "defaultValue": "03  稳定 → 奖励"
+      },
+      {
+        "key": "second",
+        "max": 465,
+        "min": 0,
+        "type": "number",
+        "label": "第二步帧",
+        "defaultValue": 150
+      },
+      {
+        "key": "third",
+        "max": 465,
+        "min": 0,
+        "type": "number",
+        "label": "第三步帧",
+        "defaultValue": 270
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "label": "正文",
+        "defaultValue": "#FFFFFF"
+      },
+      {
+        "key": "cyan",
+        "type": "color",
+        "label": "强调",
+        "defaultValue": "#48E1D1"
+      },
+      {
+        "key": "transparentBackground",
+        "type": "boolean",
+        "label": "透明",
+        "defaultValue": true
+      }
+    ],
+    "code": "const Component=({item})=>{const f=useCurrentFrame();const {durationInFrames}=useVideoConfig();const p=item.props;const rootStyle={position:\"absolute\",inset:0,display:\"flex\",alignItems:\"center\",gap:18,fontFamily:p.font,opacity:interpolate(f,[0,8,durationInFrames-9,durationInFrames-1],[0,1,1,0],{extrapolateRight:\"clamp\"})};const labels=[p.a,p.b,p.c];const starts=[0,p.second,p.third];return <div style={rootStyle}>{labels.map((label,i)=>{const active=f>=starts[i];const rise=interpolate(f,[starts[i],starts[i]+9],[20,0],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"});const st={height:104,flex:1,display:\"flex\",alignItems:\"center\",justifyContent:\"center\",borderRadius:12,border:\"2px solid \"+(active?p.cyan:\"rgba(255,255,255,.35)\"),backgroundColor:p.transparentBackground?\"rgba(5,16,25,.7)\":\"#071622\",color:active?p.white:\"rgba(255,255,255,.55)\",fontSize:38,fontWeight:800,transform:\"translateY(\"+rise+\"px)\",boxShadow:active?\"0 0 16px rgba(72,225,209,.12)\":\"none\"};return <div key={i} style={st}>{label}</div>;})}</div>;};",
+    "revision": "sha256:75a368a3ed6fd33bace96d35d58581f1a9b8ab57cbbba7bab738b64790f933eb"
+  },
+  {
+    "id": "ref-1e1f01a8e7d4",
+    "name": "技术科普｜三步跟随",
+    "type": "motion-graphic",
+    "durationMs": 5000,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 250,
+      "width": 600
+    },
+    "editableProperties": [
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "a",
+        "type": "text",
+        "defaultValue": "手臂：抱住"
+      },
+      {
+        "key": "b",
+        "type": "text",
+        "defaultValue": "躯干：承托"
+      },
+      {
+        "key": "c",
+        "type": "text",
+        "defaultValue": "双腿：支撑"
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "defaultValue": "#FFFFFF"
+      },
+      {
+        "key": "cyan",
+        "type": "color",
+        "defaultValue": "#48E1D1"
+      },
+      {
+        "key": "transparentBackground",
+        "type": "boolean",
+        "defaultValue": true
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "a",
+        "type": "text",
+        "label": "第一项",
+        "defaultValue": "手臂：抱住"
+      },
+      {
+        "key": "b",
+        "type": "text",
+        "label": "第二项",
+        "defaultValue": "躯干：承托"
+      },
+      {
+        "key": "c",
+        "type": "text",
+        "label": "第三项",
+        "defaultValue": "双腿：支撑"
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "label": "正文",
+        "defaultValue": "#FFFFFF"
+      },
+      {
+        "key": "cyan",
+        "type": "color",
+        "label": "强调",
+        "defaultValue": "#48E1D1"
+      },
+      {
+        "key": "transparentBackground",
+        "type": "boolean",
+        "label": "透明底",
+        "defaultValue": true
+      }
+    ],
+    "code": "const Component=({item})=>{const f=useCurrentFrame();const {durationInFrames}=useVideoConfig();const p=item.props;const alpha=interpolate(f,[0,7,durationInFrames-8,durationInFrames-1],[0,1,1,0],{extrapolateRight:\"clamp\"});const rootStyle={position:\"absolute\",inset:0,fontFamily:p.font,color:p.white,opacity:alpha,display:\"flex\",flexDirection:\"column\",gap:14,padding:18,backgroundColor:p.transparentBackground?\"transparent\":\"rgba(7,15,24,.84)\"};const text=[p.a,p.b,p.c];return <div style={rootStyle}>{text.map((s,i)=>{const progress=interpolate(f,[i*18,i*18+9],[0,1],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"});const rowStyle={display:\"flex\",alignItems:\"center\",gap:16,transform:\"translateX(\"+((1-progress)*-32)+\"px)\",opacity:progress};const dotStyle={height:11,width:11,borderRadius:6,backgroundColor:p.cyan,boxShadow:\"0 0 12px rgba(72,225,209,.4)\"};const labelStyle={fontSize:46,fontWeight:800,textShadow:\"0 2px 8px #000\"};return <div key={i} style={rowStyle}><div style={dotStyle}/><div style={labelStyle}>{s}</div></div>;})}</div>;};",
+    "revision": "sha256:a3fc4698dad35ce20f3a0471c648567306b2865628ba5c6992b0f936d58a6346"
+  },
+  {
+    "id": "ref-0ab15b06cb9d",
+    "name": "技术科普｜纵条聚字",
+    "type": "motion-graphic",
+    "durationMs": 4000,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 150,
+      "width": 760
+    },
+    "editableProperties": [
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "title",
+        "type": "text",
+        "defaultValue": "上真机，才知道"
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "defaultValue": "#FFFFFF"
+      },
+      {
+        "key": "cyan",
+        "type": "color",
+        "defaultValue": "#48E1D1"
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "title",
+        "type": "text",
+        "label": "标题",
+        "defaultValue": "上真机，才知道"
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "label": "文字",
+        "defaultValue": "#FFFFFF"
+      },
+      {
+        "key": "cyan",
+        "type": "color",
+        "label": "强调",
+        "defaultValue": "#48E1D1"
+      }
+    ],
+    "code": "const Component=({item})=>{const f=useCurrentFrame();const {durationInFrames}=useVideoConfig();const p=item.props;const out=interpolate(f,[durationInFrames-10,durationInFrames-1],[1,0],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"});const rootStyle={position:\"absolute\",inset:0,fontFamily:p.font,fontSize:64,fontWeight:900,color:p.white,opacity:out,overflow:\"hidden\",textShadow:\"0 3px 10px #000\"};const whole={position:\"absolute\",left:0,top:18,width:760,whiteSpace:\"nowrap\"};const line={position:\"absolute\",left:0,bottom:12,height:5,width:240,backgroundColor:p.cyan};const settled=f>=22;return <div style={rootStyle}>{settled?<div style={whole}>{p.title}</div>:Array.from({length:12},(_,i)=>{const shift=interpolate(f,[i*.9,15+i*.4],[i%2===0?80:-80,0],{extrapolateLeft:\"clamp\",extrapolateRight:\"clamp\"});const slice={position:\"absolute\",left:i*64,top:0,width:64,height:130,overflow:\"hidden\"};const inner={...whole,left:-i*64,transform:\"translateY(\"+shift+\"px)\"};return <div key={i} style={slice}><div style={inner}>{p.title}</div></div>;})}<div style={line}/></div>;};",
+    "revision": "sha256:249a6a55644102464e1981d48953dab612dbbce848928910133e654776d88b17"
+  },
+  {
+    "id": "ref-9a646ab242a9",
+    "name": "仿真与实物｜分屏标识",
+    "type": "motion-graphic",
+    "durationMs": 5800,
+    "folder": "Master",
+    "mediaPoolVisibility": "visible",
+    "status": "ready",
+    "dimensions": {
+      "height": 680,
+      "width": 1920
+    },
+    "editableProperties": [
+      {
+        "key": "font",
+        "type": "font",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "left",
+        "type": "text",
+        "defaultValue": "仿真 · 并行尝试"
+      },
+      {
+        "key": "right",
+        "type": "text",
+        "defaultValue": "实物 · 动作对照"
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "defaultValue": "#FFFFFF"
+      },
+      {
+        "key": "cyan",
+        "type": "color",
+        "defaultValue": "#48E1D1"
+      }
+    ],
+    "file": {},
+    "defaults": null,
+    "schema": [
+      {
+        "key": "font",
+        "type": "font",
+        "label": "字体",
+        "defaultValue": "Noto Sans SC"
+      },
+      {
+        "key": "left",
+        "type": "text",
+        "label": "左",
+        "defaultValue": "仿真 · 并行尝试"
+      },
+      {
+        "key": "right",
+        "type": "text",
+        "label": "右",
+        "defaultValue": "实物 · 动作对照"
+      },
+      {
+        "key": "white",
+        "type": "color",
+        "label": "文字",
+        "defaultValue": "#FFFFFF"
+      },
+      {
+        "key": "cyan",
+        "type": "color",
+        "label": "强调",
+        "defaultValue": "#48E1D1"
+      }
+    ],
+    "code": "const Component=({item})=>{const p=item.props;const rootStyle={position:\"absolute\",inset:0,fontFamily:p.font,color:p.white};const left={position:\"absolute\",left:72,top:0,fontSize:32,fontWeight:800,padding:\"9px 18px\",backgroundColor:\"rgba(6,18,28,.8)\",borderLeft:\"4px solid \"+p.cyan};const right={...left,left:1032};const divider={position:\"absolute\",left:958,top:0,height:680,width:4,backgroundColor:p.cyan};return <div style={rootStyle}><div style={left}>{p.left}</div><div style={right}>{p.right}</div><div style={divider}/></div>;};",
+    "revision": "sha256:54c4e57335c952c748552f9e3b8e7ebfa200f15a96e49d9fc9574821a0660f4d"
+  }
+]

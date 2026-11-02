@@ -1,19 +1,11 @@
 """Read real installed styles and optional repository packs for the local workbench."""
 import json
-import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import styles
 import user_packs
-
-PLUGIN = Path(__file__).resolve().parents[1]
-
-
-def pack_root():
-    value = os.environ.get('VIDEO_STUDIO_PACK_ROOT')
-    return Path(value).expanduser().resolve() if value else PLUGIN.parents[1] / 'user-packs'
-
+import pack_sources
 
 def public_url(value):
     try:
@@ -32,29 +24,44 @@ def entries():
         if item.get('error'):
             errors.append({'source': 'library', 'selector': f"{item['id']}@{item['version']}", 'error': item['error']})
             continue
-        value = styles.resolve(item['selector'])
+        try:
+            value = styles.resolve(item['selector'])
+        except (ValueError, OSError, KeyError, TypeError, AttributeError) as error:
+            errors.append({'source': 'library', 'selector': item['selector'], 'error': str(error)})
+            continue
         found.append({'key': 'library:' + value['selector'], 'selector': value['selector'], 'spec': value['spec'],
                       'origin': 'library', 'validation_status': value['validation_status'], 'skill_path': value['skill_path']})
     installed = {f"{e['id']}@{e['version']}" for e in library}
-    root = pack_root()
-    for manifest in sorted(root.glob('*/manifest.json')):
+    sources, source_errors = pack_sources.manifests()
+    errors.extend(source_errors)
+    seen = set(installed)
+    for source in sources:
+        manifest = source['manifest']
         try:
             if manifest.is_symlink() or manifest.parent.is_symlink():
                 raise ValueError('Pack must not be a symlink')
-            data = json.loads(user_packs._file(root, manifest.relative_to(root)).read_text())
-            if data.get('schema_version') != 1 or not isinstance(data.get('styles'), list):
+            data = json.loads(user_packs._file(manifest.parent, manifest.name).read_text(encoding='utf-8'))
+            if not isinstance(data, dict) or data.get('schema_version') != 1 or not isinstance(data.get('styles'), list):
                 raise ValueError('Invalid style pack manifest')
+            if source['expected_id'] and source['expected_id'] != data.get('id'):
+                raise ValueError('登记的风格包身份与该目录不符，请重新 link-pack')
             pack = f"{data['id']}@{data['version']}"
-            for relative in data['styles']:
-                spec = styles.validate(json.loads(user_packs._file(manifest.parent, relative).read_text()))
+        except (ValueError, KeyError, OSError, TypeError, AttributeError) as error:
+            errors.append({'source': 'pack', 'name': manifest.parent.name, 'error': str(error)})
+            continue
+        for relative in data['styles']:
+            try:
+                spec = styles.validate(json.loads(user_packs._file(manifest.parent, relative).read_text(encoding='utf-8')))
                 selector = f"{spec['id']}@{spec['version']}"
-                if selector in installed:
+                if selector in seen:
                     continue
+                seen.add(selector)
                 found.append({'key': f'pack:{pack}:{selector}', 'selector': selector, 'spec': spec,
                               'origin': 'pack', 'pack': pack, 'manifest': str(manifest), 'pack_root': str(manifest.parent),
+                              'pack_source': source['origin'],
                               'validation_status': 'unverified'})
-        except (ValueError, KeyError, OSError) as error:
-            errors.append({'source': 'pack', 'name': manifest.parent.name, 'error': str(error)})
+            except (ValueError, KeyError, OSError, TypeError, AttributeError) as error:
+                errors.append({'source': 'pack', 'name': f'{manifest.parent.name}/{relative}', 'error': str(error)})
     latest = {}
     for entry in found:
         spec = entry['spec']
@@ -67,7 +74,8 @@ def entries():
 def summary(entry):
     spec = entry['spec']
     return {k: entry[k] for k in ('key', 'selector', 'origin', 'validation_status', 'historical')} | {
-        'name': spec['name'], 'description': spec['description'], 'version': spec['version'],
+        'id': spec['id'], 'name': spec['name'], 'description': spec['description'], 'version': spec['version'],
+        'pack_source': entry.get('pack_source'),
         'pack': entry.get('pack'), 'ruleCount': len(spec['rules']), 'referenceCount': len(spec['references']),
         'dimensions': sorted({r['dimension'] for r in spec['rules']}), 'unknown_dimensions': spec['unknown_dimensions']}
 
@@ -77,8 +85,22 @@ def catalog():
     return {'entries': [summary(e) for e in values], 'errors': errors}
 
 
+def choices():
+    catalog_value = catalog()
+    def option(entry):
+        return {**entry, 'id': entry['selector'], 'label': entry['name'],
+                'requires_import': entry['origin'] == 'pack'}
+    return {'field_id': 'video_style',
+            'options': [option(e) for e in catalog_value['entries'] if not e['historical']],
+            'historical_options': [option(e) for e in catalog_value['entries'] if e['historical']],
+            'errors': catalog_value['errors'], 'selection_sets_default': False, 'selection_starts_production': False}
+
+
 def resolve(key):
-    value = next((e for e in entries()[0] if e['key'] == key), None)
+    values = entries()[0]
+    value = next((e for e in values if e['key'] == key or e['selector'] == key), None)
+    if value is None:
+        value = next((e for e in values if e['spec']['id'] == key and not e['historical']), None)
     if value is None:
         raise ValueError('风格不存在或版本已变化，请刷新真实风格库。')
     return value

@@ -162,7 +162,7 @@ def catalog():
             try:
                 value = resolve(f"{folder.parent.name}@{folder.name}")
                 entries.append({k: v for k, v in value.items() if k != "spec"})
-            except (ValueError, OSError, KeyError) as exc:
+            except (ValueError, OSError, KeyError, TypeError, AttributeError) as exc:
                 entries.append({"id": folder.parent.name, "version": folder.name, "error": str(exc)})
     return entries
 
@@ -186,8 +186,11 @@ def snapshot(selector, run):
             "validation_status": value["validation_status"]}
 
 
-def choices():
+def choices(installed_only=False):
     """Host-neutral choice data; selection never starts production or sets a default."""
+    if not installed_only:
+        import web_styles
+        return web_styles.choices()
     options, errors = [], []
     for entry in catalog():
         if entry.get("error"):

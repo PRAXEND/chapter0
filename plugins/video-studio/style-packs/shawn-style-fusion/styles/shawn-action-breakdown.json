@@ -1,0 +1,273 @@
+{
+  "schema_version": 1,
+  "id": "shawn-action-breakdown",
+  "version": 2,
+  "name": "动作拆解型",
+  "description": "盯住一个动作，把难点看明白。 抓取、插拔、开门等任务有可见空间关系、接触节点或失败原因。",
+  "adaptation": "替换原片品牌、事件和台词，以本期真实证据承载相同理解路径。回答这个动作为什么难、怎样完成；类比科普回答一个概念怎么理解。 只有宣传片剪影，没有完整操作或关键细节，无法支撑因果说明。",
+  "references": [
+    {
+      "id": "user",
+      "kind": "user_direction",
+      "locator": "pack:evidence/project-lessons.md",
+      "analyzed_ranges": [
+        "用户明确要求与反馈"
+      ],
+      "limitations": "用户声音、画幅与时长要求，不是参考账号声学观察"
+    },
+    {
+      "id": "fusion",
+      "kind": "script",
+      "locator": "pack:evidence/reference-analysis.json",
+      "analyzed_ranges": [
+        "scope及17条分析"
+      ],
+      "limitations": "声画采用分布与连续抽帧；没有完整实时播放与听审"
+    },
+    {
+      "id": "botpie",
+      "kind": "script",
+      "locator": "pack:evidence/botpie-sample.json",
+      "limitations": "57条标题封面卡片，只支持钩子与封面参考，不支持精确镜头/音乐规则"
+    },
+    {
+      "id": "trial-a",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/601b3050-3b93-4d36-90fb-7d6efa15f37b",
+      "analyzed_ranges": [
+        "既有合成抽帧、脚本与制作记录"
+      ],
+      "limitations": "用户总体好评；没有完整连续声画与逐项复现验收"
+    },
+    {
+      "id": "trial-b",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/3a2a905a-100e-41ff-9f2f-1c80b1972d50",
+      "analyzed_ranges": [
+        "既有合成抽帧、脚本与制作记录"
+      ],
+      "limitations": "用户总体好评；没有完整连续声画与逐项复现验收"
+    },
+    {
+      "id": "ref-03",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7695724770456898826",
+      "title": "非夕装配挑战",
+      "sha256": "cc7135c1dc087e2cd82025dd2896ddf242dba239aad21334f8630997e0cd5214",
+      "analyzed_ranges": [
+        "00:12–00:35，近景连续核对00:19–00:23.2"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    },
+    {
+      "id": "ref-10",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7691882568119012623",
+      "title": "Clone 仿生手",
+      "sha256": "15631cb4c8f9461c31b8c19738da64ef629b61367437d1af96a1e0632439e9fe",
+      "analyzed_ranges": [
+        "00:12–00:23，近景连续核对00:12–00:16.2"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    }
+  ],
+  "rules": [
+    {
+      "id": "narrative",
+      "dimension": "narrative",
+      "instruction": "先给动作和具体问题，交代机器人、目标、空间关系；解释一到两处障碍与反馈，带着新的观察点回看，最后回答问题。",
+      "check": "逐段标出本风格的推进节点，开场承诺在结尾得到回答。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-03",
+          "location": "00:12–00:35，近景连续核对00:19–00:23.2"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:12–00:23，近景连续核对00:12–00:16.2"
+        }
+      ]
+    },
+    {
+      "id": "language",
+      "dimension": "language",
+      "instruction": "先说它碰到什么、调整什么，再引入术语；区分看见的动作、来源披露的机制和创作者推论。",
+      "check": "逐句口语审稿；事实、来源声称与推断分开，专名和数据另行核实。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-03",
+          "location": "00:12–00:35，近景连续核对00:19–00:23.2"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:12–00:23，近景连续核对00:12–00:16.2"
+        }
+      ]
+    },
+    {
+      "id": "shots",
+      "dimension": "shots",
+      "instruction": "先全景定位，再用不丢目标的局部近景看接触点、路径或手指联动；动作必要区间连续保留，回看增加标注或观察目标。",
+      "check": "对照实际素材与合成画面，逐段指认观察对象；画面能够支持对应解说。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-03",
+          "location": "00:12–00:35，近景连续核对00:19–00:23.2"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:12–00:23，近景连续核对00:12–00:16.2"
+        }
+      ]
+    },
+    {
+      "id": "pacing",
+      "dimension": "pacing",
+      "instruction": "切点由动作起止、接触和解释节点决定；关键操作宁可多留时间，不能因配乐鼓点打断因果链。",
+      "check": "按配音真实词时间和完整动作区间审查；不能为凑时长截断动作。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-03",
+          "location": "00:12–00:35，近景连续核对00:19–00:23.2"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:12–00:23，近景连续核对00:12–00:16.2"
+        }
+      ]
+    },
+    {
+      "id": "graphics",
+      "dimension": "graphics",
+      "instruction": "只标当段正在解释的目标、路径、偏差或反馈关系；不可见的内部机制明确写原理示意，随后回到实拍。",
+      "check": "每项标注都指向当段对象或关系；示意、回看、倍速和计划状态有明确标签。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-03",
+          "location": "00:12–00:35，近景连续核对00:19–00:23.2"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:12–00:23，近景连续核对00:12–00:16.2"
+        }
+      ]
+    },
+    {
+      "id": "transitions",
+      "dimension": "transitions",
+      "instruction": "观察点改变时从全景切局部，再返回任务；重复片段标回看，变速标倍速，不把不同尝试拼成一次成功。",
+      "check": "逐一回看切点前后，确认叙事层级清楚、主体角色稳定、动作没有被伪接。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-03",
+          "location": "00:12–00:35，近景连续核对00:19–00:23.2"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:12–00:23，近景连续核对00:12–00:16.2"
+        }
+      ]
+    },
+    {
+      "id": "project-captions",
+      "dimension": "captions",
+      "instruction": "字幕依据最终配音，逐句校正专名和断句；通常不超过两行并避开关键动作；导出SRT与烧录画面分别核对。",
+      "check": "抽查首尾及关键动作段，核对字幕卡、实际画面和独立SRT。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial-b",
+          "location": "既有试片的字幕修复与制作复盘，见project-lessons.md"
+        }
+      ]
+    },
+    {
+      "id": "project-audio",
+      "dimension": "audio",
+      "instruction": "本项目沿用大壹、自然有活力且紧凑的讲述和轻科技纯器乐；BGM可听见且人声清楚。音量与语速按新素材实际听审，历史参数不作为固定模板。",
+      "check": "最终混音完整听审，特别检查停顿处配乐和关键句清晰度；克隆音色仅在当前明确选择且可用时替换。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户要求：配音激情/语速调整、BGM提高、音色与交付约定"
+        }
+      ]
+    },
+    {
+      "id": "duration-adaptation",
+      "dimension": "pacing",
+      "instruction": "本项目成片严格不超过60秒；所附分段秒数是改写起点，不是镜头定长或必须填满的目标。按本风格保留一个核心问题，删支线后再生成声音。",
+      "check": "审查实际导出文件总时长不超过60秒；若超时先缩脚本，不直接拉快全部音频。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户明确要求：最终视频文件必须不能超过一分钟"
+        }
+      ]
+    }
+  ],
+  "unknown_dimensions": [],
+  "material_requirements": [
+    {
+      "role": "动作完整区间、接触近景和对应空间关系",
+      "search_hint": "{本期对象} {本期任务} official demo explanation full sequence",
+      "acceptance": "目标、末端和路径可辨认；有足够动作起止；机制论断能追溯来源",
+      "rule_id": "shots"
+    }
+  ],
+  "production_guide": {
+    "id": "shawn-action-breakdown",
+    "version": 2,
+    "name": "动作拆解型",
+    "promise": "盯住一个动作，把难点看明白。",
+    "when": "抓取、插拔、开门等任务有可见空间关系、接触节点或失败原因。",
+    "not_when": "只有宣传片剪影，没有完整操作或关键细节，无法支撑因果说明。",
+    "hook": "它已经对准了，为什么还不能直接插进去？",
+    "narrative": "先给动作和具体问题，交代机器人、目标、空间关系；解释一到两处障碍与反馈，带着新的观察点回看，最后回答问题。",
+    "language": "先说它碰到什么、调整什么，再引入术语；区分看见的动作、来源披露的机制和创作者推论。",
+    "shots": "先全景定位，再用不丢目标的局部近景看接触点、路径或手指联动；动作必要区间连续保留，回看增加标注或观察目标。",
+    "pacing": "切点由动作起止、接触和解释节点决定；关键操作宁可多留时间，不能因配乐鼓点打断因果链。",
+    "graphics": "只标当段正在解释的目标、路径、偏差或反馈关系；不可见的内部机制明确写原理示意，随后回到实拍。",
+    "transitions": "观察点改变时从全景切局部，再返回任务；重复片段标回看，变速标倍速，不把不同尝试拼成一次成功。",
+    "timeline": [
+      [
+        "0–6秒",
+        "动作问题"
+      ],
+      [
+        "6–15秒",
+        "空间与目标"
+      ],
+      [
+        "15–35秒",
+        "一个难点＋反馈解释"
+      ],
+      [
+        "35–48秒",
+        "带新观察点回看"
+      ],
+      [
+        "48–57秒",
+        "回答及边界"
+      ]
+    ],
+    "material_role": "动作完整区间、接触近景和对应空间关系",
+    "material_acceptance": "目标、末端和路径可辨认；有足够动作起止；机制论断能追溯来源",
+    "comparison": "回答这个动作为什么难、怎样完成；类比科普回答一个概念怎么理解。"
+  },
+  "analysis_limits": [
+    "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index",
+    "没有完整实时播放和听审；声音规定来自用户偏好",
+    "参考片的事实主张未在本次风格研究重新核验",
+    "BOTPIE只分析了57条可见卡片",
+    "保存不代表新风格已完成试片复现验收"
+  ]
+}

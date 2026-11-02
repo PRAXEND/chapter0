@@ -30,7 +30,7 @@ python3 <插件目录>/scripts/studio.py preflight --capability python --capabil
 
 不运行包内 verify.py 或其他代码。内置检查器读取 manifest.json、resources.json 和 checksums.json，校验真实媒体及相应风格的规则、参考、试片和复现代码；区分目录/文件缺失、LFS 指针、大小/哈希变化、损坏索引和不安全路径。检查是只读操作，不自动安装、下载、导入、改写校验值或覆盖用户文件。哈希通过只证明与包索引一致，不等于已完成声画或审美验收。
 
-风格包不会打入通用插件 ZIP。新导入会保存其源位置；已有个人风格可单独登记素材位置，不重导风格、不改默认偏好：
+插件 ZIP 包含公开风格的轻量文本副本，原片和音频不会打入其中。从源码包导入会保存源位置；从随插件文本包导入不会覆盖已登记的真实媒体位置。已有个人风格可单独登记素材位置，不重导风格、不改默认偏好：
 
 ```sh
 python3 <插件目录>/scripts/studio.py styles link-pack --file /实际源码目录/user-packs/henry-video-styles/manifest.json

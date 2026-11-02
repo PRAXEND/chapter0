@@ -24,7 +24,9 @@ FILES = [
     'plugins/video-studio/scripts/style_plan.py',
     'plugins/video-studio/scripts/production_plan.py',
     'plugins/video-studio/scripts/style_media.py',
+    'plugins/video-studio/scripts/pack_sources.py',
     'tests/test_style_media.py',
+    'tests/test_style_distribution.py',
     'plugins/video-studio/references/common-production.md',
     'tests/test_production_plan.py',
     'plugins/video-studio/scripts/check_connection.py',
@@ -72,6 +74,7 @@ FILES = [
     'tests/test_review_sync.py',
     'tests/test_review_music.py',
     'tools/package.py',
+    'tools/bundle_style_packs.py',
     'tools/package_video_demo.py',
     'tools/verify_video_demo.mjs',
     'plugins/video-studio/scripts/open-workbench.mjs',
@@ -85,6 +88,8 @@ FILES = [
 
 WORKBENCH_FILES = json.loads((ROOT / 'plugins/video-studio/workbench/files.json').read_text())
 FILES += ['plugins/video-studio/workbench/' + name for name in WORKBENCH_FILES]
+STYLE_PACK_FILES = json.loads((ROOT / 'plugins/video-studio/style-packs/files.json').read_text())
+FILES += ['plugins/video-studio/style-packs/' + name for name in ['files.json', *STYLE_PACK_FILES]]
 
 
 def build(root=ROOT):

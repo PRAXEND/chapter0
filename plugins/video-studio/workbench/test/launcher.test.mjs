@@ -8,6 +8,8 @@ import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {workbenchDataDirectory} from '../paths.mjs';
 import {ensureWorkbench} from '../launcher.mjs';
+import {workbenchIdentity,findPlugin} from '../plugin.mjs';
+import {fileURLToPath} from 'node:url';
 
 test('default workbench data stays outside versioned plugin code',()=>{
   assert.equal(workbenchDataDirectory({},'/test-user','darwin'),'/test-user/Library/Application Support/Video Studio/workbench');
@@ -27,7 +29,30 @@ test('plugin launcher starts the actual bundled server and reuses it without cre
     const health=await (await fetch(again.url+'/api/health')).json();assert.equal(await realpath(health.workingDirectory),await realpath(env.VIDEO_STUDIO_WEB_DATA));
     assert.equal((await fetch(again.url+'/token-usage-view.js')).status,200);
     await assert.rejects(ensureWorkbench({env:{...env,VIDEO_STUDIO_WEB_DATA:path.join(directory,'other')}}),/另一个数据目录/);
+    await assert.rejects(ensureWorkbench({env:{...env,VIDEO_STUDIO_PACK_ROOT:path.join(directory,'other-packs')}}),/风格目录与本次启动不一致/);
+    await assert.rejects(ensureWorkbench({env:{...env,VIDEO_STUDIO_HOME:path.join(directory,'other-profile')}}),/风格目录与本次启动不一致/);
+    const currentStyles=state.catalog.styleBrowser.entries.filter(entry=>!entry.historical);
+    assert.equal(currentStyles.length,9);assert.equal(state.catalog.styles.length,0);
   } finally {if(launched?.pid)process.kill(launched.pid,'SIGTERM');await delay(150);await rm(directory,{recursive:true,force:true});}
+});
+
+test('launcher rejects old service, another checkout and same-version missing identity',async()=>{
+  const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+  const identity=await workbenchIdentity(root,{}),dataDirectory=workbenchDataDirectory({});
+  let health={app:'video-studio-workbench',version:'0.0.1-old',dataDirectory};
+  const server=http.createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(health));});
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));
+  const env={PORT:String(server.address().port)};
+  try{
+    await assert.rejects(ensureWorkbench({env}),/本次启动不一致/);
+    health.version=identity.version;
+    await assert.rejects(ensureWorkbench({env}),/本次启动不一致/);
+    health.runtimeIdentity={...identity,pluginRoot:'/other/checkout',signature:'different-checkout'};
+    await assert.rejects(ensureWorkbench({env}),/本次启动不一致/);
+    health.runtimeIdentity=identity;
+    assert.equal((await ensureWorkbench({env})).reused,true);
+    await assert.rejects(findPlugin(root,{VIDEO_STUDIO_PLUGIN_ROOT:'/missing/explicit-plugin'}),/找不到/);
+  }finally{await new Promise(r=>server.close(r));}
 });
 
 test('launcher refuses an unrelated service on the requested port',async()=>{

@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/video-stud
 import styles
 import studio
 import web_styles
+import pack_sources
+import style_media
 
 
 class WebStyleTests(unittest.TestCase):
@@ -73,6 +75,50 @@ class WebStyleTests(unittest.TestCase):
         value = json.loads(manifest.read_text()); value['styles'].append('styles/two.json'); manifest.write_text(json.dumps(value))
         entries = web_styles.catalog()['entries']
         self.assertEqual([e['historical'] for e in entries], [True, False])
+        self.assertEqual([e['id'] for e in styles.choices()['options']], ['test-style@2'])
+        self.assertEqual([e['id'] for e in styles.choices()['historical_options']], ['test-style@1'])
+
+    def test_single_pack_override_and_explicit_selector_use(self):
+        os.environ['VIDEO_STUDIO_PACK_ROOT'] = str(self.pack)
+        self.assertEqual(web_styles.catalog()['errors'], [])
+        self.assertEqual(styles.choices()['options'][0]['id'], 'test-style@1')
+        self.assertEqual(styles.catalog(), [])
+        self.assertEqual(web_styles.details('test-style@1')['name'], self.spec['name'])
+        self.assertEqual(web_styles.select('test-style@1')['selector'], 'test-style@1')
+        self.assertFalse(styles.choices()['options'][0]['requires_import'])
+
+    def test_linked_locations_are_discovered_outside_source_and_deduplicated(self):
+        style_media.link_pack(self.pack / 'manifest.json')
+        os.environ.pop('VIDEO_STUDIO_PACK_ROOT')
+        with patch.object(pack_sources, 'PLUGIN', self.root / 'cache' / 'plugin'):
+            rows = web_styles.catalog()
+            self.assertEqual(len(rows['entries']), 1)
+            self.assertEqual(rows['entries'][0]['pack_source'], 'linked')
+        os.environ['VIDEO_STUDIO_PACK_ROOT'] = str(self.root / 'packs')
+        self.assertEqual(len(web_styles.catalog()['entries']), 1)
+
+    def test_bad_style_does_not_hide_later_styles_in_same_pack(self):
+        (self.pack / 'styles' / 'bad.json').write_text('null')
+        manifest = self.pack / 'manifest.json'
+        value = json.loads(manifest.read_text());value['styles'].insert(0, 'styles/bad.json');manifest.write_text(json.dumps(value))
+        rows = web_styles.catalog()
+        self.assertEqual(len(rows['entries']), 1)
+        self.assertEqual(len(rows['errors']), 1)
+        self.assertIn('bad.json', rows['errors'][0]['name'])
+
+    def test_missing_explicit_location_is_visible_and_never_falls_back(self):
+        os.environ['VIDEO_STUDIO_PACK_ROOT'] = str(self.root / 'missing')
+        rows = web_styles.catalog()
+        self.assertEqual(rows['entries'], [])
+        self.assertIn('目录不存在', rows['errors'][0]['error'])
+
+    def test_broken_registry_does_not_hide_bundled_packs(self):
+        os.environ.pop('VIDEO_STUDIO_PACK_ROOT')
+        file = style_media.locations_file();file.parent.mkdir(parents=True, exist_ok=True);file.write_text('{broken')
+        with patch.object(pack_sources, 'PLUGIN', self.root / 'cache' / 'plugin'), patch.object(pack_sources, 'bundled_root', return_value=self.root / 'packs'):
+            rows = web_styles.catalog()
+        self.assertEqual(len(rows['entries']), 1)
+        self.assertEqual(len(rows['errors']), 1)
 
     def test_unlisted_references_traversal_and_changed_library_are_rejected(self):
         key = web_styles.catalog()['entries'][0]['key']

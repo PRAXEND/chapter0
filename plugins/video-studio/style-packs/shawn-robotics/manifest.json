@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "shawn-robotics",
+  "version": 1,
+  "styles": [
+    "styles/shawn-contrast-story.json",
+    "styles/shawn-action-breakdown.json"
+  ],
+  "profile_patch": {
+    "language": "zh-CN",
+    "timezone": "Asia/Shanghai",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "target_seconds": null,
+    "min_seconds": null,
+    "max_seconds": 60,
+    "narration": true,
+    "captions": true,
+    "audio_required": true,
+    "voice": {
+      "name": "大壹",
+      "provider": "doubao",
+      "voiceId": "dayi",
+      "selected_by_user": true
+    },
+    "production_preferences": {
+      "notes_file": "pack:evidence/project-lessons.md",
+      "voice_delivery": {
+        "instruction": "自然有活力、语速紧凑，实时确认音色支持项；不拖尾、不用正式播报腔",
+        "trial_parameters_only": {
+          "speedRatio": 1.12,
+          "emotion": "happy",
+          "emotionScale": 4
+        }
+      },
+      "music": {
+        "instruction": "轻科技纯器乐，能听见且人声清楚；换曲重新听审",
+        "trial_gain_db_only": -18
+      },
+      "delivery": {
+        "independent_project": true,
+        "formats": [
+          "MP4",
+          "SRT",
+          "editable_project_link"
+        ],
+        "instruction": "最终文件严格不超过60秒，不凑时长；保留旧片和独立轨道"
+      },
+      "review_workflow": {
+        "instruction": "沿用团队审稿流程；若本次已明确授权直接完成或已有确认，不重复索取同一授权"
+      },
+      "clone_voice": {
+        "instruction": "另有既有试听；按用户当前要求核实来源与套餐可用性，不能默认已用于两条试片"
+      }
+    }
+  }
+}
