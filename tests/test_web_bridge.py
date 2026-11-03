@@ -165,6 +165,7 @@ class WebBridgeTests(unittest.TestCase):
                         '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', str(file)], check=True)
         request = {'file': str(file), 'requirements': {'width': 160, 'height': 90, 'audio_required': True, 'max_seconds': 1.9}}
         self.assertEqual(web_bridge.verify_video(request)['duration'], 2)
+        self.assertGreater(web_bridge.inspect_media(request)['containerDuration'], 2.15)
         with self.assertRaisesRegex(ValueError, '时长上限'):
             web_bridge.verify_video({**request, 'requirements': {**request['requirements'], 'max_seconds': 1.89}})
 

@@ -1,3 +1,4 @@
+import {acceptProductionProgress,toolFailure,connectionIssue} from './production-progress.mjs';
 import {spawn} from 'node:child_process';
 import {readFile,writeFile,stat} from 'node:fs/promises';
 import path from 'node:path';
@@ -51,9 +52,12 @@ export function runAgent({codex,job,context,event,onFinish,onSourceProgress,time
       const tool=String(item.tool||item.name||'tool'),server=String(item.server||'');
       if(data.type==='item.started'){job.toolCalls.push({server,tool,status:'started'});event('tool',`调用 ${server?server+' · ':''}${tool}`);}
       if(data.type==='item.completed'){
-        const error=item.status==='failed'&&typeof item.error?.message==='string'?cleanError(item.error.message):'';
-        job.toolCalls.push({server,tool,status:item.status||'completed',...(error?{error}:{})});
-        event(item.status==='failed'?'warning':'tool',`${tool} ${item.status==='failed'?'返回失败':'已返回'}${error?'：'+error:''}`);
+        const rawError=toolFailure(item),error=rawError?cleanError(rawError):'';
+        const failed=!!rawError;
+        if(job.action==='produce'&&failed&&connectionIssue(error)){job.connectionIssue={operation:tool,message:error,observedAt:new Date().toISOString()};}
+        if(job.action==='produce'&&!failed&&job.connectionIssue?.operation===tool){job.connectionIssue=null;}
+        job.toolCalls.push({server,tool,status:failed?'failed':item.status||'completed',...(error?{error}:{})});
+        event(failed?'warning':'tool',`${tool} ${failed?'返回失败':'已返回'}${error?'：'+error:''}`);
       }
     }
     if(item?.type==='command_execution' && data.type==='item.started')event('local',localStepMessage(item));
@@ -64,7 +68,23 @@ export function runAgent({codex,job,context,event,onFinish,onSourceProgress,time
   }
   (async()=>{
     const schemaPath=path.join(context.jobDirectory,'output.schema.json');
-    await writeFile(schemaPath,JSON.stringify(schemas[job.action]));
+    const schema=JSON.parse(JSON.stringify(schemas[job.action]));
+    if(job.action==='discover'){schema.properties.sources.maxItems=context.searchLimit??20;schema.properties.review.properties.events.maxItems=context.searchLimit??20;}
+    if(job.action==='plan'){
+      const selectedIds=context.selectedSources.map(s=>s.id);
+      if(selectedIds.length){schema.properties.shots.items.properties.sourceIds.items.enum=selectedIds;schema.properties.shots.items.properties.sourceUses.items.properties.sourceId.enum=selectedIds;}
+      const run=JSON.parse(await readFile(path.join(context.run,'run.json'),'utf8'));
+      if(run.style_snapshot){
+        const spec=JSON.parse(await readFile(path.join(path.dirname(run.style_snapshot.skill_path),'style.json'),'utf8'));
+        context.styleReferenceCatalog=spec.references.map(r=>({id:r.id,...r}));
+        const mapping=schema.properties.stylePlan.anyOf.find(s=>s.type==='object');
+        schema.properties.stylePlan=mapping;
+        mapping.properties.selector.enum=[run.style_snapshot.selector];
+        mapping.properties.referenceChecks.minItems=1;
+        mapping.properties.referenceChecks.items.properties.referenceId.enum=spec.references.map(r=>r.id);
+      }
+    }
+    await writeFile(schemaPath,JSON.stringify(schema));
     await writeFile(path.join(context.jobDirectory,'request.json'),JSON.stringify(context,null,2));
     // Optional MCP servers otherwise get only a short catalog-building grace period.
     // Wait for their bounded startup before this independent session sees its tools.
@@ -92,7 +112,7 @@ export function runAgent({codex,job,context,event,onFinish,onSourceProgress,time
       try{
         const raw=await readFile(path.join(context.run,'workbench-progress.json'),'utf8');
         if(raw===lastProgress)return;lastProgress=raw;const progress=JSON.parse(raw);
-        if(['importing','narration','editing','exporting','reviewing'].includes(progress.stage)){
+        if(acceptProductionProgress(progress,job,(await stat(path.join(context.run,'workbench-progress.json'))).mtimeMs)){
           job.productionStage=progress.stage;event('progress',cleanError(progress.message||progress.stage));
           if(typeof progress.editorUrl==='string'){try{const url=new URL(progress.editorUrl);if(url.protocol==='https:'&&url.hostname==='app.chatcut.io'){url.searchParams.delete('editor-boot-token');url.searchParams.delete('dockviewLayout');job.editorUrl=url.href;}}catch{}}
         }

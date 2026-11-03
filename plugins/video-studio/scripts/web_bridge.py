@@ -89,6 +89,13 @@ def prepare_collection(payload):
     return plan
 
 
+def validate_plan(payload):
+    data = studio.load_run(Path(payload["run"]))
+    studio.style_plan.validate(payload["plan"], data)
+    studio.production_plan.validate(payload["plan"], data)
+    return {"valid": True}
+
+
 def save_plan(payload):
     run = Path(payload["run"])
     data = studio.load_run(run)
@@ -241,7 +248,7 @@ def inspect_media(payload):
     except (ValueError, ZeroDivisionError):
         fps = 0
     return {"path": str(file), "bytes": file.stat().st_size, "sha256": file_digest(file), "fps": fps,
-            "duration": seconds, "width": video.get("width", 0) if video else 0,
+            "duration": seconds, "containerDuration": float(info.get("format", {}).get("duration") or 0), "width": video.get("width", 0) if video else 0,
             "height": video.get("height", 0) if video else 0, "hasVideo": bool(video), "hasAudio": audio is not None,
             "audioStreamIndex": audio.get("index") if audio is not None else None}
 
@@ -285,7 +292,7 @@ def verify_video(payload):
             "perceptualReview": "requires_evidence"}
 
 
-ACTIONS = {"catalog": catalog, "create": create, "sync": sync, "save-plan": save_plan,
+ACTIONS = {"validate-plan": validate_plan,"catalog": catalog, "create": create, "sync": sync, "save-plan": save_plan,
            "preflight": lambda p: studio.preflight(p.get("capabilities"), p.get("styleSelector"), p.get("packRoot")),
            "bootstrap": lambda p: studio.bootstrap(),
            "prepare-collection": prepare_collection,

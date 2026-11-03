@@ -53,5 +53,12 @@
   "public/production-plan.js",
   "test/production-plan.test.mjs",
   "public/dependency-view.js",
-  "test/dependency-view.test.mjs"
+  "test/dependency-view.test.mjs",
+  "search-context.mjs",
+  "test/search-context.test.mjs",
+  "test/search-ui.test.mjs",
+  "test/plan-repair.test.mjs",
+  "production-progress.mjs",
+  "test/production-progress.test.mjs",
+  "REVISION-20261103.md"
 ]

@@ -94,10 +94,12 @@ else {
     const fixture=path.join(temp,'test-only.mp4');await execute('ffmpeg',['-v','error','-f','lavfi','-i','color=c=green:s=160x90:r=30','-t','2','-c:v','libx264','-pix_fmt','yuv420p',fixture]);
     await api('/api/reset',{});
     const emptySearch=await api('/api/jobs',{action:'discover',query:'  '});assert.equal(emptySearch.status,400);assert.match(emptySearch.value.error,/素材关键词/);
-    const search=await api('/api/jobs',{action:'discover',query:'机器人素材检索'});assert.equal(search.status,202,JSON.stringify(search.value));
+    await api('/api/project',{...settings,topic:'机器人素材检索',searchLimit:6});
+    assert.equal((await api('/api/jobs',{action:'discover',query:'',searchLimit:0})).status,400);
+    const search=await api('/api/jobs',{action:'discover',query:'  ',searchLimit:6});assert.equal(search.status,202,JSON.stringify(search.value));
     let searchJob;for(let n=0;n<80;n++){searchJob=(await api('/api/jobs/'+search.value.job.id)).value;if(!['running','cancelling'].includes(searchJob.status))break;await new Promise(r=>setTimeout(r,100));}
     assert.equal(searchJob.status,'blocked');assert.equal(searchJob.error,'Isolated empty search');
-    const searchContext=JSON.parse(await readFile(path.join(dataDir,'jobs',searchJob.id,'request.json'),'utf8'));assert.equal(searchContext.brief.topic,'机器人素材检索');assert.equal(searchContext.query,'机器人素材检索');
+    const searchContext=JSON.parse(await readFile(path.join(dataDir,'jobs',searchJob.id,'request.json'),'utf8'));assert.equal(searchContext.brief.topic,'机器人素材检索');assert.equal(searchContext.query,'机器人素材检索');assert.equal(searchContext.searchLimit,6);assert.ok(searchContext.cachedCandidates.some(c=>c.url===historySources[0].url));assert.equal(searchContext.cacheCoverage.mayBeStale,true);assert.equal(JSON.parse(await readFile(path.join(dataDir,'jobs',searchJob.id,'output.schema.json'),'utf8')).properties.sources.maxItems,6);
     await api('/api/reset',{});
     const linked=await api('/api/sources/url',{url:historySources[0].url,title:historySources[0].title});assert.equal(linked.status,201);
     assert.equal((await api('/api/state')).value.project.topic,'');

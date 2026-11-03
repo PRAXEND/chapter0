@@ -81,7 +81,7 @@ export async function collectRepository(context,{signal,event=()=>{},inspect,dec
   signal?.throwIfAborted();event('verification','校验实际规格与完整解码');
   const checked=await inspect(file);
   if(checked.sha256!==media.sha256||checked.bytes!==media.bytes||checked.width!==media.w||checked.height!==media.h||
-    media.type==='video'&&(!checked.hasVideo||!Number.isFinite(checked.duration)||checked.duration<=0||Math.abs(checked.duration-media.duration)>.15))throw new Error('素材实际规格与元数据不一致。');
+    media.type==='video'&&(!checked.hasVideo||!Number.isFinite(checked.duration)||checked.duration<=0||![checked.duration,checked.containerDuration].some(d=>Number.isFinite(d)&&d>0&&Math.abs(d-media.duration)<=.15)))throw new Error(`素材实际规格与元数据不一致：记录 ${media.w}×${media.h} / ${media.duration??'未知'} 秒，实测 ${checked.width}×${checked.height} / 视频 ${checked.duration} 秒、容器 ${checked.containerDuration??'未知'} 秒。`);
   const start=Number(source.start)||0,end=Number(source.end)||checked.duration;
   if(media.type==='video'&&(start>=checked.duration||end>checked.duration+.1||end<=start))throw new Error('所选源区间超出实际视频长度。');
   await decode(file,signal);signal?.throwIfAborted();

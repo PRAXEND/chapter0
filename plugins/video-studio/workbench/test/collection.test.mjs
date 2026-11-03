@@ -94,3 +94,16 @@ test('bounded transport rejects excessive responses and aborts stalled downloads
     await assert.rejects(()=>downloadRepositoryMedia(base+'/stalled',path.join(run,'cancel.part'),{bytes:4,signal:abort.signal}),/abort/i);clearTimeout(timer);
   }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await rm(run,{recursive:true,force:true});}
 });
+
+test('container/audio tail duration does not reject identical repository video; true mismatch still fails',async()=>{
+ const run=await mkdtemp(path.join(os.tmpdir(),'collection-duration-'));
+ try{
+  const f=fixture(run);f.meta.media[0].duration=60.86;
+  const inspect=f.options.inspect;f.options.inspect=async file=>({...await inspect(file),duration:60.708333,containerDuration:60.859002});
+  const result=await collectRepository(f.context,f.options);assert.equal(result.sources.length,1);
+  f.options.inspect=async file=>({...await inspect(file),duration:58,containerDuration:58.1});
+  await assert.rejects(()=>collectRepository(f.context,f.options),/素材实际规格与元数据不一致/);
+  f.options.inspect=async file=>({...await inspect(file),width:90,height:160,duration:60.708333,containerDuration:60.859002});
+  await assert.rejects(()=>collectRepository(f.context,f.options),/素材实际规格与元数据不一致/);
+ }finally{await rm(run,{recursive:true,force:true});}
+});

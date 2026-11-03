@@ -1,4 +1,6 @@
 import http from 'node:http';
+import {normalizeDownloadRequest} from './production-progress.mjs';
+import {searchContext} from './search-context.mjs';
 import {workbenchDataDirectory} from './paths.mjs';
 import {readFile,writeFile,mkdir,rename,stat,copyFile,realpath,unlink} from 'node:fs/promises';
 import {execFile} from 'node:child_process';
@@ -7,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
 import {randomUUID} from 'node:crypto';
-import {initialStudio,validateSettings,updateSettings,validatePlan,inputHash,brief,assertReady,taskNames,safeUrl,sourceId,approvalAuthority} from './studio-workflow.mjs';
+import {initialStudio,validateSettings,validateSearchLimit,updateSettings,validatePlan,inputHash,brief,assertReady,taskNames,safeUrl,sourceId,approvalAuthority} from './studio-workflow.mjs';
 import {findPlugin,createPluginBridge} from './plugin.mjs';
 import {runAgent,cleanError,jobStopState} from './agent.mjs';
 import {inspectCodex,sourceCapabilities,dependencyFailures,styleCapabilities,styleMediaChecks,failedDependencyReport} from './runtime.mjs';
@@ -112,7 +114,7 @@ async function normalizeCandidates(items){
   return normalized;
 }
 async function saveSourceProgress(job,context,snapshot){
-  if(snapshot.schema!==1||snapshot.jobId!==job.id||snapshot.topic!==context.brief.topic||(snapshot.style||null)!==(context.brief.style||null)||!Array.isArray(snapshot.sources)||snapshot.sources.length>80)throw new Error('中间候选与当前任务不一致。');
+  if(snapshot.schema!==1||snapshot.jobId!==job.id||snapshot.topic!==context.brief.topic||(snapshot.style||null)!==(context.brief.style||null)||!Array.isArray(snapshot.sources)||snapshot.sources.length>(context.searchLimit??80))throw new Error('中间候选与当前任务不一致。');
   if(snapshot.sources.some(source=>source.localPath||source.local_path||source.status==='ready'))throw new Error('中间候选只能登记来源链接，不能声明媒体已经下载。');
   const unseen=snapshot.sources.filter(source=>!project.sources.some(existing=>existing.url===source.url));
   const sources=await normalizeCandidates(unseen.map(source=>({...source,verification:'检索中间记录，尚未完成本轮核验',caveats:[...(Array.isArray(source.caveats)?source.caveats:[]),'本轮检索尚未完成；候选未下载、未选用。']})));
@@ -170,6 +172,7 @@ async function finishJob(job,context,{code,error,finalText}){
       if(result.connected&&!witnessed)job.error='没有实际的 ChatCut 只读调用证据，不能报告连接成功。';
     }
     else if(job.action==='discover'){
+      if(!Array.isArray(result.sources)||result.sources.length>context.searchLimit)throw new Error(`搜索结果超过本次确认的 ${context.searchLimit} 条上限，请缩小检索范围。`);
       const needs=await materialPlan(project.run,context.brief),sources=await normalizeCandidates(result.sources);
       const review=normalizeReview(result.review,result.sources,sources,{jobId:job.id,query:context.query,topic:project.topic,style:project.styleSelector});
       for(const source of sources){const i=project.sources.findIndex(s=>s.id===source.id);if(i<0)project.sources.push(source);else project.sources[i]=source;}
@@ -187,11 +190,27 @@ async function finishJob(job,context,{code,error,finalText}){
       const sources=[];for(const [i,item] of result.sources.entries()){const primary=context.source;const source=await registerMedia(item.localPath,{...primary,...item,candidateCacheId:job.candidateCacheId,sourceType:primary.sourceType==='x_repository'?'x_repository':item.sourceType,url:safeUrl(item.url)||primary.url,id:i===0?primary.id:sourceId({localPath:item.localPath})});sources.push(source);}
       job.sourceIds=sources.map(s=>s.id);await bridge('sync',{run:project.run,brief:brief(project),sources:sources.map(sourceRecord)});job.status='completed';
     }
-    else if(job.action==='plan'){await checkSelected();await savePlan(result);job.status='completed';}
+    else if(job.action==='plan'){
+      await checkSelected();
+      const draftPath=path.join(context.jobDirectory,`plan-draft-${job.planRepairAttempts||0}.json`);
+      await writeFile(draftPath,JSON.stringify(result,null,2));job.draftPath=draftPath;
+      try{await savePlan(result);}catch(validationError){
+        if((job.planRepairAttempts||0)>=2)throw validationError;
+        job.planRepairAttempts=(job.planRepairAttempts||0)+1;
+        const validationMessage=cleanError(validationError.message);
+        await writeFile(path.join(context.jobDirectory,`plan-validation-${job.planRepairAttempts}.json`),JSON.stringify({error:validationMessage,draftPath}));
+        addEvent(job,'warning',`方案校验未通过，正在自动修正（${job.planRepairAttempts}/2）：${validationMessage}`);
+        const repairedContext={...context,planRepair:{draftPath,validationError:validationMessage,attempt:job.planRepairAttempts}};
+        const outcome=await new Promise(resolve=>{active.controller=runAgent({codex:runtime.codexPath,job,context:repairedContext,event:(type,message)=>addEvent(job,type,message),onFinish:resolve});});
+        return await finishJob(job,repairedContext,outcome);
+      }
+      job.status='completed';
+    }
     else if(job.action==='produce'){
       job.voiceRequest=project.narration&&result.status==='needs_input'?await normalizeVoiceRequest(result.voiceRequest,job):null;
+      job.downloadRequest=normalizeDownloadRequest(result);
       job.editorUrl=cleanEditor(result.editorUrl)||job.editorUrl;job.questions=Array.isArray(result.questions)?result.questions.map(String):[];
-      if(result.status!=='exported'){job.status=result.status==='needs_input'?'needs_input':'blocked';job.error=result.summary||'制片步骤需要处理。';return;}
+      if(result.status!=='exported'){job.status=result.status==='needs_input'?'needs_input':'blocked';job.error=job.downloadRequest?'':result.summary||'制片步骤需要处理。';return;}
       await checkSelected();job.deliveryId=(await deliver(result,job)).id;job.status='completed';
     }
     addEvent(job,job.status==='completed'?'completed':'warning',job.status==='completed'?'任务结果已校验并保存':job.summary);
@@ -201,6 +220,7 @@ async function finishJob(job,context,{code,error,finalText}){
 function adoptTopic(value){if(!project.topic.trim()&&String(value||'').trim())updateSettings(project,{topic:String(value).trim().slice(0,200),selected:project.selected});}
 async function startJob(action,options={}){
   assertReady(project,action);
+  if(action==='discover'){options.searchLimit=validateSearchLimit(options.searchLimit??project.searchLimit??20);options.query=String(options.query||'').trim()||project.topic.trim();if(!options.query)throw new Error('请填写本期主题／想表达的观点，或输入素材关键词。');project.searchLimit=options.searchLimit;}
   if(runtime.preparing)throw preflightError('正在补齐下载依赖，完成并复检后才能开始任务。');
   if(action==='produce'&&pendingVoiceRequest(project,inputHash(project)))throw new Error('请先完成下方音色选择或录音提交。');
   const directCollection=action==='collect'&&canCollectRepository(project.sources.find(s=>s.id===options.sourceId));
@@ -214,7 +234,7 @@ async function startJob(action,options={}){
   await ensureRun();
   if(['plan','produce'].includes(action))await checkSelected();
   if(action==='produce')await bridge('check-approval',{run:project.run,planHash:project.approval.planHash,inputHash:inputHash(project)});
-  const job={id:randomUUID(),action,label:taskNames[action],status:'running',startedAt:new Date().toISOString(),events:[],toolCalls:[],inputHash:inputHash(project),planHash:action==='produce'?project.approval?.planHash:null,execution:{cliPath:runtime.codexPath,cliVersion:runtime.codexVersion,model:runtime.model,checkedAt:runtime.checkedAt}};
+  const job={id:randomUUID(),action,sourceId:options.sourceId||null,searchLimit:action==='discover'?options.searchLimit:null,label:taskNames[action],status:'running',startedAt:new Date().toISOString(),events:[],toolCalls:[],inputHash:inputHash(project),planHash:action==='produce'?project.approval?.planHash:null,execution:{cliPath:runtime.codexPath,cliVersion:runtime.codexVersion,model:runtime.model,checkedAt:runtime.checkedAt}};
   if(directCollection){job.execution='direct_repository';job.usage={input_tokens:0,output_tokens:0};}
   const jobDirectory=path.join(dataDir,'jobs',job.id);await mkdir(jobDirectory,{recursive:true});
   let source=project.sources.find(s=>s.id===options.sourceId)||null;
@@ -234,12 +254,17 @@ async function startJob(action,options={}){
   if(previousProduction&&!previousPlanHash)try{previousPlanHash=JSON.parse(await readFile(path.join(dataDir,'jobs',previousProduction.id,'request.json'),'utf8')).planHash;}catch{}
   const productionMode=previousProduction&&previousProduction.inputHash===inputHash(project)&&previousPlanHash===project.approval?.planHash?'recover':'new';
   let context={environment:{python:runtime.dependencies?.python,programs:runtime.dependencies?.programs},jobId:job.id,sourceProgressPath:path.join(jobDirectory,'source-progress.json'),productionMode,previousProduction:previousProduction?{id:previousProduction.id,status:previousProduction.status,inputHash:previousProduction.inputHash,planHash:previousPlanHash}:null,pluginRoot:plugin.root,styleMedia:runtime.dependencies?.checks?.filter(c=>styleCapabilities(project.styleSelector).includes(c.id)),run:project.run,jobDirectory,brief:brief(project),settings:{music:project.music,voiceDirection:project.voiceDirection,styleDescription:project.styleDescription},query:String(options.query||project.topic).slice(0,2000),source,knownSources:['discover','collect'].includes(action)?project.sources:undefined,sourceReview:project.sourceReview||null,selectedSources:project.sources.filter(s=>project.selected.includes(s.id)),plan:project.plan,planHash:project.approval?.planHash||null,inputHash:inputHash(project),userFollowup:String(options.followup||'').slice(0,4000),outputDirectory:project.outputRoot};
+  if(action==='discover')Object.assign(context,searchContext(project,options,library));
   if(action==='collect'){
     const acquired=[...new Map(project.sources.filter(s=>s.status==='ready'&&s.kind==='video'&&s.sha256!==source.expectedSha256).map(s=>[s.sha256,s])).values()];
     context.acquisitionUsage={videoSources:acquired.length,videoSeconds:acquired.reduce((sum,s)=>sum+s.duration,0)};
     context=scopedCollectionContext(context);
   }
   if(action==='produce'){
+    job.productionStage='preparing';
+    const runRecord=JSON.parse(await readFile(path.join(context.run,'run.json'),'utf8'));
+    const recorded=runRecord.project;
+    if(recorded?.planHash===context.planHash&&recorded?.inputHash===context.inputHash){context.existingProject={projectId:recorded.projectId,timelineId:recorded.timelineId,editorUrl:cleanEditor(recorded.editorUrl)};job.editorUrl=context.existingProject.editorUrl;}
     const currentCatalog=await getCatalog();
     context.voice=voiceContext(project,inputHash(project),currentCatalog.profile?.voice||null);
     for(const answer of context.voice.answers)if(answer.recording){const file=await contained(answer.recording.path,path.join(project.run,'voice-references'));if(await fileHash(file)!==answer.recording.sha256)throw new Error('已提交的音色录音发生变化，请恢复原录音后继续。');}

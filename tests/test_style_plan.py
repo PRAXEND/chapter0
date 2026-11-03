@@ -44,6 +44,20 @@ class StylePlanTests(unittest.TestCase):
                 "fallback": "同一语义的指示线"})
         return spec, run, media, plan
 
+    def test_reference_validation_reports_exact_field_and_preflight_does_not_save(self):
+        _, run, _, plan = self.planned()
+        self.assertEqual(web_bridge.validate_plan({"run": str(run), "plan": plan}), {"valid": True})
+        self.assertFalse((run / 'workbench-plan.json').exists())
+        for field in ('referenceId', 'location', 'observation', 'adaptation'):
+            bad = copy.deepcopy(plan)
+            bad['stylePlan']['referenceChecks'][0][field] = ''
+            with self.assertRaisesRegex(ValueError, r'referenceChecks\[0\].' + field):
+                web_bridge.validate_plan({"run": str(run), "plan": bad})
+        bad = copy.deepcopy(plan)
+        bad['stylePlan']['referenceChecks'] = []
+        with self.assertRaisesRegex(ValueError, 'referenceChecks 不能为空'):
+            web_bridge.validate_plan({"run": str(run), "plan": bad})
+
     def implement(self, run, plan):
         evidence = run / 'timeline-readback.txt'
         evidence.write_text('Synthetic timeline evidence; not real media.')

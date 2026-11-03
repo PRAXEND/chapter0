@@ -92,9 +92,15 @@ def validate(plan, data):
             raise ValueError(f"核心视觉规则 {rid} 缺少可执行的镜头设计。")
     checks = mapping.get("referenceChecks")
     ref_ids = {r["id"] for r in spec["references"]}
-    if not isinstance(checks, list) or not checks or any(not isinstance(c, dict) or
-            c.get("referenceId") not in ref_ids or any(not text(c.get(k)) for k in ("location", "observation", "adaptation")) for c in checks):
-        raise ValueError("请记录真实参考节点、实际可观察内容及本题适配；无法观看须如实说明。")
+    if not isinstance(checks, list) or not checks:
+        raise ValueError("stylePlan.referenceChecks 不能为空；请记录实际参考或如实说明无法观看。")
+    for index, check in enumerate(checks):
+        field = f"stylePlan.referenceChecks[{index}]"
+        if not isinstance(check, dict) or check.get("referenceId") not in ref_ids:
+            raise ValueError(f"{field}.referenceId 无效；允许的参考编号：{', '.join(sorted(ref_ids))}")
+        for key in ("location", "observation", "adaptation"):
+            if not text(check.get(key)):
+                raise ValueError(f"{field}.{key} 不能为空；无法观看须如实说明，不得编造观察。")
     if not text(mapping.get("contrastReview")):
         raise ValueError("请检查整片的表达变化、重复模板和核心风格覆盖。")
     return plan
