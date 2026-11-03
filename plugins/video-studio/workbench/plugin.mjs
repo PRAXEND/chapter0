@@ -1,14 +1,23 @@
-import {readFile,writeFile,mkdir,unlink} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,unlink,realpath} from 'node:fs/promises';
+import {createHash,randomUUID} from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import path from 'node:path';
-import {randomUUID} from 'node:crypto';
+import os from 'node:os';
 
 const execute=promisify(execFile);
-export async function findPlugin(root){
-  const candidates=[process.env.VIDEO_STUDIO_PLUGIN_ROOT,path.resolve(root,'..'),path.resolve(root,'../../plugins/video-studio'),path.resolve(root,'../plugins/video-studio')].filter(Boolean);
-  for(const folder of candidates){try{const m=JSON.parse(await readFile(path.join(folder,'plugin.json'),'utf8'));if(m.name==='video-studio'){await readFile(path.join(folder,'scripts/web_bridge.py'));return {root:folder,version:m.version};}}catch{}}
+const environmentPath=value=>path.resolve(value.startsWith('~/')?path.join(os.homedir(),value.slice(2)):value);
+export async function findPlugin(root,env=process.env){
+  const candidates=env.VIDEO_STUDIO_PLUGIN_ROOT?[environmentPath(env.VIDEO_STUDIO_PLUGIN_ROOT)]:[path.resolve(root,'..'),path.resolve(root,'../../plugins/video-studio'),path.resolve(root,'../plugins/video-studio')];
+  for(const folder of candidates){try{const m=JSON.parse(await readFile(path.join(folder,'plugin.json'),'utf8'));if(m.name==='video-studio'){await readFile(path.join(folder,'scripts/web_bridge.py'));return {root:await realpath(folder),version:m.version};}}catch{}}
   throw new Error('找不到支持网页工作台的 Video Studio 插件，请安装随包插件或设置 VIDEO_STUDIO_PLUGIN_ROOT。');
+}
+export async function workbenchIdentity(root,env=process.env){
+  const plugin=await findPlugin(root,env);
+  const identity={pluginRoot:plugin.root,version:plugin.version,serverRoot:await realpath(root),
+    styleHome:env.VIDEO_STUDIO_HOME?environmentPath(env.VIDEO_STUDIO_HOME):null,
+    packRoot:env.VIDEO_STUDIO_PACK_ROOT?environmentPath(env.VIDEO_STUDIO_PACK_ROOT):null};
+  return {...identity,signature:createHash('sha256').update(JSON.stringify(identity)).digest('hex')};
 }
 export function createPluginBridge(plugin,dataDir){
   const python=process.env.VIDEO_STUDIO_PYTHON || 'python3';

@@ -52,7 +52,7 @@ ChatCut 是剪辑、配音与导出的必需集成；Video Studio 自带的 `cha
 
 `profile` 返回用户配置；`profile --merge-file <json>` 只更新指定字段。新安装没有默认题材或创作风格，不默认男声、语言、比例或目标时长。当前项目规格放在 brief；用户明确要求记住的偏好才存 profile。首次实际需要 TTS 时按 [音色选择流程](../video-audio-tools/references/voice-selection.md) 检查平台音色；没有可用克隆时先问是否克隆，需要则收集录音和授权，不需要则让用户试听并选择官方音色。已有明确选定的可用音色直接复用。
 
-风格库由 `styles list/show/add` 管理。用户要求设置默认风格时保存 `default_style:"id@version"`；清除用 null。个人库位于 Video Studio 状态目录，升级代码不覆盖。
+风格列表用 `styles choices`，与网页共同展示已导入、可导入和单列的历史版本；不能只读个人库就报告可选风格数量。插件附带公开风格的文本包，浏览不导入；用户选中后 `styles select --selector <id@version>`，再用 show 读取真实保存的 SKILL.md。原媒体位置仍由 preflight 检查。目录缺失/校验失败按 errors 提示修复；可用 `styles link-pack --file <manifest>` 登记另一个真实目录。用户要求设置默认风格时保存 `default_style:"id@version"`；清除用 null。个人库位于 Video Studio 状态目录，升级代码不覆盖。
 
 旧版 Robot Video Studio 配置不自动导入：其 style/creative 和默认输出可能是旧模板而非用户决定。仅在迁移任务中读旧配置，将用户实际确认的 voice、输出目录等按当前要求逐项写入新 profile。旧 run 使用原版继续；不要将 schema_version 改数字冒充迁移。
 

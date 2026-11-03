@@ -48,7 +48,7 @@ def write(file, value):
 
 def catalog(_):
     manifest = read(ROOT / "plugin.json")
-    return {"name": manifest["name"], "version": manifest["version"], "styles": styles.choices(),
+    return {"name": manifest["name"], "version": manifest["version"], "styles": styles.choices(installed_only=True),
             "profile": studio.profile(), "plugin_root": str(ROOT), "styleBrowser": web_styles.catalog()}
 
 

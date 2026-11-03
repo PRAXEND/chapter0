@@ -1,0 +1,559 @@
+{
+  "schema_version": 1,
+  "pack": "henry-video-styles@1",
+  "path_base": "This package directory in the source checkout; run git lfs pull first.",
+  "files": [
+    {
+      "path": "media/hot-news/perturb.mp4",
+      "style": "hot-news",
+      "role": "original-and-trial-source",
+      "bytes": 1086315,
+      "sha256": "d64c5a6063c79d69040942c0912c39224da14124dd51f64e92659949ec83f44e",
+      "original_name": "perturb.mp4",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "source_url": "https://website.pi-asset.com/pi0_5/processed_messing_with_robot/processed_10xspeed_2xmessing_mess_up_drawer_lowres.mp4",
+      "asset_aliases": [
+        "ref-4aca84741c23",
+        "ref-cb4589ae993f"
+      ]
+    },
+    {
+      "path": "media/hot-news/laundry-interruption.mp4",
+      "style": "hot-news",
+      "role": "original-and-trial-source",
+      "bytes": 3100889,
+      "sha256": "7641985fa46d75a21ce054874a0d29abcff5400e1333a396223e0e15864585f1",
+      "original_name": "laundry-interruption.mp4",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "source_url": "https://website.pi-asset.com/pi0_5/processed_messing_with_robot/processed_10xspeed_2xmessing_long_laundry_human_perturbation_lowres.mp4",
+      "asset_aliases": [
+        "ref-942b17ecfba0",
+        "ref-ecc5b18593eb"
+      ]
+    },
+    {
+      "path": "media/hot-news/kitchen.mp4",
+      "style": "hot-news",
+      "role": "original-and-trial-source",
+      "bytes": 5911537,
+      "sha256": "3755835349261f64800ae5255cb6d48b1a9e0ce49c74caeffd4ae60b74d6f3fa",
+      "original_name": "kitchen.mp4",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "source_url": "https://website.pi-asset.com/pi0_5/long_horizon/processed_1xspeed_kitchen_4subtasks_take2_lowres.mp4",
+      "asset_aliases": [
+        "ref-7c85b2a0ee3e",
+        "ref-02ed22c09fd7"
+      ]
+    },
+    {
+      "path": "media/hot-news/dryplate.mp4",
+      "style": "hot-news",
+      "role": "original-and-trial-source",
+      "bytes": 2868707,
+      "sha256": "73ce32e9763416f769bf08a9e6d271b29040ecf646071305628ab329b09f4d2b",
+      "original_name": "dryplate.mp4",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "source_url": "https://website.pi-asset.com/pi0_5/impressive-tasks/1x_dry_plate_on_dishrack_with_audio_lowres.mp4",
+      "asset_aliases": [
+        "ref-7925763f5c6d",
+        "ref-16733f3abcfc"
+      ]
+    },
+    {
+      "path": "media/hot-news/wiping-interruption.mp4",
+      "style": "hot-news",
+      "role": "original-and-trial-source",
+      "bytes": 2594929,
+      "sha256": "63f81959031f3721f0911bb1b9076dfa1d2f8ac3df9a4482b95679a791f2dc5c",
+      "original_name": "wiping-interruption.mp4",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "source_url": "https://website.pi-asset.com/pi0_5/processed_messing_with_robot/processed_10xspeed_2xmessing_mess_up_wiping_2_lowres.mp4",
+      "asset_aliases": [
+        "ref-c5552b202a30",
+        "ref-74fd73a8bf6c"
+      ]
+    },
+    {
+      "path": "media/hot-news/failure.mp4",
+      "style": "hot-news",
+      "role": "original-and-trial-source",
+      "bytes": 1739094,
+      "sha256": "74aea9e75d45ca2700aa4a33d6b9f0fcd318ca36e45b5cb56a7450fdb4436dd4",
+      "original_name": "failure.mp4",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "source_url": "https://website.pi-asset.com/pi0_5/evals/airbnb/processed_dishes_airbnb_failure_lowres.mp4",
+      "asset_aliases": [
+        "ref-b32e25b882a5",
+        "ref-360188d6f8c1"
+      ]
+    },
+    {
+      "path": "media/hot-news/v4旁白-s1.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 73977,
+      "sha256": "ab9d90adcce94d203990c5af80d4bbe7b30946b2ae0290cada4926b9cd5ba03e",
+      "original_name": "v4旁白-s1.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-a7345d91899a",
+        "ref-865a410ba41c"
+      ]
+    },
+    {
+      "path": "media/hot-news/v4旁白-s2.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 126640,
+      "sha256": "233d929c8456ff8d32e4f66c4b41b5aa603b29cca3ee69958933594cd047aaf1",
+      "original_name": "v4旁白-s2.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-1beb79a89b9c",
+        "ref-94be7acbadc4"
+      ]
+    },
+    {
+      "path": "media/hot-news/v4旁白-s3.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 89442,
+      "sha256": "7ab780dcd55556cf461e0857c5e05346c788f9b7bae0f95319559d686ed9d1fa",
+      "original_name": "v4旁白-s3.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-2cc0ac420f97",
+        "ref-8bd993abdfba"
+      ]
+    },
+    {
+      "path": "media/hot-news/v4旁白-s4.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 164674,
+      "sha256": "8c4f3ae40d9b72bc059ae1c3e3b427cb7947d4f9ec3d962f327bc1cbbffd97fa",
+      "original_name": "v4旁白-s4.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-49e7ecb48ed7",
+        "ref-6cd1624d1ee1"
+      ]
+    },
+    {
+      "path": "media/hot-news/v4旁白-s5.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 127894,
+      "sha256": "d1f647de523539e293f5c6408e84e3c071eae0470f794a0cc80b0245565d057e",
+      "original_name": "v4旁白-s5.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-e7c4da6e9b44",
+        "ref-da7bed3363f0"
+      ]
+    },
+    {
+      "path": "media/hot-news/v4旁白-s6.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 153390,
+      "sha256": "196ac01c0597dd6da782126ba06a1e4642bfe9acf386485a27947f5661a8f01d",
+      "original_name": "v4旁白-s6.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-18b82d0bb1fe",
+        "ref-91813bb838d0"
+      ]
+    },
+    {
+      "path": "media/hot-news/v4旁白-s7.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 95293,
+      "sha256": "f3cee52718af429e096a2fc55031b2dc393880a2b542737a0982a4621d31d83d",
+      "original_name": "v4旁白-s7.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-c466b2a889d5",
+        "ref-d708933f6e36"
+      ]
+    },
+    {
+      "path": "media/hot-news/v4旁白-s8.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 117027,
+      "sha256": "652aed0aa2f54f032e0b78f3b0d2113591275031d35c3537bf3071c5d8b36d93",
+      "original_name": "v4旁白-s8.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-62c9ccb99cdc",
+        "ref-79ca7ce2526b"
+      ]
+    },
+    {
+      "path": "media/hot-news/v4修订3-又来一件.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 19643,
+      "sha256": "f48c68633ec97b53e4413696ba2d97926589d42795be9f2ee4b8755ba1542600",
+      "original_name": "v4修订3-又来一件.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-772c17c4a450",
+        "ref-ae4e52af917d"
+      ]
+    },
+    {
+      "path": "media/hot-news/陌生厨房｜热血节拍纯音乐.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 4984625,
+      "sha256": "c373f392e6540081e23f52b62cdfb52d5508aa9fec7d05a4da08bd2c0dfeb4b7",
+      "original_name": "陌生厨房｜热血节拍纯音乐.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-3fb26d9fbd64",
+        "ref-b2d81b025693"
+      ]
+    },
+    {
+      "path": "media/hot-news/tiny-bubble-pop-r1.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 6720,
+      "sha256": "3506a0f9e402d96e322ee7992e0ff87ce8a11bf90f963b58d989999a0ab4fd81",
+      "original_name": "tiny-bubble-pop-r1.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-88806b33a5e2",
+        "ref-59903b583fff"
+      ]
+    },
+    {
+      "path": "media/hot-news/ui-pop-up-alert-r2.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 16320,
+      "sha256": "4a52caed94d3fdeb0df37f2fa7d1af07a0010e2d9f305ce8338fdc165094bbac",
+      "original_name": "ui-pop-up-alert-r2.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-4c41942bf1d7",
+        "ref-fb0bc02543ed"
+      ]
+    },
+    {
+      "path": "media/hot-news/synthetic-bubble-pop-r1.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 14400,
+      "sha256": "1c40c7995c14d40c8ada1d86a813bbcaf608a930779c0ce32319bedb55ff5137",
+      "original_name": "synthetic-bubble-pop-r1.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-598d309ed0c4",
+        "ref-cd85f8379d26"
+      ]
+    },
+    {
+      "path": "media/hot-news/deep-short-whoosh-r1.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 53760,
+      "sha256": "3ff8ad4d247345208fbc238f7ecf0f6cfb3237d9b74b8464e1f2482fd2db2f9b",
+      "original_name": "deep-short-whoosh-r1.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-6cdbd0da5ee9",
+        "ref-eeff643cf94c"
+      ]
+    },
+    {
+      "path": "media/hot-news/airy-short-whoosh-r1.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 31680,
+      "sha256": "ad00c275c00175ac3beb06b714ee77450e713c72974030ff4e787cc38e1cbdf8",
+      "original_name": "airy-short-whoosh-r1.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-5effa4f92079",
+        "ref-751932d64cad"
+      ]
+    },
+    {
+      "path": "media/hot-news/vine-boom-impact-r1.mp3",
+      "style": "hot-news",
+      "role": "trial-source",
+      "bytes": 116160,
+      "sha256": "97d167310bc3b1ceedb8282172adce0468afcfbe02ca17407d73d6588759ab8e",
+      "original_name": "vine-boom-impact-r1.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-7e75655b48d8",
+        "ref-f336caaafd01"
+      ]
+    },
+    {
+      "path": "media/technical-explainer/atlas-learn-f62a617de8ff3bd286eb0f6d.mp4",
+      "style": "technical-explainer",
+      "role": "trial-source",
+      "bytes": 56481761,
+      "sha256": "9aa13067926766f07a20e93bffaf04763eeb6ca7d53cd36a71acc687c3efbe1b",
+      "original_name": "atlas-learn-f62a617de8ff3bd286eb0f6d.mp4",
+      "acquisition": "Exact original downloaded clip; hash matches local download record",
+      "asset_aliases": [
+        "ref-1fd6bbd313e0"
+      ],
+      "source_url": "https://www.youtube.com/watch?v=xKK5ze3FukQ",
+      "source_window_seconds": [
+        0.0,
+        130.0
+      ]
+    },
+    {
+      "path": "media/technical-explainer/atlas-learn-bf8897ac925f57179dd40c70.mp4",
+      "style": "technical-explainer",
+      "role": "trial-source",
+      "bytes": 19947499,
+      "sha256": "d4bd335d261a8b0b7259e616ffec096f8710b07376e7a667468c79cb8c96485d",
+      "original_name": "atlas-learn-bf8897ac925f57179dd40c70.mp4",
+      "acquisition": "Exact original downloaded clip; hash matches local download record",
+      "asset_aliases": [
+        "ref-6779fd42d2e9"
+      ],
+      "source_url": "https://www.youtube.com/watch?v=xKK5ze3FukQ",
+      "source_window_seconds": [
+        130.0,
+        170.0
+      ]
+    },
+    {
+      "path": "media/technical-explainer/s1-2bb84df67c9ea83938fc8901.mp4",
+      "style": "technical-explainer",
+      "role": "trial-source",
+      "bytes": 43878519,
+      "sha256": "e229353a766490362d2f1854dca5a538455aca44cd76e884dbdb2257598c81b5",
+      "original_name": "s1-2bb84df67c9ea83938fc8901.mp4",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-f32cc5e3eb62"
+      ],
+      "source_url": "https://www.youtube.com/watch?v=dP_i7hRvGpE",
+      "source_window_start_seconds": 0,
+      "offset_evidence": "Existing blueprint original-source times equal inspected asset times."
+    },
+    {
+      "path": "media/technical-explainer/atlas-learn-2277d8172688a6a7c08114b0.mp4",
+      "style": "technical-explainer",
+      "role": "trial-source",
+      "bytes": 82143847,
+      "sha256": "cdc959368646b7dc4c6881c7600e4f6924737dc6f7d787e05259e263bff2b1fd",
+      "original_name": "atlas-learn-2277d8172688a6a7c08114b0.mp4",
+      "acquisition": "Exact original downloaded clip; hash matches local download record",
+      "asset_aliases": [
+        "ref-73578290e4d0"
+      ],
+      "source_url": "https://www.youtube.com/watch?v=xKK5ze3FukQ",
+      "source_window_seconds": [
+        170.0,
+        320.0
+      ]
+    },
+    {
+      "path": "media/technical-explainer/Atlas搬冰箱｜基准旁白.mp3",
+      "style": "technical-explainer",
+      "role": "trial-source",
+      "bytes": 1738291,
+      "sha256": "0cd2aa66de1fad5ffc08d20dc9b33b5ccdccc3e5730fe446c46b5351281f54cd",
+      "original_name": "Atlas搬冰箱｜基准旁白.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-3c41a0882016"
+      ]
+    },
+    {
+      "path": "media/technical-explainer/Wallpaper.mp3",
+      "style": "technical-explainer",
+      "role": "trial-source",
+      "bytes": 8804339,
+      "sha256": "9fa810e5193c88f1b360537366f210f16c2588106d5292f0659e9957fa274f96",
+      "original_name": "Wallpaper.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-ec505a8d59a9"
+      ],
+      "source_url": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100843",
+      "author": "Kevin MacLeod",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/"
+    },
+    {
+      "path": "media/technical-explainer/tiny-bubble-pop-r1.mp3",
+      "style": "technical-explainer",
+      "role": "trial-source",
+      "bytes": 6720,
+      "sha256": "3506a0f9e402d96e322ee7992e0ff87ce8a11bf90f963b58d989999a0ab4fd81",
+      "original_name": "tiny-bubble-pop-r1.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-fa7f6046946f"
+      ]
+    },
+    {
+      "path": "media/technical-explainer/airy-short-whoosh-r1.mp3",
+      "style": "technical-explainer",
+      "role": "trial-source",
+      "bytes": 31680,
+      "sha256": "ad00c275c00175ac3beb06b714ee77450e713c72974030ff4e787cc38e1cbdf8",
+      "original_name": "airy-short-whoosh-r1.mp3",
+      "acquisition": "ChatCut archive; uploaded sources may be proxy files",
+      "asset_aliases": [
+        "ref-9b13084a4e23"
+      ]
+    },
+    {
+      "path": "media/references/ref-01.mp4",
+      "style": "hot-news",
+      "role": "learning-reference",
+      "bytes": 5018324,
+      "sha256": "ed5c646607d0ca19200eb2e71b92f500df8017026c117f018fe75178c1fd843c",
+      "reference_id": "ref-01",
+      "source_url": "https://www.douyin.com/video/7699030784673418538"
+    },
+    {
+      "path": "media/references/ref-02.mp4",
+      "style": "hot-news",
+      "role": "learning-reference",
+      "bytes": 8643749,
+      "sha256": "fefb9ca3b84cf3b39975dd7c6c613597f197a05d8dbe55c007dd95a99cbe6eda",
+      "reference_id": "ref-02",
+      "source_url": "https://www.douyin.com/video/7696269460906183971"
+    },
+    {
+      "path": "media/references/ref-03.mp4",
+      "style": "hot-news",
+      "role": "learning-reference",
+      "bytes": 7794523,
+      "sha256": "2273072582c0182e9125d501e16e03635fcf8336bfae4c5cd6195ea6b4d707aa",
+      "reference_id": "ref-03",
+      "source_url": "https://www.douyin.com/video/7695724770456898826"
+    },
+    {
+      "path": "media/references/ref-04.mp4",
+      "style": "hot-news",
+      "role": "learning-reference",
+      "bytes": 19538335,
+      "sha256": "9ab0b80cf1dad0e5b1efb8cb3ab9df1f254b5bfc17d5d7dc2995df36ba821c07",
+      "reference_id": "ref-04",
+      "source_url": "https://www.douyin.com/video/7691370937152720174"
+    },
+    {
+      "path": "evidence/hot-news/current-directions.md",
+      "style": "hot-news",
+      "role": "style-evidence",
+      "bytes": 2095,
+      "sha256": "a7d8ed4122856cf1e26f2dc23f952e890d9509d2dd907080a5058a3399144852",
+      "reference_id": "current-directions",
+      "source_url": null
+    },
+    {
+      "path": "evidence/hot-news/portrait-default-20261027.txt",
+      "style": "hot-news",
+      "role": "style-evidence",
+      "bytes": 233,
+      "sha256": "50d79a0cd374e957bac7b881aad3cb17e515c5e55f7fa78d047b7ef4b25a9356",
+      "reference_id": "portrait-default-20261027",
+      "source_url": null
+    },
+    {
+      "path": "media/benchmarks/hot-news.mp4",
+      "style": "hot-news",
+      "role": "rendered-benchmark",
+      "bytes": 62626169,
+      "sha256": "2bf2e4e4f5b1afd7ec54ca658a7e34767ecc610a36c8d3a7a90c02dbaacfe45d"
+    },
+    {
+      "path": "media/references/ref-05.mp4",
+      "style": "technical-explainer",
+      "role": "learning-reference",
+      "bytes": 4031739,
+      "sha256": "45f6e70abb9e65ff4071c00475c7ee4ebb92a6bd21953731ca5fdcaa355f1c19",
+      "reference_id": "ref-05",
+      "source_url": "https://www.douyin.com/video/7694908975363542310"
+    },
+    {
+      "path": "media/references/ref-06.mp4",
+      "style": "technical-explainer",
+      "role": "learning-reference",
+      "bytes": 17907206,
+      "sha256": "46d92d0c5a319d4fab4568d2416981d6b5e09ebb245a62f1ebab9523589e26a3",
+      "reference_id": "ref-06",
+      "source_url": "https://www.douyin.com/video/7695084941771672858"
+    },
+    {
+      "path": "media/references/ref-07.mp4",
+      "style": "technical-explainer",
+      "role": "learning-reference",
+      "bytes": 15788697,
+      "sha256": "3ee0edd4cf56dfd88137e38805b136747626d31d2eeefe32c383e70bb5868327",
+      "reference_id": "ref-07",
+      "source_url": "https://www.douyin.com/video/7615916521222720822"
+    },
+    {
+      "path": "media/references/ref-08.mp4",
+      "style": "technical-explainer",
+      "role": "learning-reference",
+      "bytes": 2402005,
+      "sha256": "344dc930cd90add9d53a56f77e9e3ebd163f8a48e38e4b6c1b16fa7e4c69bc88",
+      "reference_id": "ref-08",
+      "source_url": "https://www.douyin.com/video/7695753859708325161"
+    },
+    {
+      "path": "media/references/ref-09.mp4",
+      "style": "technical-explainer",
+      "role": "learning-reference",
+      "bytes": 8341107,
+      "sha256": "365e73eb4518dd68fda083d80e81e17c971e8e2261ac0d0bb3716376606fed87",
+      "reference_id": "ref-09",
+      "source_url": "https://www.douyin.com/video/7691269255903464704"
+    },
+    {
+      "path": "media/references/ref-10.mp4",
+      "style": "technical-explainer",
+      "role": "learning-reference",
+      "bytes": 9121272,
+      "sha256": "e6f9a54cc24161f1d87f26932cae7cacb2fda1f6d629d198f3fa5468dbc44951",
+      "reference_id": "ref-10",
+      "source_url": "https://www.douyin.com/video/7691882568119012623"
+    },
+    {
+      "path": "evidence/technical-explainer/user-direction.txt",
+      "style": "technical-explainer",
+      "role": "style-evidence",
+      "bytes": 937,
+      "sha256": "f19bf6109563df1054caa1bb1cab283f74396ef838be7e61edac2126e9451b84",
+      "reference_id": "user-direction",
+      "source_url": null
+    },
+    {
+      "path": "media/benchmarks/technical-explainer.mp4",
+      "style": "technical-explainer",
+      "role": "rendered-benchmark",
+      "bytes": 74765895,
+      "sha256": "eedeb259a8394fef511d9b3528c90c6b1df7d120e8c85f2ac5b4099db0c6f216",
+      "reference_id": "atlas-benchmark",
+      "source_url": null
+    },
+    {
+      "path": "evidence/technical-explainer/atlas-script.txt",
+      "style": "technical-explainer",
+      "role": "style-evidence",
+      "bytes": 1633,
+      "sha256": "a3de4bac2b2481232c60ffd86bfdd33424001bc6834cd902e30c4695a7aeadc4",
+      "reference_id": "atlas-script",
+      "source_url": null
+    }
+  ]
+}

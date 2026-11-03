@@ -884,7 +884,7 @@ def main(argv=None):
     p = subs.add_parser("probe"); p.add_argument("--url", required=True)
     p = subs.add_parser("fetch"); p.add_argument("--run", required=True); p.add_argument("--source", required=True); p.add_argument("--start", type=float, required=True); p.add_argument("--end", type=float, required=True)
     p = subs.add_parser("audit"); p.add_argument("--run", required=True); p.add_argument("--video", required=True); p.add_argument("--subtitles"); p.add_argument("--evidence")
-    p = subs.add_parser("styles"); p.add_argument("action", choices=["list", "show", "add", "choices", "import", "link-pack"]); p.add_argument("--selector"); p.add_argument("--file"); p.add_argument("--apply-preferences", action="store_true")
+    p = subs.add_parser("styles"); p.add_argument("action", choices=["list", "show", "add", "choices", "details", "select", "import", "link-pack"]); p.add_argument("--selector"); p.add_argument("--key"); p.add_argument("--installed", action="store_true"); p.add_argument("--file"); p.add_argument("--apply-preferences", action="store_true")
     args = parser.parse_args(argv)
     try:
         command = args.command
@@ -895,9 +895,16 @@ def main(argv=None):
         elif command == "profile": result = save_profile(read(args.merge_file)) if args.merge_file else profile()
         elif command == "new": result = new_run(args.title, args.output_root, read(args.brief) if args.brief else None)
         elif command == "styles":
-            if args.action == "list": result = styles.catalog()
+            import web_styles
+            if args.action == "list":
+                if args.installed: result = styles.catalog()
+                else:
+                    available = web_styles.catalog()
+                    result = available['entries'] + available['errors']
             elif args.action == "show": result = styles.resolve(args.selector)
-            elif args.action == "choices": result = styles.choices()
+            elif args.action == "choices": result = styles.choices(installed_only=args.installed)
+            elif args.action == "details": result = web_styles.details(args.key or args.selector)
+            elif args.action == "select": result = web_styles.select(args.key or args.selector)
             elif args.action == "link-pack": result = style_media.link_pack(args.file)
             elif args.action == "import":
                 import user_packs

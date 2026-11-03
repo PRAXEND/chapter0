@@ -1,0 +1,45 @@
+{
+  "reviewScope": "57 loaded BOTPIE work cards; user accepted this bounded sample",
+  "ranking": "sample likes only, not all-account ranking or comment ranking",
+  "observedCoverSystem": {
+    "branding": "博派BOTPIE in upper-right",
+    "text": "large short Chinese headline, white primary text and yellow emphasized words, dark outline",
+    "imagery": "mix of robot action imagery, interview faces, and illustration-like component explainer cover"
+  },
+  "topThree": [
+    {
+      "title": "他们当时的嘲讽声好大啊",
+      "url": "https://www.douyin.com/video/7666033264653520162",
+      "likesDisplay": "1.1万",
+      "observed": "Pinned cover combines old newspaper/robot imagery, with a headline about prior ridicule and reversal tags.",
+      "inferredNarrative": "Prior skepticism contrasted with later progress; emotional reversal.",
+      "suggestedAdaptationNotObservedCuts": "Show a verified earlier limitation, then cut to a corresponding current achievement. Keep dates and capability boundaries visible."
+    },
+    {
+      "title": "藏在人形机器人里的核心零部件",
+      "url": "https://www.douyin.com/video/7634533625962286386",
+      "likesDisplay": "2457",
+      "observed": "Pinned cover places a robot among circular component callouts; core components words highlighted in yellow. Description promises three components.",
+      "inferredNarrative": "Reveal the unseen technical parts behind a visible robot capability.",
+      "suggestedAdaptationNotObservedCuts": "Begin with an action, show the relevant component close-up, then use one short animated causal explanation and return to the action."
+    },
+    {
+      "title": "没人会等你20年，但日本机器人会！",
+      "url": "https://www.douyin.com/video/7691274668778507530",
+      "likesDisplay": "746",
+      "observed": "Title uses a long time interval, a conversational setup, and reversal hashtags.",
+      "inferredNarrative": "Use a memorable time comparison and conversational contrast to invite interest.",
+      "suggestedAdaptationNotObservedCuts": "Use dated, equivalent-condition clips in a before/after comparison, keep explanations short, and avoid equating edited demonstrations with matched tests."
+    }
+  ],
+  "videoPlaybackReview": "unavailable: direct top-video page remained blank, and browser controls could not operate reliably",
+  "audioReview": "not performed",
+  "claimsNotMade": [
+    "exact cut durations",
+    "BGM loudness or genre",
+    "creator speaking speed",
+    "exact subtitle animation",
+    "full-video narrative verified",
+    "style caused high engagement"
+  ]
+}
