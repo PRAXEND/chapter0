@@ -5,11 +5,19 @@ description: 用 Video Studio 制作、继续或修改视频，按用户指定�
 
 # 视频项目与技能组合
 
+选用 henry-hot-news 或 henry-technical-explainer 时，在搜索、分镜和制片前运行 `preflight --capability python --capability media --style <当前 selector>`；网页已执行同一检查。所选风格素材缺失先按结果补齐，不能跳过参考或把 LFS 指针当媒体。使用检查返回的 packRoot 解析 resource: 路径，位置登记与补齐方法见 [诊断说明](../../references/diagnostics.md#可选风格包git-lfs-与素材完整性)。不改风格版本、用户偏好或既有方案确认。
+
+所有项目先读 [通用素材与构图流程](../../references/common-production.md)。无风格项目也保存 productionPlan、每镜 sourceUses 与 layout，并通过 `record --kind production_plan` 登记；网页保存会自动登记。先检查重复动作、规划相关补充，再按实际画幅安排构图。所有竖版采用本期 portrait_bottom_inset（默认 18%），关键画面与字幕共同上移；横版/方形不套用。通用记录纳入原有方案确认及验收，不写入个人风格库。风格中的构图意图在这项通用避让边界内适配具体坐标。
+
 插件根目录为本技能上两级，命令入口为 `scripts/studio.py`。本技能只组织工具，不规定题材、语言、时长、视频比例、音色或剪辑模板。
+
+网页宿主发起的选材、审稿和制片请求，按[网页工作台约定](../../references/web-workbench.md)读取真实运行目录、确认哈希与任务记录；适配器是 `scripts/web_bridge.py`。独立会话不重置项目，不把网页保存/选材当作制片授权。
+
+用户要打开或在网页中操作工作台时，使用 [open-video-workbench](../open-video-workbench/SKILL.md) 启动插件内置页面；打开页面本身不开始制作。
 
 ## 需求与风格
 
-先读 `profile`、`styles list`；继续项目时先读 `status --run`。已说明的题材、参考和要求直接采用。用户尚未提供题材时只询问题材/目标；允许用户委托选题。热点任务再联网核实事件时间，普通题材不套近72小时窗口。
+先读 `profile`、`styles choices`；完整展示 options 中已导入和可导入的当前风格，历史版本分开列出，读取错误如实说明。聊天与网页共用目录；个人库为空不表示没有可用风格。具体浏览及显式选用命令见 [风格选择流程](../../references/style-selection.md)。继续项目时先读 `status --run`。已说明的题材、参考和要求直接采用。用户尚未提供题材时只询问题材/目标；允许用户委托选题。热点任务再联网核实事件时间，普通题材不套近72小时窗口。
 
 `profile.production_preferences` 保存用户明确要求的讲述、音乐、交付和协作习惯，按当前任务读取；不作为新安装的模板。需要选择按钮时按 [个人风格选择](../../references/style-selection.md) 从真实风格库展示单选卡片，用户已指定则直接采用。
 
@@ -29,6 +37,8 @@ description: 用 Video Studio 制作、继续或修改视频，按用户指定�
 
 正式制作前，先交付完整文案和逐镜头分镜表，包含镜号、预计时间段、旁白/屏幕文案、对应素材与来源片段、画面内容及裁切/字幕/转场意图。无旁白视频也给出屏幕文字与画面安排。标明总预计时长、素材缺口和关键事实口径；预计秒数是规划值，不能冒充已生成音频的实际时序。
 
+选定风格时按 [风格到分镜的落实方法](../../references/style-storyboard.md) 保存结构化 style_plan：逐条关联规则与镜头，区分核心表达和条件手法，并为实际动效记录用途、触发、变化、时长、位置避让、声音、实现与替代。分镜前读取相关复现配方和代表节点，检查整片变化与核心表达；不能把全部节点简化为同一种标题入场。仅有脚本规则或未选风格时不强制动效。网页与对话采用同一校验，完成这些设计再提交现有的一次方案确认。
+
 将方案保存为 run 内带版本的 `script-storyboard-vN.md`，并以附属文件 `script-storyboard-approval.json` 保存版本、文件哈希、状态 awaiting_confirmation。展示方案后请求“确认按此制作”或修改意见；可加载当前 ChatCut widget-forms，用单选表单收集确认/修改，也可接受明确文字答复。默认等待来自本技能的审稿约定，不冒充用户另提要求；已有明确跳过/直接完成的授权则记录原始指令并继续。未收到所需确认前可继续素材核实与整理，不生成正式配音、制作 MG 或写入正式剪辑时间线。
 
 收到确认后记录对应版本、哈希、确认时间和用户答复，状态改为 confirmed；续做读取该记录，不重复索要同一版本确认，也不把超时或未答复当成确认。不新增 studio.py 未实现的 record kind。确认后按真实音频和素材调整镜头时长、修正错字等常规实施无需重审；改变主要文案含义、事实口径、事件取舍或叙事顺序时，只提交受影响段落的新版本确认。用户直接提出的局部修改可按其要求执行，不自动重开全片审稿。
@@ -38,7 +48,7 @@ description: 用 Video Studio 制作、继续或修改视频，按用户指定�
 - 缺依赖或首次配置：`setup-video-studio`。
 - 查资料、选材、下载、检查来源：`video-source-tools`。
 - 项目、导入、镜头、MG、转场：`chatcut-edit-tools`。
-- 配音、音乐、字幕、同步：`video-audio-tools`。
+- 配音、音乐、字幕、同步：`video-audio-tools`；正式 TTS 前先解决音色。没有可用克隆且尚未选择时，先询问是否克隆；已有有效选择直接复用。
 - 完整声画验收、问题定位与修复复查：`video-quality-review`。
 - 导出、两版封面与发布文案交付：`video-delivery-tools`。
 

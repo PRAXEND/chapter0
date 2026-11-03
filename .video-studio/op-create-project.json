@@ -1,0 +1,9 @@
+{
+  "intent": "create_chatcut_project",
+  "name": "具身智能报告 2026-10-30｜从表演到工时",
+  "description": "已确认脚本 v1；9秒频道开场v4 + 正片；1080x1920，30fps，完整视频不超过60秒。",
+  "compositionWidth": 1080,
+  "compositionHeight": 1920,
+  "fps": 30,
+  "approval_sha256": "9fecbdf8bcd9f0a0827ea82967d8d12bcf6c3727bfd4973800519a2c6cef1e6c"
+}

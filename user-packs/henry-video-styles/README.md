@@ -1,6 +1,8 @@
 # Henry 视频风格与复现素材包
 
-版本 `henry-video-styles@1`，收录本地无变体风格的最新 v7：热点资讯型 `henry-hot-news@7`（34 条规则）、技术科普型 `henry-technical-explainer@7`（32 条规则）。发布时保留原规则；增加命名空间，避免与已有本地 v7 的路径内容冲突。原个人库不迁移、不覆盖。
+版本 `henry-video-styles@2`，收录无变体风格 v8：热点资讯型 `henry-hot-news@8`（34 条规则）、技术科普型 `henry-technical-explainer@8`（33 条规则）。两者新增核心表达、条件手法与分镜对照要求，技术科普增加随语义推进的机制动效规则。使用 Video Studio 0.3.0-web.20 或后续支持风格分镜校验的版本。
+
+原 v7 规格与媒体保留，旧包清单备份为 `manifest-v1.json`，已导入的 v7 可继续直接选择；新包使用独立版本，不覆盖个人库或既有 run 快照。原试片与附件属于 v7 参考证据，不能当作 v8 已通过成片验证。
 
 ## 获取与导入
 
@@ -20,7 +22,7 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 
 ## 内容
 
-- `styles/`：两份 v7 规格，包含依据、未知项、素材要求，以及原有完整复现配方。
+- `styles/`：两份 v7 原规格与两份 v8 新规格，包含依据、未知项、素材要求，以及原有完整复现配方。
 - `media/references/`：实际分析的 10 条参考视频，保留来源 URL 和分析范围。
 - `media/hot-news/`：家务试片使用的 22 个视频、分段旁白、配乐和音效。视频与本地原文件哈希一致。
 - `media/technical-explainer/`：Atlas 试片使用的 8 个媒体文件。训练视频是实际使用的 3 个原片区间，原片偏移记录在 `resources.json`，不是重新下载的不同版本；另含制造资料、旁白、Wallpaper 配乐和两种音效。
@@ -31,11 +33,12 @@ python3 plugins/video-studio/scripts/studio.py styles import \
 ## 复现步骤
 
 1. 运行校验脚本，确认媒体不是 Git LFS 指针且所有文件哈希正确。
-2. 显式选择所需 v7 风格。复刻基准试片时使用其原始 1920×1080、30fps；热点资讯 v7 的新片默认是 9:16，不能把旧横版试片误认成新片默认。
-3. 在新工程中导入 `media/<style>/`。按 `resources.json` 的 `asset_aliases` 建立新资产 ID 映射。`ref-*` 仅是本包关联键，不是可以调用的云端工程 ID。
-4. 按原生记录恢复源窗口、播放速率、图层、裁切、音量、字幕和转场；用 `motion-graphics.json` 的代码、schema 和 defaults 创建 MG，再恢复每个实例的参数。
-5. XML 仅用于普通剪辑软件的基础剪辑结构。XML 会遗漏 MG、字幕、部分效果及转场，不能独立代表完整工程；媒体链接以 XML 所在目录为起点指向 `../../media/<style>/`，剪辑软件必要时可重链接该目录。
-6. 导出后与 `media/benchmarks/` 对照，执行完整声画验收。技术科普原片时间 = 包内片段时间 + `source_window_seconds[0]`，不要重复加偏移。
+2. 显式选择所需 v8 风格。复刻基准试片时使用其原始 1920×1080、30fps；热点资讯的新片默认是 9:16，不能把旧横版试片误认成新片默认。
+3. 新题材分镜先提取本风格核心表达，按 storyboard_contract 关联规则、镜头、参考节点和具体动效；条件手法不凑数量。热点资讯检查节奏与动作联动，技术科普检查机制如何逐步显现。复刻原试片时另按其实际记录恢复。
+4. 在新工程中导入 `media/<style>/`。按 `resources.json` 的 `asset_aliases` 建立新资产 ID 映射。`ref-*` 仅是本包关联键，不是可以调用的云端工程 ID。
+5. 按原生记录恢复源窗口、播放速率、图层、裁切、音量、字幕和转场；用 `motion-graphics.json` 的代码、schema 和 defaults 创建 MG，再恢复每个实例的参数。
+6. XML 仅用于普通剪辑软件的基础剪辑结构。XML 会遗漏 MG、字幕、部分效果及转场，不能独立代表完整工程；媒体链接以 XML 所在目录为起点指向 `../../media/<style>/`，剪辑软件必要时可重链接该目录。
+7. 导出后与 `media/benchmarks/` 对照，执行完整声画验收。技术科普原片时间 = 包内片段时间 + `source_window_seconds[0]`，不要重复加偏移。
 
 ## 依赖与已知边界
 

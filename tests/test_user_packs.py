@@ -81,12 +81,12 @@ class UserPackTests(unittest.TestCase):
 
     def test_choice_ids_pin_versions_and_never_start_production(self):
         styles.register(self.spec()); styles.register(self.spec(2))
-        result = styles.choices()
+        result = styles.choices(installed_only=True)
         self.assertEqual([x["id"] for x in result["options"]], ["sample@1", "sample@2"])
         self.assertFalse(result["selection_sets_default"])
         self.assertFalse(result["selection_starts_production"])
         Path(styles.resolve("sample@1")["skill_path"]).write_text("tampered")
-        result = styles.choices()
+        result = styles.choices(installed_only=True)
         self.assertEqual([x["id"] for x in result["options"]], ["sample@2"])
         self.assertEqual(len(result["errors"]), 1)
 

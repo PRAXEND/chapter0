@@ -5,6 +5,8 @@ description: 将 Video Studio 的完整 MP4、3:4 竖版封面、4:3 横版封�
 
 # 导出与交付工具
 
+交付前按 [通用素材与构图流程](../../references/common-production.md) 确认 material_continuity 已实审；所有竖版还需 portrait_layout，绑定当前方案和导出。底部避让只用于竖版成片，3:4/4:3 封面沿用封面构图；辅助线不导出。保留内部原始出处，不仅因为补充画面来自其他事件而追加成片标签。
+
 ## 默认交付包
 
 每期制作完成后，在本期输出根目录下建立 `YYYY-MM-DD_选题` 文件夹，放入以下四个实际文件。输出根目录沿用本期 `--output-root`，未指定时用 profile.output_root（默认 `~/Movies/Video Studio`）；工作 run 与交付文件夹分别保留在该根目录下。

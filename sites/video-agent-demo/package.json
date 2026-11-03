@@ -1,0 +1,9 @@
+{
+  "name": "video-studio-workbench-compat",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node studio-server.mjs",
+    "test": "node --test ../../plugins/video-studio/workbench/test/*.test.mjs"
+  }
+}

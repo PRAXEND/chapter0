@@ -23,6 +23,9 @@ from urllib.parse import urlsplit
 import uuid
 
 import styles
+import style_plan
+import production_plan
+import style_media
 import check_connection
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,9 +36,10 @@ DEFAULTS = {
     "max_video_sources": 6, "max_download_seconds": 300,
     "voice": None, "default_style": None,
     "narration": None, "captions": None, "audio_required": None,
-    "production_preferences": {},
+    "production_preferences": {}, "portrait_bottom_inset": .18, "replay_authorization": None,
 }
-REVIEW_METHODS = {"visuals": "continuous_playback", "audio_listening": "full_mix_listening",
+REVIEW_METHODS = {"material_continuity": "source_windows_and_playback",
+                  "portrait_layout": "composited_sequence_inspection", "visuals": "continuous_playback", "audio_listening": "full_mix_listening",
                   "caption_sync": "word_alignment_and_frames", "facts": "source_review",
                   "style_match": "reference_comparison",
                   "av_sync": "timeline_alignment_and_playback",
@@ -177,6 +181,9 @@ def profile():
 
 
 def validate_settings(result, complete=False):
+    production_plan.layout(result)
+    if result.get("replay_authorization") is not None and not production_plan.text(result["replay_authorization"]):
+        raise StudioError("Replay exception needs the actual user request")
     if not isinstance(result.get("production_preferences", {}), dict):
         raise StudioError("production_preferences must be an object of explicit user preferences")
     for key in ("width", "height", "fps", "target_seconds", "min_seconds", "max_seconds",
@@ -258,6 +265,7 @@ def new_run(title, output_root=None, brief=None):
         "project": {}, "sources": [], "beats": [], "downloads": {},
         "operations": {}, "reviews": {}, "revision": 0, "history": [],
         "brief": None, "style_snapshot": None, "material_plan": None,
+        "production_policy_version": 1, "production_plan": None,
     }
     if brief is not None:
         apply_brief(manifest, brief, directory)
@@ -340,6 +348,22 @@ def record(directory, kind, payload):
                 if not all(need.get(k) for k in ("id", "purpose", "query", "acceptance")):
                     raise StudioError("Material need requires id, purpose, topic/style-aware query and acceptance")
             data["material_plan"] = payload
+        elif kind == "production_plan":
+            production_plan.validate(payload, data)
+            used = {u["sourceId"] for s in payload["shots"] for u in s["sourceUses"]}
+            stored = {"plan": payload, "sha256": digest(payload),
+                      "source_hashes": {s["id"]: s.get("sha256") for s in data["sources"] if s["id"] in used},
+                      "source_signatures": {s["id"]: digest(production_plan.source_identity(s)) for s in data["sources"] if s["id"] in used}}
+            if data.get("production_plan") == stored:
+                return data
+            data["production_policy_version"] = 1
+            data["production_plan"] = stored
+        elif kind == "style_plan":
+            style_plan.validate(payload, data)
+            stored = {"plan": payload, "sha256": digest(payload)}
+            if data.get("style_plan") == stored:
+                return data
+            data["style_plan"] = stored
         elif kind == "review":
             key = payload.get("check")
             if key not in REVIEW_KEYS or payload.get("result") not in {"pass", "fail", "unverified", "not_applicable"}:
@@ -592,6 +616,23 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
         except (OSError, ValueError, KeyError):
             failures.append("style_snapshot_missing_or_changed")
     frames = round(duration * fps)
+    style_implementation = []
+    if snapshot or data.get("style_plan"):
+        try:
+            style_implementation = style_plan.implementation_errors(data, review_base, frames)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            style_implementation = ["style_plan_invalid:" + str(exc)]
+        failures.extend(style_implementation)
+    common_implementation = []
+    if data.get("production_policy_version") == 1 or data.get("production_plan"):
+        required.add("material_continuity")
+        try:
+            if production_plan.layout(settings)["mode"] == "portrait-safe":
+                required.add("portrait_layout")
+            common_implementation = production_plan.implementation_errors(data, review_base, frames)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            common_implementation = ["production_plan_invalid:" + str(exc)]
+        failures.extend(common_implementation)
     check_results = {key: {"status": "not_applicable"} for key in REVIEW_KEYS - required}
     for key in sorted(required):
         review = data["reviews"].get(key, {})
@@ -606,12 +647,27 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
             valid = valid and review.get("coverage_frames") == [0, frames]
         if key in {"caption_sync", "caption_flow"}:
             valid = valid and review.get("subtitle_sha256") == subtitle_hash
+        if key in {"material_continuity", "portrait_layout"}:
+            valid = valid and not common_implementation and review.get("production_plan_sha256") == data.get("production_plan", {}).get("sha256")
         if key == "style_match":
             rows = review.get("rules", {})
             valid = valid and review.get("style") == snapshot["selector"] and set(rows) == {r["id"] for r in style_rules}
             overrides = data["brief"].get("style_overrides", {})
-            valid = valid and all(isinstance(v, dict) and v.get("observations") and
-                (v.get("result") == "pass" or (v.get("result") == "overridden" and k in overrides)) for k, v in rows.items())
+            planned = data.get("style_plan")
+            decisions = {r["ruleId"]: r for r in planned["plan"]["stylePlan"]["rules"]} if planned and planned["plan"].get("stylePlan") else {}
+            def rule_passes(rid, row):
+                if not isinstance(row, dict) or not row.get("observations"):
+                    return False
+                state = decisions.get(rid, {}).get("disposition")
+                if rid in overrides:
+                    return row.get("result") == "overridden"
+                if state == "not_applicable":
+                    return row.get("result") == "not_applicable"
+                return row.get("result") == "pass"
+            valid = valid and all(rule_passes(k, v) for k, v in rows.items())
+            if planned:
+                valid = valid and review.get("style_plan_sha256") == planned["sha256"]
+            valid = valid and not style_implementation
         if not valid:
             pending.append(key)
         check_results[key] = {"status": review.get("result") if valid else
@@ -648,7 +704,10 @@ def audit(directory, video, subtitles=None, evidence=None):
 def doctor():
     programs = {name: shutil.which(name) for name in ("ffmpeg", "ffprobe", "node", "deno")}
     for name in ("ffmpeg", "ffprobe"):
-        programs[name] = native_tool(name)
+        try:
+            programs[name] = native_tool(name)
+        except StudioError:
+            programs[name] = None
     try:
         programs["yt-dlp"] = downloader()
     except StudioError:
@@ -681,6 +740,79 @@ def doctor():
     return {"local_ready": bool(ready), "python": sys.executable, "python_version": sys.version.split()[0], "stdlib": modules,
             "programs": programs, "executable_checks": executable_checks, "diagnostic_filters_available": filters_ok,
             "chatcut": "requires_live_mcp_probe", "state_directory": str(home())}
+
+
+def preflight(capabilities=None, style_selector=None, pack_root=None):
+    """Check only the capabilities needed for the next operation; never install or download."""
+    requested = list(capabilities) if isinstance(capabilities, list) else capabilities
+    if requested is None:
+        requested = ["python", "media", "repository", "downloader", "repository_media", "git_lfs", *style_media.CHECKS.values()]
+    allowed = {"python", "media", "repository", "downloader", "repository_media", "git_lfs", *style_media.CHECKS.values()}
+    if not isinstance(requested, list) or any(item not in allowed for item in requested):
+        raise StudioError("Unknown preflight capability.")
+    if style_selector is not None and not isinstance(style_selector, str):
+        raise StudioError("Style selector must be text")
+    style_check = style_media.CHECKS.get((style_selector or '').split('@')[0])
+    if style_check:
+        requested.extend(["git_lfs", style_check])
+    report = doctor()
+    checks = report["executable_checks"]
+    ca_ready = False
+    try:
+        import ssl
+        ca_ready = ssl.create_default_context().cert_store_stats().get("x509_ca", 0) > 0
+    except (ImportError, OSError, ValueError):
+        pass
+    python_ok = sys.version_info >= (3, 10) and all(report["stdlib"].values()) and ca_ready
+    media_ok = all(checks[name]["ok"] for name in ("ffmpeg", "ffprobe")) and report["diagnostic_filters_available"]
+    yt_version = re.search(r"(\d{4})\.(\d+)\.(\d+)", checks["yt-dlp"].get("version", ""))
+    pinned_version = re.search(r"==(\d{4})\.(\d+)\.(\d+)", (ROOT / "requirements-runtime.txt").read_text())
+    yt_ready = checks["yt-dlp"]["ok"] and bool(yt_version and pinned_version and tuple(map(int, yt_version.groups())) >= tuple(map(int, pinned_version.groups())))
+    node_version = re.search(r"v?(\d+)\.", checks["node"].get("version", ""))
+    js_ready = checks["deno"]["ok"] or bool(checks["node"]["ok"] and node_version and int(node_version[1]) >= 20)
+    downloader_ok = yt_ready and js_ready
+    gh = shutil.which("gh")
+    repository_ok = False
+    if "repository" in requested and gh:
+        try:
+            execute([gh, "--version"], timeout=10)
+            execute([gh, "auth", "status"], timeout=10)
+            repository_ok = True
+        except StudioError:
+            pass
+    curl = shutil.which("curl")
+    curl_ok = False
+    if "repository_media" in requested and curl:
+        try:
+            execute([curl, "--version"], timeout=5)
+            curl_ok = True
+        except StudioError:
+            pass
+    results = {
+        "repository_media": {"id": "repository_media", "label": "仓库媒体下载", "ok": curl_ok,
+                             "message": "curl 可用，沿用现有代理设置" if curl_ok else "curl 缺失或无法运行",
+                             "remedy": "安装可用的 curl 并重新检测；固定版本公开媒体直采不需要调用 Agent 或登录 GitHub。"},
+        "python": {"id": "python", "label": "Python 与 HTTPS", "ok": bool(python_ok),
+                   "message": f"Python {report['python_version']} · HTTPS 证书{'可用' if ca_ready else '不可用'}",
+                   "remedy": "使用完整的 Python 3.10+，确保 venv、ssl、email.encoders、urllib.request 及 CA 证书可用；修复后重新检测。"},
+        "media": {"id": "media", "label": "媒体探测与校验", "ok": bool(media_ok),
+                  "message": "FFmpeg、ffprobe 与诊断滤镜可用" if media_ok else "FFmpeg、ffprobe 或 blackdetect/silencedetect/freezedetect 滤镜缺失或无法运行",
+                  "remedy": "安装完整 FFmpeg（macOS 可用 brew install ffmpeg），或将 VIDEO_STUDIO_FFMPEG_DIR 指向包含 ffmpeg 和 ffprobe 的目录，再重新检测。"},
+        "repository": {"id": "repository", "label": "GitHub 仓库访问", "ok": repository_ok,
+                       "message": "GitHub CLI 已安装且已登录" if repository_ok else "GitHub CLI 缺失、无法运行或尚未登录",
+                       "remedy": "安装 GitHub CLI（macOS 可用 brew install gh），完成 gh auth login 后重新检测。仓库访问权限仍以实际读取响应为准。"},
+        "downloader": {"id": "downloader", "label": "网页视频下载", "ok": bool(downloader_ok),
+                       "message": "yt-dlp 与 JavaScript 运行时可用" if downloader_ok else "yt-dlp / JavaScript 运行时缺失、版本过旧或无法运行",
+                       "remedy": "点击补齐下载依赖，在插件独立虚拟环境安装固定版本 yt-dlp；同时确保 Node.js 20+ 或 Deno 可用。",
+                       "canPrepare": not yt_ready and bool(python_ok)},
+    }
+    if "git_lfs" in requested:
+        results["git_lfs"] = style_media.git_lfs_check()
+    if any(key in requested for key in style_media.CHECKS.values()):
+        results.update({row["id"]: row for row in style_media.check_media(style_selector, pack_root)})
+    selected = [results[item] for item in dict.fromkeys(requested)]
+    return {"styleSelector": style_selector, "ready": all(item["ok"] or item.get("required") is False for item in selected), "checkedAt": now(), "checks": selected,
+            "python": report["python"], "programs": {**report["programs"], "gh": gh, "curl": curl}, "chatcut": "requires_live_mcp_probe"}
 
 
 def bootstrap():
@@ -741,29 +873,39 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest="command", required=True)
     subs.add_parser("doctor")
+    p = subs.add_parser("preflight"); p.add_argument("--capability", action="append", choices=["python", "media", "repository", "downloader", "repository_media", "git_lfs", *style_media.CHECKS.values()]); p.add_argument("--style"); p.add_argument("--pack-root")
     subs.add_parser("bootstrap")
     p = subs.add_parser("connection"); p.add_argument("--file", required=True); p.add_argument("--run")
     p = subs.add_parser("profile"); p.add_argument("--merge-file")
     p = subs.add_parser("new"); p.add_argument("--title", required=True); p.add_argument("--output-root"); p.add_argument("--brief")
     p = subs.add_parser("status"); p.add_argument("--run", required=True)
-    p = subs.add_parser("record"); p.add_argument("--run", required=True); p.add_argument("--kind", choices=["source", "beat", "selection", "project", "brief", "material_plan", "review"], required=True); p.add_argument("--file", required=True)
+    p = subs.add_parser("record"); p.add_argument("--run", required=True); p.add_argument("--kind", choices=["source", "beat", "selection", "project", "brief", "material_plan", "production_plan", "style_plan", "review"], required=True); p.add_argument("--file", required=True)
     p = subs.add_parser("operation"); p.add_argument("action", choices=["reserve", "resolve"]); p.add_argument("--run", required=True); p.add_argument("--key", required=True); p.add_argument("--file", required=True); p.add_argument("--state", choices=["submitted", "completed", "failed"])
     p = subs.add_parser("probe"); p.add_argument("--url", required=True)
     p = subs.add_parser("fetch"); p.add_argument("--run", required=True); p.add_argument("--source", required=True); p.add_argument("--start", type=float, required=True); p.add_argument("--end", type=float, required=True)
     p = subs.add_parser("audit"); p.add_argument("--run", required=True); p.add_argument("--video", required=True); p.add_argument("--subtitles"); p.add_argument("--evidence")
-    p = subs.add_parser("styles"); p.add_argument("action", choices=["list", "show", "add", "choices", "import"]); p.add_argument("--selector"); p.add_argument("--file"); p.add_argument("--apply-preferences", action="store_true")
+    p = subs.add_parser("styles"); p.add_argument("action", choices=["list", "show", "add", "choices", "details", "select", "import", "link-pack"]); p.add_argument("--selector"); p.add_argument("--key"); p.add_argument("--installed", action="store_true"); p.add_argument("--file"); p.add_argument("--apply-preferences", action="store_true")
     args = parser.parse_args(argv)
     try:
         command = args.command
         if command == "doctor": result = doctor()
+        elif command == "preflight": result = preflight(args.capability, args.style, args.pack_root)
         elif command == "bootstrap": result = bootstrap()
         elif command == "connection": result = connection(read(args.file), args.run)
         elif command == "profile": result = save_profile(read(args.merge_file)) if args.merge_file else profile()
         elif command == "new": result = new_run(args.title, args.output_root, read(args.brief) if args.brief else None)
         elif command == "styles":
-            if args.action == "list": result = styles.catalog()
+            import web_styles
+            if args.action == "list":
+                if args.installed: result = styles.catalog()
+                else:
+                    available = web_styles.catalog()
+                    result = available['entries'] + available['errors']
             elif args.action == "show": result = styles.resolve(args.selector)
-            elif args.action == "choices": result = styles.choices()
+            elif args.action == "choices": result = styles.choices(installed_only=args.installed)
+            elif args.action == "details": result = web_styles.details(args.key or args.selector)
+            elif args.action == "select": result = web_styles.select(args.key or args.selector)
+            elif args.action == "link-pack": result = style_media.link_pack(args.file)
             elif args.action == "import":
                 import user_packs
                 result = user_packs.install(args.file, args.apply_preferences)
@@ -776,6 +918,7 @@ def main(argv=None):
         elif command == "audit": result = audit(args.run, args.video, args.subtitles, args.evidence)
         print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
         if command in {"doctor", "bootstrap"} and not result["local_ready"]: return 2
+        if command == "preflight" and not result["ready"]: return 2
         if command == "connection" and not result["ready"]: return 2
         if command == "audit" and not result["completed"]: return 2
         return 0

@@ -1,0 +1,13 @@
+{
+  "id": "tau-service-terms",
+  "kind": "article",
+  "title": "Tau Robotics Terms of Service",
+  "url": "https://www.tau-robotics.com/service-terms",
+  "author": "Tau Robotics",
+  "published_at": "2026-10-24",
+  "rights": "reference only",
+  "claims": ["机器人由训练过的人类操作员实时远程操控", "机器人不是自主运行", "标准费用为每台每小时50美元，通常派两台", "服务目前需邀请码"],
+  "need_ids": ["n1"],
+  "topic_fit": "核实服务边界",
+  "style_fit": "为案例一提供边界说明"
+}

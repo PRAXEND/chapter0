@@ -1,0 +1,14 @@
+{
+  "id": "agibot-report-video",
+  "kind": "video",
+  "title": "ShanghaiEye 智元创新日现场报道",
+  "url": "https://x.com/AGIBOTofficial/status/2115694835579666505",
+  "local_path": "/Users/guochenghui/Movies/Video Studio/20261030T130028Z-2026-10-30-具身智能报告-从表演到工时-82198e/assets/002/videos/02.mp4",
+  "author": "ShanghaiEye",
+  "published_at": "2026-10-29",
+  "rights": "unknown; credit required by source pack",
+  "claims": ["现场报道介绍Worken用于衡量真实工作产出"],
+  "need_ids": ["n2"],
+  "topic_fit": "补充Worken解释与发布会现场",
+  "style_fit": "提供方案和边界说明的画面证据"
+}

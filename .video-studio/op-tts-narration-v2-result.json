@@ -1,0 +1,11 @@
+{
+  "status": "completed_with_final_segment_superseded_for_timing",
+  "jobs": [
+    {"jobId": "63307f91-b20a-44f5-b575-6f1ccd63c317", "assetId": "2e6eab8629", "durationMs": 3000, "adopted": true},
+    {"jobId": "e22bcb3f-2494-42ec-b40b-bb2ee7bc8bc9", "assetId": "6e8d58ff6d", "durationMs": 11429, "adopted": true},
+    {"jobId": "c2d915f4-7d89-45fd-9c18-d082363f909f", "assetId": "41b6a1fde8", "durationMs": 14286, "adopted": true},
+    {"jobId": "fc0e8908-99e6-4474-8ec4-5998de978c76", "assetId": "5da5ad30ad", "durationMs": 8520, "adopted": true},
+    {"jobId": "34ff1e84-c1a0-48e1-a212-a9a2a27c12b8", "assetId": "5a42e5c78a", "durationMs": 15952, "adopted": false}
+  ],
+  "observed_failure": "采用全部v2段落会使9秒开场加正片约62.2秒；仅压缩结尾段。"
+}

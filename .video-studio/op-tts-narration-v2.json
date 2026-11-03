@@ -1,0 +1,17 @@
+{
+  "intent": "generate_timing_adjusted_narration_segments",
+  "projectId": "8e079059-c3f1-4018-84ea-e962a346d6be",
+  "timelineId": "310cf9aa-3e29-450e-87e5-27b1c04c0962",
+  "voice": "大壹",
+  "speedRatio": 1.35,
+  "performance": "自然有活力，像科技快报，清晰、紧凑、克制，专名准确",
+  "approval_sha256": "9fecbdf8bcd9f0a0827ea82967d8d12bcf6c3727bfd4973800519a2c6cef1e6c",
+  "reason": "保留已确认事实和叙事顺序，压缩重复表述以满足9秒开场加正片严格不超过60秒。",
+  "segments": [
+    {"id": "narration-v2-01", "text": "今天的具身智能，正从‘会不会’，转向‘干了多少活’。"},
+    {"id": "narration-v2-02", "text": "Tau Robotics 把人形机器人送进旧金山家庭，擦台面、洗水池、刷马桶，服务已经可以预约。"},
+    {"id": "narration-v2-03", "text": "但别误会：官方条款写明，机器人由人类实时远程操控；演示还是四倍速。它真正迈出的，是把真实家庭变成服务现场和训练数据来源。"},
+    {"id": "narration-v2-04", "text": "另一边，智元提出 Worken，也就是‘有效智能工时’，作为衡量真实工作产出的建议框架。G2 Max 也把重点放到工业搬运，而不是单纯炫技。"},
+    {"id": "narration-v2-05", "text": "两条新闻指向同一趋势：下一阶段比的，不只是谁能做动作，而是谁能稳定、持续、可量化地完成工作。真正的分水岭，是机器人能留下多少有效工时。"}
+  ]
+}

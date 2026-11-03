@@ -1,0 +1,26 @@
+{
+  "topic": "从表演到工时：具身智能开始进入生产力验证",
+  "purpose": "面向关注机器人与AI产业的中文观众，用两条当日案例说明具身智能正从能力演示转向真实任务与有效工作产出",
+  "style": "shawn-case-synthesis@1",
+  "style_overrides": {},
+  "requirements": {
+    "language": "zh-CN",
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "target_seconds": 55,
+    "min_seconds": 45,
+    "max_seconds": 60,
+    "narration": true,
+    "captions": true,
+    "audio_required": true,
+    "max_video_sources": 6,
+    "max_download_seconds": 300
+  },
+  "production_preferences": {
+    "voice": "大壹",
+    "narration_delivery": "自然有活力、紧凑",
+    "music": "轻科技纯器乐，清楚但不盖过人声",
+    "delivery": "完整MP4、3:4竖版封面、4:3横版封面、发布文案TXT"
+  }
+}
