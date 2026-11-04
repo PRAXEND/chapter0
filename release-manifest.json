@@ -38,8 +38,8 @@
       "sha256": "13a5c9b89b598b5c119fdcf813f190b2340f2b4114db4bf0684dcfde277198a6"
     },
     "VALIDATION.md": {
-      "bytes": 70732,
-      "sha256": "d87ed7d4bcf0fd0ec86132d1b53c0825d4b5666e573da989ea22ab9bd6f436ac"
+      "bytes": 70828,
+      "sha256": "6cba759417b86ceceef56cf6ceca8aa1b19b7f3d922667c8922622730c7fff41"
     },
     "plugins/video-studio/.codex-plugin/plugin.json": {
       "bytes": 970,
@@ -398,8 +398,8 @@
       "sha256": "4dd7c65a62fe3eadca137d8f3d1451562742b470a7597ee8946f6934ce184194"
     },
     "plugins/video-studio/workbench/README.md": {
-      "bytes": 26842,
-      "sha256": "43cccf0ed181e8b172ef4f9b486f845ceff7d66a00dcceea9d4ab4506fc0d5ca"
+      "bytes": 7171,
+      "sha256": "5af8f8fcea3548920442024687acf2d7b9bd579bbb82645c0ffdf14e4c8497fb"
     },
     "plugins/video-studio/workbench/REVISION-20261103.md": {
       "bytes": 5290,
