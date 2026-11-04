@@ -278,6 +278,11 @@ def review(evidence, cues, cuts_by_asset, fps=30):
     selected = evidence.get('narration_tracks')
     if not isinstance(selected, list) or not selected:
         raise ValueError('Need explicit narration_tracks')
+    tracks = timeline.get('tracks', [])
+    if tracks:
+        matched = [t for t in tracks if set(selected).intersection((t.get('id'), t.get('alias')))]
+        if not matched or any(t.get('muted') for t in matched):
+            raise ValueError('Selected narration track missing or muted')
     clips = [c for c in entries if c.get('kind') == 'item' and
              (c.get('trackAlias') in selected or c.get('trackId') in selected)]
     if not clips or not cues:

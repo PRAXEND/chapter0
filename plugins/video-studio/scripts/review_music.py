@@ -90,8 +90,8 @@ def decode(video):
     # Stereo sample energy, not a mono sum: opposite-phase music must not vanish.
     with tempfile.TemporaryDirectory(prefix='rvs-music-check-') as tmp:
         dest = Path(tmp)/'mix.wav'
-        execute(['ffmpeg', '-v', 'error', '-i', Path(video).resolve(), '-vn', '-ac', '2', '-ar', '24000',
-                 '-t', '121', '-c:a', 'pcm_s16le', '-f', 'wav', dest], timeout=180)
+        execute(['ffmpeg', '-v', 'error', '-i', Path(video).resolve(), '-vn', '-af', 'aresample=24000:async=1:first_pts=0', '-ac', '2', '-ar', '24000',
+                 '-c:a', 'pcm_s16le', '-f', 'wav', dest], timeout=900)
         with wave.open(str(dest)) as audio:
             rate, channels = audio.getframerate(), audio.getnchannels()
             if audio.getsampwidth() != 2:

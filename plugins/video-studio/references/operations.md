@@ -1,5 +1,7 @@
 # 本地记录与命令
 
+所有新制作方案还遵循 [通用素材连续性与竖版构图](common-production.md)：独立于风格的 productionPlan、sourceUses/layout、production_plan 记录与最终 material_continuity / portrait_layout 验收。历史已确认记录可继续恢复，新生成/保存的方案采用新校验。
+
 使用当前完整 Python 3.10+；PLUGIN 是本次安装根目录，RUN 是实际 run 目录。命令参数使用路径字符串；JSON 从文件读取，不通过 shell 拼接用户文本。
 
 ## 配置和制作要求
@@ -42,6 +44,7 @@ max_seconds 按视频流时长检查，保留 0.1 秒容差；视频流没有 du
 - material_plan：{"topic":"本期题材","style":null或"id@version","needs":[{"id":"n1","purpose":"画面用途","query":"题材词＋所需镜头","acceptance":"实际采用标准"}]}。
 - source：id（ASCII短标识）、kind（video/image/audio/article/paper/script）、title、url 或 local_path、author、事件/发布日期、rights、claims、need_ids、topic_fit、style_fit。没有可靠许可信息保留 unknown。本地文件直接导入；fetch 只支持 URL 视频。
 - beat：id、visual_anchor、source_ids、from_frame、to_frame；有事实用 claims；有旁白用 narration、audio_asset_id、audio_duration_seconds。音频时长是该段在最终时间线真实占用时长，不是未经剪切的原始长度。
+- style_plan：完整的结构化方案，规则、镜头与动效关联按 [风格分镜格式](style-storyboard.md) 校验并保存哈希；对应 beat 增加 shot_id、design_results，记录真实实现及证据。修改计划或实现会使旧审核失效。
 
 同 id 替换会增加 revision 并使旧审核失效。下载来源的 URL 不可替换，应新建 source id。修改 brief 后重新评估素材计划。
 
@@ -59,10 +62,12 @@ max_seconds 按视频流时长检查，保留 0.1 秒容差；视频流没有 du
 
 `audit --run <run> --video <mp4> [--subtitles <srt>]` 完整解码和规格校验；退出0全部满足，2待复核，1输入/工具错误。结果是 qa-report.json；不能把退出2当临时错误无限重试。
 
-审阅用 record kind=review。字段：check、result(pass/fail/unverified；仅确实无BGM的music_fit可有证据地not_applicable)、evidence、artifact_sha256、reviewer、method、observations、evidence_files:[{path,sha256}]。pass 的证据文件必须存在且哈希一致。真实未听过/看过不能填写 pass。
+审阅用 record kind=review。字段：check、result(pass/fail/unverified；仅确实无BGM的music_fit可有证据地not_applicable)、evidence、artifact_sha256、reviewer、method、observations、evidence_files:[{path,sha256}]。pass 的证据文件必须存在且哈希一致。未完成本期策略要求的方法不能填写 pass；新策略允许真实抽帧及客观音频检查，不得伪称连续播放或实际听审。
+
+新项目 brief.requirements.review_policy 为 `sampled-objective-v1`，方法与证据按 [共用制片约定](production-policy.md)。`web_bridge.py <action> --file <JSON>` 提供两端一致的适配器：`production-context` 输入 run；`prepare-review` 输入 run/file/subtitles?/directory?；`record-review` 输入 run/review；`review-audit` 输入 run/file/subtitles?；`save-voice` 输入 voice（provider/voiceId/name/voiceType/selected_by_user），只保存稳定音色身份。新策略 review 另需 reviewer_job_id、producer_job_id、probe_sha256 与实际 observed_sheets；两个任务必须不同，实际身份由宿主或主 Agent 绑定。
 
 完整检查项与方法见 [独立验收规范](quality-review.md)。画面、遮挡、剪切/转场、闪动及输出细节为所有作品必查；声音、字幕、事实和风格按实际适用。
 
-除 facts 外，coverage_frames=[0,成片总帧数]。style_match 另需 style:"id@version"、rules:{规则id:{result:"pass"或"overridden",observations:"具体观察"}}；必须覆盖所有规则，overridden 必须对应 brief 的真实覆盖。审阅绑定 revision 和最终 MP4；改变内容、字幕或证据后重新核验。脚本检查记录一致性，不能认证感知能力或审美。
+除 facts 外，coverage_frames=[0,成片总帧数]。style_match 另需 style:"id@version"、rules:{规则id:{result:"pass"或"fail"或"unverified"或"overridden"或"not_applicable",observations:"具体观察"}}；必须覆盖所有规则，overridden 必须对应 brief 的真实覆盖，not_applicable 只允许风格声明且计划已记为不适用的条件手法。存在 style_plan 时还需 style_plan_sha256 匹配当前计划；缺少实际设计实现不能通过。审阅绑定 revision 和最终 MP4；改变内容、字幕或证据后重新核验。脚本检查记录一致性，不能认证感知能力或审美。
 
 旧版 schema 1 不自动迁移；保留原插件与原工程继续，避免套用新规则覆盖旧数据。

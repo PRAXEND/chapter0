@@ -1,10 +1,4 @@
 dist/*
-!dist/robot-video-studio-0.1.7.zip
-!dist/robot-video-studio-0.1.7.zip.sha256
-!dist/robot-video-studio-0.1.5.zip
-!dist/robot-video-studio-0.1.5.zip.sha256
-!dist/robot-video-studio-0.1.6.zip
-!dist/robot-video-studio-0.1.6.zip.sha256
 .runtime/
 runs/
 validation/
@@ -22,14 +16,20 @@ runtime-versions.json
 *.mp3
 *.wav
 
-!dist/video-studio-0.2.0.zip
-!dist/video-studio-0.2.0.zip.sha256
-!dist/video-studio-0.2.2-shawn.1.zip
-!dist/video-studio-0.2.2-shawn.1.zip.sha256
 
-!dist/video-studio-0.2.4.zip
-!dist/video-studio-0.2.4.zip.sha256
+# Workbench runtime and local deliverables must never enter plugin branches.
+**/.data/
+node_modules/
+deliverables/
+**/.data
 
 # Explicitly shared reproduction media; stored through Git LFS.
 !user-packs/henry-video-styles/media/**/*.mp4
 !user-packs/henry-video-styles/media/**/*.mp3
+
+# Personal production records and local installation state are never release inputs.
+.video-studio*
+auth.json
+config.toml
+desktop-session.json
+voices.json

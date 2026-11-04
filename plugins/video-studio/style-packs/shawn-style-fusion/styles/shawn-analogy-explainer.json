@@ -1,0 +1,378 @@
+{
+  "schema_version": 1,
+  "id": "shawn-analogy-explainer",
+  "version": 1,
+  "name": "类比科普型",
+  "description": "用一个熟悉的例子，搞懂一个技术概念。 需要解释模型、触觉、训练闭环或结构路线，可用具体情境贯穿。",
+  "adaptation": "替换原片品牌、事件和台词，以本期真实证据承载相同理解路径。主线是建立概念模型；动作拆解从画面中的具体障碍追因。 只有术语清单，或者类比无法映射到实际能力边界。",
+  "references": [
+    {
+      "id": "user",
+      "kind": "user_direction",
+      "locator": "pack:evidence/project-lessons.md",
+      "analyzed_ranges": [
+        "用户明确要求与反馈"
+      ],
+      "limitations": "用户声音、画幅与时长要求，不是参考账号声学观察"
+    },
+    {
+      "id": "fusion",
+      "kind": "script",
+      "locator": "pack:evidence/reference-analysis.json",
+      "analyzed_ranges": [
+        "scope及17条分析"
+      ],
+      "limitations": "声画采用分布与连续抽帧；没有完整实时播放与听审"
+    },
+    {
+      "id": "botpie",
+      "kind": "script",
+      "locator": "pack:evidence/botpie-sample.json",
+      "limitations": "57条标题封面卡片，只支持钩子与封面参考，不支持精确镜头/音乐规则"
+    },
+    {
+      "id": "trial-a",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/601b3050-3b93-4d36-90fb-7d6efa15f37b",
+      "analyzed_ranges": [
+        "既有合成抽帧、脚本与制作记录"
+      ],
+      "limitations": "用户总体好评；没有完整连续声画与逐项复现验收"
+    },
+    {
+      "id": "trial-b",
+      "kind": "video",
+      "locator": "https://app.chatcut.io/editor/3a2a905a-100e-41ff-9f2f-1c80b1972d50",
+      "analyzed_ranges": [
+        "既有合成抽帧、脚本与制作记录"
+      ],
+      "limitations": "用户总体好评；没有完整连续声画与逐项复现验收"
+    },
+    {
+      "id": "ref-05",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7694908975363542310",
+      "title": "因果智能系统",
+      "sha256": "e5af3ddcd08aa94d01cd5b6045a2096b03d9a2f50ed862758e96d81eabf95ed7",
+      "analyzed_ranges": [
+        "00:00–02:36；能力例子00:59–01:59"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    },
+    {
+      "id": "ref-06",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7695084941771672858",
+      "title": "聊天 AI 与机器人大脑",
+      "sha256": "aa30e531a2dd62c6fd77ae7fa6a9a4baa247cced829944cf69e9d994bca56195",
+      "analyzed_ranges": [
+        "00:26–01:56；同例对照02:40–04:07"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    },
+    {
+      "id": "ref-08",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7695753859708325161",
+      "title": "为什么需要全身触觉",
+      "sha256": "6a6fcd823f94c653bee57099bbb4d6a0ccf4fc3199069ca4b9e91a9c11a58e31",
+      "analyzed_ranges": [
+        "00:18–00:53；手势连续00:37–00:41.2"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    },
+    {
+      "id": "ref-09",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7691269255903464704",
+      "title": "波士顿动力训练中心",
+      "sha256": "925c0225a8622be5e9658ed37e7805375b82a8b7d7cccdc7afe17d423f9d3001",
+      "analyzed_ranges": [
+        "00:14–00:35"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    },
+    {
+      "id": "ref-10",
+      "kind": "video",
+      "locator": "https://www.douyin.com/video/7691882568119012623",
+      "title": "Clone 仿生手",
+      "sha256": "15631cb4c8f9461c31b8c19738da64ef629b61367437d1af96a1e0632439e9fe",
+      "analyzed_ranges": [
+        "00:10–00:38"
+      ],
+      "limitations": "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index；声音仅机器转录，未完整听审"
+    }
+  ],
+  "rules": [
+    {
+      "id": "narrative",
+      "dimension": "narrative",
+      "instruction": "从生活疑问进入，给一个映射准确的类比，再用同一任务解释机制或两种概念差异，指出类比失效的边界，返回实际用途。",
+      "check": "逐段标出本风格的推进节点，开场承诺在结尾得到回答。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-05",
+          "location": "00:00–02:36；能力例子00:59–01:59"
+        },
+        {
+          "reference_id": "ref-06",
+          "location": "00:26–01:56；同例对照02:40–04:07"
+        },
+        {
+          "reference_id": "ref-08",
+          "location": "00:18–00:53；手势连续00:37–00:41.2"
+        },
+        {
+          "reference_id": "ref-09",
+          "location": "00:14–00:35"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:10–00:38"
+        }
+      ]
+    },
+    {
+      "id": "language",
+      "dimension": "language",
+      "instruction": "先用日常话说明，再给术语名称；类比各角色保持一致，不把概念拟人化后当作真实意识。",
+      "check": "逐句口语审稿；事实、来源声称与推断分开，专名和数据另行核实。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-05",
+          "location": "00:00–02:36；能力例子00:59–01:59"
+        },
+        {
+          "reference_id": "ref-06",
+          "location": "00:26–01:56；同例对照02:40–04:07"
+        },
+        {
+          "reference_id": "ref-08",
+          "location": "00:18–00:53；手势连续00:37–00:41.2"
+        },
+        {
+          "reference_id": "ref-09",
+          "location": "00:14–00:35"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:10–00:38"
+        }
+      ]
+    },
+    {
+      "id": "shots",
+      "dimension": "shots",
+      "instruction": "生活情境或任务中景建立共同例子，图解指出对应关系，再给有来源演示；专家原声与固定手势镜头可替代旁白，不强制虚构主持人。",
+      "check": "对照实际素材与合成画面，逐段指认观察对象；画面能够支持对应解说。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-05",
+          "location": "00:00–02:36；能力例子00:59–01:59"
+        },
+        {
+          "reference_id": "ref-06",
+          "location": "00:26–01:56；同例对照02:40–04:07"
+        },
+        {
+          "reference_id": "ref-08",
+          "location": "00:18–00:53；手势连续00:37–00:41.2"
+        },
+        {
+          "reference_id": "ref-09",
+          "location": "00:14–00:35"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:10–00:38"
+        }
+      ]
+    },
+    {
+      "id": "pacing",
+      "dimension": "pacing",
+      "instruction": "一次只新增一个关系，图解至少让观众读清一遍；有概念转折才换图，不按每句话随机换B-roll。",
+      "check": "按配音真实词时间和完整动作区间审查；不能为凑时长截断动作。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-05",
+          "location": "00:00–02:36；能力例子00:59–01:59"
+        },
+        {
+          "reference_id": "ref-06",
+          "location": "00:26–01:56；同例对照02:40–04:07"
+        },
+        {
+          "reference_id": "ref-08",
+          "location": "00:18–00:53；手势连续00:37–00:41.2"
+        },
+        {
+          "reference_id": "ref-09",
+          "location": "00:14–00:35"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:10–00:38"
+        }
+      ]
+    },
+    {
+      "id": "graphics",
+      "dimension": "graphics",
+      "instruction": "同一个例子贯穿，模块或输入输出随解说逐步出现；对比概念使用相同场景和布局，示意与实测明确区分。",
+      "check": "每项标注都指向当段对象或关系；示意、回看、倍速和计划状态有明确标签。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-05",
+          "location": "00:00–02:36；能力例子00:59–01:59"
+        },
+        {
+          "reference_id": "ref-06",
+          "location": "00:26–01:56；同例对照02:40–04:07"
+        },
+        {
+          "reference_id": "ref-08",
+          "location": "00:18–00:53；手势连续00:37–00:41.2"
+        },
+        {
+          "reference_id": "ref-09",
+          "location": "00:14–00:35"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:10–00:38"
+        }
+      ]
+    },
+    {
+      "id": "transitions",
+      "dimension": "transitions",
+      "instruction": "定义、情境例子、演示、边界之间按语义直接切换；避免同时堆五类模型总表而没有解释。",
+      "check": "逐一回看切点前后，确认叙事层级清楚、主体角色稳定、动作没有被伪接。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "ref-05",
+          "location": "00:00–02:36；能力例子00:59–01:59"
+        },
+        {
+          "reference_id": "ref-06",
+          "location": "00:26–01:56；同例对照02:40–04:07"
+        },
+        {
+          "reference_id": "ref-08",
+          "location": "00:18–00:53；手势连续00:37–00:41.2"
+        },
+        {
+          "reference_id": "ref-09",
+          "location": "00:14–00:35"
+        },
+        {
+          "reference_id": "ref-10",
+          "location": "00:10–00:38"
+        }
+      ]
+    },
+    {
+      "id": "project-captions",
+      "dimension": "captions",
+      "instruction": "字幕依据最终配音，逐句校正专名和断句；通常不超过两行并避开关键动作；导出SRT与烧录画面分别核对。",
+      "check": "抽查首尾及关键动作段，核对字幕卡、实际画面和独立SRT。",
+      "basis": "inferred",
+      "evidence": [
+        {
+          "reference_id": "trial-b",
+          "location": "既有试片的字幕修复与制作复盘，见project-lessons.md"
+        }
+      ]
+    },
+    {
+      "id": "project-audio",
+      "dimension": "audio",
+      "instruction": "本项目沿用大壹、自然有活力且紧凑的讲述和轻科技纯器乐；BGM可听见且人声清楚。音量与语速按新素材实际听审，历史参数不作为固定模板。",
+      "check": "最终混音完整听审，特别检查停顿处配乐和关键句清晰度；克隆音色仅在当前明确选择且可用时替换。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户要求：配音激情/语速调整、BGM提高、音色与交付约定"
+        }
+      ]
+    },
+    {
+      "id": "duration-adaptation",
+      "dimension": "pacing",
+      "instruction": "本项目成片严格不超过60秒；所附分段秒数是改写起点，不是镜头定长或必须填满的目标。按本风格保留一个核心问题，删支线后再生成声音。",
+      "check": "审查实际导出文件总时长不超过60秒；若超时先缩脚本，不直接拉快全部音频。",
+      "basis": "user_direction",
+      "evidence": [
+        {
+          "reference_id": "user",
+          "location": "用户明确要求：最终视频文件必须不能超过一分钟"
+        }
+      ]
+    }
+  ],
+  "unknown_dimensions": [],
+  "material_requirements": [
+    {
+      "role": "一个可贯穿的生活情境、机制资料和真实任务演示",
+      "search_hint": "{本期对象} {本期任务} official demo explanation full sequence",
+      "acceptance": "类比映射正确；图解非实测要明示；一个术语有一个可见例子",
+      "rule_id": "shots"
+    }
+  ],
+  "production_guide": {
+    "id": "shawn-analogy-explainer",
+    "version": 1,
+    "name": "类比科普型",
+    "promise": "用一个熟悉的例子，搞懂一个技术概念。",
+    "when": "需要解释模型、触觉、训练闭环或结构路线，可用具体情境贯穿。",
+    "not_when": "只有术语清单，或者类比无法映射到实际能力边界。",
+    "hook": "把机器人的训练中心理解成一所职业学校，就容易懂了。",
+    "narrative": "从生活疑问进入，给一个映射准确的类比，再用同一任务解释机制或两种概念差异，指出类比失效的边界，返回实际用途。",
+    "language": "先用日常话说明，再给术语名称；类比各角色保持一致，不把概念拟人化后当作真实意识。",
+    "shots": "生活情境或任务中景建立共同例子，图解指出对应关系，再给有来源演示；专家原声与固定手势镜头可替代旁白，不强制虚构主持人。",
+    "pacing": "一次只新增一个关系，图解至少让观众读清一遍；有概念转折才换图，不按每句话随机换B-roll。",
+    "graphics": "同一个例子贯穿，模块或输入输出随解说逐步出现；对比概念使用相同场景和布局，示意与实测明确区分。",
+    "transitions": "定义、情境例子、演示、边界之间按语义直接切换；避免同时堆五类模型总表而没有解释。",
+    "timeline": [
+      [
+        "0–6秒",
+        "生活问题"
+      ],
+      [
+        "6–16秒",
+        "一个类比"
+      ],
+      [
+        "16–36秒",
+        "同一例子解释机制"
+      ],
+      [
+        "36–48秒",
+        "真实演示与类比边界"
+      ],
+      [
+        "48–57秒",
+        "术语和用途回扣"
+      ]
+    ],
+    "material_role": "一个可贯穿的生活情境、机制资料和真实任务演示",
+    "material_acceptance": "类比映射正确；图解非实测要明示；一个术语有一个可见例子",
+    "comparison": "主线是建立概念模型；动作拆解从画面中的具体障碍追因。"
+  },
+  "analysis_limits": [
+    "全片分布抽帧（短片16张、长片24张）＋每条一个4.2秒区间每0.6秒连续抽帧；见media-index和motion-index",
+    "没有完整实时播放和听审；声音规定来自用户偏好",
+    "参考片的事实主张未在本次风格研究重新核验",
+    "BOTPIE只分析了57条可见卡片",
+    "保存不代表新风格已完成试片复现验收"
+  ]
+}

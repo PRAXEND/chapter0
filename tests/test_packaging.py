@@ -34,6 +34,13 @@ class PackagingTests(unittest.TestCase):
         self.assertIn("plugins/video-studio/scripts/user_packs.py", package.FILES)
         self.assertIn("plugins/video-studio/scripts/check_connection.py", package.FILES)
 
+    def test_objective_audio_gate_and_its_real_media_regression_tests_are_distributed(self):
+        for relative in ("plugins/video-studio/scripts/review_audio_alignment.py",
+                         "tests/test_audio_alignment.py", "tests/test_quality_probe.py"):
+            with self.subTest(file=relative):
+                self.assertIn(relative, package.FILES)
+                self.assertTrue((ROOT / relative).is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

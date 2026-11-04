@@ -39,6 +39,9 @@ class StyleTests(unittest.TestCase):
 
     def fixture(self, style=None):
         run=Path(studio.new_run("coffee",self.root/"runs",self.brief(style=style))["run"])
+        # Original fixtures model pre-common-policy runs; new policy is tested separately.
+        legacy = studio.load_run(run); legacy.pop("production_policy_version", None)
+        studio.write(run/"run.json", legacy)
         studio.record(run,"selection",{"topic":"咖啡","confirmed_by_user":True})
         studio.record(run,"project",{"projectId":"p","timelineId":"t"})
         studio.record(run,"beat",{"id":"b","visual_anchor":"完整过程","from_frame":0,"to_frame":4500})

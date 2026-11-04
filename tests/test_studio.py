@@ -146,6 +146,7 @@ class StudioTests(unittest.TestCase):
 
     def fixture(self):
         data = studio.load_run(self.run)
+        data.pop("production_policy_version", None)  # Legacy audit recovery fixture.
         data.update(selection={"topic": "fixture", "confirmed_by_user": True}, project={"projectId": "p", "timelineId": "t"}, sources=[{"id": "s1", "rights": "unknown"}], beats=[{"id": "b1", "narration": "fixture", "visual_anchor": "fixture", "source_ids": ["s1"], "audio_asset_id": "a1", "audio_duration_seconds": 90, "from_frame": 0, "to_frame": 2700}])
         media = {"format": {"duration": "90"}, "streams": [{"codec_type": "video", "codec_name": "h264", "width": 1080, "height": 1920, "avg_frame_rate": "30/1"}, {"codec_type": "audio"}]}
         cards = [{"start": 0, "end": 3, "lines": ["fixture"]}]
@@ -195,6 +196,31 @@ class StudioTests(unittest.TestCase):
             report = studio.doctor()
             self.assertFalse(report["local_ready"])
             self.assertFalse(report["executable_checks"]["ffmpeg"]["ok"])
+
+    def test_preflight_blocks_missing_downloader_only_for_operations_that_need_it(self):
+        report = {"python": "/test/python", "python_version": "3.11.0", "stdlib": {"ssl": True},
+                  "programs": {}, "diagnostic_filters_available": True,
+                  "executable_checks": {"ffmpeg": {"ok": True}, "ffprobe": {"ok": True},
+                                        "node": {"ok": True, "version": "v20.0.0"}, "deno": {"ok": False}, "yt-dlp": {"ok": False}}}
+        with mock.patch.object(studio, "doctor", return_value=report):
+            self.assertTrue(studio.preflight(["media"])["ready"])
+            missing = studio.preflight(["downloader"])
+            self.assertFalse(missing["ready"])
+            self.assertTrue(missing["checks"][0]["canPrepare"])
+            report["executable_checks"]["yt-dlp"] = {"ok": True, "version": "2026.08.19"}
+            self.assertTrue(studio.preflight(["downloader"])["ready"])
+            report["executable_checks"]["node"]["version"] = "v18.0.0"
+            self.assertFalse(studio.preflight(["downloader"])["ready"])
+            report["executable_checks"]["node"]["version"] = "v20.0.0"
+            report["executable_checks"]["yt-dlp"]["version"] = "2025.01.01"
+            self.assertFalse(studio.preflight(["downloader"])["ready"])
+
+    def test_preflight_rejects_invalid_capabilities_and_broken_https_certificates(self):
+        import ssl
+        with self.assertRaises(studio.StudioError):
+            studio.preflight(["run-arbitrary-command"])
+        with mock.patch.object(ssl, "create_default_context", side_effect=OSError("certificate store unavailable")):
+            self.assertFalse(studio.preflight(["python"])["ready"])
 
     def test_package_excludes_private_state_and_is_reproducible(self):
         for relative in package.FILES:

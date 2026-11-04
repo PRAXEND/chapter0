@@ -1,0 +1,4 @@
+interface:
+  display_name: "打开视频工作台"
+  short_description: "打开插件自带网页，选择风格和素材、审阅方案并查看视频制作交付"
+  default_prompt: "使用 $open-video-workbench 打开 Video Studio 网页工作台。"

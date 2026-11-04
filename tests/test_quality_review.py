@@ -35,6 +35,15 @@ class QualityTests(unittest.TestCase):
         self.assertTrue(self.report(run,media)["completed"])
         self.assertFalse(self.report(run,media,sha="b"*64)["completed"])
 
+    def test_missing_brief_is_an_incomplete_audit_not_a_policy_lookup_crash(self):
+        run, media = self.fixture()
+        data = studio.load_run(run)
+        data['brief'] = None
+        report = studio.audit_data(data, media, [], 'a' * 64, review_base=run)
+        self.assertFalse(report['completed'])
+        self.assertIsNone(report['review_policy'])
+        self.assertIn('missing_brief_selection_or_editable_project', report['failures'])
+
     def test_audio_requires_sync_listening_and_music_context(self):
         run,media=self.fixture();media["streams"].append({"codec_type":"audio"})
         pending=self.report(run,media)["review_pending"]
@@ -60,6 +69,19 @@ class QualityTests(unittest.TestCase):
         self.assertTrue(report["completed"],report)
         self.record_pass(run,"flicker",coverage_frames=[0,4502])
         self.assertIn("flicker",self.report(run,media)["review_pending"])
+
+    def test_short_video_cannot_pass_even_if_all_independent_checks_pass(self):
+        run, media = self.fixture()
+        for key in self.report(run, media)['review_pending']:
+            self.record_pass(run, key)
+        data = studio.load_run(run)
+        data['settings'].update(min_seconds=181, max_seconds=190)
+        video = next(s for s in media['streams'] if s['codec_type'] == 'video')
+        video['duration'] = '180'
+        media['format']['duration'] = '181.5'  # Audio/container padding is not video coverage.
+        report = studio.audit_data(data, media, [], 'a' * 64, review_base=run)
+        self.assertFalse(report['completed'])
+        self.assertIn('duration_below_requested_minimum', report['failures'])
 
     def test_invalid_video_duration_does_not_use_longer_container(self):
         run,media=self.fixture()

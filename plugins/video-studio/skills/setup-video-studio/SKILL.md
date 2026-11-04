@@ -5,7 +5,29 @@ description: 检查 Video Studio 本地环境与 ChatCut 等依赖插件，发�
 
 # 配置工具
 
+Git LFS 与可选风格素材检查见 [诊断说明](../../references/diagnostics.md#可选风格包git-lfs-与素材完整性)。运行 preflight 展示这两套素材状态；指定 --style 后，所选风格的缺失会阻止制作。已完整下载的文件不依赖 Git LFS 持续可用。新导入记住包位置；旧风格可用 styles link-pack 登记素材目录，不重写风格库。只读检查不给出已自动补齐的承诺。
+
 插件根目录为本技能上两级。运行 `scripts/studio.py doctor`，只在需要下载功能时安装下载器：`bootstrap` 使用独立虚拟环境。系统 Python 损坏时用宿主可用的完整 Python 3.10+；不把开发机路径写入技能。macOS 为当前支持平台。
+
+
+## 首次使用桌面执行会话
+
+工作台默认通过官方 `codex queue --thread … --message … --resume` 派发到用户选定的本机 Codex 桌面会话。首次打开页面必须展示“桌面执行会话”配置，不自动创建会话或修改权限：
+
+1. 用户在 Codex 桌面端新建专用制作会话，开启“完全访问”，发送一条短消息并等待完成，以便读取实际权限记录。
+2. 确认该会话能使用 Video Studio、ChatCut 和电脑控制，并在目标浏览器登录 ChatCut。完全访问不代替 macOS、浏览器和网站授权，不承诺永不出现授权提示。
+3. 工作台点击“读取桌面会话”，选中后“检查权限并保存”。目录和权限检查仅使用本机只读接口，不启动模型，不调用 ChatCut。开始制作前再次核对权限与会话占用。
+4. 制作期间保持桌面应用和会话可用，不在同一会话派发其他工作。只有点击一键生成才提交自动链路；配置、风格、已保存音色的选择不提交后台任务。
+
+排队成功不代表开始执行。工作台核对请求标记、领取回执、桌面实际生命周期事件及结构化结果；不以只读历史接口对未完成轮次推断的“中断”作为结束依据。未领取消息会作废，不能自动重复派发；重启恢复同一任务。停止为协作取消，正在执行的工具可能尚未结束，界面保留占用直到确认实际结束；必要时在桌面窗口停止。已有远端生成和导出继续复用记录，不因取消或重启重做。
+
+制作、音色和选材使用桌面会话，独立验收及手动分阶段方案仍使用独立 CLI 会话，不复用制作线程自评。`VIDEO_STUDIO_AGENT_MODE=cli` 是显式兼容选项，不在桌面配置失败时静默回退；独立 CLI 的权限说明仅适用于该执行路径。
+
+## 工作台 CLI 兼容检查
+
+工作台启动任务前用实际 CLI 的绝对路径检查版本、登录、必需执行参数，并通过只读 app-server 的 config/read 与 model/list 核对同一工作目录的模型配置和可用目录。遵守显式 VIDEO_DEMO_CODEX_BIN；未显式指定时可选择 PATH 或已安装官方应用内的较新兼容 CLI。版本基线只代表工作台支持范围，模型仍以该 CLI 的实际目录与服务错误为准，不能把“可以 --version”当成模型兼容。更新后重新检测，保存本次实际路径、版本、模型，不擅自降级或替换用户模型。
+
+遇到 requires a newer version of Codex 时立即停止该调用，提示升级实际被选中的应用/CLI 后复检，不循环重试相同版本。检测不得创建线程、启动模型任务或修改 Codex 配置。素材前置检查与依赖补齐沿 video-source-tools 的实际能力范围执行。
 
 ## 依赖插件检测与安装引导
 
@@ -24,6 +46,10 @@ ChatCut 是剪辑、配音与导出的必需集成；Video Studio 自带的 `cha
 
 需要保存分层诊断或断点清单时，按 [连接检测与断点恢复](../../references/connection-recovery.md) 将本次真实只读结果写入 `studio.py connection`。它不代替 MCP 调用，也不修改 run/revision 或重新提交任务。
 
+工作台独立 CLI 会话必须等待 MCP 工具初始化：启动参数使用 `-c mcp_optional_startup_grace_ms=0`，沿用每个服务已有的启动时限，不写入用户配置或新增同名连接。若旧版会话提示 hosted ChatCut 工具未加载，先更新工作台执行代码并用同一执行入口实际调用 `list_projects` 验证，再复用原 run、有效确认哈希和已有远端记录继续。不要将工具缺失当成要求用户重新审稿的理由；若初始化实际失败，保留具体错误并按 ChatCut 基础技能诊断。
+
+独立 CLI 路径的可写任务通过受支持的 `--approve-for-me` 提交原生自动审批，连接检查保持只读；CLI 前检必须核验该参数。不得通过跳过审批、忽略规则、修改 MCP 权限或切换未授权传输路径绕过拒绝。遇到 `MCP tool call requires approval, but approval policy is never` 时，更新工作台执行模式并保留原 run/确认记录；实际审批拒绝仍需报告具体动作与原因。
+
 汇报分别列出本地环境、依赖安装、认证/连接和下一步。只有本地检查通过且必需依赖实时验证成功，才报告制片环境就绪。`doctor` 的 `local_ready` 仅表示本地工具就绪，不能证明 ChatCut 或远端生成额度可用。仅在当前制作请求明确需要其他插件时复用上述流程。
 
 ## 网页插件连接与首次体验
@@ -38,9 +64,9 @@ ChatCut 是剪辑、配音与导出的必需集成；Video Studio 自带的 `cha
 
 ## 偏好与迁移
 
-`profile` 返回用户配置；`profile --merge-file <json>` 只更新指定字段。新安装没有默认题材或创作风格，不默认男声、语言、比例或目标时长。当前项目规格放在 brief；用户明确要求记住的偏好才存 profile。首次实际需要 TTS 时沿 ChatCut voice 技能试听具体音色，筛选条件来自用户。
+`profile` 返回用户配置；`profile --merge-file <json>` 只更新指定字段。新安装没有默认题材或创作风格，不默认男声、语言、比例或目标时长。当前项目规格放在 brief；用户明确要求记住的偏好才存 profile。首次实际需要 TTS 时按 [音色选择流程](../video-audio-tools/references/voice-selection.md) 检查平台音色；没有可用克隆时先问是否克隆，需要则收集录音和授权，不需要则让用户试听并选择官方音色。已有明确选定的可用音色直接复用。
 
-风格库由 `styles list/show/add` 管理。用户要求设置默认风格时保存 `default_style:"id@version"`；清除用 null。个人库位于 Video Studio 状态目录，升级代码不覆盖。
+风格列表用 `styles choices`，与网页共同展示已导入、可导入和单列的历史版本；不能只读个人库就报告可选风格数量。插件附带公开风格的文本包，浏览不导入；用户选中后 `styles select --selector <id@version>`，再用 show 读取真实保存的 SKILL.md。原媒体位置仍由 preflight 检查。目录缺失/校验失败按 errors 提示修复；可用 `styles link-pack --file <manifest>` 登记另一个真实目录。用户要求设置默认风格时保存 `default_style:"id@version"`；清除用 null。个人库位于 Video Studio 状态目录，升级代码不覆盖。
 
 旧版 Robot Video Studio 配置不自动导入：其 style/creative 和默认输出可能是旧模板而非用户决定。仅在迁移任务中读旧配置，将用户实际确认的 voice、输出目录等按当前要求逐项写入新 profile。旧 run 使用原版继续；不要将 schema_version 改数字冒充迁移。
 
