@@ -167,23 +167,53 @@ def catalog():
     return entries
 
 
-def snapshot(selector, run):
+def snapshot(selector, run, current_rules=False, requirements=None):
     from studio import file_hash
+    import hashlib
     value = resolve(selector)
     source = Path(value["skill_path"]).parent
-    folder = Path(run) / "style" / value["selector"]
+    spec = value["spec"]
+    replacements = {}
+    adapted = False
+    if current_rules and spec["id"].startswith("shawn-"):
+        # Imported style versions are immutable. Adapt only the working copy
+        # of the two published historical rules that name a fixed speaker.
+        for rule in spec["rules"]:
+            if rule["id"] in {"project-audio", "energetic-audio"} and "大壹" in rule["instruction"]:
+                rule["instruction"] = "旁白使用本期选定音色，自然、有活力、紧凑。启用配乐时采用轻科技纯器乐，使人声清晰。"
+                rule["check"] = "核对实际旁白资产与本期选择的身份，检查最终混音和节奏。"
+                adapted = True
+    requirements = requirements or {}
+    if current_rules:
+        for rule in spec["rules"]:
+            if requirements.get("captions") is False and rule["dimension"] == "captions":
+                rule.update(instruction="本期已明确关闭生成字幕。", check="核对本期字幕设置，保留其他画面设计。")
+                adapted = True
+            if requirements.get("generate_music") is False and rule["id"] in {"instrumental-bgm-required", "instrumental-bed", "constant-music-gain"}:
+                rule.update(instruction="本期已明确关闭配乐。", check="确认没有新增配乐轨，保留本期指定的原声与旁白。")
+                adapted = True
+    if adapted:
+        replacements = {"style.json": (json.dumps(spec, ensure_ascii=False, indent=2) + "\n").encode(),
+                        "SKILL.md": render(spec).encode()}
+    # The same project may change its settings before approval. Keep each derived snapshot immutable.
+    variant = "-" + hashlib.sha256(replacements["style.json"]).hexdigest()[:16] if adapted else ""
+    folder = Path(run) / "style" / (value["selector"] + variant)
     folder.mkdir(parents=True, exist_ok=True)
-    for name, expected in value["files"].items():
+    hashes = dict(value["files"])
+    for name, original in value["files"].items():
         target = folder / name
-        if target.exists() and file_hash(target) != expected:
-            raise ValueError("Run style snapshot was modified")
+        expected = hashlib.sha256(replacements[name]).hexdigest() if name in replacements else original
         if not target.exists():
-            shutil.copyfile(source / name, target)
+            if name in replacements:
+                target.write_bytes(replacements[name])
+            else:
+                shutil.copyfile(source / name, target)
         if file_hash(target) != expected:
-            raise ValueError("Style snapshot hash mismatch")
+            raise ValueError("Run style snapshot was modified")
+        hashes[name] = expected
     return {"id": value["id"], "version": value["version"], "selector": value["selector"],
-            "skill_path": str(folder / "SKILL.md"), "files": value["files"],
-            "validation_status": value["validation_status"]}
+            "skill_path": str(folder / "SKILL.md"), "files": hashes, "validation_status": value["validation_status"]}
+
 
 
 def choices(installed_only=False):

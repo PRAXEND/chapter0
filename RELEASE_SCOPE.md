@@ -1,6 +1,6 @@
 # video-generation-workbench 发布范围
 
-本分支发行 Video Studio `0.3.0-web.34`。基于远端 `video-generation`，按清单迁入当前实现，不携带开发分支的私人项目提交。原开发工作区保留，不合并官网或其他项目。
+本分支发行 Video Studio `0.3.0-web.35`。基于远端 `video-generation`，按清单迁入当前实现，不携带开发分支的私人项目提交。原开发工作区保留，不合并官网或其他项目。
 
 包含当前插件完整代码、marketplace、技能、公开风格文本包、源码风格包、42 个 Git LFS 媒体、参考试片、复现代码/时间线/字幕、校验清单、安装教程、测试和构建工具。`sites/video-agent-demo` 只保留兼容已有启动入口的 4 个文本文件。
 

@@ -18,6 +18,7 @@ export function provisionalMarkup(d,esc){
   return `<div class="section-heading"><h2>临时交付 · 尚未通过验收</h2><span class="delivery-badge">${d.complete?'交付文件齐全':'交付文件有缺项'}</span></div>
     <p class="demo-notice">这是实际候选视频，供查看和下载；保留验收问题，不标记为合格成片。你可以在上方确认修订后继续，也可以停止制作。</p>
     ${d.videoId?`<video class="final-video" controls preload="metadata" src="/api/files/${esc(d.videoId)}"></video>`:''}
+    ${d.captionsEnabled?'<p>视频内字幕：'+esc(d.captionsStatus||'以本次验收报告为准')+' · 独立 SRT：'+(d.files.some(f=>f.role==='subtitles')?'已附上':'缺少')+'</p>':''}
     ${d.missing?.length?`<p class="error-banner">${d.missing.map(esc).join('；')}</p>`:''}
     ${archive?`<a class="button primary" href="/api/files/${esc(archive.id)}?download=1" download>下载完整临时交付 ZIP</a>`:''}
     <div class="output-summary"><span>临时交付位置</span><code>${esc(d.directory)}</code><button class="button secondary" id="open-output" data-directory="${esc(d.directory)}">打开文件夹</button></div>

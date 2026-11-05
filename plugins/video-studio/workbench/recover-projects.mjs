@@ -53,6 +53,7 @@ export async function recoverLegacyProjects(dataDir,current,store){
       const rows=unsorted.sort((a,b)=>a.at.localeCompare(b.at)),latest=rows.at(-1).context,record=await read(path.join(run,'run.json'));
       if(!record||!rows.some(r=>r.action!=='connect'))continue;
       const p=initialStudio(),r=latest.brief.requirements||{};
+      delete p.productionRules;
       // Preserve the approval input format of the recorded run, not today's new-project defaults.
       if(record.production_policy_version!==1)delete p.workflowVersion;
       p.portraitBottomInset=r.portrait_bottom_inset??.18;p.replayAuthorization=r.replay_authorization??null;

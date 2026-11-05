@@ -24,6 +24,14 @@ export function jobStopState(job){return job.stopReason==='timeout'
 export async function prepareAgentRequest(job,context){
     const schemaPath=path.join(context.jobDirectory,'output.schema.json');
     const schema=JSON.parse(JSON.stringify(planningSchemas[context.planning?.stage]||schemas[job.action]));
+    if(job.action==='review'&&context.requiredChecks?.length){
+      schema.properties.checks.items.properties.check={type:'string',enum:context.requiredChecks};
+    }
+    if(job.action==='review'&&context.brief?.workbench_rules===2&&context.brief.requirements.captions){
+      const check=schema.properties.checks.items;
+      check.properties.captionObservations={type:'array',items:{type:'object',additionalProperties:false,properties:{frame:{type:'integer'},text:{type:'string'}},required:['frame','text']}};
+      check.required.push('captionObservations');
+    }
     if(job.action==='discover'){schema.properties.sources.maxItems=context.searchLimit??20;schema.properties.review.properties.events.maxItems=context.searchLimit??20;}
     if(job.action==='plan'){
       const selectedIds=context.selectedSources.map(s=>s.id);

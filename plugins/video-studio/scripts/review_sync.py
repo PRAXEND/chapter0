@@ -297,11 +297,16 @@ def review(evidence, cues, cuts_by_asset, fps=30):
             raise ValueError('Missing source cut evidence for ' + aid)
         shots.extend(dict(s, item_id=clip['id']) for s in shot_fragments(clip, cuts_by_asset[aid], fps))
     rates = speech_rates(words)
+    if 'caption_pages' in evidence or evidence.get('caption_state') is not None:
+        from delivery_requirements import visible_cards
+        cards = visible_cards(evidence)
+    else:
+        cards = parse_cards(evidence['captions_text'])
     return {'caption_sync': check_captions(cues, words, fps=fps), 'source_window_issues': issues,
             'transition_handle_candidates': transition_handles(entries, cuts_by_asset, fps),
             'semantic_anchors': semantic_anchors(words, entries, evidence.get('semantic_anchors', []), fps),
             'voice_controls': voice_controls(evidence['voice_sources']),
-            'export_matches_cards': compare_cards(cues, parse_cards(evidence['captions_text']), fps),
+            'export_matches_cards': compare_cards(cues, cards, fps),
             'retained_shots': shots, 'short_shot_candidates': [s for s in shots if s['short_candidate']],
             'speech_rates': rates, 'audio_listening': 'unverified',
             'note': 'ASR timestamps and scene cuts are diagnostic evidence, not an auditory or continuous visual review.'}

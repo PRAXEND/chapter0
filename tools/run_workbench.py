@@ -24,9 +24,8 @@ def launch_settings(root=ROOT, environ=None):
     node = shutil.which('node', path=env.get('PATH'))
     if not node:
         raise ValueError('缺少 Node.js 20+，请按 INSTALL.md 配置 PATH。')
-    pack = root / 'user-packs/henry-video-styles'
+    env.setdefault('VIDEO_STUDIO_MEDIA_ROOT', str(root / 'user-packs/henry-video-styles'))
     env.setdefault('VIDEO_STUDIO_PYTHON', sys.executable)
-    env['VIDEO_STUDIO_PACK_ROOT'] = str(pack)
     env['VIDEO_STUDIO_PLUGIN_ROOT'] = str(installed)
     return [node, str(installed / 'scripts/open-workbench.mjs')], env
 
@@ -37,7 +36,7 @@ if __name__ == '__main__':
     try:
         command, env = launch_settings()
         if args.check:
-            print(json.dumps({'command': command, 'python': env['VIDEO_STUDIO_PYTHON'], 'packRoot': env['VIDEO_STUDIO_PACK_ROOT'], 'model_calls': 0}, ensure_ascii=False, indent=2))
+            print(json.dumps({'command': command, 'python': env['VIDEO_STUDIO_PYTHON'], 'mediaRoot': env['VIDEO_STUDIO_MEDIA_ROOT'], 'packRoot': env.get('VIDEO_STUDIO_PACK_ROOT'), 'model_calls': 0}, ensure_ascii=False, indent=2))
         else:
             subprocess.run(command, cwd=ROOT, env=env, check=True)
     except (KeyError, OSError, ValueError, subprocess.CalledProcessError) as error:

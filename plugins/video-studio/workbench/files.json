@@ -45,6 +45,7 @@
   "collection.mjs",
   "test/collection.test.mjs",
   "voices.mjs",
+  "narration.mjs",
   "public/voice-ui.js",
   "test/voices.test.mjs",
   "test/voice-api.test.mjs",
@@ -88,5 +89,6 @@
   "public/revision-ui.js",
   "test/revisions.test.mjs",
   "test/review-packet.test.mjs",
-  "test/provisional.test.mjs"
+  "test/provisional.test.mjs",
+  "test/production-rules.test.mjs"
 ]

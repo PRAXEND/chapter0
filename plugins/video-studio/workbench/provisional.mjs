@@ -32,11 +32,19 @@ export async function provisionalPackage(p,candidate,report,bridge){
     await add('来源.json','sources',null,p.sources.filter(s=>p.selected.includes(s.id)));
     await add('验收报告.json','qa',null,report||{completed:false,status:'awaiting_review'});
     await add('修订建议.json','qa',null,{notes:candidate.notes||[],unresolvedIssues:candidate.unresolvedIssues||[],summary:candidate.summary,missing});
-    await add('请先阅读.txt','other',null,fallback+'\n临时交付 · 尚未通过最终验收\n这是实际候选文件，供预览、下载或决定继续/停止制作，不能当作已通过验收的成片。\n'+(missing.length?'交付包仍有缺项：'+missing.join('；'):'已包含视频、封面、文案、方案、来源、验收报告及启用时的字幕。')+'\n');
+    const captionCheck=report?.checks?.caption_flow,captionSync=report?.checks?.caption_sync;
+    let captionsStatus='等待最终验收';
+    if(!p.captions)captionsStatus='本期已关闭';
+    else if(report){
+      if(captionCheck?.status==='fail'||captionSync?.status==='fail')captionsStatus='字幕验收未通过';
+      else if(captionCheck?.status==='pass'&&captionSync?.status==='pass')captionsStatus='已确认画面字幕和同步';
+      else captionsStatus='本轮尚未确认画面字幕和同步';
+    }
+    await add('请先阅读.txt','other',null,fallback+'\n临时交付 · 尚未通过最终验收\n这是实际候选文件，供预览、下载或决定继续/停止制作，不能当作已通过验收的成片。\n视频内字幕：'+captionsStatus+'。\n'+(missing.length?'交付包仍有缺项：'+missing.join('；'):'已包含视频、封面、文案、方案、来源、验收报告及启用时的字幕。')+'\n');
     const archive=await bridge('archive-package',{directory:temp});
     files.push({id:randomUUID(),name:'完整临时交付.zip',role:'archive',path:archive.file,bytes:(await stat(archive.file)).size,sha256:await fileHash(archive.file)});
     await rename(temp,directory);for(const f of files)f.path=path.join(directory,f.name);
-    const delivery={id:randomUUID(),key,directory,createdAt:new Date().toISOString(),jobId:candidate.producerJobId,projectId:candidate.projectId,timelineId:candidate.timelineId,editorUrl:candidate.editorUrl,files,videoId:files.find(f=>f.role==='video')?.id,qaStatus:'provisional',complete:!missing.length,missing,review:report||null,notes:fallback?[fallback]:[],verified:{duration:verified.duration,width:verified.width,height:verified.height}};
+    const delivery={id:randomUUID(),key,directory,createdAt:new Date().toISOString(),jobId:candidate.producerJobId,projectId:candidate.projectId,timelineId:candidate.timelineId,editorUrl:candidate.editorUrl,files,videoId:files.find(f=>f.role==='video')?.id,qaStatus:'provisional',captionsEnabled:p.captions,captionsStatus,complete:!missing.length,missing,review:report||null,notes:fallback?[fallback]:[],verified:{duration:verified.duration,width:verified.width,height:verified.height}};
     p.provisionalDeliveries=[delivery,...(p.provisionalDeliveries||[])];return delivery;
   }finally{await rm(temp,{recursive:true,force:true});}
 }

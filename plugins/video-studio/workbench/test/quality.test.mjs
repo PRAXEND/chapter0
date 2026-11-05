@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,writeFile,rm,mkdir} from 'node:fs/promises';
+import {mkdtemp,writeFile,readFile,rm,mkdir} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {fileHash} from '../media.mjs';
-import {bindCandidate,verifyCandidate,registerIndependentReview,reviewDeliveryPackage,validateDeliveryFiles,enforceIndependentReview,assertCanProduce} from '../quality.mjs';
+import {bindCandidate,verifyCandidate,recoverFailedReview,registerIndependentReview,reviewDeliveryPackage,validateDeliveryFiles,enforceIndependentReview,assertCanProduce} from '../quality.mjs';
 
 async function fixture(){
   const run=await mkdtemp(path.join(os.tmpdir(),'oneclick-quality-')),file=path.join(run,'final.mp4'),manifest=path.join(run,'manifest.json');
@@ -15,6 +15,35 @@ async function fixture(){
   const candidate=await bindCandidate(result,run,producer),probe={artifact_sha256:await fileHash(file),subtitle_sha256:null,frames:90,revision:7,manifest};
   return {run,file,manifest,producer,result,candidate,probe};
 }
+test('an empty subtitle export can recover visible cards or keep the real MP4 provisional',async()=>{
+  const f=await fixture();
+  try{
+    const record=path.join(f.run,'run.json');
+    await writeFile(record,JSON.stringify({...JSON.parse(await readFile(record,'utf8')),settings:{captions:true}}));
+    const empty=path.join(f.run,'empty.srt'),native=path.join(f.run,'native.srt');
+    await writeFile(empty,'');await writeFile(native,'1\\n00:00:00,000 --> 00:00:01,000\\n可见字幕\\n');
+    const result={...f.result,files:[{role:'video',path:path.basename(f.file)},{role:'subtitles',path:path.basename(empty)}]};
+    const restored=await bindCandidate(result,f.run,f.producer,async()=>({path:native}));
+    assert.equal(restored.files.find(v=>v.role==='subtitles').sha256,await fileHash(native));
+    const missing=await bindCandidate(result,f.run,f.producer,async()=>{throw Error('没有有效字幕卡');});
+    assert.deepEqual(missing.files.map(v=>v.role),['video']);
+    assert.equal(missing.unresolvedIssues.length,1);
+  }finally{await rm(f.run,{recursive:true,force:true});}
+});
+test('only recover already recorded independent failures on the same edit and immutable evidence',async()=>{
+  const f=await fixture();
+  try{
+    const last={id:'review',threadId:'independent',directory:f.run};
+    const check={reviewer_job_id:last.id,reviewer:last.threadId,producer_job_id:f.producer.id,revision:7,artifact_sha256:f.probe.artifact_sha256};
+    await writeFile(path.join(f.run,'run.json'),JSON.stringify({revision:7,reviews:{visuals:check}}));
+    const probe={...f.probe,evidence_files:[{path:f.manifest,sha256:await fileHash(f.manifest)}]};
+    await writeFile(path.join(f.run,'request.json'),JSON.stringify({probe,candidate:f.candidate}));
+    const audit={completed:false,checks:{visuals:{status:'fail',method:'sampled_composited_frames'}}};
+    assert.equal((await recoverFailedReview(audit,last,f.candidate,f.run)).completed,false);
+    assert.equal(await recoverFailedReview({...audit,completed:true},last,f.candidate,f.run),null);
+    await writeFile(f.manifest,'changed');assert.equal(await recoverFailedReview(audit,last,f.candidate,f.run),null);
+  }finally{await rm(f.run,{recursive:true,force:true});}
+});
 test('claimed export without actual recorded project/tool evidence cannot become a candidate',async()=>{
   const f=await fixture();try{await assert.rejects(()=>bindCandidate(f.result,f.run,{...f.producer,toolCalls:[]}),/真实/);await assert.rejects(()=>bindCandidate({...f.result,projectId:'invented'},f.run,f.producer),/不一致/);}finally{await rm(f.run,{recursive:true,force:true});}
 });

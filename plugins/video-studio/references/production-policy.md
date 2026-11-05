@@ -35,3 +35,9 @@
 ## 交付
 
 两端采用 [video-delivery-tools](../skills/video-delivery-tools/SKILL.md) 默认包：完整 MP4、3:4 与 4:3 PNG 封面、UTF-8 发布文案 TXT；启用字幕附实际 SRT。验证四项实际文件及字幕，记录报告和限制。按本地首次交付日期建立 `YYYY-MM-DD_选题`，同名加后缀。未通过验收的候选只作为诊断文件，不在成片页展示为完成。完成不包含发布或定时任务。
+
+## 新项目的声音与字幕
+
+新工作台项目从 brief 读取 generate_music、requirements.captions 和具体音色。本期选择优先于任何风格包、参考片、旧操作或全局偏好。默认生成本期纯音乐，只有明确选择不生成才省略；保留素材原声也需要独立配乐。完成时在本项目 operations 登记 status=completed、input.arguments.generationType=instrumental 和 result 的 projectId、timelineId、jobId、assetId。记录真实音乐任务及生成资产，续做核对后复用。新生成的旁白必须通过工作台派发的 narrationEndpoint 提交。将最终采用的每个旁白资产的真实 inspect_asset 返回的 asset.generation 与 generationRecord.params（voiceId 在 params，provider 可能在 generation 标头）与转录一起放入 review-evidence.json 的 voice_sources。修订与复用也需逐段匹配。手动选择音色时可使用本期确认的回答。
+
+若同一候选 MP4 已导出但音频证据仍需用户操作，在 needs_input 的 files 中列出真实视频、字幕、两张封面及文案，返回本次 projectId/timelineId。工作台先保留临时交付，补齐证据后继续验收同一候选。原件取回优先使用已登录的同一浏览器，在当前工程媒体池对本期音乐、旁白选择「更多操作 → 导出源文件」。核对素材名称、ID 与下载文件，复用已取得的音频，不重复生成。导出前，将完整时间线、旁白与配乐轨记录到 run/review-evidence.json。music_files 每项包含实际生成资产的 assetId、generationTaskId、下载到 run 内的 path 和 sha256。字幕开启时启用全局 CC，绑定实际发声轨。分页读回所有当前原生字幕卡及有效可见性；evidence.timeline_id 写本次时间线 ID，caption_state 记录 {timelineId,enabled,tracks:[{id,visible}],cards:[{id,trackId,hidden,start_frame,end_frame,lines:[文字]}]}。由实时返回归一化，保留原始读回，不得推测缺失状态。把完整未筛选的原始 read_captions 返回（单页对象或按顺序的全部分页数组）保存到 run/caption-readback.json。在 ChatCut SRT 为空时直接使用 web_bridge.py recover-subtitles --file <含 run 的 JSON> 返回的同期 SRT，不要重复付费生成或重排字幕。导出 SRT 后用 web_bridge.py check-media-requirements --file <含 run、subtitles 的 JSON> 检查；手动模式中若选声发生在批准后，附 selectedVoice（当前选择）。开头、中段、末尾各选一条实际字幕，在对应中点查看编辑器合成帧，确认文字可见后才导出完整 MP4。独立验收使用成片的相同抽帧，在 caption_flow.captionObservations 中逐帧写 {frame,text}，其余检查填空数组。没有看到的字不得照抄 SRT。

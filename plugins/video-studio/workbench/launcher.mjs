@@ -31,7 +31,7 @@ export async function ensureWorkbench({env=process.env, timeoutMs=30000}={}) {
   let child,exitCode,spawnError;
   try {
     child=spawn(process.execPath,[path.join(root,'studio-server.mjs')],{cwd:dataDirectory,env:{...env,VIDEO_STUDIO_WEB_DATA:dataDirectory,VIDEO_STUDIO_PLUGIN_ROOT:identity.pluginRoot,
-      ...(identity.styleHome?{VIDEO_STUDIO_HOME:identity.styleHome}:{}),...(identity.packRoot?{VIDEO_STUDIO_PACK_ROOT:identity.packRoot}:{})},detached:true,stdio:['ignore',log.fd,log.fd]});
+      ...(identity.styleHome?{VIDEO_STUDIO_HOME:identity.styleHome}:{}),...(identity.mediaRoot?{VIDEO_STUDIO_MEDIA_ROOT:identity.mediaRoot}:{}),...(identity.packRoot?{VIDEO_STUDIO_PACK_ROOT:identity.packRoot}:{})},detached:true,stdio:['ignore',log.fd,log.fd]});
     child.on('error',error=>{spawnError=error;});child.on('exit',code=>{exitCode=code;});child.unref();
   } finally {await log.close();}
   const deadline=Date.now()+timeoutMs;

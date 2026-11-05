@@ -16,6 +16,7 @@ export async function workbenchIdentity(root,env=process.env){
   const plugin=await findPlugin(root,env);
   const identity={pluginRoot:plugin.root,version:plugin.version,serverRoot:await realpath(root),
     styleHome:env.VIDEO_STUDIO_HOME?environmentPath(env.VIDEO_STUDIO_HOME):null,
+    mediaRoot:env.VIDEO_STUDIO_MEDIA_ROOT?environmentPath(env.VIDEO_STUDIO_MEDIA_ROOT):null,
     packRoot:env.VIDEO_STUDIO_PACK_ROOT?environmentPath(env.VIDEO_STUDIO_PACK_ROOT):null};
   return {...identity,signature:createHash('sha256').update(JSON.stringify(identity)).digest('hex')};
 }

@@ -83,7 +83,7 @@ console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',tex
       if(scenario.checkpointCrash)await writeFile(path.join(temp,'after-checkpoint-crash'),'fixture');
       if(scenario.reviewCrash)await writeFile(path.join(temp,'review-crash'),'fixture');
       const deliveryRoot=path.join(temp,scenario.deliveryCrash?'blocked-delivery':'delivery');if(scenario.deliveryCrash)await writeFile(deliveryRoot,'transient unavailable output');
-      const {project:p}=await api('/api/state');await api('/api/project',{...p,topic:scenario.topic,styleSelector:'sample@1',ratio:'16:9',duration:3,durationMin:null,narration:false,advancedOverrides:{narration:true},outputRoot:deliveryRoot});
+      const {project:p}=await api('/api/state');await api('/api/project',{...p,topic:scenario.topic,styleSelector:'sample@1',ratio:'16:9',duration:3,durationMin:null,narration:false,captions:false,music:'none',advancedOverrides:{narration:true,music:true,captions:true},outputRoot:deliveryRoot});
       if(scenario.legacy){
         await stop();const old=(await readFile(path.join(data,'workbench-v2.json'),'utf8'));const p=JSON.parse(old);
         delete p.reviewPolicy;p.voiceChoice={provider:'fixture',voiceId:'saved-clone',voiceType:'custom',name:'Saved clone',selected_by_user:true};

@@ -5,6 +5,7 @@ import array
 import json
 import math
 from pathlib import Path
+import subprocess
 import statistics
 import sys
 import tempfile
@@ -149,6 +150,84 @@ def scan(samples, rate, channels, voice, bed, duration, config=None):
             'measured_pauses': sum(p['status'] != 'too_short_to_measure_rise' for p in pauses),
             'audio_listening': 'unverified',
             'note': 'Measures short-term mixed-audio rises inside ASR pauses, not isolated music or listening quality. Short gaps and intro/outro are not certified.'}
+
+
+def match_music(source, mix, start, rate):
+    """Require two separate audible windows at one consistent browser/codec delay."""
+    from review_audio_alignment import correlation
+    if len(source) < rate//4:
+        return None
+    size = min(rate*3//4, len(source)//4)
+    span = len(source)-size
+    offsets = sorted({round(span*f) for f in (.05,.25,.5,.75,.95)})
+    # Browser MP3 decoders can introduce a constant delay. Search within 100 ms
+    # at both ends, then test the same delay at full resolution across the edit.
+    max_lag = rate//10
+    for channel in mix:
+        candidate_lags = {0}
+        for offset in offsets:
+            reference = source[offset:offset+size:8]
+            base = start+offset
+            scores = [(abs(correlation(reference, channel[base+k:base+k+size:8])), k)
+                      for k in range(-max_lag,max_lag+1) if 0 <= base+k <= len(channel)-size]
+            candidate_lags.update(k for _, k in sorted(scores, reverse=True)[:3])
+        for lag in sorted(candidate_lags, key=abs):
+            matches = []
+            for offset in offsets:
+                pos = start+offset+lag
+                if pos < 0 or pos+size > len(channel) or (matches and offset < matches[-1]+size):
+                    continue
+                ref, actual = source[offset:offset+size], channel[pos:pos+size]
+                power = sum(x*x for x in ref)
+                if not power or abs(correlation(ref, actual)) < .25:
+                    continue
+                projected_rms = abs(sum(a*b for a,b in zip(ref,actual))) / math.sqrt(size*power)
+                if projected_rms >= .001:
+                    matches.append(offset)
+            if len(matches) >= 2:
+                return {'matched_samples':len(matches),'offset_ms':round(lag*1000/rate,2)}
+    return None
+
+
+def generated_bed(video, evidence, run, fps):
+    """Look for the supplied music waveform in the actual mix at its edited positions."""
+    from review_audio_alignment import RATE, decode as decode_audio, tempo_filters
+    from delivery_requirements import track_assets
+    root = Path(run).resolve()
+    try:
+        assets = track_assets(evidence, 'music_tracks')
+        files = {}
+        for ref in evidence['music_files']:
+            file = Path(ref['path']).resolve(strict=True)
+            if not file.is_relative_to(root) or file_hash(file) != ref['sha256']:
+                raise ValueError('配乐源文件超出项目或已变化')
+            files[ref['assetId']] = file
+        timeline = evidence['timeline']['timeline']
+        selectors = set(evidence['music_tracks'])
+        tracks = {t['id'] for t in timeline['tracks'] if selectors.intersection((t['id'], t.get('alias')))}
+        with tempfile.TemporaryDirectory() as directory:
+            tmp = Path(directory)
+            mix = decode_audio(video, tmp / 'mix.raw')
+            windows = []
+            for clip in timeline['entries']:
+                if clip.get('kind') != 'item' or clip.get('trackId') not in tracks:
+                    continue
+                asset = clip['asset']['id']
+                if asset not in assets or asset not in files:
+                    raise ValueError('配乐文件未绑定实际时间线素材')
+                start, end = (clip['sourceRange'][k]/1e6 for k in ('start','end'))
+                left, right = (clip['timelineRange'][k]/fps for k in ('fromFrame','toFrame'))
+                if not 0 <= left < right or not 0 <= start < end:
+                    raise ValueError('配乐素材或时间线区间无效')
+                filters = [f'atrim=start={start}:end={end}', 'asetpts=PTS-STARTPTS', *tempo_filters((end-start)/(right-left))]
+                source = max(decode_audio(files[asset], tmp / 'music.raw', ','.join(filters)), key=lambda c:sum(x*x for x in c))
+                match = match_music(source, mix, round(left*RATE), RATE)
+                if not match:
+                    raise ValueError('最终混音中未能确认可听的生成配乐：' + asset)
+                windows.append({'asset_id':asset,'clip_id':clip['id'], **match})
+        return {'status':'checked','clips':windows}
+    except (OSError, KeyError, TypeError, IndexError, ValueError, subprocess.SubprocessError) as exc:
+        return {'status':'unverified','reason':str(exc)}
 
 
 def check_file(video, evidence, required=True):

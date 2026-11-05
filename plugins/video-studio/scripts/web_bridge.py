@@ -374,6 +374,39 @@ def production_context(payload):
             "plan": str(run / "workbench-plan.json") if (run / "workbench-plan.json").is_file() else None}
 
 
+def recover_subtitles(payload):
+    """Reconstruct the sidecar from saved, visible native cards when ChatCut exports zero bytes."""
+    import delivery_requirements as req
+    root = Path(payload['run']).resolve(strict=True)
+    data = studio.load_run(root)
+    if not data['settings']['captions']:
+        raise ValueError('本期已关闭字幕')
+    source = (root / 'caption-readback.json').resolve(strict=True)
+    if not source.is_relative_to(root):
+        raise ValueError('字幕证据必须在本项目中')
+    project = data['project']
+    state = req.native_caption_state(read(source), project['timelineId'], project['projectId'])
+    cards = req.visible_cards({'caption_state':state,'timeline_id':project['timelineId']})
+    content = req.subtitles_text(cards, data['settings']['fps'])
+    name = 'native-captions-' + digest(content.encode()) + '.srt'
+    target = root / name
+    write(target, content)
+    return {'path':str(target), 'cards':len(cards), 'source':'read_captions'}
+
+
+def check_media_requirements(payload):
+    import delivery_requirements
+    root = Path(payload['run']).resolve(strict=True)
+    data = studio.load_run(root)
+    subtitle = payload.get('subtitles')
+    cues = studio.parse_srt(subtitle) if subtitle else []
+    evidence = read(root / 'review-evidence.json')
+    errors = delivery_requirements.check(data, evidence, cues, data['settings']['fps'], payload.get('selectedVoice'))
+    if errors:
+        raise ValueError('；'.join(errors.values()))
+    return {'ok': True}
+
+
 def review_frames(payload):
     """Fixed supplemental evidence extraction; never declares visual approval."""
     import math
@@ -427,10 +460,10 @@ def archive_package(payload):
     return {"file": str(output), "sha256": file_digest(output)}
 
 
-ACTIONS = {"review-frames": review_frames, "archive-package": archive_package,"save-voice": save_voice, "production-context": production_context,
+ACTIONS = {"recover-subtitles": recover_subtitles, "check-media-requirements": check_media_requirements, "review-frames": review_frames, "archive-package": archive_package,"save-voice": save_voice, "production-context": production_context,
            "validate-preparation": validate_preparation,
            "prepare-reference": lambda p: style_context.reference_probe(p['run']),
-           "prepare-review": lambda p: quality_probe.prepare(p["run"], p["file"], p.get("subtitles"), p.get("directory")),
+           "prepare-review": lambda p: quality_probe.prepare(p["run"], p["file"], p.get("subtitles"), p.get("directory"), p.get("selectedVoice")),
            "record-review": lambda p: studio.record(p["run"], "review", p["review"]),
            "review-audit": lambda p: studio.audit(p["run"], p["file"], p.get("subtitles")),
            "validate-plan": validate_plan,"catalog": catalog, "create": create, "sync": sync, "save-plan": save_plan,
@@ -449,7 +482,10 @@ def main():
     parser.add_argument("--file")
     args = parser.parse_args()
     try:
-        value = ACTIONS[args.action](read(args.file) if args.file else {})
+        payload = read(args.file) if args.file else {}
+        if payload.get("run") and args.action not in {"check-approval"}:
+            studio.require_writable_run(payload["run"])
+        value = ACTIONS[args.action](payload)
         print(json.dumps(value, ensure_ascii=False, allow_nan=False))
         return 0
     except (ValueError, OSError, KeyError, studio.StudioError, subprocess.SubprocessError) as error:

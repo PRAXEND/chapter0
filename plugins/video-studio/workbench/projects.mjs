@@ -6,6 +6,7 @@ function validate(project){
   if(project?.schema!==2||!validId(project.id)||!['sources','selected','jobs','deliveries'].every(key=>Array.isArray(project[key])))throw new Error('项目记录格式无效。');
   return project;
 }
+export const historicalProject = project => project.productionRules !== 2;
 export class ProjectStore{
   constructor(dataDir){this.directory=path.join(dataDir,'projects');this.records=new Map();this.errors=[];}
   async init(current){
@@ -17,7 +18,9 @@ export class ProjectStore{
     }
     const saved=this.records.get(current.id);
     if(saved&&(Date.parse(saved.updatedAt)||0)>(Date.parse(current.updatedAt)||0))current=saved;
-    await this.save(current);return this;
+    if (historicalProject(current) && saved) this.records.set(current.id,current);
+    else await this.save(current);
+    return this;
   }
   async save(project){
     const snapshot=validate(structuredClone(project));
@@ -30,6 +33,6 @@ export class ProjectStore{
     return structuredClone(this.records.get(id));
   }
   list(currentId){
-    return [...this.records.values()].map(p=>({id:p.id,title:p.topic||p.title||'未命名视频',createdAt:p.createdAt,updatedAt:p.updatedAt||p.createdAt,current:p.id===currentId,materialCount:p.sources.filter(s=>s.status==='ready').length,deliveryCount:p.deliveries.length,status:p.jobs.some(j=>['running','cancelling'].includes(j.status))?'任务执行中':p.deliveries.length?'已有成片':p.approval?'已确认方案':p.plan?'文案待审':p.topic?'选材中':'新项目',recovered:!!p.recovery})).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))||a.id.localeCompare(b.id));
+    return [...this.records.values()].map(p=>({id:p.id,title:p.topic||p.title||'未命名视频',createdAt:p.createdAt,updatedAt:p.updatedAt||p.createdAt,current:p.id===currentId,materialCount:p.sources.filter(s=>s.status==='ready').length,deliveryCount:p.deliveries.length,status:historicalProject(p)?'历史项目 · 只读':p.jobs.some(j=>['running','cancelling'].includes(j.status))?'任务执行中':p.deliveries.length?'已有成片':p.approval?'已确认方案':p.plan?'文案待审':p.topic?'选材中':'新项目',recovered:!!p.recovery})).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))||a.id.localeCompare(b.id));
   }
 }

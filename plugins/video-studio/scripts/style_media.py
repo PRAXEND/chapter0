@@ -69,7 +69,7 @@ def link_pack(manifest_file):
 
 
 def locate_pack(explicit=None):
-    value = explicit or os.environ.get('VIDEO_STUDIO_PACK_ROOT')
+    value = explicit or os.environ.get('VIDEO_STUDIO_MEDIA_ROOT') or os.environ.get('VIDEO_STUDIO_PACK_ROOT')
     if value:
         base = Path(value).expanduser().absolute()
         return base if (base / 'manifest.json').exists() or base.name == PACK_ID else base / PACK_ID

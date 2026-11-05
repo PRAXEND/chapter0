@@ -230,9 +230,23 @@ def save_profile(patch):
     return result
 
 
+def chat_brief(payload, previous=None):
+    previous = previous or {}
+    if not isinstance(payload, dict) or not isinstance(payload.get("requirements", {}), dict):
+        raise StudioError("Invalid production brief")
+    requirements = {"captions": previous.get("requirements", {}).get("captions", True),
+                    "review_policy": quality_policy.POLICY, **payload.get("requirements", {})}
+    music = payload.get("generate_music", previous.get("generate_music", True))
+    if music:
+        requirements["audio_required"] = True
+    return {**payload, "workbench_rules": 2, "generate_music": music, "requirements": requirements}
+
+
 def apply_brief(data, payload, directory):
     if not isinstance(payload, dict) or not payload.get("topic"):
         raise StudioError("Brief needs the current topic")
+    if payload.get("workbench_rules") == 2 and type(payload.get("generate_music")) is not bool:
+        raise StudioError("Record the explicit generate_music setting")
     patch = payload.get("requirements", {})
     if not isinstance(patch, dict) or set(patch) - set(DEFAULTS):
         raise StudioError("Unknown brief requirements")
@@ -246,7 +260,7 @@ def apply_brief(data, payload, directory):
     if set(overrides) - rules:
         raise StudioError("Override references an unknown style rule")
     # Resolve once, then pin this exact version even if another version is saved.
-    data["style_snapshot"] = styles.snapshot(selected["selector"], directory) if selected else None
+    data["style_snapshot"] = styles.snapshot(selected["selector"], directory, current_rules=data.get("creation_rules") == 2, requirements={**settings, "generate_music": payload.get("generate_music")}) if selected else None
     if data.get("brief") != payload:
         data["material_plan"] = None
     if data.get("selection") and data["selection"]["topic"] != payload["topic"]:
@@ -263,7 +277,7 @@ def new_run(title, output_root=None, brief=None):
     directory = Path(output_root or settings["output_root"]).expanduser().resolve() / identifier
     directory.mkdir(parents=True, exist_ok=False)
     manifest = {
-        "schema_version": 2, "id": identifier, "title": title, "created_at": now(),
+        "schema_version": 2, "creation_rules": 2, "id": identifier, "title": title, "created_at": now(),
         "status": "awaiting_brief", "settings": settings, "selection": None,
         "project": {}, "sources": [], "beats": [], "downloads": {},
         "operations": {}, "reviews": {}, "revision": 0, "history": [],
@@ -281,6 +295,11 @@ def load_run(directory):
     if value.get("schema_version") != 2:
         raise StudioError("Legacy or unsupported run: continue with its original plugin; do not overwrite it.")
     return value
+
+
+def require_writable_run(directory):
+    if load_run(directory).get("creation_rules") != 2:
+        raise StudioError("历史项目为只读；请新建项目制作。")
 
 
 def save_run(directory, data, event):
@@ -519,6 +538,9 @@ def parse_srt(path):
 
 
 def music_expected(data):
+    brief = data.get('brief') or {}
+    if brief.get('workbench_rules') == 2:
+        return brief['generate_music']
     project = data.get('project', {})
     return bool(project.get('music_asset_id') or project.get('music_tracks') or project.get('music_enabled'))
 
@@ -531,6 +553,21 @@ def file_proof(ref, base):
         return path.is_file() and file_hash(path) == ref["sha256"]
     except (OSError, KeyError, TypeError):
         return False
+
+
+def required_review_checks(data, has_audio):
+    settings = data["settings"]
+    required = {"visuals", "occlusion", "transitions", "flicker", "output_details"}
+    if has_audio: required.update({"audio_listening", "av_sync", "music_fit"})
+    if settings.get("captions"): required.update({"caption_sync", "caption_flow"})
+    if any(b.get("claims") for b in data["beats"]): required.add("facts")
+    if data.get("style_snapshot"):
+        required.add("style_match")
+    if data.get("production_policy_version") == 1 or data.get("production_plan"):
+        required.add("material_continuity")
+        if (settings.get("height") or 0) > (settings.get("width") or 0):
+            required.add("portrait_layout")
+    return required
 
 
 def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_base=None):
@@ -608,14 +645,10 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
     for key, entry in data.get("operations", {}).items():
         if entry["status"] in {"reserved", "submitted"}:
             failures.append(f"{key}:unresolved_remote_operation")
-    required = {"visuals", "occlusion", "transitions", "flicker", "output_details"}
-    if has_audio: required.update({"audio_listening", "av_sync", "music_fit"})
-    if settings.get("captions"): required.update({"caption_sync", "caption_flow"})
-    if any(b.get("claims") for b in data["beats"]): required.add("facts")
+    required = required_review_checks(data, has_audio)
     snapshot = data.get("style_snapshot")
     style_rules = []
     if snapshot:
-        required.add("style_match")
         try:
             folder = Path(snapshot["skill_path"]).parent
             if any(file_hash(folder / n) != h for n, h in snapshot["files"].items()):
@@ -633,10 +666,7 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
         failures.extend(style_implementation)
     common_implementation = []
     if data.get("production_policy_version") == 1 or data.get("production_plan"):
-        required.add("material_continuity")
         try:
-            if production_plan.layout(settings)["mode"] == "portrait-safe":
-                required.add("portrait_layout")
             common_implementation = production_plan.implementation_errors(data, review_base, frames)
         except (OSError, ValueError, KeyError, TypeError) as exc:
             common_implementation = ["production_plan_invalid:" + str(exc)]
@@ -900,12 +930,14 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         command = args.command
+        if getattr(args, "run", None) and command != "status":
+            require_writable_run(args.run)
         if command == "doctor": result = doctor()
         elif command == "preflight": result = preflight(args.capability, args.style, args.pack_root)
         elif command == "bootstrap": result = bootstrap()
         elif command == "connection": result = connection(read(args.file), args.run)
         elif command == "profile": result = save_profile(read(args.merge_file)) if args.merge_file else profile()
-        elif command == "new": result = new_run(args.title, args.output_root, read(args.brief) if args.brief else None)
+        elif command == "new": result = new_run(args.title, args.output_root, chat_brief(read(args.brief)) if args.brief else None)
         elif command == "styles":
             import web_styles
             if args.action == "list":
@@ -923,7 +955,7 @@ def main(argv=None):
                 result = user_packs.install(args.file, args.apply_preferences)
             else: result = styles.register(read(args.file))
         elif command == "status": result = load_run(args.run)
-        elif command == "record": result = record(args.run, args.kind, read(args.file))
+        elif command == "record": result = record(args.run, args.kind, chat_brief(read(args.file), load_run(args.run).get("brief")) if args.kind == "brief" else read(args.file))
         elif command == "operation": result = operation(args.run, args.action, args.key, read(args.file), args.state)
         elif command == "probe": result = probe_url(args.url)
         elif command == "fetch": result = fetch(args.run, args.source, args.start, args.end)

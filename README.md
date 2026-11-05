@@ -1,6 +1,6 @@
 # Video Studio · Video Generation Workbench
 
-**0.3.0-web.34 · macOS · 分支 `video-generation-workbench`**
+**0.3.0-web.35 · macOS · 分支 `video-generation-workbench`**
 
 输入主题方向、时长范围、横/竖画幅、风格和音色，由同一主会话完成选材、文案、动效与可编辑剪辑；独立验收通过后正式交付。工作台使用专用 Codex 桌面会话控制 hosted ChatCut 网页工程。
 
@@ -34,7 +34,7 @@ python3 tools/verify_checkout.py
 
 ## 制作与交付
 
-- 默认 60–70 秒、开启字幕；按风格决定配乐，手动覆盖优先。
+- 默认 60–70 秒、开启字幕；默认生成配乐，编曲随风格；可以明确关闭。
 - 配置与已保存音色选择不启动模型，点击一键才开始；克隆需要自己的授权录音。
 - 风格下拉框展示可用风格；完整媒体下载后可使用 `henry-hot-news@8` 和 `henry-technical-explainer@8`。
 - 主体裁切、遮挡与字幕时序在制作阶段检查。验收保留全片抽帧、加密边界、原尺寸疑点、试片对照和客观音频标准；固定程序整理证据与报告。

@@ -15,6 +15,7 @@ import tempfile
 
 import studio
 import review_sync
+import delivery_requirements
 import review_music
 import review_audio_alignment
 from quality_policy import POLICY
@@ -230,7 +231,7 @@ def speech_activity(evidence, audio, fps):
         return {"status": "unverified", "reason": str(exc), "hard_failures": []}
 
 
-def prepare(run, file, subtitles=None, directory=None):
+def prepare(run, file, subtitles=None, directory=None, selected_voice=None):
     root = Path(run).resolve(strict=True); video = Path(file).resolve(strict=True)
     if not video.is_relative_to(root): raise ValueError("Review video must be inside the current run")
     if subtitles and not Path(subtitles).resolve(strict=True).is_relative_to(root): raise ValueError("Subtitles must be inside current run")
@@ -254,6 +255,10 @@ def prepare(run, file, subtitles=None, directory=None):
     input_hashes = {}
     if evidence_file.is_file(): input_hashes[evidence_file] = studio.file_hash(evidence_file)
     if evidence_file.is_file(): evidence = studio.read(evidence_file)
+    for reference in (evidence or {}).get("music_files", []):
+        file = Path(reference["path"]).resolve()
+        if file.is_relative_to(root) and file.is_file():
+            input_hashes[file] = studio.file_hash(file)
     for reference in (evidence or {}).get("voice_files", []):
         file = Path(reference["path"]).resolve(strict=True)
         if not file.is_relative_to(root) or studio.file_hash(file) != reference["sha256"]:
@@ -265,6 +270,11 @@ def prepare(run, file, subtitles=None, directory=None):
     timeline_complete = bool(timeline) and timeline.get("totalEntries") == len(timeline.get("entries", []))
     cues = studio.parse_srt(subtitles) if subtitles else []
     schedule = frame_schedule(data, frames, fps, cues)
+    current_rules = (data.get('brief') or {}).get('workbench_rules') == 2
+    if current_rules and data['settings'].get('captions'):
+        samples = delivery_requirements.sample_captions(cues, fps, frames)
+        schedule['caption_samples'] = samples
+        schedule['sample_frames'] = sorted(set(schedule['sample_frames']) | {s['frame'] for s in samples})
     sheets = contact_sheets(video, target, schedule)
     audio_streams = [s for s in media["streams"] if s["codec_type"] == "audio"]
     audio_stream = next((s for s in audio_streams if s.get("disposition", {}).get("default")), audio_streams[0] if audio_streams else None)
@@ -283,6 +293,15 @@ def prepare(run, file, subtitles=None, directory=None):
     activity = speech_activity(evidence, audio, fps) if evidence and data["settings"].get("narration") else {"status": "unverified" if data["settings"].get("narration") else "not_applicable"}
     alignment = review_audio_alignment.check(video, evidence, root, fps) if data["settings"].get("narration") else {"status": "not_applicable"}
     music = review_music.check_file(video, evidence, required=studio.music_expected(data)) if studio.music_expected(data) else {"status": "not_applicable"}
+    requirements = delivery_requirements.check(data, evidence, cues, fps, selected_voice) if current_rules else {}
+    if current_rules and studio.music_expected(data) and 'music_fit' not in requirements:
+        presence = review_music.generated_bed(video, evidence, root, fps)
+        if not data['settings'].get('narration') and presence['status'] == 'checked':
+            music = {'status': 'pass', 'method': 'generated_music_waveform_in_export',
+                     'limitations': ['No narration; pause-level ducking check does not apply.']}
+        music['generated_bed'] = presence
+        if presence['status'] != 'checked':
+            requirements['music_fit'] = presence['reason']
     common = {"schema": 1, "policy": POLICY, "artifact_sha256": original_hash,
               "subtitle_sha256": subtitle_hash,
               "revision": data["revision"], "frames": frames, "fps": fps, "duration": duration}
@@ -291,7 +310,7 @@ def prepare(run, file, subtitles=None, directory=None):
                    "Signal detectors produce candidates, not a guarantee that every transient defect is detected."]
     manifest = {**common, **schedule, "contact_sheets": sheets, "timeline_complete": timeline_complete, "limitations": limitations}
     visual_candidates = [line.strip() for line in decoded.stderr.splitlines() if any(key in line for key in ("black_start:", "freeze_start:", "freeze_end:"))]
-    metrics = {**common, "full_decode": True, "audio": audio, "sync": sync, "speech_activity": activity, "narration_alignment": alignment,
+    metrics = {**common, "requirement_errors": requirements, "full_decode": True, "audio": audio, "sync": sync, "speech_activity": activity, "narration_alignment": alignment,
                "music": music, "visual_scan": {"path": str(signal_file), "sha256": studio.file_hash(signal_file), "candidates": visual_candidates}, "limitations": limitations}
     mf, af = target / "manifest.json", target / "metrics.json"
     studio.write(mf, manifest); studio.write(af, metrics)
@@ -299,7 +318,7 @@ def prepare(run, file, subtitles=None, directory=None):
     if evidence_file.is_file(): files.append(evidence_file)
     if cuts_file.is_file(): files.append(cuts_file)
     files.extend(p for p in input_hashes if p not in files)
-    result = {**common, "manifest": str(mf), "metrics": str(af), "evidence_files": [{"path": str(p), "sha256": studio.file_hash(p)} for p in files], "limitations": limitations}
+    result = {**common, "required_checks": sorted(studio.required_review_checks(data, bool(audio_streams))), "manifest": str(mf), "metrics": str(af), "evidence_files": [{"path": str(p), "sha256": studio.file_hash(p)} for p in files], "limitations": limitations}
     if studio.load_run(root)["revision"] != data["revision"]: raise ValueError("Run changed during review preparation")
     if studio.file_hash(video) != original_hash or (subtitles and studio.file_hash(subtitles) != subtitle_hash) or any(studio.file_hash(p) != sha for p, sha in input_hashes.items()):
         raise ValueError("Media or timeline evidence changed during review preparation")
@@ -311,7 +330,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", required=True); parser.add_argument("--file", required=True)
     parser.add_argument("--subtitles"); parser.add_argument("--directory")
-    args = parser.parse_args(); print(json.dumps(prepare(args.run, args.file, args.subtitles, args.directory), ensure_ascii=False))
+    args = parser.parse_args(); studio.require_writable_run(args.run); print(json.dumps(prepare(args.run, args.file, args.subtitles, args.directory), ensure_ascii=False))
 
 
 if __name__ == "__main__": main()

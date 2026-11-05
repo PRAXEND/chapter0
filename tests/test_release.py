@@ -41,6 +41,7 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(command[1],str(installed.resolve() / 'scripts/open-workbench.mjs'))
                 self.assertEqual(actual['VIDEO_STUDIO_PYTHON'],env['VIDEO_STUDIO_PYTHON'])
                 self.assertEqual(actual['VIDEO_DEMO_CODEX_BIN'],env['VIDEO_DEMO_CODEX_BIN'])
-                self.assertEqual(actual['VIDEO_STUDIO_PACK_ROOT'],str(root.resolve() / 'user-packs/henry-video-styles'))
+                self.assertNotIn('VIDEO_STUDIO_PACK_ROOT', actual)
+                self.assertEqual(actual['VIDEO_STUDIO_MEDIA_ROOT'], str(root.resolve() / 'user-packs/henry-video-styles'))
                 (installed / 'plugin.json').write_text(json.dumps({'name':'video-studio','version':'old'}))
                 with self.assertRaisesRegex(ValueError, '版本不同'):launch.launch_settings(root, env)

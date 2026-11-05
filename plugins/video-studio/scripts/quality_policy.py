@@ -86,6 +86,17 @@ def review_errors(data, review, base, read, file_hash):
         if not expected or not isinstance(actual, list) or set(actual) != set(expected):
             errors.append("sampled_sheets_not_fully_reviewed")
     check = review["check"]
+    requirements = metrics.get("requirement_errors", {})
+    if check in requirements:
+        errors.append(requirements[check])
+    if (data.get("brief") or {}).get("workbench_rules") == 2:
+        if check == "caption_flow" and data["settings"]["captions"]:
+            from delivery_requirements import observed_captions_match
+            if not observed_captions_match(manifest.get("caption_samples"), review.get("caption_observations")):
+                errors.append("最终画面抽帧未读到对应字幕")
+        if check == "music_fit" and data["brief"]["generate_music"]:
+            if metrics.get("music", {}).get("generated_bed", {}).get("status") != "checked":
+                errors.append("生成配乐在最终混音中的证据不足")
     # Output checks must also reject missing expected audio, because a video with
     # no audio stream would otherwise have no applicable audio review checks.
     # not_applicable music_fit remains subject to these same objective failures.

@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FILES = [
     'plugins/video-studio/references/legacy-review-policy.md',
     'plugins/video-studio/scripts/style_context.py',
+    'plugins/video-studio/scripts/delivery_requirements.py',
     'plugins/video-studio/references/continuous-production.md',
     'tests/test_style_context.py',
     'plugins/video-studio/scripts/quality_policy.py',
@@ -24,6 +25,7 @@ FILES = [
     'tools/verify_checkout.py',
     'tools/run_workbench.py',
     'tests/test_release.py',
+    'tests/test_delivery_requirements.py',
     'VALIDATION.md',
     'CHANGELOG.md',
     '.gitignore',

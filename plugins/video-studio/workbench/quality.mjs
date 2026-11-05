@@ -8,14 +8,30 @@ export function assertCanProduce(cycle,planHash,inputHash){
   if(cycle.terminal==='quality_failed'||cycle.repairCompleted)throw Error('当前方案已完成一轮返工，请继续验收或处理问题并更新方案，不能再次返工。');
   if(cycle.report===null)throw Error('已有待验收成片，请继续独立验收，不要重新制作。');
 }
-export async function bindCandidate(result,run,job){
+export async function bindCandidate(result,run,job,recoverSubtitles){
   if(result.status!=='exported'||!Array.isArray(result.files))throw Error('没有实际完成的导出。');
   if(!result.projectId||!result.timelineId||!job.threadId||!job.toolCalls?.some(t=>/chatcut/i.test(t.server+' '+t.tool)&&/submit_export|track_export/.test(t.tool)&&t.status==='completed'))throw Error('缺少真实 ChatCut 工程、制作会话或导出调用记录。');
   const record=JSON.parse(await readFile(path.join(run,'run.json'),'utf8'));
   if(record.project?.projectId!==result.projectId||record.project?.timelineId!==result.timelineId)throw Error('候选与实际 ChatCut 工程不一致。');
   if(!job.planHash||!job.inputHash||record.project.planHash!==job.planHash||record.project.inputHash!==job.inputHash)throw Error('候选工程未绑定当前制作方案与输入。');
   const files=[];
-  for(const item of result.files){const file=await contained(item.path,run);const info=await stat(file);if(!info.isFile()||!info.size)throw Error('导出文件为空。');files.push({...item,path:file,sha256:await fileHash(file)});}
+  for(const item of result.files){
+    if(item.role==='subtitles' && record.settings?.captions && recoverSubtitles){
+      try{const file=await contained(path.resolve(run,item.path),run);if(!(await readFile(file,'utf8')).trim())continue;}
+      catch{continue;}
+    }
+    const file=await contained(path.resolve(run,item.path),run),info=await stat(file);
+    if(!info.isFile()||!info.size)throw Error('导出文件为空。');
+    files.push({...item,path:file,sha256:await fileHash(file)});
+  }
+  if(record.settings?.captions && recoverSubtitles && !files.some(item=>item.role==='subtitles')){
+    try{
+      const recovered=await recoverSubtitles(run),file=await contained(recovered.path,run);
+      files.push({role:'subtitles',path:file,sha256:await fileHash(file)});
+    }catch{
+      result={...result,unresolvedIssues:[...(result.unresolvedIssues||[]),'未取得完整可见的原生字幕或有效 SRT。']};
+    }
+  }
   if(files.filter(f=>f.role==='video'&&path.extname(f.path)==='.mp4').length!==1)throw Error('需要唯一最终 MP4。');
   return {...result,files,producerJobId:job.id,producerThreadId:job.threadId||null,inputHash:job.inputHash,planHash:job.planHash};
 }
@@ -24,7 +40,31 @@ export async function verifyCandidate(candidate,run){
   for(const f of candidate.files)if(await fileHash(await contained(f.path,run))!==f.sha256)throw Error('待验收文件已变化，需要重新登记导出。');
   return candidate.files.find(f=>f.role==='video');
 }
-export async function registerIndependentReview({result,job,candidate,probe,run,bridge,methods=reviewMethods,referenceProbe=null}){
+// Recover only an already-registered rejection for this exact producer, edit and evidence.
+export async function recoverFailedReview(audit,last,candidate,run){
+  if(!last.threadId||last.threadId===candidate.producerThreadId||audit.completed)return null;
+  let previous;
+  try{previous=JSON.parse(await readFile(path.join(last.directory,'request.json'),'utf8'));}catch{return null;}
+  const probe=previous?.probe;
+  const video=candidate.files.find(f=>f.role==='video'),subtitle=candidate.files.find(f=>f.role==='subtitles');
+  if(!probe||previous.candidate?.producerJobId!==candidate.producerJobId||probe.artifact_sha256!==video?.sha256||probe.subtitle_sha256!==(subtitle?.sha256||null))return null;
+  const record=JSON.parse(await readFile(path.join(run,'run.json'),'utf8'));
+  if(probe.revision!==record.revision||!probe.evidence_files?.length)return null;
+  for(const ref of probe.evidence_files){
+    try{if(await fileHash(await contained(ref.path,run))!==ref.sha256)return null;}catch{return null;}
+  }
+  const rejected=Object.entries(audit.checks).some(([key,check])=>{
+    const actual=record.reviews?.[key];
+    return check.status==='fail'&&actual?.reviewer_job_id===last.id&&actual.reviewer===last.threadId
+      &&actual.producer_job_id===candidate.producerJobId&&actual.artifact_sha256===video.sha256
+      &&actual.revision===record.revision;
+  });
+  if(!rejected)return null;
+  return enforceIndependentReview({...audit,completed:false,independentJobId:last.id,independentThreadId:last.threadId,
+    producerJobId:candidate.producerJobId,limitations:['恢复了中断前登记的独立验收问题，未登记项目保留为待核验。']},run);
+}
+
+export async function registerIndependentReview({result,job,candidate,probe,run,bridge,methods=reviewMethods,referenceProbe=null,requiredChecks=null}){
   if(!job.threadId||job.threadId===candidate.producerThreadId||job.id===candidate.producerJobId)throw Error('缺少独立验收会话，拒绝使用制作 Agent 自评。');
   await verifyCandidate(candidate,run);
   const record=JSON.parse(await readFile(path.join(run,'run.json'),'utf8'));
@@ -44,6 +84,7 @@ export async function registerIndependentReview({result,job,candidate,probe,run,
     for(const file of [probe.manifest,probe.metrics,...(check.check==='style_match'&&referenceProbe?[referenceProbe.manifest]:[])].filter(Boolean))check.evidenceFiles.push({path:file,sha256:await fileHash(file)});
 
     if(!Object.hasOwn(reviewMethods,check.check)||seen.has(check.check))throw Error('验收项目未知或重复。');seen.add(check.check);
+    if(check.result==='not_applicable'&&requiredChecks&&!requiredChecks.includes(check.check))continue;
     if(!['pass','fail','unverified','not_applicable'].includes(check.result))throw Error('验收状态无效。');
     const evidence=[];
     for(const ref of check.evidenceFiles||[]){
@@ -52,6 +93,7 @@ export async function registerIndependentReview({result,job,candidate,probe,run,
       if(await fileHash(file)!==ref.sha256)throw Error('验收证据哈希不匹配。');evidence.push({path:file,sha256:ref.sha256});
     }
     const payload={check:check.check,result:check.result,method:methods[check.check],reviewer:job.threadId,reviewer_job_id:job.id,producer_job_id:candidate.producerJobId,artifact_sha256:probe.artifact_sha256,subtitle_sha256:probe.subtitle_sha256,probe_sha256:manifestHash,coverage_frames:[0,probe.frames],observed_sheets:check.observedSheets||[],observations:check.observations,evidence:check.observations,evidence_files:evidence,issues:check.issues||[],limitations:result.limitations||[],production_plan_sha256:record.production_plan?.sha256,style_plan_sha256:record.style_plan?.sha256,style:record.style_snapshot?.selector,rules:Object.fromEntries((check.rules||[]).map(r=>[r.id,{result:r.result,observations:r.observations}])),not_applicable_reason:check.notApplicableReason||''};
+    if(check.check==='caption_flow')payload.caption_observations=check.captionObservations||[];
     if(check.check==='style_match'&&referenceProbe){
       const reference=await contained(referenceProbe.manifest,run);
       if(await fileHash(reference)!==referenceProbe.sha256)throw Error('风格参考证据已变化');
@@ -76,7 +118,7 @@ export async function registerIndependentReview({result,job,candidate,probe,run,
     try{await bridge('record-review',{run,review:payload});}
     catch(error){
       // Objective evidence refusal is a failed check, not an excuse to bypass repair.
-      if(!/Sampled review evidence invalid|Unresolved issues|Pass needs/.test(error.message))throw error;
+      if(!/Sampled review evidence invalid|Unresolved issues|Pass needs|Only music_fit without BGM/.test(error.message))throw error;
       payload.result='fail';payload.observations+='；客观验收拒绝：'+error.message;payload.evidence=payload.observations;
       await bridge('record-review',{run,review:payload});
     }
