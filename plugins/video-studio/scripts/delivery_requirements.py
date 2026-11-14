@@ -22,19 +22,29 @@ def track_assets(evidence, field):
     return assets
 
 
-def selected_voice(evidence, wanted):
+def selected_voice(evidence, wanted, root=None, fps=30):
     if not wanted or not wanted.get('selected_by_user') or not all(wanted.get(k) for k in ('provider', 'voiceId')):
         raise ValueError('缺少用户确认的本期音色身份')
     assets = track_assets(evidence, 'narration_tracks')
+    sources = evidence['voice_sources']
+    if evidence.get('voice_derivations'):
+        from voice_derivations import verify
+        derived = verify(evidence, root, fps)
+        assets = {derived['assets'].get(ident, {}).get('root_asset_id', ident) for ident in assets}
+        sources = derived['root_sources']
     records = {}
-    for source in evidence['voice_sources']:
+    for source in sources:
         ident = source['assetId']
         if ident in assets:
             if ident in records:
                 raise ValueError('旁白素材身份重复：' + ident)
-            asset = next((v['asset'] for v in source['data'] if 'asset' in v), {})
-            if asset.get('id') != ident:
-                raise ValueError('生成记录与旁白素材不匹配')
+            if evidence.get('voice_derivations'):
+                from voice_derivations import inspected, known_asset_ids
+                asset = inspected(source, known_asset_ids(evidence))
+            else:
+                asset = next((v['asset'] for v in source['data'] if 'asset' in v), {})
+                if asset.get('id') != ident:
+                    raise ValueError('生成记录与旁白素材不匹配')
             params = (asset.get('generationRecord') or {}).get('params') or {}
             # Hosted inspect_asset can put the provider in its generation header only.
             header = re.match(r'^Generated: ([\w.-]+) voice\s*\|', asset.get('generation') or '')
@@ -124,7 +134,7 @@ def sample_captions(cues, fps, frames):
     return samples
 
 
-def check(data, evidence, cues, fps, voice=None):
+def check(data, evidence, cues, fps, voice=None, root=None):
     errors = {}
     settings, brief = data['settings'], data['brief']
     if brief.get('workbench_rules') != 2:
@@ -136,7 +146,7 @@ def check(data, evidence, cues, fps, voice=None):
         except (KeyError, ValueError, TypeError, AttributeError, IndexError) as exc:
             errors[key] = str(exc)
     if settings['narration']:
-        validate('av_sync', lambda: selected_voice(evidence, voice or settings.get('voice')))
+        validate('av_sync', lambda: selected_voice(evidence, voice or settings.get('voice'), root, fps))
     if settings['captions']:
         def captions():
             if evidence.get('timeline_id') != data['project'].get('timelineId'):

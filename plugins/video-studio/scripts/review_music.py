@@ -152,40 +152,84 @@ def scan(samples, rate, channels, voice, bed, duration, config=None):
             'note': 'Measures short-term mixed-audio rises inside ASR pauses, not isolated music or listening quality. Short gaps and intro/outro are not certified.'}
 
 
-def match_music(source, mix, start, rate):
+def speech_free_music_offsets(length, start, rate, size, speech_intervals):
+    """Select independent windows inside this bed and outside measured speech.
+
+    Keep a 100 ms search margin plus the existing pause guard at both edges so
+    every tested codec delay still lies inside the observed speech-free region.
+    An empty list means the ordinary distributed search remains necessary.
+    """
+    if speech_intervals is None:
+        return []
+    left, right = start / rate, (start + length) / rate
+    cursor, gaps = left, []
+    for first, last in merge(speech_intervals):
+        if last <= left or first >= right:
+            continue
+        if first > cursor:
+            gaps.append((cursor, min(first, right)))
+        cursor = max(cursor, min(last, right))
+    if cursor < right:
+        gaps.append((cursor, right))
+    guard = math.ceil((.1 + DEFAULTS['guard_seconds']) * rate)
+    offsets = []
+    for first, last in gaps:
+        a = max(0, math.ceil(first * rate) - start) + guard
+        b = min(length, math.floor(last * rate) - start) - guard
+        offsets.extend(range(a, b - size + 1, size))
+    # Limit work without clustering all probes into the first long pause.
+    return sorted({offsets[round((len(offsets) - 1) * i / 4)] for i in range(5)}) if len(offsets) > 5 else offsets
+
+
+def match_music(source, mix, start, rate, speech_intervals=None):
     """Require two separate audible windows at one consistent browser/codec delay."""
     from review_audio_alignment import correlation
     if len(source) < rate//4:
         return None
     size = min(rate*3//4, len(source)//4)
     span = len(source)-size
-    offsets = sorted({round(span*f) for f in (.05,.25,.5,.75,.95)})
+    distributed = sorted({round(span*f) for f in (.05,.25,.5,.75,.95)})
+    quiet = speech_free_music_offsets(len(source), start, rate, size, speech_intervals)
+    # A single unmasked sample cannot establish the required two-window match.
+    # Keep the original search for continuous narration, short gaps, or a source
+    # whose usable music occurs outside the measured pauses.
+    groups = ([('speech_free', quiet)] if len(quiet) >= 2 else []) + [('distributed_fallback', distributed)]
     # Browser MP3 decoders can introduce a constant delay. Search within 100 ms
     # at both ends, then test the same delay at full resolution across the edit.
     max_lag = rate//10
-    for channel in mix:
-        candidate_lags = {0}
-        for offset in offsets:
-            reference = source[offset:offset+size:8]
-            base = start+offset
-            scores = [(abs(correlation(reference, channel[base+k:base+k+size:8])), k)
-                      for k in range(-max_lag,max_lag+1) if 0 <= base+k <= len(channel)-size]
-            candidate_lags.update(k for _, k in sorted(scores, reverse=True)[:3])
-        for lag in sorted(candidate_lags, key=abs):
-            matches = []
+    for selection, offsets in groups:
+        best = None
+        for channel in mix:
+            candidate_lags = {0}
             for offset in offsets:
-                pos = start+offset+lag
-                if pos < 0 or pos+size > len(channel) or (matches and offset < matches[-1]+size):
-                    continue
-                ref, actual = source[offset:offset+size], channel[pos:pos+size]
-                power = sum(x*x for x in ref)
-                if not power or abs(correlation(ref, actual)) < .25:
-                    continue
-                projected_rms = abs(sum(a*b for a,b in zip(ref,actual))) / math.sqrt(size*power)
-                if projected_rms >= .001:
-                    matches.append(offset)
-            if len(matches) >= 2:
-                return {'matched_samples':len(matches),'offset_ms':round(lag*1000/rate,2)}
+                reference = source[offset:offset+size:8]
+                base = start+offset
+                scores = [(abs(correlation(reference, channel[base+k:base+k+size:8])), k)
+                          for k in range(-max_lag,max_lag+1) if 0 <= base+k <= len(channel)-size]
+                candidate_lags.update(k for _, k in sorted(scores, reverse=True)[:3])
+            for lag in sorted(candidate_lags, key=abs):
+                matches, measured = [], []
+                for offset in offsets:
+                    pos = start+offset+lag
+                    if pos < 0 or pos+size > len(channel) or (matches and offset < matches[-1]+size):
+                        continue
+                    ref, actual = source[offset:offset+size], channel[pos:pos+size]
+                    power = sum(x*x for x in ref)
+                    score = abs(correlation(ref, actual))
+                    if not power or score < .25:
+                        continue
+                    projected_rms = abs(sum(a*b for a,b in zip(ref,actual))) / math.sqrt(size*power)
+                    if projected_rms >= .001:
+                        matches.append(offset)
+                        measured.append({'from': (start + offset) / rate, 'to': (start + offset + size) / rate,
+                                         'correlation': round(score, 5), 'projected_rms': round(projected_rms, 7)})
+                if len(matches) >= 2:
+                    rank = (len(matches), sum(w['correlation'] for w in measured) / len(matches))
+                    if best is None or rank > best[0]:
+                        best = (rank, {'matched_samples':len(matches),'offset_ms':round(lag*1000/rate,2),
+                                       'window_selection': selection, 'matched_windows': measured})
+        if best is not None:
+            return best[1]
     return None
 
 
@@ -205,6 +249,12 @@ def generated_bed(video, evidence, run, fps):
         timeline = evidence['timeline']['timeline']
         selectors = set(evidence['music_tracks'])
         tracks = {t['id'] for t in timeline['tracks'] if selectors.intersection((t['id'], t.get('alias')))}
+        try:
+            speech_intervals, _, _ = context(evidence)
+        except (KeyError, TypeError, ValueError, AttributeError, StopIteration):
+            # Missing measured voice context never creates artificial silence.
+            # The existing distributed matcher can still establish music.
+            speech_intervals = None
         with tempfile.TemporaryDirectory() as directory:
             tmp = Path(directory)
             mix = decode_audio(video, tmp / 'mix.raw')
@@ -221,7 +271,7 @@ def generated_bed(video, evidence, run, fps):
                     raise ValueError('配乐素材或时间线区间无效')
                 filters = [f'atrim=start={start}:end={end}', 'asetpts=PTS-STARTPTS', *tempo_filters((end-start)/(right-left))]
                 source = max(decode_audio(files[asset], tmp / 'music.raw', ','.join(filters)), key=lambda c:sum(x*x for x in c))
-                match = match_music(source, mix, round(left*RATE), RATE)
+                match = match_music(source, mix, round(left*RATE), RATE, speech_intervals)
                 if not match:
                     raise ValueError('最终混音中未能确认可听的生成配乐：' + asset)
                 windows.append({'asset_id':asset,'clip_id':clip['id'], **match})

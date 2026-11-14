@@ -3,6 +3,8 @@ name: video-project
 description: 用 Video Studio 制作、继续或修改视频，按用户指定题材和风格组合素材采集、ChatCut 剪辑、音频及交付工具。也用于列出和选择已保存的个人风格。
 ---
 
+竖版制作和检查必须执行 [customer-portrait-v3 配方](../../references/portrait-presentation.md)，包括贴近素材的单/双行字幕补偿、白黄标题、动态底纹和全层结尾；工作台使用相同脚本与检查入口。
+
 # 视频项目与技能组合
 
 新制作默认一键自动模式，按 [连续制作](../../references/continuous-production.md) 在同一主会话边选材、写稿、设计和剪辑；最后独立验收。先读 [共用自动制片与独立验收约定](../../references/production-policy.md)，工作台和聊天使用同一真实上下文与质量规则。收齐主题方向、时长范围（可设下限）、横/竖版、指定风格和具体音色后，AI 自主选题、选材、审阅方案、制作与验收；仅在用户明确要求逐步审稿时采用下方手动确认分支。新项目 brief.requirements.review_policy=sampled-objective-v1。音色在采集前解决；完整制片必须委派独立验收子 Agent，验收失败提供完整临时交付并暂停，用户确认具体修改后才继续；正式交付仍须全部验收通过。
@@ -11,7 +13,7 @@ description: 用 Video Studio 制作、继续或修改视频，按用户指定�
 
 新建聊天项目也在 brief 中写入 workbench_rules=2、generate_music=true，只有用户明确关闭才设为 false。字幕默认开启。已选具体音色写入 requirements.voice；沿用指定音色，参考片只影响表达。旧项目只读，可查看既有结果。新项目导出前按 production-policy.md「新项目的声音与字幕」核对配乐和字幕；聊天无工作台提交入口时，使用实时目录中与已选身份完全相同的音色调用正式配音。
 
-所有项目先读 [通用素材与构图流程](../../references/common-production.md)。无风格项目也保存 productionPlan、每镜 sourceUses 与 layout，并通过 `record --kind production_plan` 登记；网页保存会自动登记。先检查重复动作、规划相关补充，再按实际画幅安排构图。所有竖版采用客户统一排版 customer-portrait-v2：固定居中素材区、上方黑底一至两行标题（Agent 生成，与封面标题一致）、下方固定白色普通字幕；花字叠在实际素材内部。横版/方形不套用。通用记录纳入原有方案确认及验收，不写入个人风格库。客户版式优先于风格和参考坐标，原有整体上移与底部留量规则已移除。
+所有项目先读 [通用素材与构图流程](../../references/common-production.md)。无风格项目也保存 productionPlan、每镜 sourceUses 与 layout，并通过 `record --kind production_plan` 登记；网页保存会自动登记。先检查重复动作、规划相关补充，再按实际画幅安排构图。所有竖版采用客户统一排版 customer-portrait-v3：固定居中素材区、贴近素材的白黄标题（Agent 生成，与两封面同字同重点）、下方固定白色普通字幕、密铺淡灰动态底纹及渐隐到黑的结尾；花字叠在实际素材内部。横版/方形不套用。通用记录纳入原有方案确认及验收，不写入个人风格库。客户版式优先于风格和参考坐标，原有整体上移与底部留量规则已移除。
 
 插件根目录为本技能上两级，命令入口为 `scripts/studio.py`。本技能只组织工具，不规定题材、语言、时长、视频比例、音色或剪辑模板。
 

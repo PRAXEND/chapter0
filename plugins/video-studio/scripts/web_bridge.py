@@ -373,10 +373,29 @@ def production_context(payload):
             "style": style, "style_plan_sha256": (data.get("style_plan") or {}).get("sha256"),
             "production_plan_sha256": (data.get("production_plan") or {}).get("sha256"),
             "layout_contract": studio.production_plan.layout(data["settings"]),
+            "portrait_recipe": {"script": str(ROOT / 'scripts' / 'portrait_design.py'),
+                                "instructions": str(ROOT / 'references' / 'portrait-presentation.md')} if studio.production_plan.layout(data['settings'])['mode']=='portrait-centered' else None,
             "production_policy": str(ROOT / "references" / "production-policy.md"),
             "review_policy": (data.get("brief") or {}).get("requirements", {}).get("review_policy"),
             "review_methods": studio.quality_policy.methods(data, studio.REVIEW_METHODS),
             "plan": str(run / "workbench-plan.json") if (run / "workbench-plan.json").is_file() else None}
+
+
+def check_presentation(payload):
+    import portrait_evidence
+    run=Path(payload['run']).resolve(strict=True);data=studio.load_run(run)
+    if studio.production_plan.layout(data['settings'])['mode']!='portrait-centered':
+        return {'checked':True,'status':'not_applicable','errors':{}}
+    evidence=studio.read(run/'review-evidence.json');state=evidence['timeline']['state']
+    errors=studio.production_plan.presentation_errors(data,evidence,state['durationFrames'],state['fps'])
+    errors.update(portrait_evidence.check(data,evidence,run,state['durationFrames'],state['fps'])['errors'])
+    for beat in data.get('beats',[]):
+        if beat.get('narration'):
+            try:
+                actual=studio.production_plan.narration_occupancy(beat,evidence,state['fps'])
+                if abs(actual-beat['audio_duration_seconds'])>.2:raise ValueError('Actual narration occupancy differs by over 200ms')
+            except (ValueError,KeyError,TypeError) as exc:errors['narration:'+beat['id']]=str(exc)
+    return {'checked':not errors,'errors':errors,'note':'Structure/readback only; independent final-pixel review remains mandatory.'}
 
 
 def recover_subtitles(payload):
@@ -406,7 +425,7 @@ def check_media_requirements(payload):
     subtitle = payload.get('subtitles')
     cues = studio.parse_srt(subtitle) if subtitle else []
     evidence = read(root / 'review-evidence.json')
-    errors = delivery_requirements.check(data, evidence, cues, data['settings']['fps'], payload.get('selectedVoice'))
+    errors = delivery_requirements.check(data, evidence, cues, data['settings']['fps'], payload.get('selectedVoice'), root=root)
     if errors:
         raise ValueError('；'.join(errors.values()))
     return {'ok': True}
@@ -465,7 +484,7 @@ def archive_package(payload):
     return {"file": str(output), "sha256": file_digest(output)}
 
 
-ACTIONS = {"recover-subtitles": recover_subtitles, "check-media-requirements": check_media_requirements, "review-frames": review_frames, "archive-package": archive_package,"save-voice": save_voice, "production-context": production_context,
+ACTIONS = {"check-presentation": check_presentation, "recover-subtitles": recover_subtitles, "check-media-requirements": check_media_requirements, "review-frames": review_frames, "archive-package": archive_package,"save-voice": save_voice, "production-context": production_context,
            "validate-preparation": validate_preparation,
            "prepare-reference": lambda p: style_context.reference_probe(p['run']),
            "prepare-review": lambda p: quality_probe.prepare(p["run"], p["file"], p.get("subtitles"), p.get("directory"), p.get("selectedVoice")),

@@ -54,3 +54,15 @@ test('review packet includes the approved title and both hashed cover images',as
     assert.match(packet.instructions,/BOTH cover PNGs/);assert.match(packet.instructions,/titleObservations/);
   }finally{await rm(f.run,{recursive:true,force:true});}
 });
+
+
+test('v3 review packet binds actual emphasis and every presentation feature',async()=>{
+  const f=await fixture();try{
+    const layout={mode:'portrait-centered',version:3,ending:{fadeSeconds:1.2,blackHoldSeconds:.6}};
+    f.context.plan={productionPlan:{coverTitle:'One title',titleEmphasis:'title',layout}};
+    const {packet}=await prepareReviewPacket(f.context,f.inspect);
+    assert.equal(packet.titleRequirement.titleEmphasis,'title');
+    assert.deepEqual(packet.presentationRequirement,layout);
+    assert.match(packet.instructions,/presentationObservations/);assert.match(packet.instructions,/emphasisText/);
+  }finally{await rm(f.run,{recursive:true,force:true});}
+});

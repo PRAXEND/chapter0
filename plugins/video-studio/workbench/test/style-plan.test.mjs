@@ -1,14 +1,14 @@
 import {productionLayout} from '../public/production-plan.js';
 const layoutSettings={width:1080,height:1920,captions:true};
 const portraitLayout=()=>productionLayout(layoutSettings);
-const placement=(captions=true)=>({composition:'Centered material',mediaBox:{...portraitLayout().mediaBox},captionBox:captions?{...portraitLayout().captionBox}:null,captionStyle:captions?{...portraitLayout().captionStyle}:null,fit:'contain',titleText:'Test',titleBox:{...portraitLayout().titleBox},emphasisBoxes:[]});
+const placement=(captions=true)=>({composition:'Centered material',mediaBox:{...portraitLayout().mediaBox},captionBox:captions?{...portraitLayout().captionBox}:null,captionStyle:captions?{...portraitLayout().captionStyle}:null,fit:'contain',titleText:'Test',titleEmphasis:'Te',titleStyle:{...portraitLayout().titleStyle},titleBox:{...portraitLayout().titleBox},emphasisBoxes:[]});
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validatePlan,initialStudio,schemas} from '../studio-workflow.mjs';
 import {renderShotDesign,readShotDesign,renderStylePlan} from '../public/style-plan-view.js';
 
 const design=()=>({id:'motion-1',ruleIds:['mechanism'],purpose:'解释状态变化',trigger:'说到转向时',phases:'进入、切换指示、退出',durationSeconds:2,placement:'手部旁空白',sound:'轻提示',implementation:'可编辑指示线',fallback:'侧边分步标签'});
-const plan=()=>({productionPlan:{version:1,coverTitle:'Test',materialReview:'Synthetic observations',layout:portraitLayout()},title:'测试',script:'测试',shots:[{id:'s1',from:0,to:5,sourceIds:[],sourceUses:[],layout:placement(false),narration:'测试',visual:'动作',screenText:'转向',transition:'硬切',design:[design()]}],stylePlan:{selector:'sample@8',rules:[{ruleId:'mechanism',disposition:'planned',shotIds:['s1'],treatment:'随台词变化'}],referenceChecks:[{referenceId:'ref',location:'测试',observation:'仅为测试',adaptation:'解释本题'}],contrastReview:'机制推进与动作间留阅读时间'}});
+const plan=()=>({productionPlan:{version:1,coverTitle:'Test',titleEmphasis:'Te',materialReview:'Synthetic observations',layout:portraitLayout()},title:'测试',script:'测试',shots:[{id:'s1',from:0,to:5,sourceIds:[],sourceUses:[],layout:placement(false),narration:'测试',visual:'动作',screenText:'转向',transition:'硬切',design:[design()]}],stylePlan:{selector:'sample@8',rules:[{ruleId:'mechanism',disposition:'planned',shotIds:['s1'],treatment:'随台词变化'}],referenceChecks:[{referenceId:'ref',location:'测试',observation:'仅为测试',adaptation:'解释本题'}],contrastReview:'机制推进与动作间留阅读时间'}});
 
 test('style plan and editable motion survive normalization; missing planning and invalid timing are rejected',()=>{
   const project={...initialStudio(),duration:30,durationMin:null,captions:false,styleSelector:'sample@8'};

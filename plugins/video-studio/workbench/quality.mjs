@@ -94,15 +94,17 @@ export async function registerIndependentReview({result,job,candidate,probe,run,
     }
     const payload={check:check.check,result:check.result,method:methods[check.check],reviewer:job.threadId,reviewer_job_id:job.id,producer_job_id:candidate.producerJobId,artifact_sha256:probe.artifact_sha256,subtitle_sha256:probe.subtitle_sha256,probe_sha256:manifestHash,coverage_frames:[0,probe.frames],observed_sheets:check.observedSheets||[],observations:check.observations,evidence:check.observations,evidence_files:evidence,issues:check.issues||[],limitations:result.limitations||[],production_plan_sha256:record.production_plan?.sha256,style_plan_sha256:record.style_plan?.sha256,style:record.style_snapshot?.selector,rules:Object.fromEntries((check.rules||[]).map(r=>[r.id,{result:r.result,observations:r.observations}])),not_applicable_reason:check.notApplicableReason||''};
     if(check.check==='caption_flow')payload.caption_observations=check.captionObservations||[];
+    payload.presentation_observations=check.presentationObservations||[];
     const titlePolicy=record.production_plan?.plan?.productionPlan;
-    if(check.check==='output_details'&&titlePolicy?.layout?.mode==='portrait-centered'&&titlePolicy.layout.version===2){
+    if(check.check==='output_details'&&titlePolicy?.layout?.mode==='portrait-centered'&&[2,3].includes(titlePolicy.layout.version)){
       const rows=check.titleObservations||[],roles=['video','cover_portrait','cover_landscape'];
       payload.title_observations=[];
       let valid=Array.isArray(rows)&&rows.length===3&&typeof titlePolicy.coverTitle==='string'&&!!titlePolicy.coverTitle.trim();
       for(const role of roles){
         const matches=Array.isArray(rows)?rows.filter(r=>r?.role===role):[],files=candidate.files.filter(f=>f.role===role),row=matches[0],file=files[0];
         if(matches.length!==1||files.length!==1||row.path!==file.path||typeof row.text!=='string'||row.text.replace(/\r\n|\n/g,'').trim()!==titlePolicy.coverTitle.trim()||(role==='video'&&(row.text.replace(/\r\n/g,'\n').split('\n').length>2||row.text.replace(/\r\n/g,'\n').split('\n').some(line=>!line.trim()||line.includes('\r'))))){valid=false;continue;}
-        payload.title_observations.push({role,text:row.text,path:file.path,sha256:file.sha256});
+        if(titlePolicy.layout.version===3&&row.emphasisText!==titlePolicy.titleEmphasis)valid=false;
+        payload.title_observations.push({role,text:row.text,emphasisText:row.emphasisText,path:file.path,sha256:file.sha256});
         payload.evidence_files.push({path:file.path,sha256:file.sha256});
       }
       if(payload.result==='pass'&&!valid){payload.result='fail';payload.observations+='；缺少实际视频及两张封面同标题的逐字观察和文件绑定。';payload.evidence=payload.observations;}
@@ -149,12 +151,12 @@ export async function enforceIndependentReview(report,run,candidate=null){
     return !review||review.reviewer_job_id!==report.independentJobId||review.reviewer!==report.independentThreadId||review.producer_job_id!==report.producerJobId;
   });
   const policy=actual.production_plan?.plan?.productionPlan;
-  if(report.completed&&policy?.layout?.mode==='portrait-centered'&&policy.layout.version===2){
+  if(report.completed&&policy?.layout?.mode==='portrait-centered'&&[2,3].includes(policy.layout.version)){
     const review=actual.reviews?.output_details;
     const rows=review?.title_observations||[],files=candidate?.files||[];
     const bound=review?.production_plan_sha256===actual.production_plan.sha256&&['video','cover_portrait','cover_landscape'].every(role=>{
       const matches=files.filter(f=>f.role===role),observed=rows.filter(r=>r.role===role);
-      return matches.length===1&&observed.length===1&&matches[0].path===observed[0].path&&matches[0].sha256===observed[0].sha256&&typeof observed[0].text==='string'&&observed[0].text.replace(/\r\n|\n/g,'').trim()===String(policy.coverTitle||'').trim();
+      return matches.length===1&&observed.length===1&&matches[0].path===observed[0].path&&matches[0].sha256===observed[0].sha256&&typeof observed[0].text==='string'&&observed[0].text.replace(/\r\n|\n/g,'').trim()===String(policy.coverTitle||'').trim()&&(policy.layout.version!==3||observed[0].emphasisText===policy.titleEmphasis);
     });
     if(!bound&&!pending.includes('output_details'))pending.push('output_details');
   }

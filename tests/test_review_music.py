@@ -1,4 +1,5 @@
 import array
+import random
 from pathlib import Path
 import sys
 import tempfile
@@ -96,6 +97,63 @@ class MusicPauseTests(unittest.TestCase):
             self.assertEqual('unverified', music.check_file(file,[])['status'])
             with mock.patch.object(music,'decode',side_effect=ValueError('decode failed')):
                 self.assertEqual('unverified',music.check_file(file,self.evidence())['status'])
+
+
+class MusicPresenceWindowTests(unittest.TestCase):
+    def signals(self, continuous=False, missing_music=False, delay=0):
+        rate = 1000
+        rng = random.Random(731)
+        source = [rng.uniform(-.8, .8) for _ in range(14 * rate)]
+        rng = random.Random(913)
+        voice = [(0, 14)] if continuous else [(0, 4.4), (6, 10.5), (12, 14)]
+        mix = [0.0] * (len(source) + delay)
+        for i, value in enumerate(source):
+            speaking = any(a <= i / rate < b for a, b in voice)
+            mix[i + delay] = (0 if missing_music else value * .025) + (rng.uniform(-.8, .8) if speaking else 0)
+        return source, [mix], voice, rate
+
+    def test_masked_percentile_probes_use_two_measured_speech_free_windows(self):
+        source, mix, voice, rate = self.signals(delay=69)
+        self.assertIsNone(music.match_music(source, mix, 0, rate))
+        report = music.match_music(source, mix, 0, rate, voice)
+        self.assertEqual('speech_free', report['window_selection'])
+        self.assertEqual(69, report['offset_ms'])
+        self.assertGreaterEqual(report['matched_samples'], 2)
+        for window in report['matched_windows']:
+            self.assertGreater(window['correlation'], .99)
+            self.assertFalse(any(window['from'] < b and window['to'] > a for a, b in voice))
+
+    def test_continuous_masking_does_not_manufacture_a_pass(self):
+        source, mix, voice, rate = self.signals(continuous=True)
+        self.assertIsNone(music.match_music(source, mix, 0, rate, voice))
+
+    def test_continuous_voice_keeps_existing_distributed_fallback(self):
+        source, _, voice, rate = self.signals(continuous=True)
+        report = music.match_music(source, [[x * .5 for x in source]], 0, rate, voice)
+        self.assertEqual('distributed_fallback', report['window_selection'])
+        self.assertGreaterEqual(report['matched_samples'], 2)
+
+    def test_silence_in_pauses_is_not_music_presence(self):
+        source, mix, voice, rate = self.signals(missing_music=True)
+        self.assertIsNone(music.match_music(source, mix, 0, rate, voice))
+
+    def test_strongest_consistent_delay_wins_over_broad_near_zero_peak(self):
+        rng = random.Random(124)
+        source, value = [], 0
+        for _ in range(8000):
+            value = .995 * value + rng.uniform(-.02, .02)
+            source.append(value)
+        report = music.match_music(source, [[0.0] * 69 + source], 0, 1000)
+        self.assertEqual(69, report['offset_ms'])
+        self.assertTrue(all(w['correlation'] > .99 for w in report['matched_windows']))
+
+    def test_single_short_gap_and_nonzero_clip_position_preserve_bounds(self):
+        source, _, _, rate = self.signals()
+        self.assertEqual([], music.speech_free_music_offsets(len(source), 5000, rate, 750, [(0, 10), (10.5, 20)]))
+        offsets = music.speech_free_music_offsets(3000, 5000, rate, 750, [(0, 5.5), (7.8, 20)])
+        self.assertGreaterEqual(len(offsets), 2)
+        self.assertTrue(all(640 <= x and x + 750 <= 2660 for x in offsets))
+        self.assertTrue(all(b - a >= 750 for a, b in zip(offsets, offsets[1:])))
 
 
 if __name__=='__main__': unittest.main()

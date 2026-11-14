@@ -11,14 +11,17 @@
   "acceptance": [
     "素材框固定居中并等比完整适配",
     "顶部由 Agent 生成一至两行标题，文字与两张封面一致",
-    "普通白色字幕固定在素材下方独立黑底区",
+    "普通白色字幕固定在素材下方，单/双行字顶稳定并贴近素材",
     "花字全动画位于实际素材内并避让主体与动作",
     "移除旧留量控件、提示及执行规则",
     "横版方形不套用；旧竖版批准不能绕过新布局",
-    "相关回归、接口路径、分发验证及同伴审查"
+    "相关回归、接口路径、分发验证及同伴审查",
+    "标题白黄强调与两封面同字同重点",
+    "120条全幅低对比动态灰线与1.2秒渐隐、0.6秒黑屏默认为所有竖版",
+    "聊天和工作台共用可编辑配方、实际读回预检与独立观察门槛"
   ],
   "status": "implemented",
-  "updated": "2026-11-14T15:29:22+08:00",
+  "updated": "2026-11-15T00:56:46+08:00",
   "modules": [
     "production-plan",
     "workbench",
@@ -26,9 +29,9 @@
   ],
   "dependencies": [],
   "handoff": {
-    "next": "用户可审阅本地提交；若要求安装或真实 ChatCut 试片，按本任务继续，结果另行记录。",
-    "blockers": "无代码阻塞；真实成片与客户验收未执行。",
-    "failed_attempts": "默认 Homebrew Python 标准库不完整；首轮全量 Python 中7项媒体测试调用损坏的 PATH ffmpeg 失败。指定插件 Python 3.12.14、native-bin及正确 PATH 后全量215项通过。浏览器初次发现旧主题覆盖示意文字颜色，修正后复查通过。 标题增量首轮发现无方案记录处理、临时路径别名及交付变量引用错误，修复后全量通过；同伴发现并修复v1横方重复同步/恢复指纹及末次标题trim不一致。"
+    "next": "从本地开发版工作台新建后续竖版项目；按customer-portrait-v3制作和独立验收。已把空闲的4317服务切到本开发目录，既有数据保留。尚未安装到插件缓存、推送或发布。",
+    "blockers": "无产品需求阻塞；本轮没有重新制作完整ChatCut视频，不能将配方组件/协议验证写成新成片一次验收通过。",
+    "failed_attempts": "默认 Homebrew Python 标准库不完整；首轮全量 Python 中7项媒体测试调用损坏的 PATH ffmpeg 失败。指定插件 Python 3.12.14、native-bin及正确 PATH 后全量215项通过。浏览器初次发现旧主题覆盖示意文字颜色，修正后复查通过。 标题增量首轮发现无方案记录处理、临时路径别名及交付变量引用错误，修复后全量通过；同伴发现并修复v1横方重复同步/恢复指纹及末次标题trim不一致。 web.37首轮回归发现未配置画幅None比较、旧audit误用新旁白占用、UI富文本断言和方形自动模式fixture问题，已修；review_sync新hook先读voice_sources导致旧错误顺序变化，修复。原环境缺PyYAML，只在ignored validation/skill-deps安装用于技能校验。"
   },
   "validation": {
     "claim": "implementation_passed",
@@ -65,6 +68,24 @@
         "result": "183 passed in full suite; final focused 21 passed (includes added recovery test)",
         "evidence": "validation/title-node-final.log; validation/title-recovery.log",
         "at": "2026-11-14T15:29:22+08:00"
+      },
+      {
+        "command": "Python unittest discover -s tests -v",
+        "result": "271 passed; no skips",
+        "evidence": "validation/v3-python-final.log",
+        "at": "2026-11-15T00:56:46+08:00"
+      },
+      {
+        "command": "node --test test/*.test.mjs; final review-packet tests",
+        "result": "186 passed full suite; final prompt change 4 passed; no skips",
+        "evidence": "validation/v3-node-final.log; validation/v3-node-review-final.log",
+        "at": "2026-11-15T00:56:46+08:00"
+      },
+      {
+        "command": "Independent layout and narration hook review",
+        "result": "layout 41 Python + 40 Node; audio hooks 56 Python; no remaining blockers",
+        "evidence": "Peer review results below",
+        "at": "2026-11-15T00:56:46+08:00"
       }
     ]
   },
@@ -81,6 +102,29 @@
   }
 }
 ```
+
+## 当前增量：已确认视觉效果固化（web.37，2026-11-15）
+
+本次开发基线 `151a6f0`。用户已认可机器人试片 v3 的视觉效果，要求同步为本地开发插件的所有竖版默认；这不是授权把旧技术未验证项追认为通过。以下 v1/v2 章节保留历史，当前布局以 customer-portrait-v3 及 [唯一配方说明](../../plugins/video-studio/references/portrait-presentation.md) 为准。
+
+- 1080×1920：素材 y=656/h=608，标题 y=422/h=222（白#FFFFFF、重点#F0FF00），字幕 top=1281，单行68/双行135。标题底对齐7.8px内边距保留已确认双行位置，单行字底也不漂移；宽度缩放与中心定位适用于其他竖版。
+- 底层为#030405上120条淡灰线，6组、强度.12、速度1、四边220px绘制余量。原版旋转中心保持，其他尺寸由外层缩放。末尾1.2秒全层渐隐、0.6秒全黑；配乐在黑屏前结束且淡出1.4秒，旁白先结束。
+- 新 `portrait_design.py` 返回确定性的可编辑 ChatCut inline payload，所有竖版方案/实际记录增加titleEmphasis/titleStyle。自动、手动工作台和聊天技能共用；横方提示、身份指纹、恢复不套用。旧竖版须按新契约重规划，历史文件保留。
+- 预检检查背景/结尾实际实例、完整时间线、轨道ID/别名、静音、图层顺序、时间和参数；`portrait_evidence`读取原始asset JSON与item文本，对照源码、revision和当前时间线。独立验收另要求间距、标题配色、背景运动、渐隐中段/黑屏/最后帧的实际观察和三文件标题重点，不把元数据当画面。
+- 修正旁白audio_fit为实际与镜头相交语音片段的并集占用，片段间留白不算发声；保留原同步容差。配乐检测优先真实无旁白区间，仍要求原相关度/RMS/偏移阈值及多个一致窗口。可选最终速度WAV路径通过源→派生PCM重放校验、真实新ASR和rate=1剪辑避免渲染器变速波形差异，不给导入资产伪造音色记录。
+- 影响链路仍为 brief/inputHash/requestHash → 方案 → checkpoint/save/approve → 制作配方和实际读回 → prepare-review → 独立record-review/audit → delivery。没有新框架、远端权限或依赖服务；只在既有扩展点增加配方和证据验证。没有修改官网、个人风格、已确认试片/既有项目或旧审核。
+
+验证证据：
+
+- 全量271项Python、186项Node通过，无跳过；末次验收提示变更4项Node再次通过。五份受影响技能通过skill-creator校验。新增真实FFmpeg派生/波形测试与原始工具协议fixture明确区分，不冒充真实成片审阅。
+- 工作台实际HTTP/Python bridge保存/批准保持，通过跨语言布局、旧横方v1/v2冻结指纹、连续恢复测试。新预检→record-review→quality_policy的正反路径拒绝缺观察、缺渐隐过程、客观错误和被改动的原始证据。
+- 版式同伴在独立worktree最终41项Python、40项Node通过；音频同伴56项Python的生成源/导入ID/真实词表、完整请求范围、变速派生链、CLI fps与三个宿主hook测试通过；无剩余阻断。Agent代码审查不代替人的成片验收。
+- 本地React渲染配方与真实原版背景在0/900/1700帧的SVG及所有组变换完全相同；浏览器查看了单/双行标题、字幕、背景、渐隐和最终黑屏，单/双行标题底一致。截图validation/v3-recipe-preview.png是占位素材的组件验证，不是ChatCut成片。
+- 隔离web.37工作台实际打开，竖版说明可见，切到横版隐藏。随后发现常用4317仍为web.35且无活动任务，按已授权更新与open-video-workbench技能重启到本开发源码。五份现有项目/会话状态文件JSON逐字段完全一致、没有新任务；备份仅在ignored validation中，未复制到分发包。插件缓存仍未替换。
+- 音频组件以已冻结源文件在隔离临时目录作1.2倍派生、重放PCM完全一致，诊断AAC混音14个窗口通过原严格匹配阈值。没有对原试片补填ASR、重制或改写旧验收；新导入资产的真实ChatCut转录和新整片制作本轮未执行。
+- 本轮分发包/清单验证见VALIDATION.md。现有42个原音视频不变。没有推送、合并或发布。
+
+复现仍使用下方完整Python/Node环境命令；新增覆盖为test_portrait_design、test_portrait_evidence、test_portrait_review_path、test_voice_derivations、test_voice_derivation_integration。原始测试日志、项目状态备份和截图不分发。
 
 ## 现状与方案
 

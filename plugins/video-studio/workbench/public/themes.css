@@ -364,3 +364,5 @@ dialog::backdrop,#style-dialog::backdrop{background:var(--backdrop);backdrop-fil
 
 /* Customer portrait layout preview; these labels are never video overlays. */
 .portrait-guide .portrait-guide-canvas{fill:#000}.portrait-guide .portrait-guide-title,.portrait-guide .portrait-guide-caption{fill:#111;stroke:#8a9890;stroke-width:.5;stroke-dasharray:2 2}.portrait-guide .portrait-guide-media{fill:#315342}.portrait-guide text{fill:#fff;font-size:6px}
+
+.portrait-guide .portrait-guide-emphasis{fill:#F0FF00}

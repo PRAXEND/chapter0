@@ -37,7 +37,7 @@ DEFAULTS = {
     "max_video_sources": 6, "max_download_seconds": 300,
     "voice": None, "default_style": None,
     "narration": None, "captions": None, "audio_required": None,
-    "review_policy": None, "production_preferences": {}, "layout_policy": "customer-portrait-v2", "replay_authorization": None,
+    "review_policy": None, "production_preferences": {}, "layout_policy": "customer-portrait-v3", "replay_authorization": None,
 }
 REVIEW_METHODS = {"material_continuity": "source_windows_and_playback",
                   "portrait_layout": "composited_sequence_inspection", "visuals": "continuous_playback", "audio_listening": "full_mix_listening",
@@ -179,17 +179,19 @@ def profile():
     if path.exists():
         result.update(read(path))
     result.pop("portrait_bottom_inset", None)
-    result["layout_policy"] = "customer-portrait-v2"
+    result["layout_policy"] = "customer-portrait-v3"
     return result
 
 
 def validate_settings(result, complete=False):
     result = dict(result)
     result.pop("portrait_bottom_inset", None)
-    if result.get("layout_policy", "customer-portrait-v2") not in {"customer-portrait-v1", "customer-portrait-v2"}:
+    if result.get("layout_policy", "customer-portrait-v3") not in {"customer-portrait-v1", "customer-portrait-v2", "customer-portrait-v3"}:
         raise StudioError("Unsupported layout policy")
-    if production_plan.layout(result)["mode"] != "unchanged" or result.get("layout_policy") != "customer-portrait-v1":
-        result["layout_policy"] = "customer-portrait-v2"
+    if production_plan.layout(result)["mode"] != "unchanged":
+        result["layout_policy"] = "customer-portrait-v3"
+    else:
+        result.setdefault("layout_policy", "customer-portrait-v3")
     if result.get("review_policy") not in (None, quality_policy.POLICY):
         raise StudioError("Unsupported review policy")
     production_plan.layout(result)
@@ -650,9 +652,14 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
                 raise ValueError("Invalid frame interval")
             if beat.get("narration"):
                 audio = number(beat.get("audio_duration_seconds"), "audio_duration_seconds", .01)
-                if not beat.get("audio_asset_id") or abs((last - first) / fps - audio) > .2:
+                policy=(data.get('production_plan') or {}).get('plan',{}).get('productionPlan',{}).get('layout',{})
+                if policy.get('mode') == 'portrait-centered' and policy.get('version') == 3:
+                    actual_audio = production_plan.narration_occupancy(beat, read(Path(review_base)/'review-evidence.json'), fps)
+                else:
+                    actual_audio = (last - first) / fps
+                if not (beat.get("audio_asset_id") or beat.get('audio_asset_ids')) or abs(actual_audio - audio) > .2:
                     failures.append(f"{label}:audio_fit_outside_200ms")
-        except (StudioError, KeyError, ValueError, TypeError):
+        except (StudioError, KeyError, ValueError, TypeError, OSError):
             failures.append(f"{label}:missing_actual_timing")
     for source in sources.values():
         if source.get("rights", "unknown") == "unknown":
@@ -704,7 +711,7 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
             valid = valid and not common_implementation and review.get("production_plan_sha256") == data.get("production_plan", {}).get("sha256")
         if key == "output_details":
             valid = valid and not production_plan.title_review_errors(data, review)
-            if (data.get("production_plan") or {}).get("plan", {}).get("productionPlan", {}).get("layout", {}).get("version") == 2:
+            if (data.get("production_plan") or {}).get("plan", {}).get("productionPlan", {}).get("layout", {}).get("version") in (2, 3):
                 valid = valid and review.get("production_plan_sha256") == data["production_plan"]["sha256"]
         if key == "style_match":
             rows = review.get("rules", {})

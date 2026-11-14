@@ -86,6 +86,8 @@ def review_errors(data, review, base, read, file_hash):
         if not expected or not isinstance(actual, list) or set(actual) != set(expected):
             errors.append("sampled_sheets_not_fully_reviewed")
     check = review["check"]
+    from production_plan import presentation_review_errors
+    errors.extend(presentation_review_errors(data, review, value['frames']))
     requirements = metrics.get("requirement_errors", {})
     if check in requirements:
         errors.append(requirements[check])

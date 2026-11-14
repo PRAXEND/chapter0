@@ -18,6 +18,8 @@ import review_sync
 import delivery_requirements
 import review_music
 import review_audio_alignment
+import portrait_evidence
+import voice_derivations
 from quality_policy import POLICY
 
 
@@ -49,6 +51,10 @@ def frame_schedule(data, frames, fps, captions=()):
     chosen = {min(frames - 1, round(t * fps / 2)) for t in range(math.ceil(frames / fps * 2))}
     chosen.update((0, frames - 1))
     boundaries = {0, frames - 1}
+    policy=(data.get('production_plan') or {}).get('plan',{}).get('productionPlan',{})
+    if policy.get('layout',{}).get('version')==3:
+        black=frames-round(.6*fps);start=black-round(1.2*fps)
+        chosen.update((start,round((start+black)/2),black,frames-1));boundaries.update((start,black))
     motion = []
     for beat in data.get("beats", []):
         for name in ("from_frame", "to_frame"):
@@ -288,12 +294,22 @@ def prepare(run, file, subtitles=None, directory=None, selected_voice=None):
     cuts_file = root / "source-cuts.json"
     if cuts_file.is_file(): input_hashes[cuts_file] = studio.file_hash(cuts_file)
     if evidence and cues and cuts_file.is_file():
-        try: sync = {"status": "checked", "report": review_sync.review(evidence, cues, studio.read(cuts_file), fps)}
+        try: sync = {"status": "checked", "report": review_sync.review(evidence, cues, studio.read(cuts_file), fps, root=root)}
         except (ValueError, KeyError, TypeError, StopIteration) as exc: sync = {"status": "unverified", "reason": str(exc)}
     activity = speech_activity(evidence, audio, fps) if evidence and data["settings"].get("narration") else {"status": "unverified" if data["settings"].get("narration") else "not_applicable"}
     alignment = review_audio_alignment.check(video, evidence, root, fps) if data["settings"].get("narration") else {"status": "not_applicable"}
     music = review_music.check_file(video, evidence, required=studio.music_expected(data)) if studio.music_expected(data) else {"status": "not_applicable"}
-    requirements = delivery_requirements.check(data, evidence, cues, fps, selected_voice) if current_rules else {}
+    requirements = delivery_requirements.check(data, evidence, cues, fps, selected_voice, root=root) if current_rules else {}
+    if (evidence or {}).get('voice_derivations'):
+        try:
+            lineage=voice_derivations.verify(evidence, root, fps)
+            for ref in lineage['evidence_files']: input_hashes[Path(ref['path'])]=ref['sha256']
+        except ValueError as exc: requirements['av_sync']='Narration lineage: '+str(exc)
+    requirements.update(studio.production_plan.presentation_errors(data, evidence, frames, fps))
+    presentation = portrait_evidence.check(data, evidence, root, frames, fps)
+    requirements.update(presentation['errors'])
+    for ref in presentation['evidence_files']:
+        input_hashes[Path(ref['path'])] = ref['sha256']
     if current_rules and studio.music_expected(data) and 'music_fit' not in requirements:
         presence = review_music.generated_bed(video, evidence, root, fps)
         if not data['settings'].get('narration') and presence['status'] == 'checked':

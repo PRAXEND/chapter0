@@ -43,7 +43,7 @@ max_seconds 按视频流时长检查，保留 0.1 秒容差；视频流没有 du
 - project：实际 projectId、timelineId、editorUrl；可附 music_tracks、narration_tracks。
 - material_plan：{"topic":"本期题材","style":null或"id@version","needs":[{"id":"n1","purpose":"画面用途","query":"题材词＋所需镜头","acceptance":"实际采用标准"}]}。
 - source：id（ASCII短标识）、kind（video/image/audio/article/paper/script）、title、url 或 local_path、author、事件/发布日期、rights、claims、need_ids、topic_fit、style_fit。没有可靠许可信息保留 unknown。本地文件直接导入；fetch 只支持 URL 视频。
-- beat：id、visual_anchor、source_ids、from_frame、to_frame；有事实用 claims；有旁白用 narration、audio_asset_id、audio_duration_seconds。音频时长是该段在最终时间线真实占用时长，不是未经剪切的原始长度。
+- beat：id、visual_anchor、source_ids、from_frame、to_frame；有事实用 claims；有旁白用 narration、audio_asset_id（多源可用audio_asset_ids）、audio_duration_seconds；v3竖版还记录 narration_item_ids，完整绑定与本镜相交的实际旁白片段。音频时长是实际旁白与本镜交集的并集时长（片段自身停顿计入，片段之间镜头留白不计；不能用整镜时长填充），不是未经剪切的原始长度。
 - style_plan：完整的结构化方案，规则、镜头与动效关联按 [风格分镜格式](style-storyboard.md) 校验并保存哈希；对应 beat 增加 shot_id、design_results，记录真实实现及证据。修改计划或实现会使旧审核失效。
 
 同 id 替换会增加 revision 并使旧审核失效。下载来源的 URL 不可替换，应新建 source id。修改 brief 后重新评估素材计划。
@@ -71,3 +71,5 @@ max_seconds 按视频流时长检查，保留 0.1 秒容差；视频流没有 du
 除 facts 外，coverage_frames=[0,成片总帧数]。style_match 另需 style:"id@version"、rules:{规则id:{result:"pass"或"fail"或"unverified"或"overridden"或"not_applicable",observations:"具体观察"}}；必须覆盖所有规则，overridden 必须对应 brief 的真实覆盖，not_applicable 只允许风格声明且计划已记为不适用的条件手法。存在 style_plan 时还需 style_plan_sha256 匹配当前计划；缺少实际设计实现不能通过。审阅绑定 revision 和最终 MP4；改变内容、字幕或证据后重新核验。脚本检查记录一致性，不能认证感知能力或审美。
 
 旧版 schema 1 不自动迁移；保留原插件与原工程继续，避免套用新规则覆盖旧数据。
+
+竖版新增 `check-presentation` 预检（输入 run），核对真实底层背景、顶层收尾及旁白占用；具体原始读回格式和独立观察字段见 [竖版配方](portrait-presentation.md)。预检通过不代替独立验收。

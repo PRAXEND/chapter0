@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.3.0-web.36",
+  "version": "0.3.0-web.37",
   "branch": "video-generation-workbench-feature",
   "media_files": 42,
   "media_bytes": 472504793,
@@ -18,8 +18,8 @@
       "sha256": "81e2c26b04a1b742dcc9149d591d9462f5fc8db3d268f5a78d73b708477ed66b"
     },
     "CHANGELOG.md": {
-      "bytes": 31709,
-      "sha256": "e0822b31f138bc223e6e337721aa91fa9f4b010ce3bba971bedf5fb4a81eb1f0"
+      "bytes": 32294,
+      "sha256": "42dc8ba2f212f102a49a5ef7a51c79a8dacedce1809d60d35f8c0eba48b91eaa"
     },
     "INSTALL.md": {
       "bytes": 18612,
@@ -30,36 +30,36 @@
       "sha256": "c40d491c2e749b543da1600feac3d12e045364417babb5a9128431ee17ae116a"
     },
     "README.md": {
-      "bytes": 4213,
-      "sha256": "854364fefc985d73ca7f0ef6d9d9f1d7407e6870380177a65ef3e8d67935d402"
+      "bytes": 4282,
+      "sha256": "c5a77e64ece71e93665c41f54b4fce672a9514ca27b5242419f84696190b9f20"
     },
     "RELEASE_SCOPE.md": {
       "bytes": 1486,
       "sha256": "3427af1798e32da4024f0f431859aaa3b4ea77a06ea6a1e7c9af7e50c65d76a5"
     },
     "VALIDATION.md": {
-      "bytes": 75342,
-      "sha256": "1d437122c30285d1d0d9d1f83159dd12a59e20f86a8b35b511dc9fe3913bd1b4"
+      "bytes": 77221,
+      "sha256": "94a4bcd9a46d00d3ad9dc70a78af7a501b863bd21cf1bb2fbb64964e2aba2058"
     },
     "docs/tasks/README.md": {
-      "bytes": 192,
-      "sha256": "8ac2610f7a86b8edebaf9e6a14224f0a35401b3761f53e6d69dbd28884213fd5"
+      "bytes": 304,
+      "sha256": "8dfd9aa4d0fe28ca623700824a4db359db357d5d203b754391c9cb97ad293e8f"
     },
     "docs/tasks/T-20261114-portrait-layout.md": {
-      "bytes": 9833,
-      "sha256": "a68295a913c29d42d40b8270293a0a24e01c85c9bf90c8c00f2a81c3f0df6800"
+      "bytes": 15951,
+      "sha256": "a3b250d6ece5423790c16346b73b164ce744cfb27e0cd27a43859319c8b10c0d"
     },
     "plugins/video-studio/.codex-plugin/plugin.json": {
       "bytes": 970,
-      "sha256": "8beab7a5e2450720d6ffea5c9d6e99b2cc22df39fd6cb27c237cb31a8037d297"
+      "sha256": "1bfcc0f81998accfc1e0cd7560035b223f96ff27ed2c17bfcda718b336be45fe"
     },
     "plugins/video-studio/plugin.json": {
       "bytes": 1132,
-      "sha256": "29be3b76f2a4d02cc698f9847d2a9b539f8efcc732a2fd6cb923c72f10d33018"
+      "sha256": "bb1155087965e38662d3d9683d766c6d8ad7ece8498a3a9cdb37a68a4772d2f0"
     },
     "plugins/video-studio/references/common-production.md": {
-      "bytes": 12072,
-      "sha256": "1894d19c40cacc45dfcc7c80d48d0509ce10d88d6b0324e02bf1db1a7b8fb736"
+      "bytes": 10797,
+      "sha256": "38675bebf5d33a87f7d568658969500c4ef087a09312a16d7d5cda7d07e9de61"
     },
     "plugins/video-studio/references/connection-recovery.md": {
       "bytes": 3933,
@@ -73,17 +73,25 @@
       "bytes": 4208,
       "sha256": "8df4dd017da4039e400cc9f48a545414b47004cff91a717fffbe64843a7f6305"
     },
+    "plugins/video-studio/references/final-speed-narration.md": {
+      "bytes": 7363,
+      "sha256": "171a8a6f167b80ff1297ab1b20280175d6db8924a038ef902fa8bc862093d00e"
+    },
     "plugins/video-studio/references/legacy-review-policy.md": {
       "bytes": 1539,
       "sha256": "17e3d3f296c8f5f05ef2707308fcef0b42cb020e86ed0287bcd70943fed5492a"
     },
     "plugins/video-studio/references/operations.md": {
-      "bytes": 7807,
-      "sha256": "64bb22b4bd0a45ee0b55ef7af684dec91067d3ad25a5955c9bddd874a6a7d938"
+      "bytes": 8269,
+      "sha256": "a2bf49fc12ab7f4a33490a43a3299a351c2ef6734ffab3c13277b44986982a3c"
+    },
+    "plugins/video-studio/references/portrait-presentation.md": {
+      "bytes": 6260,
+      "sha256": "4943fa5049bf1121288fe65038f661e0178861ab0efe98df0a367e0b2573f363"
     },
     "plugins/video-studio/references/production-policy.md": {
-      "bytes": 10336,
-      "sha256": "68ccbe36342e94b353f033bc1134aac360be52d338a644a1bf778c3ca5148053"
+      "bytes": 10659,
+      "sha256": "c12c74639926a85150e4e7a97424301b92b8e5ae79fa6a032a3e4bd671afa046"
     },
     "plugins/video-studio/references/quality-review.md": {
       "bytes": 7823,
@@ -114,8 +122,8 @@
       "sha256": "6848da55691fb75d607bae71b19aa2a11c007840c089ee1ec134a67c08b8e51f"
     },
     "plugins/video-studio/scripts/delivery_requirements.py": {
-      "bytes": 9663,
-      "sha256": "32a9af8a7b267dd9a27c0fbbc78642fef17db7982b9d2490e4dd9d686fff6cd2"
+      "bytes": 10223,
+      "sha256": "a493f718c07e3b98f560a7c1b11458ecc1f2b127e76f0a735bc6e15925162e1b"
     },
     "plugins/video-studio/scripts/open-workbench.mjs": {
       "bytes": 376,
@@ -125,33 +133,45 @@
       "bytes": 2686,
       "sha256": "221f32c8e0dcf1c2c7de1c6dcfbf0b96944c06af4fcd480d3035f24487d9c279"
     },
+    "plugins/video-studio/scripts/portrait_design.py": {
+      "bytes": 8056,
+      "sha256": "db24c763d21402f3fe568afbbdd84acb7bab821866d8b5b43eda6d325c903ed1"
+    },
+    "plugins/video-studio/scripts/portrait_evidence.py": {
+      "bytes": 9780,
+      "sha256": "97ce2ba07939a7f8742e527592dda4e1731dab0035b093981ef5c33d95cfd021"
+    },
+    "plugins/video-studio/scripts/prepare_narration.py": {
+      "bytes": 5505,
+      "sha256": "9fe5188a874fd4b654bad0e6c5acca3d41444d708fd5dede23e4ac50dd15f062"
+    },
     "plugins/video-studio/scripts/production_plan.py": {
-      "bytes": 16764,
-      "sha256": "ad3760d15edbe358e3aa620d75ba31b11d3d9d9e645ad47a8400ef1d06a30b2b"
+      "bytes": 26873,
+      "sha256": "d0f484a4dbf4362bfee9d15cbf355a1d88de536811bb25ace0f6a4af71951de4"
     },
     "plugins/video-studio/scripts/quality_policy.py": {
-      "bytes": 7218,
-      "sha256": "12258f2906d2e676767e9f48c38f30b47606917848a75f44a15efc3713bc19e9"
+      "bytes": 7354,
+      "sha256": "0279e99e3b4db1299127463de470666172a570f92930a23dfd507deacb67efe1"
     },
     "plugins/video-studio/scripts/quality_probe.py": {
-      "bytes": 21515,
-      "sha256": "0822507906a8febf6ca759f9328e0324c7d3a05e87f3810b3b5fabc609186deb"
+      "bytes": 22528,
+      "sha256": "ff24ba3191772f7692ed75fe7eb9d21bb1f62603908c35b0956a16666c12aeac"
     },
     "plugins/video-studio/scripts/review_audio_alignment.py": {
       "bytes": 10484,
       "sha256": "d70f789dc31190b51c3e913de4faae08c7182682d85d6580dd2554de06dc49b4"
     },
     "plugins/video-studio/scripts/review_music.py": {
-      "bytes": 13969,
-      "sha256": "b112b96fcb0f4faeafbc7380b26455ee875dfd1137fe67ce0bba57fe6cd036e0"
+      "bytes": 16826,
+      "sha256": "5766ef51ac2ef61c52fafed46e26f4ce561d54137336cb20d4d2e6c97f048eaf"
     },
     "plugins/video-studio/scripts/review_sync.py": {
-      "bytes": 17703,
-      "sha256": "b376ab493749f64bf80f4b87dfed20d878dd3b6596299a9d22bdd9e126b118b4"
+      "bytes": 18022,
+      "sha256": "ad06101e5c2e62f86c6dd084d797e21d1015e5c4aa3015118dbbf18658965247"
     },
     "plugins/video-studio/scripts/studio.py": {
-      "bytes": 55812,
-      "sha256": "9e5404fb0d5dad0e6c2ac25ea11d6921a58d3320d1898c96392f1c852183290d"
+      "bytes": 56312,
+      "sha256": "473fda16a41367f0e0ef426bd76454a472044d3e26f1b1f46f2f65f0c07fc430"
     },
     "plugins/video-studio/scripts/style_context.py": {
       "bytes": 5073,
@@ -173,17 +193,21 @@
       "bytes": 4766,
       "sha256": "0ca077742a3e6bc1d2af2b662240c0ba15bd201586fe819bebb19e313762e9ee"
     },
+    "plugins/video-studio/scripts/voice_derivations.py": {
+      "bytes": 14216,
+      "sha256": "23dfa4b6d4e827b561baa35626cf044721ded3df959eb0d6c4a370779cd94b27"
+    },
     "plugins/video-studio/scripts/web_bridge.py": {
-      "bytes": 27016,
-      "sha256": "1a040e7c309f4cd47917a01f2b568ecd9b2a9bea344f3029860a4510bfe777a4"
+      "bytes": 28500,
+      "sha256": "a10413e59928ed8e8e28284c03fdda0ea70b263760a6276a097d71a4fa9cdc77"
     },
     "plugins/video-studio/scripts/web_styles.py": {
       "bytes": 9122,
       "sha256": "ecd07c57610a7e532d0a85254744052df3ef81b5e50269c3914b97d59ef63127"
     },
     "plugins/video-studio/skills/chatcut-edit-tools/SKILL.md": {
-      "bytes": 5815,
-      "sha256": "ad84a2a0d318bfdd0f9a4cc9e29ef62094f16fbd59ee286868fcc7aa81c16982"
+      "bytes": 6059,
+      "sha256": "92f56e97cc761138d6bec1e913bb3b2dc708d622b70f81e7b86f0f3930aeee41"
     },
     "plugins/video-studio/skills/chatcut-edit-tools/agents/openai.yaml": {
       "bytes": 282,
@@ -214,8 +238,8 @@
       "sha256": "f3aa37695da57c0a25eea655e79510418160e511e695239e3471bc6a06028931"
     },
     "plugins/video-studio/skills/video-audio-tools/SKILL.md": {
-      "bytes": 7462,
-      "sha256": "52d0c36907ce9454baa29661c8219940e91c05170c87ab36f9210edb1c62b708"
+      "bytes": 8178,
+      "sha256": "3dbcf88e451a27ae9585ffb16aa03f16a50f6d8505761ad61f3be608a848dfe2"
     },
     "plugins/video-studio/skills/video-audio-tools/agents/openai.yaml": {
       "bytes": 272,
@@ -226,24 +250,24 @@
       "sha256": "5130dd65a80aa99cf638ee1b37dd76e94b9518c6353d32fb7e2c19aeaf437db4"
     },
     "plugins/video-studio/skills/video-delivery-tools/SKILL.md": {
-      "bytes": 7569,
-      "sha256": "90735654b72e70a63d9029b81871654710fab1557a5829c6da7b1f432cf6b728"
+      "bytes": 7869,
+      "sha256": "223aba1a1135259a7a3a0c68188a1bc456919a3ef36726175fa4b71bfe6b7995"
     },
     "plugins/video-studio/skills/video-delivery-tools/agents/openai.yaml": {
       "bytes": 347,
       "sha256": "58aba22e2648d71ec1a704ddd0391499bf8ba6876182621b3a2a5d841a5438f7"
     },
     "plugins/video-studio/skills/video-project/SKILL.md": {
-      "bytes": 11249,
-      "sha256": "b1be56910fb5bd21f5acbbf1f8193ca03ce8f1e07436d27a1fdfaff962fb28fe"
+      "bytes": 11550,
+      "sha256": "853aa9e88be76d6ec3200211fbca6ed938366973fcf68cd5a07caa3e3f6ee4e5"
     },
     "plugins/video-studio/skills/video-project/agents/openai.yaml": {
       "bytes": 271,
       "sha256": "d722bb27264487a6a8ca89219623a823b2fb92824b3ade0d367f325953f17c82"
     },
     "plugins/video-studio/skills/video-quality-review/SKILL.md": {
-      "bytes": 6273,
-      "sha256": "9aad37f22a1cdf044d93e600b9101595a871aaf583b39467606a0848ea7d8802"
+      "bytes": 6520,
+      "sha256": "162c0650b2cb5790d962f19398e89772ef05f74504fb09f810a15d142e421002"
     },
     "plugins/video-studio/skills/video-quality-review/agents/openai.yaml": {
       "bytes": 326,
@@ -410,8 +434,8 @@
       "sha256": "4dd7c65a62fe3eadca137d8f3d1451562742b470a7597ee8946f6934ce184194"
     },
     "plugins/video-studio/workbench/README.md": {
-      "bytes": 7685,
-      "sha256": "da305d6e5a370bb08c0ee256a75de55c780a9e5a3ed8bee5907f2859e614041a"
+      "bytes": 8039,
+      "sha256": "19801ba87afa46ee93b5902bee5e252df6e1b74f246dd8fe7ec2fbd3fe56f5bf"
     },
     "plugins/video-studio/workbench/REVISION-20261103.md": {
       "bytes": 5290,
@@ -430,8 +454,8 @@
       "sha256": "e4b4c8bcff3e1320ba16dfa0a739a777d43fa1ef0e2900ca6df32c5054e4526d"
     },
     "plugins/video-studio/workbench/continuous.mjs": {
-      "bytes": 12004,
-      "sha256": "32f784a3a789a135980b5fecba0394b7d48432121b07656e53f0c2f286b31244"
+      "bytes": 13350,
+      "sha256": "d148119d8393ea1affc3c3a430ab549a75b7e00ed020f0b9262995d4cc3ff238"
     },
     "plugins/video-studio/workbench/desktop-agent.mjs": {
       "bytes": 12526,
@@ -475,7 +499,7 @@
     },
     "plugins/video-studio/workbench/package.json": {
       "bytes": 247,
-      "sha256": "80063e1a9d13dcafd9ed25b278079dd2aca54ba7c5846751d49cdef79b583129"
+      "sha256": "0d7174a972df9895e08b34d2be4c7cac9dffcdfca4a81a731cdd2b570fb976a0"
     },
     "plugins/video-studio/workbench/paths.mjs": {
       "bytes": 522,
@@ -518,8 +542,8 @@
       "sha256": "9179a354433678a5fc17dbd4efdcb65ca0281ff28160c1bcf2347fa5799584e8"
     },
     "plugins/video-studio/workbench/public/index.html": {
-      "bytes": 11708,
-      "sha256": "38986fb4c154a92e342b3582811c534566cb8bfb9d24f0c4ab1a06107af66349"
+      "bytes": 11734,
+      "sha256": "b4ce3bf08c3d8e4cdaa94bf83b44a9390e6638e1017e02668bdfe5493279838e"
     },
     "plugins/video-studio/workbench/public/material-dates.js": {
       "bytes": 1532,
@@ -530,8 +554,8 @@
       "sha256": "6668a58f4dbe21c4d97a6c131e0802c96320679c2c43d6e7bde8e3abb69e9686"
     },
     "plugins/video-studio/workbench/public/production-plan.js": {
-      "bytes": 12650,
-      "sha256": "d1d20a611d4caa4accb29ed824e005752819da06bba65a65bec0717a15205277"
+      "bytes": 15211,
+      "sha256": "abe3a870dcf3b3678e8540f549c79f9ec3575fe14cab61ef42c08603b5920694"
     },
     "plugins/video-studio/workbench/public/revision-ui.js": {
       "bytes": 3663,
@@ -550,8 +574,8 @@
       "sha256": "865f903343e456f6af23bdb4e74e944558fc4d762806e2943889f96f6c568eb0"
     },
     "plugins/video-studio/workbench/public/themes.css": {
-      "bytes": 27907,
-      "sha256": "82c08c09348b96dbe49e15c9c7d7819db805c5bbda2c5d07b494a6adb52bda55"
+      "bytes": 27963,
+      "sha256": "5c9dc61d254023d020239d3b96097a68415cd06e3de7db6d8b0e2e1605241d26"
     },
     "plugins/video-studio/workbench/public/token-usage-view.js": {
       "bytes": 2934,
@@ -566,8 +590,8 @@
       "sha256": "0490a9a5b13ea0ddef73d664f615c3e38e81a97df868c1f86159348951950784"
     },
     "plugins/video-studio/workbench/quality.mjs": {
-      "bytes": 17165,
-      "sha256": "821676c64976932f7100117080f01107b21297e3b137384cd2ee758ac6cf3dc2"
+      "bytes": 17472,
+      "sha256": "0a7a9dae819a874c888a23489832670a815d5ee14ce5533cdad3566e07fea632"
     },
     "plugins/video-studio/workbench/recover-projects.mjs": {
       "bytes": 8579,
@@ -578,8 +602,8 @@
       "sha256": "d6b43b4ec3c66551d5f6ef7b1cb87b75dbeaca3c355f56dac3617b03508ac8d7"
     },
     "plugins/video-studio/workbench/review-packet.mjs": {
-      "bytes": 5876,
-      "sha256": "ea8bc9d9255d4d9353fd90954896b3d004d9c0c2883a65e4d93e805ea72f9520"
+      "bytes": 6759,
+      "sha256": "2d080e350875d3c432bcd8c6db715158a3a2cc9209060583998dce453eca86a5"
     },
     "plugins/video-studio/workbench/revisions.mjs": {
       "bytes": 4831,
@@ -622,16 +646,16 @@
       "sha256": "c9cb3b64e59f5b24cbb4255d28ad50d836ab3ffcd4478ac05c4879ca3e41b600"
     },
     "plugins/video-studio/workbench/studio-workflow.mjs": {
-      "bytes": 50004,
-      "sha256": "84bae45b4aec6cfe0f0eef5c9cd3e7dbd6dcbfc6d2645f157c7ed4043346b7e3"
+      "bytes": 51609,
+      "sha256": "248659a8e5df888f41ccfd8ff53d7a75f7e1af1a921ed10780137d0da644a456"
     },
     "plugins/video-studio/workbench/test/agent.test.mjs": {
       "bytes": 11092,
       "sha256": "62270116a21071df33666ae7516a1c4a5138d8c83bdc019807ee4a9a8d0e9fdd"
     },
     "plugins/video-studio/workbench/test/api.test.mjs": {
-      "bytes": 30616,
-      "sha256": "0b4e01d8907f85a170b7c51e668be121f6de0881a95de4d83f0ccd229168cfd4"
+      "bytes": 30683,
+      "sha256": "a76eeceb45a2631528ab8b83a95c162f5ae9c6ae99a993cb63d72561ac26e3c6"
     },
     "plugins/video-studio/workbench/test/automatic-api.test.mjs": {
       "bytes": 21424,
@@ -690,8 +714,8 @@
       "sha256": "6ec9e3bb419523e3800e8e62f09ecf20e3232ae42ad98a05c2accea5e4cb3e5d"
     },
     "plugins/video-studio/workbench/test/production-plan.test.mjs": {
-      "bytes": 15485,
-      "sha256": "3f8a6e9a4ebc56c2adc289755724bd9ea411d4085978ceada5e1151a4143de34"
+      "bytes": 17022,
+      "sha256": "293341af45162b4f89ad14bb6567f512371294d5afe3ad96be684cadf648e843"
     },
     "plugins/video-studio/workbench/test/production-progress.test.mjs": {
       "bytes": 1940,
@@ -718,8 +742,8 @@
       "sha256": "42d090202cbc32022472cc140f95b302ad9b75db13339600d878e0e6b5333176"
     },
     "plugins/video-studio/workbench/test/review-packet.test.mjs": {
-      "bytes": 4426,
-      "sha256": "e03e62327301e524b5b7128c79d83eebe7308c8eb209ddaddf0193e39e364e6f"
+      "bytes": 5107,
+      "sha256": "4a23177f667e906ae94b33f6d4084c5273a62615949e975e7e877125e5ff8b72"
     },
     "plugins/video-studio/workbench/test/revisions.test.mjs": {
       "bytes": 3956,
@@ -742,12 +766,12 @@
       "sha256": "c6d79f3dc5784449804a0c2da0848b727663ceed6e98ca648325c9b9e0723aa0"
     },
     "plugins/video-studio/workbench/test/studio.test.mjs": {
-      "bytes": 7728,
-      "sha256": "0d9536adb82f8411403e28c7a0f9dc07382624d2f4a5bb1a4223294f3984edd4"
+      "bytes": 7810,
+      "sha256": "fef9574a34ce602216370dacc6a21798801989ded49d6225d559923dec13158f"
     },
     "plugins/video-studio/workbench/test/style-plan.test.mjs": {
-      "bytes": 3754,
-      "sha256": "65d9a4f59a676dbcb92bd336fd30cc8922fed2f5a5f1228f8bef58c220b4103e"
+      "bytes": 3836,
+      "sha256": "1ea48b8d76ff24acdc1c522d2f61f64818b54e5df361789d5c0d166878b35c53"
     },
     "plugins/video-studio/workbench/test/token-usage.test.mjs": {
       "bytes": 3804,
@@ -805,9 +829,21 @@
       "bytes": 2013,
       "sha256": "f29091da852684820bbdea5dc0c8b2a86ee31b230df076b66c692ccce2f648e6"
     },
+    "tests/test_portrait_design.py": {
+      "bytes": 7012,
+      "sha256": "eaea449e46eb7a53be8694cbdd1f947d6be2c3782350a1f3b7afb5b1689c8043"
+    },
+    "tests/test_portrait_evidence.py": {
+      "bytes": 8661,
+      "sha256": "c383947fcf2b02a0b1f7cef1cb6459dcd8e905b570a7b8d70a1b748ba4ec07e6"
+    },
+    "tests/test_portrait_review_path.py": {
+      "bytes": 5790,
+      "sha256": "44fe8f8a1ba64af88dce2c8ab12299fe711082087cfc507f98245204941da7f6"
+    },
     "tests/test_production_plan.py": {
-      "bytes": 21346,
-      "sha256": "e178ce32cc1cb4be80a52ebff9192b9bade4fd620ac3bb61f672afe30a45d2ca"
+      "bytes": 21526,
+      "sha256": "09e7b665aceb72e1b1a3e79c9a47c2b2bb5c9ca0ea1f0c3b63a1e14e99527f25"
     },
     "tests/test_quality_probe.py": {
       "bytes": 16866,
@@ -822,8 +858,8 @@
       "sha256": "0d034640e4ee6a00d24cf066f5de132212cb101275d0cf3c5fe3e9fe4f39034d"
     },
     "tests/test_review_music.py": {
-      "bytes": 5203,
-      "sha256": "19eff7fd14771519ab8a2a2d3f7c48287c21fdef68dc5a0acead6479936c98b4"
+      "bytes": 8318,
+      "sha256": "4bf1805f6c9db11aecb2f19ca75f69ae6d4fabd0dd0c4e6439b11f5b8b11e268"
     },
     "tests/test_review_sync.py": {
       "bytes": 9475,
@@ -857,6 +893,14 @@
       "bytes": 5768,
       "sha256": "877b90325435f06961675ed47344526bfe9570c1a72416bcac91fc198fca4829"
     },
+    "tests/test_voice_derivation_integration.py": {
+      "bytes": 7589,
+      "sha256": "1189c15c77b7c775edab9cdbad69485d22c097b0b538b7d9d092731d8810aa55"
+    },
+    "tests/test_voice_derivations.py": {
+      "bytes": 18715,
+      "sha256": "1f08101ee0f6098d1ed2a5906b6f0c3a8b6a36369ed30c15f65b3b2ea22b2d88"
+    },
     "tests/test_web_bridge.py": {
       "bytes": 22734,
       "sha256": "7e45b9c8f1498320f73f072e96d3e391fd2d693852383b58e40747b723344b24"
@@ -870,8 +914,8 @@
       "sha256": "1b846f0929f8d1cc3940f2d41534d26366d86963982ac2af6b73e037e579973a"
     },
     "tools/package.py": {
-      "bytes": 7916,
-      "sha256": "654e4a2458623323306190dfbe325d9a8d876061eaac9cb4b92d035b0ac1dd00"
+      "bytes": 8477,
+      "sha256": "c16a0b3b11bd096ae8cd717df59d4b741e5f5e25bc3233eed759a4405da492ef"
     },
     "tools/package_video_demo.py": {
       "bytes": 4045,

@@ -258,7 +258,11 @@ def speech_rates(words):
     return rows
 
 
-def review(evidence, cues, cuts_by_asset, fps=30):
+def review(evidence, cues, cuts_by_asset, fps=30, root=None):
+    generation_sources=evidence.get('voice_sources',[])
+    if evidence.get('voice_derivations'):
+        from voice_derivations import verify
+        generation_sources=verify(evidence,root,fps)['root_sources']
     state = evidence['timeline'].get('state', {})
     if state.get('fps', fps) != fps:
         raise ValueError('Timeline fps differs from diagnostic fps')
@@ -305,7 +309,7 @@ def review(evidence, cues, cuts_by_asset, fps=30):
     return {'caption_sync': check_captions(cues, words, fps=fps), 'source_window_issues': issues,
             'transition_handle_candidates': transition_handles(entries, cuts_by_asset, fps),
             'semantic_anchors': semantic_anchors(words, entries, evidence.get('semantic_anchors', []), fps),
-            'voice_controls': voice_controls(evidence['voice_sources']),
+            'voice_controls': voice_controls(generation_sources),
             'export_matches_cards': compare_cards(cues, cards, fps),
             'retained_shots': shots, 'short_shot_candidates': [s for s in shots if s['short_candidate']],
             'speech_rates': rates, 'audio_listening': 'unverified',
@@ -319,8 +323,9 @@ def main():
     parser.add_argument('--cuts', required=True, help='JSON object mapping video asset ID to source cut seconds')
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
-    report = review(json.loads(Path(args.evidence).read_text()), parse_srt(args.srt),
-                    json.loads(Path(args.cuts).read_text()))
+    evidence=json.loads(Path(args.evidence).read_text())
+    report = review(evidence, parse_srt(args.srt), json.loads(Path(args.cuts).read_text()),
+                    evidence['timeline']['state']['fps'], root=Path(args.evidence).resolve().parent)
     Path(args.output).write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     print(json.dumps({k: v for k, v in report.items() if k != 'retained_shots'}, ensure_ascii=False, indent=2))
     sync = report['caption_sync']

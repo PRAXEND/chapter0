@@ -24,10 +24,22 @@ def layout(settings):
     portrait = numeric(width) and numeric(height) and 0 < width < height
     if not portrait:
         return {"mode": "unchanged"}
-    return {"mode": "portrait-centered", "version": 2, "background": "#000000",
-            "titleBox": dict(left=.05, top=.04, right=.95, bottom=.28),
-            "mediaBox": dict(left=0, top=.32, right=1, bottom=.68),
-            "captionBox": dict(left=.05, top=.72, right=.95, bottom=.88),
+    scale, center = width / 1080, height / 2
+    def region(left, top, right, bottom):
+        return dict(left=left / width, top=top / height, right=right / width, bottom=bottom / height)
+    return {"mode": "portrait-centered", "version": 3, "background": "#030405",
+            "titleBox": region(54*scale, center-538*scale, 1026*scale, center-316*scale),
+            "mediaBox": region(0, center-304*scale, width, center+304*scale),
+            "captionBox": region(54*scale, center+321*scale, 1026*scale, center+456*scale),
+            "titleStyle": {"fontFamily": "Noto Sans SC", "fontSize": 92*scale, "fontWeight": 900,
+                           "lineHeight": 1.1, "lineGap": 4*scale, "color": "#FFFFFF", "emphasisColor": "#F0FF00"},
+            "captionRenderer": {"mode": "line-count-box", "singleLineHeight": 68*scale,
+                                "twoLineHeight": 135*scale, "nativeVerticalAlign": "center"},
+            "backgroundMotion": {"recipe": "portrait-line-field-v1", "lineCount": 120, "groups": 6,
+                                 "lineColor": "#9CA5AD", "strength": .12, "speed": 1,
+                                 "overscan": 220*scale, "layer": "bottom"},
+            "ending": {"fadeSeconds": 1.2, "blackHoldSeconds": .6, "musicFadeSeconds": 1.4,
+                       "curve": "smoothstep", "scope": "all-visual-layers"},
             "fit": "contain", "captionStyle": {
                 "fontFamily": "sans-serif", "fontSize": width * .05,
                 "fontWeight": 600, "lineHeight": 1.25, "color": "#FFFFFF",
@@ -48,7 +60,7 @@ def inside(inner, outer, tolerance_x=0, tolerance_y=0):
             and inner["bottom"] <= outer["bottom"] + tolerance_y)
 
 
-def validate_placement(placement, settings, cover_title=None, measured=False):
+def validate_placement(placement, settings, cover_title=None, measured=False, title_emphasis=None):
     if not isinstance(placement, dict) or not text(placement.get("composition")):
         raise ValueError("请记录镜头构图与动作保护方式。")
     expected = layout(settings)
@@ -67,6 +79,12 @@ def validate_placement(placement, settings, cover_title=None, measured=False):
             raise ValueError("素材区必须居中，字幕区必须固定在素材下方；全片使用相同布局。")
     if placement.get("fit") != "contain":
         raise ValueError("素材须等比完整适配。")
+    if not same(placement.get("titleStyle"), expected["titleStyle"]):
+        raise ValueError("顶部标题须使用统一白黄配色和已确认字号。")
+    if (not text(title_emphasis) or title_emphasis != title_emphasis.strip()
+            or not text(cover_title) or title_emphasis not in cover_title or title_emphasis == cover_title
+            or placement.get("titleEmphasis") != title_emphasis):
+        raise ValueError("请指定标题中的重点文字；白色正文与黄色重点均须存在，并与两张封面一致。")
     title = placement.get("titleText")
     lines = title.replace("\r\n", "\n").split("\n") if isinstance(title, str) else []
     if (not text(cover_title) or "\n" in cover_title or "\r" in cover_title
@@ -173,7 +191,7 @@ def validate(plan, data, required=True):
         if visuals != {u.get("sourceId") for u in uses}:
             raise ValueError("每个画面来源都需要具体使用记录。")
         all_uses.extend(uses)
-        validate_placement(shot.get("layout"), settings, policy.get("coverTitle"))
+        validate_placement(shot.get("layout"), settings, policy.get("coverTitle"), title_emphasis=policy.get("titleEmphasis"))
     if not shots:
         raise ValueError("通用制作方案需要实际镜头。")
     validate_uses(all_uses, sources, settings.get("replay_authorization"))
@@ -182,7 +200,7 @@ def validate(plan, data, required=True):
 
 def title_review_errors(data, review):
     policy = (data.get("production_plan") or {}).get("plan", {}).get("productionPlan", {})
-    if policy.get("layout", {}).get("mode") != "portrait-centered" or policy["layout"].get("version") != 2:
+    if policy.get("layout", {}).get("mode") != "portrait-centered" or policy["layout"].get("version") not in (2, 3):
         return []
     rows = review.get("title_observations", [])
     roles = {"video", "cover_portrait", "cover_landscape"}
@@ -215,7 +233,133 @@ def title_review_errors(data, review):
                            for ref in review.get("evidence_files", []))
                 or (row["role"] == "video" and row.get("sha256") != review.get("artifact_sha256"))):
             return ["title_text_or_evidence_mismatch"]
+        if policy["layout"].get("version") == 3 and row.get("emphasisText") != policy.get("titleEmphasis"):
+            return ["title_emphasis_observation_missing_or_mismatched"]
     return []
+
+
+def presentation_review_errors(data, review, frames):
+    policy = (data.get('production_plan') or {}).get('plan', {}).get('productionPlan', {})
+    if policy.get('layout', {}).get('version') != 3:
+        return []
+    required = {'portrait_layout': {'spacing', 'title_color', 'background'}, 'transitions': {'ending'}}.get(review['check'], set())
+    rows = review.get('presentation_observations') or []
+    if not isinstance(rows,list): rows=[]
+    fps=data['settings']['fps'];black=frames-round(.6*fps);start=black-round(1.2*fps)
+    errors = []
+    for feature in sorted(required):
+        matches = [r for r in rows if isinstance(r, dict) and r.get('feature') == feature]
+        if len(matches) != 1:
+            errors.append('portrait_' + feature + '_observations_missing');continue
+        row = matches[0];points = row.get('frames')
+        if (not text(row.get('observations')) or not isinstance(points, list) or not points
+                or any(type(f) is not int or not 0 <= f < frames for f in points)
+                or (feature in {'background', 'ending'} and len(set(points)) < 2)
+                or (feature == 'ending' and (frames-1 not in points
+                    or not any(start+.25*(black-start)<=f<=start+.75*(black-start) for f in points)
+                    or not any(black<=f<frames-1 for f in points)))):
+            errors.append('portrait_' + feature + '_frame_evidence_invalid')
+    return errors
+
+
+def track_ids(evidence, name, required=False):
+    """Resolve full IDs or editor aliases; missing/muted selections fail closed."""
+    selected=evidence.get(name,[])
+    if not isinstance(selected,list) or any(not text(x) for x in selected) or (required and not selected):
+        raise ValueError(name+' requires explicit audible tracks')
+    tracks=evidence['timeline']['timeline']['tracks'];ids=set()
+    for value in selected:
+        matches=[t for t in tracks if value in (t.get('id'),t.get('alias'))]
+        if len(matches)!=1 or matches[0].get('muted') is not False:
+            raise ValueError(name+' selector missing, ambiguous or muted: '+value)
+        ids.add(matches[0]['id'])
+    return ids
+
+
+def presentation_errors(data, evidence, frames, fps):
+    """Verify actual placed layers before the independent pixel review.
+
+    presentation contains normalized inspect_asset/readback facts; file hashes
+    are bound by the regular probe. It never substitutes for frame inspection.
+    """
+    policy = (data.get('production_plan') or {}).get('plan', {}).get('productionPlan', {})
+    if policy.get('layout', {}).get('version') != 3:
+        return {}
+    expected = layout(data['settings']);errors = {}
+    if not isinstance(evidence,dict) or not isinstance(evidence.get('presentation'),dict):
+        return {'portrait_layout':'Missing presentation readbacks','transitions':'Missing presentation readbacks'}
+    entries = (evidence or {}).get('timeline', {}).get('timeline', {}).get('entries', [])
+    tracks = (evidence or {}).get('timeline', {}).get('timeline', {}).get('tracks', [])
+    if evidence.get('timeline',{}).get('timeline',{}).get('totalEntries') != len(entries):
+        return {'portrait_layout':'Need complete timeline pages','transitions':'Need complete timeline pages'}
+    items = {x.get('id'):x for x in entries if isinstance(x,dict) and x.get('kind') == 'item'}
+    visual_order = {t['id']:t['order'] for t in tracks if t.get('type') in {'video','caption'} and numeric(t.get('order'))}
+    records = (evidence or {}).get('presentation', {})
+    w,h=data['settings']['width'],data['settings']['height']
+    fade=round(1.2*fps);black=frames-round(.6*fps);start=black-fade
+    def check(role,first,last,order,props):
+        record=records.get(role) or {}
+        if not isinstance(record,dict):return False
+        item=items.get(record.get('item_id'), {})
+        actual=item.get('properties', {});effective=record.get('effective_properties', {})
+        if not isinstance(actual,dict) or not isinstance(effective,dict):return False
+        return (item.get('itemType') == 'motion-graphic' and item.get('asset',{}).get('id') == record.get('asset_id')
+                and item.get('timelineRange') == {'fromFrame':first,'toFrame':last}
+                and visual_order and visual_order.get(item.get('trackId')) == order(visual_order.values())
+                and all(numeric(actual.get(k)) and abs(actual[k]-v)<=1 for k,v in dict(left=0,top=0,width=w,height=h).items())
+                and actual.get('opacity') == 1 and text(record.get('asset_revision'))
+                and not any(t.get('muted') is not False for t in tracks if t.get('id')==item.get('trackId'))
+                and actual.get('rotation',0)==0 and actual.get('fadeIn',0)==0 and actual.get('fadeOut',0)==0
+                and isinstance(record.get('readback_files'),list) and bool(record['readback_files'])
+                and all(same(effective.get(k),v) for k,v in props.items()))
+    motion=expected['backgroundMotion']
+    if not check('background',0,frames,min,{k:motion[k] for k in ('lineCount','strength','speed','lineColor')} | {'bgColor':expected['background'],'transparentBackground':False}):
+        errors['portrait_layout']='缺少全片最底层密铺动态背景的真实实例、参数或读回证据'
+    if not check('ending',start,frames,max,{'fadeFrames':fade,'color':'#000000'}):
+        errors['transitions']='缺少末尾1.2秒全层渐隐与0.6秒黑屏的真实顶层实例及读回证据'
+    from studio import music_expected
+    try:
+        music_tracks=track_ids(evidence,'music_tracks',required=music_expected(data))
+        narration_tracks=track_ids(evidence,'narration_tracks',required=bool(data['settings'].get('narration')))
+    except (ValueError,KeyError,TypeError) as exc:
+        errors['transitions']=str(exc);return errors
+    music=[x for x in entries if x.get('kind')=='item' and x.get('trackId') in music_tracks]
+    if music:
+        last=max(music,key=lambda x:x['timelineRange']['toFrame'])
+        p=last.get('properties',{})
+        duration=p.get('audioFadeOut',p.get('fadeOut',0))
+        if last['timelineRange']['toFrame'] != black or not numeric(duration) or abs(duration-1.4)>1/fps:
+            errors['transitions']='配乐须在黑屏开始前结束，并保留1.4秒淡出'
+    elif music_tracks:
+        errors['transitions']='已选择配乐轨但没有真实音乐片段'
+    if any(x.get('kind')=='item' and x.get('trackId') in narration_tracks and x['timelineRange']['toFrame']>start for x in entries):
+        errors['transitions']='请在全画面渐隐前完成旁白，预留完整收尾'
+    return errors
+
+
+def narration_occupancy(beat, evidence, fps):
+    """Actual voice time inside a visual beat, including clips crossing its ends."""
+    timeline=evidence['timeline']['timeline'];entries=timeline['entries']
+    if timeline.get('totalEntries') != len(entries) or not evidence.get('narration_tracks'):
+        raise ValueError('Complete narration timeline is required')
+    start,end=beat['from_frame'],beat['to_frame'];tracks=track_ids(evidence,'narration_tracks',required=True)
+    clips=[x for x in entries if x.get('kind')=='item' and x.get('trackId') in tracks
+           and x['timelineRange']['fromFrame']<end and x['timelineRange']['toFrame']>start]
+    if not clips or set(beat.get('narration_item_ids',[]))!={x['id'] for x in clips}:
+        raise ValueError('Beat must bind all intersecting actual narration items')
+    declared=set(beat.get('audio_asset_ids') or [beat.get('audio_asset_id')])
+    intervals=[]
+    for clip in clips:
+        a,b=clip['timelineRange']['fromFrame'],clip['timelineRange']['toFrame']
+        source=clip['sourceRange'];rate=clip.get('playbackRate',1)
+        if (clip.get('asset',{}).get('id') not in declared or not numeric(rate) or rate<=0
+                or abs((source['end']-source['start'])/1e6/rate-(b-a)/fps)>1/fps):
+            raise ValueError('Narration source window/rate does not match its actual item')
+        intervals.append((max(start,a),min(end,b)))
+    total=0;right=start
+    for a,b in sorted(intervals):
+        total+=max(0,b-max(a,right));right=max(right,b)
+    return total/fps
 
 
 def implementation_errors(data, directory, frames):
@@ -279,7 +423,8 @@ def implementation_errors(data, directory, frames):
         if portrait:
             result = beat.get("layout_result") or {}
             try:
-                validate_placement(result, data["settings"], plan["productionPlan"].get("coverTitle"), measured=True)
+                validate_placement(result, data["settings"], plan["productionPlan"].get("coverTitle"), measured=True,
+                                   title_emphasis=plan["productionPlan"].get("titleEmphasis"))
                 if not proof(result):
                     raise ValueError("Missing evidence")
             except (ValueError, KeyError, TypeError):

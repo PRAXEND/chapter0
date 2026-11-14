@@ -6,12 +6,12 @@ import {productionLayout,validateProductionPlan,renderProductionPlan,renderSourc
 
 function placement(settings){
   const p=productionLayout(settings);
-  return p.mode==='unchanged'?{composition:'Original composition'}:{composition:'Centered contain footage; fixed below-frame captions',mediaBox:{...p.mediaBox},captionBox:settings.captions?{...p.captionBox}:null,captionStyle:settings.captions?{...p.captionStyle}:null,fit:'contain',titleText:'Test',titleBox:{...p.titleBox},emphasisBoxes:[]};
+  return p.mode==='unchanged'?{composition:'Original composition'}:{composition:'Centered contain footage; fixed below-frame captions',mediaBox:{...p.mediaBox},captionBox:settings.captions?{...p.captionBox}:null,captionStyle:settings.captions?{...p.captionStyle}:null,fit:'contain',titleText:'Test',titleEmphasis:'Te',titleStyle:{...p.titleStyle},titleBox:{...p.titleBox},emphasisBoxes:[]};
 }
 
 function fixture(ratio='9:16',captions=true){
   const project={...initialStudio(),duration:30,durationMin:null,topic:'Test',ratio,captions,selected:['a'],sources:[{id:'a',kind:'video',title:'Capture A',duration:10,sha256:'a'.repeat(64),url:'https://example.org/a',start:100,status:'ready'}]};
-  const plan={title:'Test',script:'Test',stylePlan:null,gaps:[],productionPlan:{version:1,coverTitle:'Test',materialReview:'Synthetic observations',layout:productionLayout(brief(project).requirements)},shots:[{id:'s1',from:0,to:2,sourceIds:['a'],sourceUses:[{id:'u1',sourceId:'a',inSeconds:1,outSeconds:3,actionGroup:'capture-a-01',role:'primary',purpose:'Specific action',compatibility:'No conflicting claims'}],layout:placement(brief(project).requirements),narration:'Test',visual:'Test',screenText:'Test',transition:'Cut',design:[]}]};
+  const plan={title:'Test',script:'Test',stylePlan:null,gaps:[],productionPlan:{version:1,coverTitle:'Test',titleEmphasis:'Te',materialReview:'Synthetic observations',layout:productionLayout(brief(project).requirements)},shots:[{id:'s1',from:0,to:2,sourceIds:['a'],sourceUses:[{id:'u1',sourceId:'a',inSeconds:1,outSeconds:3,actionGroup:'capture-a-01',role:'primary',purpose:'Specific action',compatibility:'No conflicting claims'}],layout:placement(brief(project).requirements),narration:'Test',visual:'Test',screenText:'Test',transition:'Cut',design:[]}]};
   return {project,plan};
 }
 
@@ -34,18 +34,18 @@ test('portrait regions center media, separate fixed captions and render a cover-
     validateProductionPlan(plan,settings,project.sources);
     const p=plan.productionPlan.layout;
     assert.equal((p.mediaBox.left+p.mediaBox.right)/2,.5);assert.equal((p.mediaBox.top+p.mediaBox.bottom)/2,.5);
-    assert.ok(p.titleBox.bottom<p.mediaBox.top);assert.ok(p.captionBox.top>p.mediaBox.bottom);assert.ok(p.captionBox.bottom>.82);
+    assert.ok(p.titleBox.bottom<p.mediaBox.top);assert.ok(p.captionBox.top>p.mediaBox.bottom);assert.ok(p.captionBox.bottom>p.captionBox.top);
     for(const change of [{mediaBox:{...p.mediaBox,top:.2}},{captionBox:{...p.captionBox,top:.6}},{titleText:'Different'},{fit:'cover'},{captionStyle:{...p.captionStyle,color:'#FFFF00'}}]){
       const bad=structuredClone(plan);Object.assign(bad.shots[0].layout,change);assert.throws(()=>validateProductionPlan(bad,settings,project.sources));
     }
   }
-  for(const ratio of ['16:9','1:1']){const f=fixture(ratio);validatePlan(f.plan,f.project);assert.deepEqual(f.plan.productionPlan.layout,{mode:'unchanged'});}
+  for(const ratio of ['16:9','1:1']){const f=fixture(ratio);validatePlan(f.plan,f.project);assert.deepEqual(f.plan.productionPlan.layout,{mode:'unchanged'});assert.match(renderProductionPlan(f.plan),/原构图|本期构图/);}
   const silent=fixture('9:16',false);validatePlan(silent.plan,silent.project);
 });
 
 test('caption length cannot move its container and emphasis cannot use black padding',()=>{
   const {project,plan}=fixture(),shot=plan.shots[0];
-  const e={footageBounds:{left:.3,top:.32,right:.7,bottom:.68},bounds:{left:.4,top:.4,right:.6,bottom:.5}};
+  const e={footageBounds:{left:.3,top:.35,right:.7,bottom:.65},bounds:{left:.4,top:.4,right:.6,bottom:.5}};
   shot.layout.emphasisBoxes=[e];validatePlan(plan,project);
   shot.narration='A longer sentence with two caption lines';validatePlan(plan,project);
   shot.layout.captionBox.top+=.01;assert.throws(()=>validatePlan(plan,project),/固定/);shot.layout.captionBox.top-=.01;
@@ -105,7 +105,7 @@ test('images, missing sources and malformed data are checked',()=>{
 test('review UI escapes notes, presents bounds and retains identity when editing windows',()=>{
   const {project,plan}=fixture();plan.productionPlan.materialReview='<script>bad()</script>';
   const html=renderProductionPlan(plan);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>|style=/);
-  assert.match(html,/Test/);assert.match(html,/封面标题/);assert.doesNotMatch(html,/18%|上移/);assert.match(html,/viewBox=/);
+  assert.match(html.replace(/<[^>]*>/g,''),/Test/);assert.match(html,/两张封面同字同重点/);assert.doesNotMatch(html,/18%|上移/);assert.match(html,/viewBox=/);
   const shot=plan.shots[0],fields=[{dataset:{useField:'inSeconds'},value:'1.5'},{dataset:{useField:'purpose'},value:'Natural bridge'}];
   const node={dataset:{useId:'u1'},querySelectorAll:()=>fields};
   const read=readSourceUses({querySelectorAll:s=>s==='[data-use-id]'?[node]:[{dataset:{layoutField:'composition'},value:'素材居中'}]},shot);
@@ -191,5 +191,22 @@ test('unreleased v1 non-portrait identities stay stable while v1 portraits must 
     const input=inputHash(project),request=requestHash(project);project.layoutPolicy='customer-portrait-v2';
     assert.notEqual(inputHash(project),input);assert.notEqual(requestHash(project),request);
   }
-  const f=fixture();f.project.layoutPolicy='customer-portrait-v1';assert.equal(brief(f.project).requirements.layout_policy,'customer-portrait-v2');
+  const f=fixture();f.project.layoutPolicy='customer-portrait-v1';assert.equal(brief(f.project).requirements.layout_policy,'customer-portrait-v3');
+});
+
+
+test('unreleased v2 non-portrait fingerprints and rendering survive v3 migration',async()=>{
+  // Frozen from the unchanged 151a6f0 modules, not recomputed by this implementation.
+  const frozen=[['16:9','8383f2179761882befd0361a1c77f62296366c2b07562c3d71d865e82bb158f1','5dc4bd25f674310c15a692f6f0ed7516e527263c127678cffbe3303f1cfc5cf8'],['1:1','85298db1b2f5734ed5a0018be741c3169ec5546566e047d74c938d982c5625e7','b3f5d3f343f85d6a98ea7ee92e59993999a2c3c943ba50511a3a9b1aa4ed0f53']];
+  const {requestHash,beginAutomatic,nextAutomatic}=await import('../automatic.mjs');
+  for(const [ratio,input,request] of frozen){
+    const p={...initialStudio(),layoutPolicy:'customer-portrait-v2',ratio,topic:'v2 fixture',styleSelector:'sample@1',narration:false};
+    assert.equal(inputHash(p),input);assert.equal(requestHash(p),request);
+    p.plan={stale:false,gaps:[],productionPlan:{layout:{mode:'unchanged'}}};
+    assert.match(renderProductionPlan(p.plan),/本期构图/);
+    p.approval={status:'confirmed',planHash:'approved',inputHash:input};
+    p.qualityCycle={candidate:{planHash:'approved',inputHash:input},report:{completed:true}};
+    p.automatic={id:'old-v2',requestHash:request,status:'blocked',stage:'delivery'};
+    if(ratio==='16:9'){assert.equal(beginAutomatic(p).id,'old-v2');assert.deepEqual(nextAutomatic(p),{action:'delivery'});}
+  }
 });

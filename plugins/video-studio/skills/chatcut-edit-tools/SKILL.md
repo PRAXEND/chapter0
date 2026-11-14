@@ -4,10 +4,12 @@ description: 在 Video Studio 中调用 ChatCut 项目、素材导入、可编�
 ---
 新制作的自动授权、音色前置、独立验收及用户确认修订遵循 [共用制片约定](../../references/production-policy.md)。新策略 sampled-objective-v1 允许有证据的抽帧视觉与客观音频验收，使用当前 production-context.review_methods；不得将无法听审当作免检音量、峰值或字幕同步的理由。
 
+竖版制作和检查必须执行 [customer-portrait-v3 配方](../../references/portrait-presentation.md)，包括贴近素材的单/双行字幕补偿、白黄标题、动态底纹和全层结尾；工作台使用相同脚本与检查入口。
+
 
 # ChatCut 编辑工具
 
-编辑任何题材或风格前，读取 [通用素材与构图流程](../../references/common-production.md) 及已确认 production_plan。严格用批准的 sourceUses 窗口，避免源片内部回放、转载重复及变速/裁切重用；主题相关素材可自然衔接，不额外加跨事件说明。每个 beat 保存 shot_id、实际 source_uses 与证据；所有竖版重新安排主体/动作和字幕的位置，保持画面铺满及动作完整，保存实际 layout_result。最终按当前抽帧策略检查接缝、动作极值与字幕动画，不能只凭目标坐标声称完成。
+编辑任何题材或风格前，读取 [通用素材与构图流程](../../references/common-production.md) 及已确认 production_plan。严格用批准的 sourceUses 窗口，避免源片内部回放、转载重复及变速/裁切重用；主题相关素材可自然衔接，不额外加跨事件说明。每个 beat 保存 shot_id、实际 source_uses 与证据；所有竖版重新安排主体/动作和字幕的位置，保持素材居中完整适配，保存实际 layout_result。最终按当前抽帧策略检查接缝、动作极值与字幕动画，不能只凭目标坐标声称完成。
 
 沿当前已安装 ChatCut 技能与实时 schema 操作，不硬编码缓存版本、assetId 或工具参数。首次连接读 chatcut-plugin-basics；桌面和 hosted 表面使用各自适用说明。
 

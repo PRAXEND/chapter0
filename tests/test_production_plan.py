@@ -21,7 +21,7 @@ def placement(settings):
                 mediaBox=copy.deepcopy(policy['mediaBox']),
                 captionBox=copy.deepcopy(policy['captionBox']) if settings['captions'] else None,
                 captionStyle=copy.deepcopy(policy['captionStyle']) if settings['captions'] else None,
-                fit='contain', titleText='Synthetic', titleBox=copy.deepcopy(policy['titleBox']), emphasisBoxes=[])
+                fit='contain', titleText='Synthetic', titleEmphasis='Syn', titleStyle=copy.deepcopy(policy['titleStyle']), titleBox=copy.deepcopy(policy['titleBox']), emphasisBoxes=[])
 
 
 def proposed(width=1080, height=1920, captions=True):
@@ -33,7 +33,7 @@ def proposed(width=1080, height=1920, captions=True):
                 layout=placement(settings),
                 **{'from': 0, 'to': 2}, narration='', visual='实际画面', screenText='', transition='硬切')
     plan = dict(title='Synthetic', script='test', shots=[shot],
-                productionPlan=dict(version=1, coverTitle='Synthetic', materialReview='synthetic observations', layout=common.layout(settings)))
+                productionPlan=dict(version=1, coverTitle='Synthetic', titleEmphasis='Syn', materialReview='synthetic observations', layout=common.layout(settings)))
     return plan, dict(settings=settings, sources=[source])
 
 
@@ -45,7 +45,7 @@ class PlanRulesTests(unittest.TestCase):
             region = p['productionPlan']['layout']['mediaBox']
             self.assertEqual((region['left']+region['right'])/2, .5)
             self.assertEqual((region['top']+region['bottom'])/2, .5)
-            self.assertGreater(p['shots'][0]['layout']['captionBox']['bottom'], .82)
+            self.assertAlmostEqual(p['shots'][0]['layout']['captionBox']['top']*1920, 1281)
             p['shots'][0]['layout']['captionBox']['top'] = .6
             with self.assertRaisesRegex(ValueError, '固定'): common.validate(p, d)
 
@@ -95,7 +95,7 @@ class PlanRulesTests(unittest.TestCase):
 
     def test_title_review_binds_video_and_both_covers_to_one_approved_title(self):
         plan, data = proposed(); data['production_plan'] = dict(plan=plan)
-        rows = [dict(role=role, text='Syn\nthetic', path='/tmp/'+role, sha256=role*8)
+        rows = [dict(role=role, text='Syn\nthetic', emphasisText='Syn', path='/tmp/'+role, sha256=role*8)
                 for role in ('video', 'cover_portrait', 'cover_landscape')]
         with tempfile.TemporaryDirectory() as directory:
             # Diagnostic PNG headers only; visual decoding is outside this protocol test.
@@ -122,7 +122,7 @@ class PlanRulesTests(unittest.TestCase):
     def test_emphasis_stays_in_actual_footage_not_contain_padding(self):
         p, d = proposed()
         # Portrait source within a wider display container: black side padding is not footage.
-        item = dict(footageBounds=dict(left=.3,top=.32,right=.7,bottom=.68),
+        item = dict(footageBounds=dict(left=.3,top=.35,right=.7,bottom=.65),
                     bounds=dict(left=.4,top=.4,right=.6,bottom=.5))
         p['shots'][0]['layout']['emphasisBoxes'] = [item]
         common.validate(p, d)
@@ -134,12 +134,12 @@ class PlanRulesTests(unittest.TestCase):
         _, d = proposed(); actual = placement(d['settings'])
         actual['mediaBox']['top'] += 1/1920
         actual['captionBox']['left'] += 1/1080
-        actual['emphasisBoxes'] = [dict(footageBounds=dict(left=.3,top=.32,right=.7,bottom=.68),
+        actual['emphasisBoxes'] = [dict(footageBounds=dict(left=.3,top=.35,right=.7,bottom=.65),
             bounds=dict(left=.3-1/1080,top=.4,right=.6,bottom=.5))]
-        common.validate_placement(actual,d['settings'],'Synthetic',measured=True)
-        with self.assertRaises(ValueError): common.validate_placement(actual,d['settings'],'Synthetic')
+        common.validate_placement(actual,d['settings'],'Synthetic',measured=True,title_emphasis='Syn')
+        with self.assertRaises(ValueError): common.validate_placement(actual,d['settings'],'Synthetic',title_emphasis='Syn')
         actual['emphasisBoxes'][0]['bounds']['left'] -= 1/1080
-        with self.assertRaises(ValueError): common.validate_placement(actual,d['settings'],'Synthetic',measured=True)
+        with self.assertRaises(ValueError): common.validate_placement(actual,d['settings'],'Synthetic',measured=True,title_emphasis='Syn')
 
     def test_legacy_landscape_zero_field_does_not_block_approved_layout(self):
         p, d = proposed(1920,1080)

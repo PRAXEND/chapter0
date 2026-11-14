@@ -204,7 +204,7 @@ else {
     const portraitSettings={...directState.project,ratio:'9:16',duration:3,durationMin:null,narration:false,captions:true,music:'none',styleSelector:null,selected:[portraitSource.id]};
     assert.equal((await api('/api/project',portraitSettings)).status,200);
     const layout=productionLayout({width:1080,height:1920});
-    const portraitPlan={...plan,productionPlan:{...plan.productionPlan,coverTitle:'Test',layout},shots:[{...plan.shots[0],sourceIds:[portraitSource.id],sourceUses:[{...plan.shots[0].sourceUses[0],sourceId:portraitSource.id}],layout:{composition:'Synthetic centered fixture; not visual QA',mediaBox:layout.mediaBox,captionBox:layout.captionBox,captionStyle:layout.captionStyle,fit:'contain',titleText:'Test',titleBox:layout.titleBox,emphasisBoxes:[]}}]};
+    const portraitPlan={...plan,productionPlan:{...plan.productionPlan,coverTitle:'Test',titleEmphasis:'Te',layout},shots:[{...plan.shots[0],sourceIds:[portraitSource.id],sourceUses:[{...plan.shots[0].sourceUses[0],sourceId:portraitSource.id}],layout:{composition:'Synthetic centered fixture; not visual QA',mediaBox:layout.mediaBox,captionBox:layout.captionBox,captionStyle:layout.captionStyle,fit:'contain',titleText:'Test',titleEmphasis:'Te',titleStyle:layout.titleStyle,titleBox:layout.titleBox,emphasisBoxes:[]}}]};
     const portraitSaved=await api('/api/plan',{plan:portraitPlan});assert.equal(portraitSaved.status,200,JSON.stringify(portraitSaved.value));
     const portraitApproved=await api('/api/approve',{planHash:portraitSaved.value.plan.planHash});assert.equal(portraitApproved.status,200);
     const beforeBad=(await api('/api/state')).value.project;
@@ -212,7 +212,7 @@ else {
     assert.equal((await api('/api/plan',{plan:bad})).status,400);
     const afterBad=(await api('/api/state')).value.project;assert.deepEqual(afterBad.approval,beforeBad.approval);
     const runState=JSON.parse(await readFile(path.join(afterBad.run,'run.json'),'utf8'));
-    assert.equal(runState.settings.layout_policy,'customer-portrait-v2');assert.equal(runState.settings.portrait_bottom_inset,undefined);
+    assert.equal(runState.settings.layout_policy,'customer-portrait-v3');assert.equal(runState.settings.portrait_bottom_inset,undefined);
     assert.deepEqual(runState.production_plan.plan.productionPlan.layout,layout);
     console.log('API verified: review hashes, file upload/range serving, source validation, no fabricated export, scoped access.');
   }finally{server?.kill('SIGTERM');if(server&&server.exitCode===null)await new Promise(r=>{const timer=setTimeout(()=>{server.kill('SIGKILL');r();},4000);server.once('exit',()=>{clearTimeout(timer);r();});});await rm(temp,{recursive:true,force:true});}

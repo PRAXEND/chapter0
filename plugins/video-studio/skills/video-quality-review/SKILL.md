@@ -3,6 +3,8 @@ name: video-quality-review
 description: 对 Video Studio 成片独立验收，检查风格表达、音画同步、遮挡、配乐、转场、字幕、闪动及连续性，记录问题并复查修复。
 ---
 
+竖版制作和检查必须执行 [customer-portrait-v3 配方](../../references/portrait-presentation.md)，包括贴近素材的单/双行字幕补偿、白黄标题、动态底纹和全层结尾；工作台使用相同脚本与检查入口。
+
 # 独立成片验收
 
 读取 [共用制片约定](../../references/production-policy.md)、[验收记录与方法](../../references/quality-review.md) 和当前 production-context。新制作采用 sampled-objective-v1：全片抽帧、边界加密和客观音频；不能播放或听审属于允许的能力限制，不能声称实际完成。仅恢复尚未迁移的旧候选时读取 [历史策略](../../references/legacy-review-policy.md)，旧报告不追认为当前通过。
