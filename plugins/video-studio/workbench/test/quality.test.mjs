@@ -149,3 +149,31 @@ test('compact report binds explicit shared coverage and issue IDs, rejecting dro
     await assert.rejects(()=>registerIndependentReview({...args,result:{...result,issues:[]}}),/不存在的问题/);
   }finally{await rm(f.run,{recursive:true,force:true});}
 });
+
+
+test('title review requires reading video and both current covers, not a matching-title claim',async()=>{
+  const f=await fixture();try{
+    const record=JSON.parse(await readFile(path.join(f.run,'run.json'),'utf8'));
+    record.production_plan={sha256:'approved-title-plan',plan:{productionPlan:{coverTitle:' Test title ',layout:{mode:'portrait-centered',version:2}}}};
+    await writeFile(path.join(f.run,'run.json'),JSON.stringify(record));
+    for(const role of ['cover_portrait','cover_landscape']){
+      const file=path.join(f.run,role+'.png');await writeFile(file,'synthetic cover fixture');
+      f.candidate.files.push({role,path:file,sha256:await fileHash(file)});
+    }
+    const rows=f.candidate.files.map(file=>({role:file.role,path:file.path,text:'Test \ntitle'})),saved=[];
+    const check={check:'output_details',result:'pass',observations:'Synthetic visual protocol',evidenceFiles:[]};
+    const run=titleObservations=>registerIndependentReview({...f,result:{checks:[{...check,titleObservations}]},job:{id:'review',threadId:'review-thread',directory:f.run},bridge:async(action,p)=>{if(action==='record-review')saved.push(p.review);return {completed:false};}});
+    for(const bad of [[],rows.slice(0,2),rows.map(r=>({...r,text:r.role==='video'?'Test \nti\ntle':r.text})),rows.map(r=>({...r,text:r.role==='cover_portrait'?'Other':r.text})),rows.map(r=>({...r,path:r.role==='cover_portrait'?f.file:r.path}))]){
+      await run(bad);assert.equal(saved.at(-1).result,'fail');
+    }
+    await run(rows);const success=saved.at(-1);assert.equal(success.result,'pass');assert.equal(success.title_observations.length,3);
+    assert.equal(success.production_plan_sha256,'approved-title-plan');
+    for(const f of success.title_observations)assert.ok(success.evidence_files.some(e=>e.path===f.path&&e.sha256===f.sha256));
+    record.reviews={output_details:success};await writeFile(path.join(f.run,'run.json'),JSON.stringify(record));
+    const report={completed:true,checks:{output_details:{method:'export_and_boundary_inspection'}},independentJobId:'review',independentThreadId:'review-thread',producerJobId:f.producer.id};
+    assert.equal((await enforceIndependentReview(report,f.run,f.candidate)).completed,true);
+    const alternate={...f.candidate,files:f.candidate.files.map(file=>file.role==='cover_portrait'?{...file,path:path.join(f.run,'replacement.png')}:file)};
+    assert.equal((await enforceIndependentReview(report,f.run,alternate)).completed,false);
+    await writeFile(f.candidate.files[1].path,'changed cover');await assert.rejects(()=>run(rows),/变化/);
+  }finally{await rm(f.run,{recursive:true,force:true});}
+});

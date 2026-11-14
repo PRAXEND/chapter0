@@ -94,6 +94,19 @@ export async function registerIndependentReview({result,job,candidate,probe,run,
     }
     const payload={check:check.check,result:check.result,method:methods[check.check],reviewer:job.threadId,reviewer_job_id:job.id,producer_job_id:candidate.producerJobId,artifact_sha256:probe.artifact_sha256,subtitle_sha256:probe.subtitle_sha256,probe_sha256:manifestHash,coverage_frames:[0,probe.frames],observed_sheets:check.observedSheets||[],observations:check.observations,evidence:check.observations,evidence_files:evidence,issues:check.issues||[],limitations:result.limitations||[],production_plan_sha256:record.production_plan?.sha256,style_plan_sha256:record.style_plan?.sha256,style:record.style_snapshot?.selector,rules:Object.fromEntries((check.rules||[]).map(r=>[r.id,{result:r.result,observations:r.observations}])),not_applicable_reason:check.notApplicableReason||''};
     if(check.check==='caption_flow')payload.caption_observations=check.captionObservations||[];
+    const titlePolicy=record.production_plan?.plan?.productionPlan;
+    if(check.check==='output_details'&&titlePolicy?.layout?.mode==='portrait-centered'&&titlePolicy.layout.version===2){
+      const rows=check.titleObservations||[],roles=['video','cover_portrait','cover_landscape'];
+      payload.title_observations=[];
+      let valid=Array.isArray(rows)&&rows.length===3&&typeof titlePolicy.coverTitle==='string'&&!!titlePolicy.coverTitle.trim();
+      for(const role of roles){
+        const matches=Array.isArray(rows)?rows.filter(r=>r?.role===role):[],files=candidate.files.filter(f=>f.role===role),row=matches[0],file=files[0];
+        if(matches.length!==1||files.length!==1||row.path!==file.path||typeof row.text!=='string'||row.text.replace(/\r\n|\n/g,'').trim()!==titlePolicy.coverTitle.trim()||(role==='video'&&(row.text.replace(/\r\n/g,'\n').split('\n').length>2||row.text.replace(/\r\n/g,'\n').split('\n').some(line=>!line.trim()||line.includes('\r'))))){valid=false;continue;}
+        payload.title_observations.push({role,text:row.text,path:file.path,sha256:file.sha256});
+        payload.evidence_files.push({path:file.path,sha256:file.sha256});
+      }
+      if(payload.result==='pass'&&!valid){payload.result='fail';payload.observations+='；缺少实际视频及两张封面同标题的逐字观察和文件绑定。';payload.evidence=payload.observations;}
+    }
     if(check.check==='style_match'&&referenceProbe){
       const reference=await contained(referenceProbe.manifest,run);
       if(await fileHash(reference)!==referenceProbe.sha256)throw Error('风格参考证据已变化');
@@ -125,9 +138,9 @@ export async function registerIndependentReview({result,job,candidate,probe,run,
   }
   const video=candidate.files.find(f=>f.role==='video'),subtitles=candidate.files.find(f=>f.role==='subtitles');
   const audit=await bridge('review-audit',{run,file:video.path,subtitles:subtitles?.path});
-  return enforceIndependentReview({...audit,independentJobId:job.id,independentThreadId:job.threadId,producerJobId:candidate.producerJobId,limitations:result.limitations||[]},run);
+  return enforceIndependentReview({...audit,independentJobId:job.id,independentThreadId:job.threadId,producerJobId:candidate.producerJobId,limitations:result.limitations||[]},run,candidate);
 }
-export async function enforceIndependentReview(report,run){
+export async function enforceIndependentReview(report,run,candidate=null){
   const actual=JSON.parse(await readFile(path.join(run,'run.json'),'utf8'));
   const required=Object.entries(report.checks||{}).filter(([,check])=>check.method).map(([key])=>key);
   if(report.completed&&!required.length)throw Error('验收缺少逐项结果，不能交付。');
@@ -135,6 +148,16 @@ export async function enforceIndependentReview(report,run){
     const review=actual.reviews?.[key];
     return !review||review.reviewer_job_id!==report.independentJobId||review.reviewer!==report.independentThreadId||review.producer_job_id!==report.producerJobId;
   });
+  const policy=actual.production_plan?.plan?.productionPlan;
+  if(report.completed&&policy?.layout?.mode==='portrait-centered'&&policy.layout.version===2){
+    const review=actual.reviews?.output_details;
+    const rows=review?.title_observations||[],files=candidate?.files||[];
+    const bound=review?.production_plan_sha256===actual.production_plan.sha256&&['video','cover_portrait','cover_landscape'].every(role=>{
+      const matches=files.filter(f=>f.role===role),observed=rows.filter(r=>r.role===role);
+      return matches.length===1&&observed.length===1&&matches[0].path===observed[0].path&&matches[0].sha256===observed[0].sha256&&typeof observed[0].text==='string'&&observed[0].text.replace(/\r\n|\n/g,'').trim()===String(policy.coverTitle||'').trim();
+    });
+    if(!bound&&!pending.includes('output_details'))pending.push('output_details');
+  }
   return {...report,completed:report.completed&&!pending.length,review_pending:[...new Set([...(report.review_pending||[]),...pending])],checks:{...report.checks,...Object.fromEntries(pending.map(key=>[key,{...report.checks[key],status:'unverified',evidence_current:false,observations:'缺少本次独立验收记录；不能继承制作方或上轮结论。'}]))}};
 }
 class DeliveryPackageError extends Error{

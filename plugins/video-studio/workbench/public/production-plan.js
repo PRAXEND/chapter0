@@ -5,16 +5,17 @@ export const sourceUseSchema=object({id:string,sourceId:string,inSeconds:nullabl
 const boxSchema=object(Object.fromEntries(['left','top','right','bottom'].map(k=>[k,{type:'number'}])));
 const nullable=schema=>({anyOf:[{type:'null'},schema]});
 const captionStyleSchema=object({fontFamily:string,fontSize:{type:'number'},fontWeight:{type:'integer'},lineHeight:{type:'number'},color:string,align:string,verticalAlign:string});
-export const placementSchema=object({composition:string,mediaBox:nullable(boxSchema),captionBox:nullable(boxSchema),fit:nullable(string),titleClear:{type:['boolean','null']},captionStyle:nullable(captionStyleSchema),emphasisBoxes:{type:'array',items:object({bounds:boxSchema,footageBounds:boxSchema})}});
-const centeredSchema=object({mode:{type:'string',enum:['portrait-centered']},version:{type:'integer',enum:[1]},background:string,titleBox:boxSchema,mediaBox:boxSchema,captionBox:boxSchema,fit:string,captionStyle:captionStyleSchema});
-export const productionPlanSchema=object({version:{type:'integer',enum:[1]},materialReview:string,layout:{anyOf:[centeredSchema,object({mode:{type:'string',enum:['unchanged']}})]}});
-export const layoutPolicy='customer-portrait-v1';
+export const placementSchema=object({composition:string,mediaBox:nullable(boxSchema),captionBox:nullable(boxSchema),fit:nullable(string),titleText:nullable(string),titleBox:nullable(boxSchema),captionStyle:nullable(captionStyleSchema),emphasisBoxes:{type:'array',items:object({bounds:boxSchema,footageBounds:boxSchema})}});
+const centeredSchema=object({mode:{type:'string',enum:['portrait-centered']},version:{type:'integer',enum:[2]},background:string,titleBox:boxSchema,mediaBox:boxSchema,captionBox:boxSchema,fit:string,captionStyle:captionStyleSchema});
+export const productionPlanSchema=object({version:{type:'integer',enum:[1]},materialReview:string,coverTitle:nullable(string),layout:{anyOf:[centeredSchema,object({mode:{type:'string',enum:['unchanged']}})]}});
+export const layoutPolicy='customer-portrait-v2';
 // Only retain historical fingerprints for non-portrait projects. This never
 // reinstates an inset or changes their composition.
+export const projectLayoutPolicy=p=>p.ratio==='9:16'?layoutPolicy:(p.layoutPolicy||layoutPolicy);
 export const legacyLandscape=p=>!p.layoutPolicy&&p.ratio!=='9:16';
 export function productionLayout(settings){
   if(!Number.isFinite(settings.width)||!Number.isFinite(settings.height)||!(settings.height>settings.width&&settings.width>0))return {mode:'unchanged'};
-  return {mode:'portrait-centered',version:1,background:'#000000',
+  return {mode:'portrait-centered',version:2,background:'#000000',
     titleBox:{left:.05,top:.04,right:.95,bottom:.28},mediaBox:{left:0,top:.32,right:1,bottom:.68},
     captionBox:{left:.05,top:.72,right:.95,bottom:.88},fit:'contain',
     captionStyle:{fontFamily:'sans-serif',fontSize:settings.width*.05,fontWeight:600,lineHeight:1.25,color:'#FFFFFF',align:'center',verticalAlign:'top'}};
@@ -23,11 +24,14 @@ const text=v=>typeof v==='string'&&!!v.trim();
 const same=(a,b)=>a===b||!!a&&!!b&&typeof a==='object'&&typeof b==='object'&&Object.keys(a).length===Object.keys(b).length&&Object.keys(a).every(k=>Object.hasOwn(b,k)&&same(a[k],b[k]));
 const box=b=>!!b&&typeof b==='object'&&Object.keys(b).length===4&&['left','top','right','bottom'].every(k=>Number.isFinite(b[k]))&&b.left>=0&&b.left<b.right&&b.right<=1&&b.top>=0&&b.top<b.bottom&&b.bottom<=1;
 const inside=(a,b)=>box(a)&&box(b)&&a.left>=b.left-1e-9&&a.top>=b.top-1e-9&&a.right<=b.right+1e-9&&a.bottom<=b.bottom+1e-9;
-export function validatePlacement(placement,settings){
+export function validatePlacement(placement,settings,coverTitle){
   if(!placement||!text(placement.composition))throw new Error('请记录镜头构图与动作保护方式。');
   const expected=productionLayout(settings);if(expected.mode==='unchanged')return;
   if(!same(placement.mediaBox,expected.mediaBox)||!same(placement.captionBox,settings.captions?expected.captionBox:null))throw new Error('素材区必须居中，字幕区必须固定在素材下方；全片使用相同布局。');
-  if(placement.fit!=='contain'||placement.titleClear!==true)throw new Error('素材须等比完整适配，顶部标题区保持空白。');
+  if(placement.fit!=='contain')throw new Error('素材须等比完整适配。');
+  if(!same(placement.titleBox,expected.titleBox))throw new Error('顶部标题框必须固定在素材上方。');
+  const lines=typeof placement.titleText==='string'?placement.titleText.replace(/\r\n/g,'\n').split('\n'):[];
+  if(!text(coverTitle)||/[\r\n]/.test(coverTitle)||lines.length<1||lines.length>2||lines.some(line=>!text(line)||line.includes('\r'))||lines.join('').trim()!==coverTitle.trim())throw new Error('顶部标题须由 Agent 生成，与 productionPlan.coverTitle 完全一致；仅允许一至两行换行。');
   if(!same(placement.captionStyle,settings.captions?expected.captionStyle:null))throw new Error('普通字幕的字体、字号、白色、对齐和位置必须统一。');
   if(!Array.isArray(placement.emphasisBoxes))throw new Error('请记录花字动画包围盒；没有花字时使用空列表。');
   for(const e of placement.emphasisBoxes)if(!e||!inside(e.footageBounds,expected.mediaBox)||!inside(e.bounds,e.footageBounds))throw new Error('花字完整动画必须位于对应的实际素材画面内，不能进入黑底留白区。');
@@ -68,14 +72,15 @@ export function validateProductionPlan(plan,settings,sources,required=true){
       }
       previous.push([use,source]);
     }
-    validatePlacement(shot.layout,settings);
+    validatePlacement(shot.layout,settings,policy.coverTitle);
   }
 }
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function renderProductionPlan(plan){
   const p=plan.productionPlan;if(!p)return '<p class="helper-text">历史方案保留原制作记录；重新生成时采用通用素材与布局检查。</p>';
-  const centered=p.layout.mode==='portrait-centered';
-  const diagram=centered?`<svg class="portrait-guide" viewBox="0 0 108 192" role="img" aria-label="客户竖版布局示意，仅供审阅，标注不进入成片"><rect class="portrait-guide-canvas" width="108" height="192"/><rect class="portrait-guide-title" x="5.4" y="7.68" width="97.2" height="46.08"/><rect class="portrait-guide-media" x="0" y="61.44" width="108" height="69.12"/><rect class="portrait-guide-caption" x="5.4" y="138.24" width="97.2" height="30.72"/><text x="54" y="32" text-anchor="middle">标题预留 · 留空</text><text x="54" y="94" text-anchor="middle">素材居中 · 花字在画内</text><text x="54" y="155" text-anchor="middle">固定普通字幕</text></svg><p>黑底三分区；素材按原比例完整显示，字幕位置和样式固定。顶部不生成标题或占位字。</p>`:p.layout.mode==='unchanged'?'<p>横版或方形沿用本期构图。</p>':'<p>历史竖版方案仅供查看；继续制作前需按客户排版重新生成。</p>';
+  const centered=p.layout.mode==='portrait-centered'&&p.layout.version===2;
+  const titleLines=String(plan.shots?.[0]?.layout?.titleText||p.coverTitle||'待生成封面同款标题').replace(/\r\n/g,'\n').split('\n').slice(0,2);
+  const diagram=centered?`<svg class="portrait-guide" viewBox="0 0 108 192" role="img" aria-label="客户竖版布局示意，仅供审阅，标注不进入成片"><rect class="portrait-guide-canvas" width="108" height="192"/><rect class="portrait-guide-title" x="5.4" y="7.68" width="97.2" height="46.08"/><rect class="portrait-guide-media" x="0" y="61.44" width="108" height="69.12"/><rect class="portrait-guide-caption" x="5.4" y="138.24" width="97.2" height="30.72"/><text x="54" y="28" text-anchor="middle">${titleLines.map((line,i)=>`<tspan x="54" dy="${i?9:0}">${esc(line)}</tspan>`).join('')}</text><text x="54" y="94" text-anchor="middle">素材居中 · 花字在画内</text><text x="54" y="155" text-anchor="middle">固定普通字幕</text></svg><p>黑底三分区；素材按原比例完整显示，字幕位置和样式固定。顶部标题由 Agent 生成，与两张封面标题文字一致，可按版式换行。</p>`:p.layout.mode==='unchanged'?'<p>横版或方形沿用本期构图。</p>':'<p>历史竖版方案仅供查看；继续制作前需按客户排版重新生成。</p>';
   return `<section class="production-plan-summary"><h3>素材与构图安排</h3><label>素材连续性检查<textarea data-production-review rows="2">${esc(p.materialReview)}</textarea></label>${diagram}</section>`;
 }
 export function renderSourceUses(shot,sources){

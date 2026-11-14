@@ -1,5 +1,6 @@
 """Shared material continuity and portrait layout rules, independent of style."""
 import math
+from pathlib import Path
 
 
 def text(value):
@@ -23,7 +24,7 @@ def layout(settings):
     portrait = numeric(width) and numeric(height) and 0 < width < height
     if not portrait:
         return {"mode": "unchanged"}
-    return {"mode": "portrait-centered", "version": 1, "background": "#000000",
+    return {"mode": "portrait-centered", "version": 2, "background": "#000000",
             "titleBox": dict(left=.05, top=.04, right=.95, bottom=.28),
             "mediaBox": dict(left=0, top=.32, right=1, bottom=.68),
             "captionBox": dict(left=.05, top=.72, right=.95, bottom=.88),
@@ -47,7 +48,7 @@ def inside(inner, outer, tolerance_x=0, tolerance_y=0):
             and inner["bottom"] <= outer["bottom"] + tolerance_y)
 
 
-def validate_placement(placement, settings, measured=False):
+def validate_placement(placement, settings, cover_title=None, measured=False):
     if not isinstance(placement, dict) or not text(placement.get("composition")):
         raise ValueError("请记录镜头构图与动作保护方式。")
     expected = layout(settings)
@@ -56,7 +57,7 @@ def validate_placement(placement, settings, measured=False):
     # Actual timeline pixels may round by one pixel; plans use exact normalized boxes.
     tolerance_x = 1 / settings["width"] + 1e-9 if measured else 1e-9
     tolerance_y = 1 / settings["height"] + 1e-9 if measured else 1e-9
-    for key in ("mediaBox", "captionBox"):
+    for key in ("titleBox", "mediaBox", "captionBox"):
         actual = placement.get(key)
         if key == "captionBox" and not settings.get("captions"):
             if actual is not None:
@@ -64,8 +65,14 @@ def validate_placement(placement, settings, measured=False):
             continue
         if not box(actual) or any(abs(actual[k] - expected[key][k]) > (tolerance_x if k in {"left", "right"} else tolerance_y) for k in actual):
             raise ValueError("素材区必须居中，字幕区必须固定在素材下方；全片使用相同布局。")
-    if placement.get("fit") != "contain" or placement.get("titleClear") is not True:
-        raise ValueError("素材须等比完整适配，顶部标题区保持空白。")
+    if placement.get("fit") != "contain":
+        raise ValueError("素材须等比完整适配。")
+    title = placement.get("titleText")
+    lines = title.replace("\r\n", "\n").split("\n") if isinstance(title, str) else []
+    if (not text(cover_title) or "\n" in cover_title or "\r" in cover_title
+            or not 1 <= len(lines) <= 2 or any(not text(line) or "\r" in line for line in lines)
+            or "".join(lines).strip() != cover_title.strip()):
+        raise ValueError("顶部标题须由 Agent 生成，与 productionPlan.coverTitle 完全一致；仅允许一至两行换行。")
     if not same(placement.get("captionStyle"), expected["captionStyle"] if settings.get("captions") else None):
         raise ValueError("普通字幕的字体、字号、白色、对齐和位置必须统一。")
     emphasis = placement.get("emphasisBoxes")
@@ -166,11 +173,49 @@ def validate(plan, data, required=True):
         if visuals != {u.get("sourceId") for u in uses}:
             raise ValueError("每个画面来源都需要具体使用记录。")
         all_uses.extend(uses)
-        validate_placement(shot.get("layout"), settings)
+        validate_placement(shot.get("layout"), settings, policy.get("coverTitle"))
     if not shots:
         raise ValueError("通用制作方案需要实际镜头。")
     validate_uses(all_uses, sources, settings.get("replay_authorization"))
     return plan
+
+
+def title_review_errors(data, review):
+    policy = (data.get("production_plan") or {}).get("plan", {}).get("productionPlan", {})
+    if policy.get("layout", {}).get("mode") != "portrait-centered" or policy["layout"].get("version") != 2:
+        return []
+    rows = review.get("title_observations", [])
+    roles = {"video", "cover_portrait", "cover_landscape"}
+    if (not isinstance(rows, list) or len(rows) != 3
+            or any(not isinstance(row, dict) for row in rows)
+            or {row.get("role") for row in rows} != roles
+            or len({row.get("path") for row in rows}) != 3):
+        return ["title_observations_missing"]
+    expected = policy.get("coverTitle")
+    if not text(expected):
+        return ["cover_title_missing"]
+    for row in rows:
+        value = row.get("text")
+        if row["role"] == "video":
+            lines = value.replace("\r\n", "\n").split("\n") if isinstance(value, str) else []
+            if not 1 <= len(lines) <= 2 or any(not text(line) or "\r" in line for line in lines):
+                return ["top_title_line_count_invalid"]
+        else:
+            try:
+                with Path(row["path"]).open("rb") as stream:
+                    header = stream.read(24)
+                width, height = int.from_bytes(header[16:20], "big"), int.from_bytes(header[20:24], "big")
+                n, d = (3, 4) if row["role"] == "cover_portrait" else (4, 3)
+                if header[:8] != b"\x89PNG\r\n\x1a\n" or not width or not height or width*d != height*n:
+                    return ["title_cover_image_invalid"]
+            except (OSError, TypeError, KeyError):
+                return ["title_cover_image_missing"]
+        if (not text(value) or value.replace("\r\n", "").replace("\n", "").strip() != expected.strip()
+                or not any(ref.get("path") == row.get("path") and ref.get("sha256") == row.get("sha256")
+                           for ref in review.get("evidence_files", []))
+                or (row["role"] == "video" and row.get("sha256") != review.get("artifact_sha256"))):
+            return ["title_text_or_evidence_mismatch"]
+    return []
 
 
 def implementation_errors(data, directory, frames):
@@ -234,7 +279,7 @@ def implementation_errors(data, directory, frames):
         if portrait:
             result = beat.get("layout_result") or {}
             try:
-                validate_placement(result, data["settings"], measured=True)
+                validate_placement(result, data["settings"], plan["productionPlan"].get("coverTitle"), measured=True)
                 if not proof(result):
                     raise ValueError("Missing evidence")
             except (ValueError, KeyError, TypeError):

@@ -11,7 +11,7 @@ description: 用 Video Studio 制作、继续或修改视频，按用户指定�
 
 新建聊天项目也在 brief 中写入 workbench_rules=2、generate_music=true，只有用户明确关闭才设为 false。字幕默认开启。已选具体音色写入 requirements.voice；沿用指定音色，参考片只影响表达。旧项目只读，可查看既有结果。新项目导出前按 production-policy.md「新项目的声音与字幕」核对配乐和字幕；聊天无工作台提交入口时，使用实时目录中与已选身份完全相同的音色调用正式配音。
 
-所有项目先读 [通用素材与构图流程](../../references/common-production.md)。无风格项目也保存 productionPlan、每镜 sourceUses 与 layout，并通过 `record --kind production_plan` 登记；网页保存会自动登记。先检查重复动作、规划相关补充，再按实际画幅安排构图。所有竖版采用客户统一排版 customer-portrait-v1：固定居中素材区、上方黑底两行标题预留（保持空白）、下方固定白色普通字幕；花字叠在实际素材内部。横版/方形不套用。通用记录纳入原有方案确认及验收，不写入个人风格库。客户版式优先于风格和参考坐标，原有整体上移与底部留量规则已移除。
+所有项目先读 [通用素材与构图流程](../../references/common-production.md)。无风格项目也保存 productionPlan、每镜 sourceUses 与 layout，并通过 `record --kind production_plan` 登记；网页保存会自动登记。先检查重复动作、规划相关补充，再按实际画幅安排构图。所有竖版采用客户统一排版 customer-portrait-v2：固定居中素材区、上方黑底一至两行标题（Agent 生成，与封面标题一致）、下方固定白色普通字幕；花字叠在实际素材内部。横版/方形不套用。通用记录纳入原有方案确认及验收，不写入个人风格库。客户版式优先于风格和参考坐标，原有整体上移与底部留量规则已移除。
 
 插件根目录为本技能上两级，命令入口为 `scripts/studio.py`。本技能只组织工具，不规定题材、语言、时长、视频比例、音色或剪辑模板。
 

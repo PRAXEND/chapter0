@@ -27,6 +27,21 @@ class WebBridgeTests(unittest.TestCase):
         self.plan = {'productionPlan': {'version': 1, 'materialReview': 'Synthetic observations', 'layout': {'mode': 'unchanged'}}, 'title': '已审阅方案', 'summary': '测试', 'script': '用户文案', 'shots': [
             {'id': '1', 'from': 0, 'to': 2, 'sourceIds': [], 'sourceUses': [], 'layout': {'composition': 'Full frame graphics', 'contentBottom': None, 'captionBottom': None}, 'narration': '', 'visual': '素材画面', 'screenText': '文字', 'transition': '直接剪接'}]}
 
+    def test_legacy_v1_landscape_brief_sync_preserves_revision_and_reviews(self):
+        studio = web_bridge.studio
+        brief = studio.load_run(self.run)['brief']
+        brief['requirements']['layout_policy'] = 'customer-portrait-v1'
+        web_bridge.sync(dict(run=str(self.run), brief=brief, sources=[]))
+        data = studio.load_run(self.run)
+        data['reviews'] = {'output_details': {'result':'pass', 'observations':'historical fixture'}}
+        studio.write(self.run/'run.json', data)
+        for _ in range(2):
+            web_bridge.sync(dict(run=str(self.run), brief=brief, sources=[]))
+            current = studio.load_run(self.run)
+            self.assertEqual(current['revision'], data['revision'])
+            self.assertEqual(current['reviews'], data['reviews'])
+            self.assertEqual(current['settings']['layout_policy'], 'customer-portrait-v1')
+
     def test_provisional_archive_contains_real_files_and_rejects_external_symlinks(self):
         import zipfile
         folder = self.root / 'package'

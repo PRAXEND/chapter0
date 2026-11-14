@@ -37,7 +37,7 @@ DEFAULTS = {
     "max_video_sources": 6, "max_download_seconds": 300,
     "voice": None, "default_style": None,
     "narration": None, "captions": None, "audio_required": None,
-    "review_policy": None, "production_preferences": {}, "layout_policy": "customer-portrait-v1", "replay_authorization": None,
+    "review_policy": None, "production_preferences": {}, "layout_policy": "customer-portrait-v2", "replay_authorization": None,
 }
 REVIEW_METHODS = {"material_continuity": "source_windows_and_playback",
                   "portrait_layout": "composited_sequence_inspection", "visuals": "continuous_playback", "audio_listening": "full_mix_listening",
@@ -179,16 +179,17 @@ def profile():
     if path.exists():
         result.update(read(path))
     result.pop("portrait_bottom_inset", None)
-    result["layout_policy"] = "customer-portrait-v1"
+    result["layout_policy"] = "customer-portrait-v2"
     return result
 
 
 def validate_settings(result, complete=False):
     result = dict(result)
     result.pop("portrait_bottom_inset", None)
-    if result.get("layout_policy", "customer-portrait-v1") != "customer-portrait-v1":
+    if result.get("layout_policy", "customer-portrait-v2") not in {"customer-portrait-v1", "customer-portrait-v2"}:
         raise StudioError("Unsupported layout policy")
-    result["layout_policy"] = "customer-portrait-v1"
+    if production_plan.layout(result)["mode"] != "unchanged" or result.get("layout_policy") != "customer-portrait-v1":
+        result["layout_policy"] = "customer-portrait-v2"
     if result.get("review_policy") not in (None, quality_policy.POLICY):
         raise StudioError("Unsupported review policy")
     production_plan.layout(result)
@@ -257,10 +258,12 @@ def apply_brief(data, payload, directory):
     patch = payload.get("requirements", {})
     if isinstance(patch, dict):
         patch = {k: v for k, v in patch.items() if k != "portrait_bottom_inset"}
-        payload = {**payload, "requirements": {**patch, "layout_policy": "customer-portrait-v1"}}
+        payload = {**payload, "requirements": patch}
     if not isinstance(patch, dict) or set(patch) - set(DEFAULTS):
         raise StudioError("Unknown brief requirements")
     settings = validate_settings({**data["settings"], **patch}, complete=True)
+    if "layout_policy" in patch:
+        payload = {**payload, "requirements": {**patch, "layout_policy": settings["layout_policy"]}}
     selector = payload.get("style", settings.get("default_style"))
     selected = styles.resolve(selector) if selector else None
     overrides = payload.get("style_overrides", {})
@@ -412,6 +415,8 @@ def record(directory, kind, payload):
                 if any(issue.get("status") not in {"resolved", "intended"} for issue in payload.get("issues", [])):
                     raise StudioError("Unresolved issues cannot receive pass or not_applicable")
                 errors = quality_policy.review_errors(data, payload, directory, read, file_hash)
+                if key == "output_details":
+                    errors.extend(production_plan.title_review_errors(data, payload))
                 if errors:
                     raise StudioError("Sampled review evidence invalid: " + ", ".join(errors))
             data["reviews"][key] = {**payload, "revision": data["revision"], "at": now()}
@@ -697,6 +702,10 @@ def audit_data(data, media, captions, artifact_hash, subtitle_hash=None, review_
             valid = valid and review.get("subtitle_sha256") == subtitle_hash
         if key in {"material_continuity", "portrait_layout"}:
             valid = valid and not common_implementation and review.get("production_plan_sha256") == data.get("production_plan", {}).get("sha256")
+        if key == "output_details":
+            valid = valid and not production_plan.title_review_errors(data, review)
+            if (data.get("production_plan") or {}).get("plan", {}).get("productionPlan", {}).get("layout", {}).get("version") == 2:
+                valid = valid and review.get("production_plan_sha256") == data["production_plan"]["sha256"]
         if key == "style_match":
             rows = review.get("rules", {})
             valid = valid and review.get("style") == snapshot["selector"] and set(rows) == {r["id"] for r in style_rules}

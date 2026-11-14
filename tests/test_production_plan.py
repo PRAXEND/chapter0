@@ -21,7 +21,7 @@ def placement(settings):
                 mediaBox=copy.deepcopy(policy['mediaBox']),
                 captionBox=copy.deepcopy(policy['captionBox']) if settings['captions'] else None,
                 captionStyle=copy.deepcopy(policy['captionStyle']) if settings['captions'] else None,
-                fit='contain', titleClear=True, emphasisBoxes=[])
+                fit='contain', titleText='Synthetic', titleBox=copy.deepcopy(policy['titleBox']), emphasisBoxes=[])
 
 
 def proposed(width=1080, height=1920, captions=True):
@@ -33,7 +33,7 @@ def proposed(width=1080, height=1920, captions=True):
                 layout=placement(settings),
                 **{'from': 0, 'to': 2}, narration='', visual='实际画面', screenText='', transition='硬切')
     plan = dict(title='Synthetic', script='test', shots=[shot],
-                productionPlan=dict(version=1, materialReview='synthetic observations', layout=common.layout(settings)))
+                productionPlan=dict(version=1, coverTitle='Synthetic', materialReview='synthetic observations', layout=common.layout(settings)))
     return plan, dict(settings=settings, sources=[source])
 
 
@@ -72,12 +72,52 @@ class PlanRulesTests(unittest.TestCase):
         with self.assertRaises(ValueError): common.validate(p, d)
 
     def test_title_caption_style_and_contain_are_mandatory(self):
-        for field, value in [('titleClear', False), ('titleClear', 1), ('fit', 'cover'), ('emphasisBoxes', None)]:
+        for field, value in [('titleText', ''), ('titleText', 'Different'), ('titleText', 1), ('fit', 'cover'), ('emphasisBoxes', None)]:
             p, d = proposed(); p['shots'][0]['layout'][field] = value
             with self.assertRaises(ValueError): common.validate(p, d)
         for field, value in [('color','#FFFF00'), ('fontSize',30), ('align','left'), ('verticalAlign','center')]:
             p, d = proposed(); p['shots'][0]['layout']['captionStyle'][field] = value
             with self.assertRaises(ValueError): common.validate(p, d)
+
+    def test_generated_title_matches_cover_with_only_line_break_variations(self):
+        for captions in (True, False):
+            p, d = proposed(captions=captions)
+            p['shots'][0]['layout']['titleText'] = 'Syn\nthetic'
+            common.validate(p, d)
+            for value in ('', 'Other', 'Syn\nthe\ntic', 'Synthetic\n', None):
+                bad = copy.deepcopy(p); bad['shots'][0]['layout']['titleText'] = value
+                with self.assertRaises(ValueError): common.validate(bad, d)
+            for title in (None, '', 'Other', 'Syn\nthetic'):
+                bad = copy.deepcopy(p); bad['productionPlan']['coverTitle'] = title
+                with self.assertRaises(ValueError): common.validate(bad, d)
+            p['shots'][0]['layout']['titleBox']['top'] = .3
+            with self.assertRaises(ValueError): common.validate(p, d)
+
+    def test_title_review_binds_video_and_both_covers_to_one_approved_title(self):
+        plan, data = proposed(); data['production_plan'] = dict(plan=plan)
+        rows = [dict(role=role, text='Syn\nthetic', path='/tmp/'+role, sha256=role*8)
+                for role in ('video', 'cover_portrait', 'cover_landscape')]
+        with tempfile.TemporaryDirectory() as directory:
+            # Diagnostic PNG headers only; visual decoding is outside this protocol test.
+            for row in rows:
+                row['path'] = str(Path(directory)/row['role'])
+                if row['role'] != 'video':
+                    w, h = (3, 4) if row['role'] == 'cover_portrait' else (4, 3)
+                    Path(row['path']).write_bytes(b'\x89PNG\r\n\x1a\n'+b'\x00\x00\x00\x0dIHDR'+w.to_bytes(4,'big')+h.to_bytes(4,'big'))
+            self.check_title_review_rows(data, rows)
+
+    def check_title_review_rows(self, data, rows):
+        review = dict(title_observations=rows, artifact_sha256=rows[0]['sha256'],
+                      evidence_files=[dict(path=r['path'],sha256=r['sha256']) for r in rows])
+        self.assertEqual(common.title_review_errors(data, review), [])
+        for change in (dict(title_observations=rows[:2]), dict(artifact_sha256='different'), dict(evidence_files=[])):
+            self.assertTrue(common.title_review_errors(data, {**review, **change}))
+        rows[0]['text'] = 'Syn\nthe\ntic'; self.assertTrue(common.title_review_errors(data, review))
+        rows[0]['text'] = 'Synthetic'
+        duplicate = copy.deepcopy(review); duplicate['title_observations'][1]['path'] = rows[0]['path']
+        self.assertTrue(common.title_review_errors(data, duplicate))
+        rows[2]['text'] = 'Other'; self.assertTrue(common.title_review_errors(data, review))
+        self.assertEqual(common.title_review_errors({'production_plan':None}, review), [])
 
     def test_emphasis_stays_in_actual_footage_not_contain_padding(self):
         p, d = proposed()
@@ -96,10 +136,10 @@ class PlanRulesTests(unittest.TestCase):
         actual['captionBox']['left'] += 1/1080
         actual['emphasisBoxes'] = [dict(footageBounds=dict(left=.3,top=.32,right=.7,bottom=.68),
             bounds=dict(left=.3-1/1080,top=.4,right=.6,bottom=.5))]
-        common.validate_placement(actual,d['settings'],measured=True)
-        with self.assertRaises(ValueError): common.validate_placement(actual,d['settings'])
+        common.validate_placement(actual,d['settings'],'Synthetic',measured=True)
+        with self.assertRaises(ValueError): common.validate_placement(actual,d['settings'],'Synthetic')
         actual['emphasisBoxes'][0]['bounds']['left'] -= 1/1080
-        with self.assertRaises(ValueError): common.validate_placement(actual,d['settings'],measured=True)
+        with self.assertRaises(ValueError): common.validate_placement(actual,d['settings'],'Synthetic',measured=True)
 
     def test_legacy_landscape_zero_field_does_not_block_approved_layout(self):
         p, d = proposed(1920,1080)
@@ -226,6 +266,9 @@ class ProductionAuditTests(unittest.TestCase):
         self.save(); self.assertTrue(self.errors())
         self.beat['layout_result'] = {**self.plan['shots'][0]['layout'], **self.proof}
         studio.record(self.run, 'beat', self.beat); self.assertEqual(self.errors(), [])
+        self.beat['layout_result']['titleText'] = 'Wrong cover title'
+        studio.record(self.run, 'beat', self.beat); self.assertTrue(self.errors())
+        self.beat['layout_result']['titleText'] = 'Synthetic'
         self.beat['layout_result']['mediaBox']['top'] = .2
         studio.record(self.run, 'beat', self.beat); self.assertTrue(self.errors())
 

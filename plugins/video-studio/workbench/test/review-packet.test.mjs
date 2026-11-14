@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,writeFile,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,writeFile,rm,readFile,realpath} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -8,7 +8,7 @@ import {prepareReviewPacket} from '../review-packet.mjs';
 import {fileHash} from '../media.mjs';
 
 async function fixture(){
-  const run=await mkdtemp(path.join(os.tmpdir(),'review-packet-')),files=[];
+  const run=await realpath(await mkdtemp(path.join(os.tmpdir(),'review-packet-'))),files=[];
   for(const [name,role,content] of [['v.mp4','video','synthetic protocol bytes'],['p.png','cover_portrait',Buffer.from([137,80,78,71,13,10,26,10])],['h.png','cover_landscape',Buffer.from([137,80,78,71,13,10,26,10])],['copy.txt','copy','标题：测试\n正文：实际内容\n话题：#测试'],['s.srt','subtitles','synthetic subtitles']]){
     const file=path.join(run,name);await writeFile(file,content);files.push({path:file,role,sha256:await fileHash(file)});
   }
@@ -41,5 +41,16 @@ test('known defects stop before the independent model and return a durable repai
     vm.runInContext(fn,sandbox);vm.runInContext('runReviewAgent(options)',sandbox);await done;
     assert.equal(called,0);assert.equal(f.context.preflightReport.completed,false);assert.ok(f.context.preflightReport.preflight);
     assert.match(await readFile(path.join(f.run,'review-packet.json'),'utf8'),/producer_unresolved/);
+  }finally{await rm(f.run,{recursive:true,force:true});}
+});
+
+
+test('review packet includes the approved title and both hashed cover images',async()=>{
+  const f=await fixture();try{
+    f.context.plan={productionPlan:{coverTitle:'One title',layout:{mode:'portrait-centered',version:2}}};
+    const {packet}=await prepareReviewPacket(f.context,f.inspect);
+    assert.equal(packet.titleRequirement.coverTitle,'One title');assert.equal(packet.titleRequirement.files.length,3);
+    for(const cover of packet.titleRequirement.files.filter(f=>f.role!=='video'))assert.ok(packet.evidence.some(e=>e.path===cover.path&&e.sha256===cover.sha256));
+    assert.match(packet.instructions,/BOTH cover PNGs/);assert.match(packet.instructions,/titleObservations/);
   }finally{await rm(f.run,{recursive:true,force:true});}
 });

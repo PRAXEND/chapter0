@@ -6,12 +6,12 @@ import {productionLayout,validateProductionPlan,renderProductionPlan,renderSourc
 
 function placement(settings){
   const p=productionLayout(settings);
-  return p.mode==='unchanged'?{composition:'Original composition'}:{composition:'Centered contain footage; fixed below-frame captions',mediaBox:{...p.mediaBox},captionBox:settings.captions?{...p.captionBox}:null,captionStyle:settings.captions?{...p.captionStyle}:null,fit:'contain',titleClear:true,emphasisBoxes:[]};
+  return p.mode==='unchanged'?{composition:'Original composition'}:{composition:'Centered contain footage; fixed below-frame captions',mediaBox:{...p.mediaBox},captionBox:settings.captions?{...p.captionBox}:null,captionStyle:settings.captions?{...p.captionStyle}:null,fit:'contain',titleText:'Test',titleBox:{...p.titleBox},emphasisBoxes:[]};
 }
 
 function fixture(ratio='9:16',captions=true){
   const project={...initialStudio(),duration:30,durationMin:null,topic:'Test',ratio,captions,selected:['a'],sources:[{id:'a',kind:'video',title:'Capture A',duration:10,sha256:'a'.repeat(64),url:'https://example.org/a',start:100,status:'ready'}]};
-  const plan={title:'Test',script:'Test',stylePlan:null,gaps:[],productionPlan:{version:1,materialReview:'Synthetic observations',layout:productionLayout(brief(project).requirements)},shots:[{id:'s1',from:0,to:2,sourceIds:['a'],sourceUses:[{id:'u1',sourceId:'a',inSeconds:1,outSeconds:3,actionGroup:'capture-a-01',role:'primary',purpose:'Specific action',compatibility:'No conflicting claims'}],layout:placement(brief(project).requirements),narration:'Test',visual:'Test',screenText:'Test',transition:'Cut',design:[]}]};
+  const plan={title:'Test',script:'Test',stylePlan:null,gaps:[],productionPlan:{version:1,coverTitle:'Test',materialReview:'Synthetic observations',layout:productionLayout(brief(project).requirements)},shots:[{id:'s1',from:0,to:2,sourceIds:['a'],sourceUses:[{id:'u1',sourceId:'a',inSeconds:1,outSeconds:3,actionGroup:'capture-a-01',role:'primary',purpose:'Specific action',compatibility:'No conflicting claims'}],layout:placement(brief(project).requirements),narration:'Test',visual:'Test',screenText:'Test',transition:'Cut',design:[]}]};
   return {project,plan};
 }
 
@@ -26,7 +26,7 @@ test('common contract is mandatory without a style and preserved in normalizatio
   assert.doesNotThrow(()=>validatePlan(incomplete,project)); // old approved records can recover
 });
 
-test('portrait regions center media, separate fixed captions and reserve a blank title',()=>{
+test('portrait regions center media, separate fixed captions and render a cover-matched title',()=>{
   assert.deepEqual(productionLayout({width:null,height:1920}),{mode:'unchanged'});
   for(const [width,height] of [[1080,1920],[720,1280],[900,1200]]){
     const {project,plan}=fixture(),settings={...brief(project).requirements,width,height};
@@ -35,7 +35,7 @@ test('portrait regions center media, separate fixed captions and reserve a blank
     const p=plan.productionPlan.layout;
     assert.equal((p.mediaBox.left+p.mediaBox.right)/2,.5);assert.equal((p.mediaBox.top+p.mediaBox.bottom)/2,.5);
     assert.ok(p.titleBox.bottom<p.mediaBox.top);assert.ok(p.captionBox.top>p.mediaBox.bottom);assert.ok(p.captionBox.bottom>.82);
-    for(const change of [{mediaBox:{...p.mediaBox,top:.2}},{captionBox:{...p.captionBox,top:.6}},{titleClear:false},{fit:'cover'},{captionStyle:{...p.captionStyle,color:'#FFFF00'}}]){
+    for(const change of [{mediaBox:{...p.mediaBox,top:.2}},{captionBox:{...p.captionBox,top:.6}},{titleText:'Different'},{fit:'cover'},{captionStyle:{...p.captionStyle,color:'#FFFF00'}}]){
       const bad=structuredClone(plan);Object.assign(bad.shots[0].layout,change);assert.throws(()=>validateProductionPlan(bad,settings,project.sources));
     }
   }
@@ -105,7 +105,7 @@ test('images, missing sources and malformed data are checked',()=>{
 test('review UI escapes notes, presents bounds and retains identity when editing windows',()=>{
   const {project,plan}=fixture();plan.productionPlan.materialReview='<script>bad()</script>';
   const html=renderProductionPlan(plan);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>|style=/);
-  assert.match(html,/标题预留/);assert.doesNotMatch(html,/18%|上移/);assert.match(html,/viewBox=/);
+  assert.match(html,/Test/);assert.match(html,/封面标题/);assert.doesNotMatch(html,/18%|上移/);assert.match(html,/viewBox=/);
   const shot=plan.shots[0],fields=[{dataset:{useField:'inSeconds'},value:'1.5'},{dataset:{useField:'purpose'},value:'Natural bridge'}];
   const node={dataset:{useId:'u1'},querySelectorAll:()=>fields};
   const read=readSourceUses({querySelectorAll:s=>s==='[data-use-id]'?[node]:[{dataset:{layoutField:'composition'},value:'素材居中'}]},shot);
@@ -155,7 +155,7 @@ test('Python chat and JavaScript workbench accept and reject the same portrait c
   const cases=[];
   for(const ratio of ['9:16','16:9','1:1'])for(const captions of [true,false]){
     const f=fixture(ratio,captions);cases.push({plan:f.plan,settings:brief(f.project).requirements,sources:f.project.sources});
-    if(ratio==='9:16')for(const change of [{titleClear:false},{fit:'cover'},{mediaBox:{left:0,top:.2,right:1,bottom:.68}},{captionStyle:null},{emphasisBoxes:[{bounds:{left:.1,top:.7,right:.2,bottom:.8},footageBounds:{left:0,top:.32,right:1,bottom:.68}}]}]){
+    if(ratio==='9:16')for(const change of [{titleText:'Different'},{fit:'cover'},{mediaBox:{left:0,top:.2,right:1,bottom:.68}},{captionStyle:null},{emphasisBoxes:[{bounds:{left:.1,top:.7,right:.2,bottom:.8},footageBounds:{left:0,top:.32,right:1,bottom:.68}}]}]){
       const c=structuredClone(cases[cases.length-1]);c.plan=structuredClone(f.plan);Object.assign(c.plan.shots[0].layout,change);cases.push(c);
     }
   }
@@ -163,4 +163,33 @@ test('Python chat and JavaScript workbench accept and reject the same portrait c
   const script="import json,sys; sys.path.insert(0,sys.argv[1]); import production_plan as p\ncases=json.load(sys.stdin); out=[]\nfor c in cases:\n try: p.validate(c['plan'],c); out.append(True)\n except (ValueError,TypeError,KeyError): out.append(False)\nprint(json.dumps({'accepted':out,'layouts':[p.layout(c['settings']) for c in cases]}))";
   const result=JSON.parse(execFileSync(process.env.VIDEO_STUDIO_PYTHON||'python3',['-c',script,new URL('../../scripts',import.meta.url).pathname],{input:JSON.stringify(cases),encoding:'utf8'}));
   assert.deepEqual(result.accepted,js);assert.deepEqual(result.layouts,cases.map(c=>productionLayout(c.settings)));
+});
+
+
+test('top title remains required with captions off and only wrapping may differ from covers',()=>{
+  for(const captions of [true,false]){
+    const {project,plan}=fixture('9:16',captions);plan.shots[0].layout.titleText='Te\nst';validatePlan(plan,project);
+    for(const titleText of ['',null,'Other','T\ne\nst','Test\n']){
+      const bad=structuredClone(plan);bad.shots[0].layout.titleText=titleText;assert.throws(()=>validatePlan(bad,project));
+    }
+    for(const coverTitle of ['',null,'Other','Te\nst']){
+      const bad=structuredClone(plan);bad.productionPlan.coverTitle=coverTitle;assert.throws(()=>validatePlan(bad,project));
+    }
+    const previous=structuredClone(plan);previous.productionPlan.layout.version=1;assert.throws(()=>validatePlan(previous,project));
+    plan.shots[0].layout.titleText='<script>bad()</script>';plan.productionPlan.coverTitle=plan.shots[0].layout.titleText;
+    assert.doesNotMatch(renderProductionPlan(plan),/<script>/);
+  }
+});
+
+test('unreleased v1 non-portrait identities stay stable while v1 portraits must replan',async()=>{
+  const {requestHash}=await import('../automatic.mjs');
+  const frozen=[['16:9','e29d4747765f78acc69ed6bb80b2cadcd06dc3275fa37a3588c6ada760242638','36ea52bb5e9ab6b678afac5953a38b76d547719040bcfbbb52d143c953e7275f'],['1:1','7b98b91c994fe13f78ed07146085f780c237934e4aae505cc18bf55162474330','6faeb4d4e5712941da11efd4251cc96c58ff01c8a4f0b48aa67a5fa9b9d04977']];
+  for(const [ratio,expectedInput,expectedRequest] of frozen){
+    const project={...initialStudio(),ratio,topic:'v1 fixture',styleSelector:'sample@1',narration:false,layoutPolicy:'customer-portrait-v1'};
+    assert.equal(inputHash(project),expectedInput);assert.equal(requestHash(project),expectedRequest);
+    assert.equal(brief(project).requirements.layout_policy,'customer-portrait-v1');
+    const input=inputHash(project),request=requestHash(project);project.layoutPolicy='customer-portrait-v2';
+    assert.notEqual(inputHash(project),input);assert.notEqual(requestHash(project),request);
+  }
+  const f=fixture();f.project.layoutPolicy='customer-portrait-v1';assert.equal(brief(f.project).requirements.layout_policy,'customer-portrait-v2');
 });

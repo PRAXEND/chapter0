@@ -160,7 +160,7 @@ function cleanEditor(raw){try{const url=new URL(raw);if(url.protocol!=='https:'|
 async function deliver(result,job){
   if(!project.qualityCycle?.report?.completed||project.qualityCycle.candidate.producerJobId!==job.id)throw Error('独立验收未通过，不能交付。');
   await validateDeliveryFiles(result,project.run,file=>bridge('inspect-media',{file}));
-  const audited=await enforceIndependentReview({...project.qualityCycle.report,...await bridge('review-audit',{run:project.run,file:result.files.find(f=>f.role==='video').path,subtitles:result.files.find(f=>f.role==='subtitles')?.path})},project.run);
+  const audited=await enforceIndependentReview({...project.qualityCycle.report,...await bridge('review-audit',{run:project.run,file:result.files.find(f=>f.role==='video').path,subtitles:result.files.find(f=>f.role==='subtitles')?.path})},project.run,result);
   if(!audited.completed||audited.artifact_sha256!==project.qualityCycle.report.artifact_sha256)throw Error('验收证据已失效，不能交付。');
   if(!Array.isArray(result.files))throw new Error('没有收到真实导出文件。');
   if(!result.projectId || !result.timelineId || !job.toolCalls.some(t=>/chatcut/i.test(t.server+' '+t.tool)&&t.status==='completed'))throw new Error('缺少真实 ChatCut 工程或工具调用记录，不能当作已完成制片。');

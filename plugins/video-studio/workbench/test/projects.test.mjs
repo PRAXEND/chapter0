@@ -78,3 +78,23 @@ test('legacy recovery recognizes the same run after moving data behind a compati
     assert.equal(await recoverLegacyProjects(data,p,store),0);assert.equal(store.records.size,1);assert.equal(store.load(p.id).run,p.run);
   }finally{await rm(folder,{recursive:true,force:true});}
 });
+
+
+test('recovered v1 landscape and square projects retain their layout policy fingerprints',async()=>{
+  for(const ratio of ['16:9','1:1']){
+    const data=await mkdtemp(path.join(os.tmpdir(),'studio-title-recovery-'));
+    try{
+      const current=initialStudio(),store=await new ProjectStore(data).init(current),run=path.join(data,'runs','prior'),job=path.join(data,'jobs','old-plan');
+      await mkdir(run,{recursive:true});await mkdir(job,{recursive:true});
+      const previous={...initialStudio(),layoutPolicy:'customer-portrait-v1',ratio,topic:'Prior title',music:'none',durationMin:null};
+      delete previous.productionRules;
+      await writeFile(path.join(run,'run.json'),JSON.stringify({production_policy_version:1}));
+      await writeFile(path.join(job,'request.json'),JSON.stringify({run,brief:brief(previous),settings:{music:'none'},selectedSources:[]}));
+      await writeFile(path.join(job,'output.schema.json'),JSON.stringify({properties:{script:{type:'string'}}}));
+      assert.equal(await recoverLegacyProjects(data,current,store),1);
+      const restored=store.load(store.list(current.id).find(p=>p.recovered).id);
+      assert.equal(restored.layoutPolicy,'customer-portrait-v1');assert.equal(restored.ratio,ratio);
+      assert.equal(inputHash(restored),inputHash(previous));
+    }finally{await rm(data,{recursive:true,force:true});}
+  }
+});
