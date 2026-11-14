@@ -90,5 +90,9 @@
   "test/revisions.test.mjs",
   "test/review-packet.test.mjs",
   "test/provisional.test.mjs",
-  "test/production-rules.test.mjs"
+  "test/production-rules.test.mjs",
+  "desktop-lock.mjs",
+  "desktop-recovery.mjs",
+  "evidence-resume.mjs",
+  "test/desktop-recovery-api.test.mjs"
 ]

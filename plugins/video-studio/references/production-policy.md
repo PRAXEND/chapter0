@@ -43,3 +43,12 @@
 新工作台项目从 brief 读取 generate_music、requirements.captions 和具体音色。本期选择优先于任何风格包、参考片、旧操作或全局偏好。默认生成本期纯音乐，只有明确选择不生成才省略；保留素材原声也需要独立配乐。完成时在本项目 operations 登记 status=completed、input.arguments.generationType=instrumental 和 result 的 projectId、timelineId、jobId、assetId。记录真实音乐任务及生成资产，续做核对后复用。新生成的旁白必须通过工作台派发的 narrationEndpoint 提交。将最终采用的每个旁白资产的真实 inspect_asset 返回的 asset.generation 与 generationRecord.params（voiceId 在 params，provider 可能在 generation 标头）与转录一起放入 review-evidence.json 的 voice_sources。修订与复用也需逐段匹配。手动选择音色时可使用本期确认的回答。
 
 若同一候选 MP4 已导出但音频证据仍需用户操作，在 needs_input 的 files 中列出真实视频、字幕、两张封面及文案，返回本次 projectId/timelineId。工作台先保留临时交付，补齐证据后继续验收同一候选。原件取回优先使用已登录的同一浏览器，在当前工程媒体池对本期音乐、旁白选择「更多操作 → 导出源文件」。核对素材名称、ID 与下载文件，复用已取得的音频，不重复生成。导出前，将完整时间线、旁白与配乐轨记录到 run/review-evidence.json。music_files 每项包含实际生成资产的 assetId、generationTaskId、下载到 run 内的 path 和 sha256。字幕开启时启用全局 CC，绑定实际发声轨。分页读回所有当前原生字幕卡及有效可见性；evidence.timeline_id 写本次时间线 ID，caption_state 记录 {timelineId,enabled,tracks:[{id,visible}],cards:[{id,trackId,hidden,start_frame,end_frame,lines:[文字]}]}。由实时返回归一化，保留原始读回，不得推测缺失状态。把完整未筛选的原始 read_captions 返回（单页对象或按顺序的全部分页数组）保存到 run/caption-readback.json。在 ChatCut SRT 为空时直接使用 web_bridge.py recover-subtitles --file <含 run 的 JSON> 返回的同期 SRT，不要重复付费生成或重排字幕。导出 SRT 后用 web_bridge.py check-media-requirements --file <含 run、subtitles 的 JSON> 检查；手动模式中若选声发生在批准后，附 selectedVoice（当前选择）。开头、中段、末尾各选一条实际字幕，在对应中点查看编辑器合成帧，确认文字可见后才导出完整 MP4。独立验收使用成片的相同抽帧，在 caption_flow.captionObservations 中逐帧写 {frame,text}，其余检查填空数组。没有看到的字不得照抄 SRT。
+
+
+## 补证、手动音色与音乐存在性验证（web.38）
+
+已导出且只缺原件的请求单独标记为补证。点击继续保留原批准、工程、渲染和所有交付文件哈希；本轮不得生成替代音频或重渲染。若发现需要修改素材、文案或声音，返回明确 revisionProposal，不能借旧 pendingExport 隐藏该决定。验收失败仍暂停并等待具体修订确认。
+
+手动模式提交授权录音后，宿主先执行音色准备，再把稳定 provider/voiceId 保存为当前 planHash/inputHash 的用户授权选择，回到 produce。制作 Agent 不应在 produce 内自行克隆，也不能用音色名称代替已保存身份。准备期间要求重新选择音色仍绑定当前方案；方案变化后原绑定失效。
+
+生成音乐存在性检查优先使用原混音及真实无旁白窗口。只有原混音被已知旁白遮蔽时，才可用哈希验证的旁白源、实际剪辑区间和独立波形对齐消除固定非负增益旁白；残差不归一化，验证窗口排除旁白拟合数据，沿用原相关度、电平、两个独立窗口及偏移限值。高度相关的旁白/音乐源不能当独立配乐。该结果仅证明音乐存在，不替代原混音音量、旁白同步、停顿或主观听感检查。未知混音、错源、缺原件不能据此放行。

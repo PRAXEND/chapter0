@@ -9,6 +9,8 @@ import {atomicJson,inspectDesktop,turnText,desktopActivity} from './desktop-sess
 import {readRegularJson,validateResult} from './desktop-worker.mjs';
 import {productionCheckpointReader} from './continuous.mjs';
 import {acceptProductionProgress,toolFailure} from './production-progress.mjs';
+import {updateTicket,releaseDesktopLock,revokeAndCheckClaim} from './desktop-lock.mjs';
+import {findDesktopTurn,reconcileDesktopLock} from './desktop-recovery.mjs';
 
 const execute=promisify(execFile),root=path.dirname(fileURLToPath(import.meta.url));
 const quote=value=>"'"+String(value).replaceAll("'","'\\''")+"'";
@@ -26,15 +28,16 @@ export function runDesktopAgent({codex,reader,job,context,event,onFinish,onProdu
   const seen=new Map(),readCheckpoint=onProductionCheckpoint?productionCheckpointReader({job,context,adopt:onProductionCheckpoint,event}):async()=>{};
   const attempt=restore&&job.attempts?.at(-1)||{stage:context.planning?.stage||job.action,startedAt:new Date().toISOString(),execution:job.execution};
   const lock=path.join(path.dirname(path.dirname(context.jobDirectory)),'desktop-lock-'+job.execution.desktopThreadId);
-  const publish=()=>{if(!ticket)return Promise.resolve();const snapshot=structuredClone(ticket);publishes=publishes.catch(()=>{}).then(()=>atomicJson(ticketFile,snapshot));return publishes;};
+  const publish=()=>{if(!ticket)return Promise.resolve();const snapshot=structuredClone(ticket);publishes=publishes.catch(()=>{}).then(async()=>{const saved=await updateTicket(ticketFile,snapshot);if(saved.revoked)ticket.revoked=true;});return publishes;};
   const revoke=async()=>{if(ticket){ticket.revoked=true;await publish();}};
   const controller={
     cancel(reason='user'){job.cancelRequested=true;job.stopReason=reason;revoke().catch(()=>{});event('cancelling','已请求桌面任务停止。当前工具可能仍在执行；确认该轮结束后才释放工作台。可在 Codex 桌面窗口立即停止。');},
     detach(){detached=true;clearInterval(timer);}
   };
   async function finish(code,error,finalText=''){
-    if(stopped||detached)return;stopped=true;clearInterval(timer);await revoke();
-    if(lockOwned)await rm(lock,{recursive:true,force:true});
+    if(stopped||detached)return;stopped=true;clearInterval(timer);
+    try{await revoke();if(lockOwned)await releaseDesktopLock(ticketFile,ticket);}
+    catch(e){code=1;error=(error?error+'；':'')+'运行锁清理未完成：'+cleanError(e.message)+'。请在桌面执行会话中检查恢复状态。';}
     attempt.completedAt=new Date().toISOString();attempt.code=code;
     await onFinish({code,error:error?cleanError(error):'',finalText});
   }
@@ -62,22 +65,24 @@ export function runDesktopAgent({codex,reader,job,context,event,onFinish,onProdu
     if(stopped||detached||polling)return;polling=true;let terminal=false;
     try{
       if(!ticket.revoked){ticket.leaseUntil=Date.now()+120000;await publish();}
-      const result=await reader.call('thread/turns/list',{threadId:ticket.threadId,limit:30,itemsView:'summary'});
-      const turn=result.data?.find(t=>job.desktop?.turnId?t.id===job.desktop.turnId:turnText(t).includes(ticket.marker));
+      const knownId=job.desktop?.turnId||ticket.turnId;
+      const activity=await desktopActivity(reader,ticket.threadId);
+      const turn=knownId&&activity.turns.has(knownId)?{id:knownId}:await findDesktopTurn(reader,ticket,knownId);
       let ack;try{ack=await readRegularJson(path.join(directory,'desktop-ack.json'));}catch(e){if(e.code!=='ENOENT')throw e;}
       if(ack&&['jobId','requestId','threadId'].some(k=>ack[k]!==ticket[k]))throw Error('桌面执行回执与本次任务不一致');
       if(!turn){
         if(job.cancelRequested||Date.now()-ticket.queuedAt>ackTimeoutMs){
           // A claimed job can already be running while history indexing lags.
           // Keep the execution slot occupied until its real turn is observable.
-          await revoke();if(ack){eventOnce('桌面已领取任务，正在等待执行状态；请保持桌面端开启，勿重复开始。');return;}
+          const claimed=await revokeAndCheckClaim(ticketFile,ticket);ticket.revoked=true;
+          if(claimed){eventOnce('桌面已领取任务，正在等待执行状态；请保持桌面端开启，勿重复开始。');return;}
           await finish(1,job.cancelRequested?'已撤销尚未执行的桌面消息':'桌面会话未接收任务。请打开并保持所选 Codex 会话，再点击继续；本次排队消息已作废，不会重复制作。');return;
         }
         return;
       }
-      const activity=await desktopActivity(reader,ticket.threadId),actualStatus=activity.turns.get(turn.id);
+      const actualStatus=activity.turns.get(turn.id);
       terminal=['completed','interrupted','failed'].includes(actualStatus);
-      if(!job.desktop.turnId){job.desktop.turnId=turn.id;job.threadId=ticket.threadId;attempt.threadId=ticket.threadId;event('thread','桌面会话已开始执行本次任务');}
+      if(!job.desktop.turnId){job.desktop.turnId=turn.id;ticket.turnId=turn.id;await publish();job.threadId=ticket.threadId;attempt.threadId=ticket.threadId;event('thread','桌面会话已开始执行本次任务');}
       if(ack&&!job.desktop.acknowledged){job.desktop.acknowledged=true;event('working','桌面 Agent 已领取当前制作要求');}
       await progress();
       // Poll recent items while running; terminal read captures every actual call.
@@ -107,10 +112,11 @@ export function runDesktopAgent({codex,reader,job,context,event,onFinish,onProdu
       event('recovery','已重新接管桌面任务状态；不会再次发送制作消息');
     }else{
       await inspectDesktop(reader,job.execution.desktopThreadId);
-      try{await mkdir(lock);}catch(e){if(e.code==='EEXIST')throw Error('此桌面会话仍有工作台任务，先恢复或停止原任务。');throw e;}
-      lockOwned=true;await atomicJson(path.join(lock,'owner.json'),{jobId:job.id});
       const prepared=await prepareAgentRequest(job,context),requestId=randomUUID();
-      ticket={schema:1,jobId:job.id,requestId,threadId:job.execution.desktopThreadId,marker:`[VideoStudio request:${requestId}]`,queuedAt:Date.now(),leaseUntil:Date.now()+120000,revoked:!!job.cancelRequested,promptFile:path.join(directory,'prompt.txt'),schemaFile:prepared.schemaPath};
+      const acquired=await reconcileDesktopLock({dataDir:path.dirname(path.dirname(context.jobDirectory)),threadId:job.execution.desktopThreadId,jobId:job.id,reader,python:context.environment?.python});
+      lockOwned=true;
+      ticket={schema:1,jobId:job.id,requestId,threadId:job.execution.desktopThreadId,marker:`[VideoStudio request:${requestId}]`,queuedAt:Date.now(),leaseUntil:Date.now()+120000,revoked:!!job.cancelRequested,promptFile:path.join(directory,'prompt.txt'),schemaFile:prepared.schemaPath,lockToken:acquired.owner.token,python:context.environment?.python};
+      if(acquired.status==='released')event('recovery',acquired.message);
       const command=`${quote(process.execPath)} ${quote(path.join(root,'desktop-worker.mjs'))}`;
       const prompt=`${ticket.marker}\n这是用户在 Video Studio 工作台点击按钮授权的任务。只依据当前请求及其指定风格与项目；本窗口此前的聊天不是本次素材或规则。不得开启另一轮制作或自建后台执行器。\n首先执行 ${command} claim ${quote(ticketFile)}；失败则立即停止，不操作素材、浏览器或 ChatCut。成功后读取返回的 promptFile。\n`;
       const body=`${prepared.prompt}\n\n桌面执行协议：\n- 本次请求标记 ${ticket.marker}，所有路径以当前 Structured context 为准。\n- 在每个阶段及每次生成、导入、导出或浏览器写操作前执行 ${command} check ${quote(ticketFile)}；若失败或取消标记出现，立即停止，不自行重试。\n- 使用本会话已授权的 Computer Use 与 ChatCut 工具。Chrome 标签 API 技术性超时可改用工具文档允许的原生 Chrome 应用控制；使用实际观察到的应用路径，网址优先粘贴。明确的权限拒绝不能通过换入口绕过。\n- 不重新生成已有成功音频、导出或项目；查询并复用当前 run 记录的真实 ID。\n- 所有 ChatCut 调用必须保留工具原始执行记录，不得自行编造调用成功证据。\n- 完成后将符合 ${prepared.schemaPath} 的 JSON 写入本任务目录中的 result.json，再执行 ${command} complete ${quote(ticketFile)} <该JSON绝对路径>。只写最终自然语言回复不能完成工作台任务。\n- complete 成功后立即结束本轮，不开始独立验收；工作台会另起独立验收会话。\n`;
@@ -120,11 +126,13 @@ export function runDesktopAgent({codex,reader,job,context,event,onFinish,onProdu
       if(job.cancelRequested){await finish(1,'任务在排队前已取消');return;}
       // Persist dispatch intent before invoking queue. Recovery only observes it;
       // even an uncertain CLI exit must never trigger an automatic second send.
-      try{const reply=await queue(codex,['queue','--thread',ticket.threadId,'--message',prompt,'--resume'],{cwd:context.jobDirectory,timeout:20000,maxBuffer:64000});job.desktop.queueWarning=!!reply.stderr;}
-      catch(e){job.desktop.queueWarning=true;event('warning','排队确认暂不可用，正在核对桌面是否已接收；不会重复发送。');}
+      try{const reply=await queue(codex,['queue','--thread',ticket.threadId,'--message',prompt,'--resume'],{cwd:context.jobDirectory,timeout:20000,maxBuffer:64000});job.desktop.queueWarning=!!reply.stderr;if(reply.stderr){job.desktop.dispatchWarning=dispatchWarning(reply.stderr);event('warning','任务已排队，但唤起桌面有警告：'+job.desktop.dispatchWarning+'。请打开所选会话；工作台正在等待实际领取。');}}
+      catch(e){job.desktop.queueWarning=true;job.desktop.dispatchWarning=dispatchWarning(e.stderr||e.code||e.message);event('warning','排队或唤起尚未确认：'+job.desktop.dispatchWarning+'。正在核对是否已接收，不会重复发送。');}
     }
     job.attempts??=[];if(!job.attempts.includes(attempt))job.attempts.push(attempt);job.usageIncomplete=!job.desktop.usageRecorded;
     timer=setInterval(poll,pollMs);await poll();
   })().catch(async error=>{await finish(1,error.message);});
   return controller;
 }
+
+export function dispatchWarning(value){return cleanError(String(value||'未知错误').replace(/\[VideoStudio request:[\s\S]*/g,'[任务消息已省略]').replace(/(?:(?:token|api[_-]?key|authorization|password)\s*[=:]\s*(?:Bearer\s+)?|Bearer\s+)[^\s,;]+/gi,'[凭据已隐藏]').replace(/https?:\/\/[^\s]+/g,'[地址已隐藏]')).slice(0,600);}

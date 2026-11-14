@@ -157,10 +157,31 @@ def check(data, evidence, cues, fps, voice=None, root=None):
     def music():
         if not brief['generate_music']:
             timeline = evidence.get('timeline', {}).get('timeline', {})
+            if timeline.get('totalEntries') != len(timeline.get('entries', [])) or not isinstance(timeline.get('tracks'), list):
+                raise ValueError('关闭配乐仍需完整时间线证据')
             declared = set(evidence.get('music_tracks') or []) | set(data['project'].get('music_tracks') or [])
-            ids = {t['id'] for t in timeline.get('tracks', []) if not t.get('muted')
-                   and declared.intersection((t['id'], t.get('alias')))}
-            if any(c.get('kind') == 'item' and c.get('trackId') in ids for c in timeline.get('entries', [])):
+            generated = {f.get('assetId') for f in evidence.get('music_files', []) if f.get('assetId')}
+            for operation in data.get('operations', {}).values():
+                result = operation.get('result') or {}
+                arguments = (operation.get('input') or {}).get('arguments') or {}
+                if (operation.get('status') == 'completed' and arguments.get('generationType') == 'instrumental'
+                        and all(result.get(k) == data['project'].get(k) and result.get(k) for k in ('projectId', 'timelineId'))
+                        and result.get('assetId')):
+                    generated.add(result['assetId'])
+            known_tracks = {v for t in timeline['tracks'] for v in (t['id'],t.get('alias')) if v}
+            if any(c.get('kind')=='item' and c.get('itemType') in ('audio','video') and c.get('trackId') not in known_tracks for c in timeline['entries']):
+                raise ValueError('音频条目缺少实际轨道定义，不能确认关闭配乐')
+            ids = {v for t in timeline.get('tracks', []) if not t.get('muted')
+                   and declared.intersection((t['id'], t.get('alias'))) for v in (t['id'],t.get('alias')) if v}
+            active = {v for t in timeline['tracks'] if not t.get('muted') for v in (t['id'], t.get('alias')) if v}
+            def known_music(ident):
+                if ident in generated:
+                    return True
+                compact = re.sub(r'[^a-f0-9]', '', ident or '')
+                return len(compact) >= 10 and any(re.sub(r'[^a-f0-9]', '', g).startswith(compact) for g in generated)
+            if any(c.get('kind') == 'item' and c.get('trackId') in active
+                   and (c.get('trackId') in ids or known_music(c.get('asset', {}).get('id')))
+                   for c in timeline.get('entries', [])):
                 raise ValueError('已选择不生成配乐，实际时间线上仍有活动配乐')
             return
         assets = track_assets(evidence, 'music_tracks')

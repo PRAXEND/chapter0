@@ -72,7 +72,14 @@ class DeliveryRequirements(unittest.TestCase):
         self.data['brief']['generate_music']=False
         self.assertIn('music_fit',self.check())
         self.e['music_tracks']=[]
+        self.assertIn('music_fit',self.check())
+        track=self.e['timeline']['timeline']['tracks'].pop()
+        self.assertIn('music_fit',self.check())
+        self.e['timeline']['timeline']['tracks'].append(track)
+        self.e['timeline']['timeline']['tracks'][1]['muted']=True
         self.assertEqual({},self.check())
+        self.e['timeline']['timeline']['totalEntries']=3
+        self.assertIn('music_fit',self.check())
     def test_old_import_kept_intact_while_all_active_shawn_snapshots_omit_fixed_speaker(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ,{'VIDEO_STUDIO_HOME':tmp}):
             user_packs.install(ROOT/'user-packs/shawn-style-fusion/manifest.json')

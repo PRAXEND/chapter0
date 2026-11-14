@@ -1,6 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {inputHash} from './studio-workflow.mjs';
 import {requestHash} from './automatic.mjs';
+import {pendingEvidence} from './evidence-resume.mjs';
 
 function checkSuggestion(check,c){
   const detail=String(c.observations||'');
@@ -14,14 +15,15 @@ function checkSuggestion(check,c){
 export function revisionFeedback(p){
   const current=currentRevision(p),consumed=new Set(p.userRevision?.consumedJobs||[]);
   const scope=requestHash(p);
-  const pending=p.jobs.find(j=>['create','produce'].includes(j.action)&&!consumed.has(j.id)&&(j.requestHash?j.requestHash===scope:!j.inputHash||j.inputHash===inputHash(p))&&(j.questions?.length||j.revisionProposal));
+  const evidence=pendingEvidence(p);
+  const pending=evidence?null:p.jobs.find(j=>['create','produce'].includes(j.action)&&!consumed.has(j.id)&&(j.requestHash?j.requestHash===scope:!j.inputHash||j.inputHash===inputHash(p))&&(j.questions?.length||j.revisionProposal));
   const report=(!p.qualityCycle?.candidate||p.qualityCycle.candidate.inputHash===inputHash(p))?p.qualityCycle?.report:null;
   const issues=Object.entries(report?.checks||{}).filter(([,c])=>!['pass','not_applicable'].includes(c.status)).flatMap(([check,c])=>c.issues?.length?c.issues.map(i=>({check,text:typeof i==='string'?i:i.suggested_fix||i.symptom||JSON.stringify(i)})):[{check,text:checkSuggestion(check,c)}]);
   const proposal=pending?.revisionProposal||null;
   const suggestions=[...(proposal?[proposal.summary,...(proposal.changes||[])]:[]),...(pending?.questions||[]),...issues.map(i=>i.text)];
   const suggested=[...new Set(suggestions.filter(Boolean))].join('\n').slice(0,12000);
   const token=createHash('sha256').update(JSON.stringify({project:p.id,plan:p.approval?.planHash,input:p.approval?.inputHash,candidate:p.qualityCycle?.candidate?.files,report,request:pending?.id,proposal,suggested,revision:p.userRevision?.id})).digest('hex');
-  return {token,proposal,questions:pending?.questions||[],issues,suggested,requestJobId:pending?.id||null,submitted:current?.request||'',hasCandidate:!!p.qualityCycle?.candidate};
+  return {token,proposal,questions:pending?.questions||[],issues,suggested,requestJobId:pending?.id||null,submitted:current?.request||'',hasCandidate:!!p.qualityCycle?.candidate,evidencePending:evidence?{jobId:evidence.id,questions:evidence.questions||[],summary:evidence.summary||evidence.error||''}:null};
 }
 
 // A click authorizes a bounded new revision, never converts a failed review to pass.

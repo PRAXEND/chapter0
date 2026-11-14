@@ -69,3 +69,11 @@ test('invalid sample duration/type is rejected and removed; voice recording has 
     assert.deepEqual(await readdir(run),['voice-references']);
   }finally{await rm(run,{recursive:true,force:true});}
 });
+
+test('manual voice preparation fallback stays bound to its approved plan',async()=>{
+ const p={narration:true,voiceIntent:'saved',approval:{planHash:'approved',inputHash:'inputs'},jobs:[]};
+ const prep={action:'voice',status:'needs_input',inputHash:'inputs',planHash:'approved',manualProduction:{planHash:'approved',inputHash:'inputs'},voiceScope:null};
+ prep.voiceRequest=await normalizeVoiceRequest({kind:'voice_choice',message:'克隆不可用，请选择',candidates:[candidate]},prep);p.jobs=[prep];
+ assert.equal(prep.voiceRequest.voiceScope,null);assert.equal(pendingVoiceRequest(p,'inputs'),prep.voiceRequest);assert.equal(currentVoiceRequest(p),prep.voiceRequest);
+ p.approval.planHash='changed';assert.equal(pendingVoiceRequest(p,'inputs'),null);assert.equal(currentVoiceRequest(p),null);
+});

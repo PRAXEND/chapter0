@@ -181,7 +181,7 @@ def speech_free_music_offsets(length, start, rate, size, speech_intervals):
     return sorted({offsets[round((len(offsets) - 1) * i / 4)] for i in range(5)}) if len(offsets) > 5 else offsets
 
 
-def match_music(source, mix, start, rate, speech_intervals=None):
+def match_music(source, mix, start, rate, speech_intervals=None, excluded_intervals=None):
     """Require two separate audible windows at one consistent browser/codec delay."""
     from review_audio_alignment import correlation
     if len(source) < rate//4:
@@ -190,6 +190,13 @@ def match_music(source, mix, start, rate, speech_intervals=None):
     span = len(source)-size
     distributed = sorted({round(span*f) for f in (.05,.25,.5,.75,.95)})
     quiet = speech_free_music_offsets(len(source), start, rate, size, speech_intervals)
+    if excluded_intervals:
+        def held_out(offset):
+            return not any((start+offset)/rate < b and (start+offset+size)/rate > a for a,b in excluded_intervals)
+        quiet = list(filter(held_out, quiet))
+        # Dense independent holdout windows allow short music beds to retain two
+        # tests after discarding narration-fit samples; no threshold is lowered.
+        distributed = [offset for offset in range(0, span+1, size) if held_out(offset)]
     # A single unmasked sample cannot establish the required two-window match.
     # Keep the original search for continuous narration, short gaps, or a source
     # whose usable music occurs outside the measured pauses.
@@ -245,6 +252,8 @@ def generated_bed(video, evidence, run, fps):
             file = Path(ref['path']).resolve(strict=True)
             if not file.is_relative_to(root) or file_hash(file) != ref['sha256']:
                 raise ValueError('配乐源文件超出项目或已变化')
+            if any(v.get('sha256')==ref['sha256'] for v in evidence.get('voice_files', [])):
+                raise ValueError('旁白原件不能作为独立配乐的存在性证据')
             files[ref['assetId']] = file
         timeline = evidence['timeline']['timeline']
         selectors = set(evidence['music_tracks'])
@@ -258,6 +267,7 @@ def generated_bed(video, evidence, run, fps):
         with tempfile.TemporaryDirectory() as directory:
             tmp = Path(directory)
             mix = decode_audio(video, tmp / 'mix.raw')
+            residual = None
             windows = []
             for clip in timeline['entries']:
                 if clip.get('kind') != 'item' or clip.get('trackId') not in tracks:
@@ -271,7 +281,18 @@ def generated_bed(video, evidence, run, fps):
                     raise ValueError('配乐素材或时间线区间无效')
                 filters = [f'atrim=start={start}:end={end}', 'asetpts=PTS-STARTPTS', *tempo_filters((end-start)/(right-left))]
                 source = max(decode_audio(files[asset], tmp / 'music.raw', ','.join(filters)), key=lambda c:sum(x*x for x in c))
+                from music_residual import independent_music_source
+                independent_music_source(source, left, right, evidence, root, fps, tmp)
                 match = match_music(source, mix, round(left*RATE), RATE, speech_intervals)
+                if not match and evidence.get('voice_files'):
+                    from music_residual import verified_residual
+                    if residual is None:
+                        residual = verified_residual(mix, evidence, root, fps, tmp)
+                    remaining, excluded, fitted = residual
+                    match = match_music(source, remaining, round(left*RATE), RATE, speech_intervals, excluded)
+                    if match:
+                        match.update(method='verified_narration_residual',narration_fit=fitted,
+                                     original_mix_match=False,residual_normalized=False)
                 if not match:
                     raise ValueError('最终混音中未能确认可听的生成配乐：' + asset)
                 windows.append({'asset_id':asset,'clip_id':clip['id'], **match})

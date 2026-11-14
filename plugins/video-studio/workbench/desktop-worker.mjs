@@ -1,6 +1,7 @@
 import {readFile,lstat,open,rename} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {desktopRoot,withDesktopMutex,assertTicket,readDesktopJson,lockPath,ownsLock} from './desktop-lock.mjs';
 
 export function validateResult(value,schema,where='$'){
   const bad=message=>{throw Error(`${where}: ${message}`);};
@@ -20,12 +21,16 @@ export function validateResult(value,schema,where='$'){
 }
 export async function readRegularJson(file){const info=await lstat(file);if(!info.isFile()||info.size>4*1024*1024)throw Error('结果必须为不超过 4 MB 的普通文件');return JSON.parse(await readFile(file,'utf8'));}
 export async function workerCommand(command,ticketFile,resultFile){
+  const original=await readRegularJson(ticketFile);
+  return withDesktopMutex(desktopRoot(ticketFile),async()=>{
   const ticket=await readRegularJson(ticketFile),directory=path.dirname(ticketFile);
-  if(ticket.schema!==1||ticket.revoked||Date.now()>ticket.leaseUntil)throw Error('工作台任务已停止或连接已过期。不得继续执行或提交；请回到工作台恢复。');
+  assertTicket(ticket);
+  if(ticket.requestId!==original.requestId)throw Error('工作台票据身份已变化');
+  if(ticket.lockToken&&!ownsLock(await readDesktopJson(path.join(lockPath(desktopRoot(ticketFile),ticket.threadId),'owner.json')),ticket))throw Error('工作台任务的运行锁已释放，不得继续执行。');
   const base={schema:1,jobId:ticket.jobId,requestId:ticket.requestId,threadId:ticket.threadId};
   if(command==='claim'){
     const ack=path.join(directory,'desktop-ack.json');const handle=await open(ack,'wx',0o600);try{await handle.writeFile(JSON.stringify({...base,claimedAt:new Date().toISOString()}));}finally{await handle.close();}
-    return {...base,promptFile:ticket.promptFile};
+    assertTicket(await readRegularJson(ticketFile));return {...base,promptFile:ticket.promptFile};
   }
   const ack=await readRegularJson(path.join(directory,'desktop-ack.json'));
   if(Object.keys(base).some(k=>base[k]!==ack[k]))throw Error('任务执行回执不一致');
@@ -33,8 +38,9 @@ export async function workerCommand(command,ticketFile,resultFile){
   if(command!=='complete')throw Error('未知操作');
   const result=validateResult(await readRegularJson(resultFile),await readRegularJson(ticket.schemaFile));
   const target=path.join(directory,'desktop-result.json'),tmp=target+'.tmp';const handle=await open(tmp,'wx',0o600);
-  try{await handle.writeFile(JSON.stringify({...base,result}));}finally{await handle.close();}await rename(tmp,target);
+  try{await handle.writeFile(JSON.stringify({...base,result}));}finally{await handle.close();}assertTicket(await readRegularJson(ticketFile));await rename(tmp,target);
   return {...base,submitted:true};
+  },original.python);
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   workerCommand(...process.argv.slice(2)).then(value=>console.log(JSON.stringify(value))).catch(error=>{console.error(error.message);process.exitCode=1;});

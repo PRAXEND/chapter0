@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {initialStudio} from '../studio-workflow.mjs';
 import {revisionFeedback,confirmRevision,reviewDelta,currentRevision} from '../revisions.mjs';
 import {revisionMarkup,provisionalMarkup} from '../public/revision-ui.js';
+import {pendingEvidence} from '../evidence-resume.mjs';
+import {inputHash} from '../studio-workflow.mjs';
+import {beginAutomatic,requestHash} from '../automatic.mjs';
 
 const fixture=()=>({...initialStudio(),topic:'本期事实',styleSelector:'sample@1',plan:{stale:false},approval:{planHash:'plan',inputHash:'inputs'},
   jobs:[{id:'new',action:'produce',status:'completed'},{id:'question',action:'produce',status:'needs_input',questions:['采用备用源 0.8–7.4 秒替换开头，改首句？']}],
@@ -39,4 +42,36 @@ test('confirmed feedback cannot leak into a different topic or style',()=>{
 test('AI prefill never turns rejected reviewer claims into user-approved quality exceptions',()=>{
   const p=fixture();p.qualityCycle.report.checks={caption_sync:{status:'fail',observations:'328ms 属于 intended；客观验收拒绝：Sampled review evidence invalid: caption_alignment_failed'},flicker:{status:'fail',observations:'已全部查看；客观验收拒绝：Sampled review evidence invalid: sampled_sheets_not_fully_reviewed'}};
   const text=revisionFeedback(p).suggested;assert.doesNotMatch(text,/328ms 属于 intended|已全部查看/);assert.match(text,/不能用/);assert.match(text,/实际查看/);
+});
+
+test('evidence-only continuation keeps approval and candidate; actual revisions still invalidate them',()=>{
+  const p={...initialStudio(),topic:'原候选补证',styleSelector:'sample@1',plan:{stale:false}};
+  const hash=inputHash(p);p.approval={planHash:'approved',inputHash:hash};
+  p.automatic={id:'creative',stage:'create',status:'needs_input',requestHash:requestHash(p)};
+  p.jobs=[{id:'producer',action:'create',status:'needs_input',inputHash:hash,planHash:'approved',requestHash:requestHash(p),questions:['请补齐音乐原件'],pendingExport:{producerJobId:'producer',planHash:'approved',inputHash:hash,files:[{role:'video',sha256:'unchanged'}]}}];
+  const approval=structuredClone(p.approval),candidate=structuredClone(p.jobs[0].pendingExport);
+  assert.equal(revisionFeedback(p).questions.length,0);assert.equal(revisionFeedback(p).evidencePending.jobId,'producer');
+  beginAutomatic(p);assert.equal(p.automatic.stage,'create');assert.equal(p.automatic.id,'creative');
+  assert.deepEqual(p.approval,approval);assert.deepEqual(p.jobs[0].pendingExport,candidate);
+  assert.equal(pendingEvidence(p).id,'producer');
+  p.jobs[0].revisionProposal={summary:'修改开头',changes:['换新素材']};
+  assert.equal(pendingEvidence(p),null);assert.ok(revisionFeedback(p).proposal);
+  confirmRevision(p,{projectId:p.id,token:revisionFeedback(p).token,feedback:'确认换开头'});assert.equal(p.approval,null);
+});
+
+test('a new input or already-reviewed candidate cannot borrow evidence-only recovery',()=>{
+  const p={...initialStudio(),topic:'试片',styleSelector:'sample@1',plan:{stale:false}};
+  const hash=inputHash(p);p.approval={planHash:'approved',inputHash:hash};
+  p.jobs=[{id:'old',action:'produce',status:'needs_input',inputHash:hash,planHash:'approved',pendingExport:{producerJobId:'old',inputHash:hash,planHash:'approved'}}];
+  assert.ok(pendingEvidence(p));p.topic='另一个视频';assert.equal(pendingEvidence(p),null);
+  p.topic='试片';p.qualityCycle={candidate:p.jobs[0].pendingExport,terminal:'quality_failed'};assert.equal(pendingEvidence(p),null);
+});
+
+test('a newer creative decision overrides old pending evidence, technical retries do not',()=>{
+ const p={...initialStudio(),topic:'试片',styleSelector:'sample@1',plan:{stale:false}};
+ const hash=inputHash(p);p.approval={planHash:'approved',inputHash:hash};
+ const old={id:'old',action:'produce',status:'needs_input',inputHash:hash,planHash:'approved',pendingExport:{producerJobId:'old',inputHash:hash,planHash:'approved'}};
+ p.jobs=[{id:'new',action:'produce',status:'failed',inputHash:hash,planHash:'approved'},old];assert.equal(pendingEvidence(p).id,'old');
+ p.jobs[0].status='needs_input';p.jobs[0].revisionProposal={summary:'原件不可恢复，需要替换声音',changes:['更换旁白']};
+ assert.equal(pendingEvidence(p),null);assert.equal(revisionFeedback(p).proposal.summary,p.jobs[0].revisionProposal.summary);
 });

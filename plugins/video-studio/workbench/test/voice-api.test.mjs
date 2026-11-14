@@ -19,11 +19,16 @@ test('real HTTP voice intake survives restart, branches both ways and isolates t
     const fake=path.join(temp,'codex-fixture.mjs');
     // Pure protocol fixture. No ChatCut account, cloning, TTS or network calls occur.
     await writeFile(fake,`#!/usr/bin/env node
+import fs from 'node:fs';import path from 'node:path';
 if(process.argv.includes('--version'))console.log('codex-cli 0.164.0');
 else if(process.argv.includes('--help'))console.log('--ephemeral --json --output-schema --add-dir --approve-for-me');
 else if(process.argv.includes('app-server')){
  let buffer='';process.stdin.on('data',block=>{buffer+=block;let i;while((i=buffer.indexOf('\\n'))>=0){const request=JSON.parse(buffer.slice(0,i));buffer=buffer.slice(i+1);if(!request.id)continue;
- const result=request.method==='config/read'?{config:{model:'gpt-6-astra'}}:request.method==='model/list'?{data:[{id:'gpt-6-astra',model:'gpt-6-astra',isDefault:true}],nextCursor:null}:{};
+ let result=request.method==='config/read'?{config:{model:'gpt-6-astra'}}:request.method==='model/list'?{data:[{id:'gpt-6-astra',model:'gpt-6-astra',isDefault:true}],nextCursor:null}:request.method==='thread/start'?{thread:{id:'fixture-tool-thread'}}:{};
+ if(request.method==='mcpServer/tool/call'){
+   if(request.params.tool==='manage_voice')result={structuredContent:{voices:[{provider:'fixture',voiceId:'cloned-fixture',available:true,supportedUses:['tts'],capabilities:{supportedControls:[]}}]}};
+   else if(request.params.tool==='submit_voice'){fs.appendFileSync(${JSON.stringify(path.join(temp,'narration-calls.jsonl'))},JSON.stringify(request.params.arguments)+'\\n');result={structuredContent:{jobId:'fixture-tts'}};}
+ }
  console.log(JSON.stringify({id:request.id,result}));}});
 }
 else if(process.argv.includes('login'))console.log('Logged in using test fixture');
@@ -37,6 +42,11 @@ else{
   else if(a.action==='official'){kind='voice_choice';candidates=[{key:'official-fixture',name:'测试旁白',summary:'协议测试音色',sampleUrl:'https://93.184.215.14/fixture.mp3',provider:'internal-fixture',voiceId:'official-catalog-fixture',voiceType:'official'}];}
   else if(a.action==='recording')summary='fixture received recording and consent';
   else if(a.action==='select')summary='fixture received selected voice';
+ }
+ if(c.taskAction==='produce'&&a?.preparedByJobId){
+  const file=path.join(c.run,'run.json'),run=JSON.parse(fs.readFileSync(file));run.project={projectId:'fixture-project',timelineId:'fixture-timeline',planHash:c.planHash,inputHash:c.inputHash};fs.writeFileSync(file,JSON.stringify(run));
+  const response=await fetch(c.narrationEndpoint.url,{method:'POST',headers:{'Content-Type':'application/json','X-Video-Demo':'1'},body:JSON.stringify({jobId:c.jobId,token:c.narrationEndpoint.token,arguments:{text:'本轮新克隆音色正式配音协议测试'}})});
+  if(!response.ok)throw Error(await response.text());summary='fixture received selected voice';
  }
  if(c.taskAction==='voice'&&kind==='voice_choice'){candidates=[{key:'official-fixture',name:'测试旁白',summary:'协议测试音色',sampleUrl:'https://93.184.215.14/fixture.mp3',provider:'internal-fixture',voiceId:'official-catalog-fixture',voiceType:'official'}];console.log(JSON.stringify({type:'item.completed',item:{type:'mcp_tool_call',server:'chatcut',tool:'manage_voice',status:'completed'}}));}
  if(c.taskAction==='voice'&&kind==='none'){
@@ -65,7 +75,7 @@ else{
     const planHash=saved.value.plan.planHash;assert.equal((await api('/api/approve',{planHash})).status,200);
     async function produce(){
       const r=await api('/api/jobs',{action:'produce'});assert.equal(r.status,202,JSON.stringify(r.value));
-      for(let n=0;n<100;n++){const j=(await api('/api/jobs/'+r.value.job.id)).value;if(j.status!=='running'&&!(await api('/api/state')).value.activeJobId){assert.equal(j.status,'needs_input',j.error);return j;}await new Promise(r=>setTimeout(r,50));}
+      for(let n=0;n<100;n++){const j=(await api('/api/jobs/'+r.value.job.id)).value;if(j.status!=='running'&&!(await api('/api/state')).value.activeJobId){const state=(await api('/api/state')).value;const done=j.action==='voice'?state.project.jobs.find(x=>x.action==='produce'):j;if(done?.id===r.value.job.id||j.action==='voice'&&done?.startedAt>=j.startedAt){assert.equal(done.status,'needs_input',done.error);return done;}}await new Promise(r=>setTimeout(r,50));}
       throw new Error('Fixture did not finish');
     }
     let job=await produce();assert.equal(job.voiceRequest.kind,'clone_choice');
@@ -94,8 +104,10 @@ else{
     assert.deepEqual(await readdir(path.join(p.run,'voice-references')),[]);
     const accepted=await upload(audio,true);assert.equal(accepted.status,201,await accepted.text());
     assert.equal((await upload(audio,true)).status,400);
-    job=await produce();assert.equal(job.summary,'fixture received recording and consent');
-    const cloneContext=JSON.parse(await readFile(path.join(dataDir,'jobs',job.id,'request.json'),'utf8')),answer=cloneContext.voice.answers.at(-1);
+    job=await produce();assert.equal(job.summary,'fixture received selected voice');
+    const cloneContext=JSON.parse(await readFile(path.join(dataDir,'jobs',job.id,'request.json'),'utf8')),answer=cloneContext.voice.answers.findLast(a=>a.action==='recording');
+    const boundVoice=cloneContext.voice.answers.at(-1);assert.equal(boundVoice.action,'select');assert.equal(boundVoice.voice.voiceId,'cloned-fixture');assert.equal(boundVoice.voiceScope,null);assert.equal(boundVoice.planHash,revised.value.plan.planHash);assert.ok(boundVoice.preparedByJobId);
+    const narrated=JSON.parse((await readFile(path.join(temp,'narration-calls.jsonl'),'utf8')).trim().split('\n')[0]);assert.equal(narrated.voiceId,'cloned-fixture');assert.equal(narrated.provider,'fixture');assert.equal(narrated.projectId,'fixture-project');assert.ok(job.toolCalls.some(t=>t.tool==='submit_voice'&&t.source==='locked_workbench_voice'));
     assert.equal(answer.confirmedConsent,true);assert.equal(answer.recording.duration,12);assert.equal(answer.name,'我的测试音色');
     assert.equal(path.dirname(answer.recording.path),path.join(p.run,'voice-references'));
     p=(await api('/api/state')).value.project;assert.equal(p.sources.length,initialSources);assert.equal(p.approval.planHash,revised.value.plan.planHash);assert.equal(p.deliveries.length,0);
@@ -120,7 +132,7 @@ else{
     assert.equal((await api('/api/voice/start',{intent:'invalid'})).status,400);
     assert.equal((await api('/api/state')).value.project.voiceIntent,fresh.voiceIntent);
     assert.equal((await api('/api/jobs',{action:'voice'})).status,400); // Settings cannot start an automatic model task.
-    const deferred=await api('/api/voice/start',{intent:'custom'});assert.equal(deferred.status,200);assert.equal(deferred.value.job,null);
+    const deferred=await api('/api/voice/start',{intent:'create'});assert.equal(deferred.status,200);assert.equal(deferred.value.job,null);
     const pending=(await api('/api/state')).value.project;assert.equal(pending.jobs.length,0);
     job={voiceRequest:pending.voiceSelectionRequest};assert.equal(job.voiceRequest.kind,'clone_recording');
     p=(await api('/api/state')).value.project;assert.equal(p.plan,null);assert.equal(p.sources.length,0);

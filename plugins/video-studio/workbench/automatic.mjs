@@ -1,6 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {voiceScope} from './voices.mjs';
 import {projectLayoutPolicy,legacyLandscape} from './public/production-plan.js';
+import {pendingEvidence} from './evidence-resume.mjs';
 
 export const automaticStages=['voice','create','review','delivery'];
 export const automaticAuthorization='一键生成：由 AI 按本期主题方向、时长范围、画幅、指定风格与音色自主选题、选材、审阅具体文案分镜、制作及独立验收；授权上传本期选用素材、按已选音色配音和按风格生成配乐、编辑 ChatCut 时间线及下载导出；克隆仅限用户已提交完整授权的录音，不授权发布；验收失败即暂停并保留完整临时交付，用户确认具体修订后才继续；正式交付必须验收通过。';
@@ -11,6 +12,10 @@ export function beginAutomatic(p){
   if(!p.topic?.trim())throw Error('请填写主题方向。');
   if(!p.styleSelector)throw Error('请选择本期风格。');
   if(!['9:16','16:9'].includes(p.ratio))throw Error('一键模式请选择竖版或横版。');
+  if(pendingEvidence(p)){
+    p.automatic={...(p.automatic||{id:randomUUID(),authorization:automaticAuthorization,authorizedAt:new Date().toISOString(),repairCount:0}),workflow:'continuous-v1',requestHash:requestHash(p),status:'running',stage:'create'};
+    return p.automatic;
+  }
   if(p.automatic?.requestHash===requestHash(p)&&p.qualityCycle?.terminal==='quality_failed'&&hasCurrentCandidate(p))throw Error('当前方案验收未通过，请在修订与补充反馈中确认修改后继续。');
   if(p.automatic?.requestHash===requestHash(p)&&p.automatic.status!=='completed'){
     if(p.automatic.status==='quality_failed')throw Error('验收未通过。请确认具体修订建议，不能通过普通继续按钮重复启动制作。');

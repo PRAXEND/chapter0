@@ -1,6 +1,7 @@
 export function revisionMarkup(project,view,draft,busy,esc){
   const waiting=!!(view.questions?.length||view.proposal||view.issues?.length);
   return `<div class="section-heading"><h2>修订与补充反馈</h2><span>${busy?'任务执行中，可先保存反馈':waiting?'有待处理建议':'按需补充'}</span></div>
+    ${view.evidencePending?`<div class="job-question"><strong>补齐原件后继续验收原试片</strong><p>${esc(view.evidencePending.summary)}</p>${view.evidencePending.questions.map(q=>`<p>${esc(q)}</p>`).join('')}<p>补交文件无需确认创意修订。补齐后点击原制作流程的“继续”，会保留原方案批准和已导出视频。</p></div>`:''}
     ${view.submitted?`<details><summary>本轮已确认的修改要求</summary><p>${esc(view.submitted)}</p></details>`:''}
     ${view.proposal?`<div class="job-question"><strong>${esc(view.proposal.summary)}</strong>${(view.proposal.changes||[]).map(s=>`<p>${esc(s)}</p>`).join('')}</div>`:''}
     ${(view.questions||[]).map(q=>`<p class="job-question">${esc(q)}</p>`).join('')}

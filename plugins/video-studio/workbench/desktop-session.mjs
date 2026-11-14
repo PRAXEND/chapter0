@@ -3,6 +3,7 @@ import {createReadStream} from 'node:fs';
 import {createInterface} from 'node:readline';
 import path from 'node:path';
 import {DesktopReader} from './desktop-rpc.mjs';
+import {reconcileDesktopLock} from './desktop-recovery.mjs';
 
 export const validThreadId=id=>typeof id==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(id);
 export async function atomicJson(file,value){const tmp=file+'.tmp';await writeFile(tmp,JSON.stringify(value,null,2),{mode:0o600});await rename(tmp,file);}
@@ -51,7 +52,7 @@ export async function inspectDesktop(reader,id,{allowBusy=false}={}){
   if(!allowBusy&&activity.turns.get(activity.latest)==='inProgress')throw Error('所选桌面会话正在执行其他任务，请等待完成。');
   return {threadId:id,title:thread.name||thread.preview||'未命名会话',...permissions,checkedAt:new Date().toISOString()};
 }
-export function desktopSessions({dataDir,codex,env=process.env,Reader=DesktopReader}){
+export function desktopSessions({dataDir,codex,python,env=process.env,Reader=DesktopReader}){
   const file=path.join(dataDir,'desktop-session.json');let config={schema:1,mode:env.VIDEO_STUDIO_AGENT_MODE==='cli'?'cli':'desktop'},reader;
   const client=()=>{if(!reader)reader=new Reader(codex(),{cwd:dataDir});return reader;};
   return {
@@ -60,6 +61,7 @@ export function desktopSessions({dataDir,codex,env=process.env,Reader=DesktopRea
     async list(){const result=await client().call('thread/list',{limit:60,sortKey:'updated_at',sortDirection:'desc',sourceKinds:['vscode'],archived:false});return (result.data||[]).filter(t=>t.originator==='Codex Desktop').map(t=>({id:t.id,title:t.name||t.preview?.slice(0,80)||'未命名会话',cwd:t.cwd}));},
     async configure(id){const checked=await inspectDesktop(client(),id);config={schema:1,mode:'desktop',...checked};await atomicJson(file,config);return this.state();},
     async requireReady(){if(config.mode==='cli')return null;if(!config.threadId)throw Error('首次使用请先完成“桌面执行会话”配置，再点击一键生成。');return inspectDesktop(client(),config.threadId);},
+    async recovery(release=false){if(config.mode==='cli'||!config.threadId)throw Error('请先选择桌面执行会话。');return reconcileDesktopLock({dataDir,threadId:config.threadId,reader:client(),release,python:python?.()});},
     reader:client,
     close(){reader?.close();}
   };

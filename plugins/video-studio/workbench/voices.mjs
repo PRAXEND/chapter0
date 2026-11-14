@@ -52,6 +52,7 @@ export function pendingVoiceRequest(project,inputHash){
   const local=project.voiceSelectionRequest;
   if(local&&!local.answeredAt&&local.voiceScope===voiceScope(project))return local;
   const job=project.jobs.find(j=>['voice','produce','create'].includes(j.action)),r=job?.voiceRequest;
+  if(job?.manualProduction)return job.status==='needs_input'&&r&&!r.answeredAt&&r.inputHash===inputHash&&r.planHash===project.approval?.planHash?r:null;
   if(['voice','create'].includes(job?.action))return job.status==='needs_input'&&r&&!r.answeredAt&&r.voiceScope===voiceScope(project)?r:null;
   return job?.status==='needs_input'&&r&&!r.answeredAt&&r.inputHash===inputHash&&r.planHash===project.approval?.planHash?r:null;
 }

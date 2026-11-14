@@ -1,4 +1,5 @@
 import {revisionFeedback,confirmRevision,reviewDelta,currentRevision} from './revisions.mjs';
+import {pendingEvidence} from './evidence-resume.mjs';
 import {prepareReviewPacket} from './review-packet.mjs';
 import {provisionalPackage} from './provisional.mjs';
 import {beginAutomatic,nextAutomatic,advanceAutomatic,curateSelection,requestHash} from './automatic.mjs';
@@ -100,7 +101,7 @@ function preflightError(message){return Object.assign(new Error(message),{code:'
 function requireDependencies(capabilities){const missing=dependencyFailures(runtime.dependencies,capabilities);if(missing.length)throw preflightError(missing.map(item=>`${item.label}：${item.message}。${item.remedy||''}`).join('\n'));}
 async function checkMedia(){rememberDependencies(await bridge('preflight',{capabilities:['python','media']}));requireDependencies(['python','media']);}
 await checkLocal();
-const desktop=desktopSessions({dataDir,codex:()=>runtime.codexPath});await desktop.load();
+const desktop=desktopSessions({dataDir,codex:()=>runtime.codexPath,python:()=>runtime.dependencies?.python});await desktop.load();
 const desktopAction=action=>!['review','plan','plan_review'].includes(action)&&desktop.state().mode==='desktop';
 function runAgent(options){return options.job.execution?.backend==='desktop'?runDesktopAgent({...options,reader:desktop.reader()}):runCliAgent(options);}
 for(const job of project.jobs.filter(j=>!historicalProject(project)&&j.action==='discover'&&j.status==='interrupted')){
@@ -254,8 +255,15 @@ async function finishJob(job,context,{code,error,finalText}){
       const answers=context.voice.answers,selected=answers.findLast(a=>a.action==='select'),recording=answers.findLast(a=>a.action==='recording');
       const saved=context.voice.savedVoice;
       if(!(selected&&selected.voice.voiceId===result.voice.voiceId&&selected.voice.provider===result.voice.provider)&&!(saved&&saved.voiceId===result.voice.voiceId&&saved.provider===result.voice.provider)&&!(recording?.confirmedConsent&&result.voice.voiceType==='custom'))throw Error('音色未被明确选择或授权创建。');
-      project.voiceDirectoryPending=false;project.voiceChoice={...result.voice,selected_by_user:true};project.voiceReady={scope:voiceScope(project),checkedAt:new Date().toISOString(),jobId:job.id};
-      await bridge('save-voice',{voice:project.voiceChoice});await ensureRun();await getCatalog();
+      const resolvedVoice={...result.voice,selected_by_user:true};
+      if(context.manualProduction){
+        if(context.manualProduction.inputHash!==inputHash(project)||context.manualProduction.planHash!==project.approval?.planHash)throw Error('音色准备期间方案已变化，请重新确认制作方案。');
+        recordVoiceAnswer(project,{id:recording.requestId,voiceScope:null,inputHash:job.inputHash,planHash:context.manualProduction.planHash},{action:'select',voice:resolvedVoice,recordingRequestId:recording.requestId,recordingSha256:recording.recording.sha256,preparedByJobId:job.id});
+        followup={action:'produce'};
+      }else{
+        project.voiceDirectoryPending=false;project.voiceChoice=resolvedVoice;project.voiceReady={scope:voiceScope(project),checkedAt:new Date().toISOString(),jobId:job.id};
+      }
+      await bridge('save-voice',{voice:resolvedVoice});await ensureRun();await getCatalog();
       if(project.automatic)project.automatic.requestHash=requestHash(project);
       job.status='completed';
     }
@@ -346,7 +354,12 @@ async function finishJob(job,context,{code,error,finalText}){
       await checkSelected();
       const exported=evidencePending?{...result,status:'exported',qaStatus:'needs_review'}:result;
       const candidate=await bindCandidate(exported,project.run,job,run=>bridge('recover-subtitles',{run})),old=project.qualityCycle;
-      candidate.selectedVoice=context.voice?.answers?.findLast(a=>a.action==='select')?.voice||context.voice?.savedVoice||null;
+      if(context.pendingExport){
+        const prior=context.pendingExport;
+        if(candidate.projectId!==prior.projectId||candidate.timelineId!==prior.timelineId||prior.files.some(f=>!candidate.files.some(g=>g.role===f.role&&g.sha256===f.sha256)))throw Error('补证流程必须复用原候选和交付文件；修改成片需要另行确认修订。');
+        candidate.producerJobId=prior.producerJobId;candidate.producerThreadId=prior.producerThreadId;
+      }
+      candidate.selectedVoice=context.pendingExport?.selectedVoice||context.voice?.answers?.findLast(a=>a.action==='select')?.voice||context.voice?.savedVoice||null;
       if(evidencePending){
         await provisionalPackage(project,candidate,null,bridge);
         job.pendingExport=candidate;job.status='needs_input';job.error=result.summary;
@@ -381,7 +394,7 @@ async function continuePipeline(followup=null){
 }
 async function startAutomatic(options={}){
   if(revisionFeedback(project).questions.length&&!String(options.followup||'').trim())throw Error('有待确认的修订建议，请在“修订与补充反馈”中确认后继续。');
-  if(project.narration&&project.voiceReady?.scope!==voiceScope(project)&&!pendingVoiceRequest(project,inputHash(project))){
+  if(!pendingEvidence(project)&&project.narration&&project.voiceReady?.scope!==voiceScope(project)&&!pendingVoiceRequest(project,inputHash(project))){
     const directory=await getCatalog(),saved=savedVoiceChoices({profile:{voice:project.voiceChoice||((project.voiceIntent||'saved')==='saved'?directory.profile?.voice:null)}})[0];
     if(saved)await selectExistingVoice(saved,'saved_catalog');
   }
@@ -423,6 +436,10 @@ async function startJob(action,options={}){
   if(action==='discover'){options.searchLimit=validateSearchLimit(options.searchLimit??project.searchLimit??20);options.query=String(options.query||'').trim()||project.topic.trim();if(!options.query)throw new Error('请填写本期主题／想表达的观点，或输入素材关键词。');project.searchLimit=options.searchLimit;}
   if(runtime.preparing)throw preflightError('正在补齐下载依赖，完成并复检后才能开始任务。');
   if(['voice','produce','create'].includes(action)&&pendingVoiceRequest(project,inputHash(project)))throw new Error('请先完成下方音色选择或录音提交。');
+  if(action==='produce'&&project.narration&&!pendingEvidence(project)){
+    const answer=voiceContext(project,inputHash(project)).answers.at(-1);
+    if(answer?.action==='recording')return startJob('voice',{manualProduction:{inputHash:inputHash(project),planHash:project.approval.planHash}});
+  }
   const directCollection=action==='collect'&&canCollectRepository(project.sources.find(s=>s.id===options.sourceId));
   const capabilities=action==='collect'?sourceCapabilities(project.sources.find(s=>s.id===options.sourceId),{direct:directCollection}):action==='discover'?['python','media','downloader']:['plan','produce','create','review','voice','plan_review','curate'].includes(action)?['python','media']:['python'];
   if(directCollection)rememberDependencies(await bridge('preflight',{capabilities}));else await checkLocal(capabilities,['discover','plan','produce','create'].includes(action)?project.styleSelector:null);
@@ -436,6 +453,7 @@ async function startJob(action,options={}){
   if(['plan','produce'].includes(action))await checkSelected();
   if(['produce','review'].includes(action))await bridge('check-approval',{run:project.run,planHash:project.approval.planHash,inputHash:inputHash(project)});
   const job={id:randomUUID(),action,requestHash:requestHash(project),sourceId:options.sourceId||null,searchLimit:action==='discover'?options.searchLimit:null,label:taskNames[action],status:'running',startedAt:new Date().toISOString(),events:[],toolCalls:[],inputHash:inputHash(project),planHash:['produce','review'].includes(action)?project.approval?.planHash:null,automaticId:options.automaticId||null,voiceScope:['voice','create'].includes(action)?voiceScope(project):null,voiceIntent:project.voiceIntent||'saved',voiceSelectionId:project.voiceSelectionId||null,execution:{cliPath:runtime.codexPath,cliVersion:runtime.codexVersion,model:runtime.model,reasoningEffort:runtime.reasoningEffort,checkedAt:runtime.checkedAt}};
+  if(action==='voice'&&options.manualProduction){job.manualProduction=options.manualProduction;job.voiceScope=null;job.planHash=options.manualProduction.planHash;}
   if(desktopExecution)Object.assign(job.execution,{backend:'desktop',desktopThreadId:desktopExecution.threadId,desktopTitle:desktopExecution.title,model:desktopExecution.model,reasoningEffort:desktopExecution.reasoningEffort});
   if(directCollection){job.execution='direct_repository';job.usage={input_tokens:0,output_tokens:0};}
   const jobDirectory=path.join(dataDir,'jobs',job.id);job.directory=jobDirectory;await mkdir(jobDirectory,{recursive:true});
@@ -457,6 +475,7 @@ async function startJob(action,options={}){
   const productionMode=previousProduction&&previousProduction.inputHash===inputHash(project)&&previousPlanHash===project.approval?.planHash?'recover':'new';
   let context={taskAction:action,environment:{python:runtime.dependencies?.python,programs:runtime.dependencies?.programs},jobId:job.id,sourceProgressPath:path.join(jobDirectory,'source-progress.json'),productionMode,previousProduction:previousProduction?{id:previousProduction.id,status:previousProduction.status,inputHash:previousProduction.inputHash,planHash:previousPlanHash}:null,pluginRoot:plugin.root,styleMedia:runtime.dependencies?.checks?.filter(c=>styleCapabilities(project.styleSelector).includes(c.id)),run:project.run,jobDirectory,brief:brief(project),settings:{music:project.music,voiceDirection:project.voiceDirection,styleDescription:project.styleDescription},query:String(options.query||project.topic).slice(0,2000),source,knownSources:['discover','collect','curate','create'].includes(action)?project.sources:undefined,sourceReview:project.sourceReview||null,selectedSources:project.sources.filter(s=>project.selected.includes(s.id)),plan:project.plan,planHash:project.approval?.planHash||null,inputHash:inputHash(project),userFollowup:String(options.followup||'').slice(0,4000),outputDirectory:project.outputRoot};
   context.automatic=job.automaticId?project.automatic:null;context.editorial=project.editorial||null;context.preferences=(await getCatalog()).profile?.production_preferences||{};context.advancedOverrides=project.advancedOverrides||{};context.productionContext=await bridge('production-context',{run:project.run});
+  if(action==='voice'&&options.manualProduction)context.manualProduction=options.manualProduction;
   if(['discover','create'].includes(action))Object.assign(context,searchContext(project,options,library));
   if(action==='create'||action==='produce'&&job.automaticId){
     context.knownSources=project.sources;
@@ -490,15 +509,14 @@ async function startJob(action,options={}){
     if(action==='voice'&&(project.voiceDirectoryPending||['official','clone','recording'].includes(context.voice.answers.at(-1)?.action)))context.voice.savedVoice=null;
     if(action==='produce'&&project.qualityCycle?.repair&&project.qualityCycle.candidate.planHash===context.planHash&&project.qualityCycle.candidate.inputHash===context.inputHash){context.repair=project.qualityCycle.repair;context.productionMode='recover';}
     if(['produce','create'].includes(action)){
-      const previous=project.jobs.find(j=>j.id!==job.id&&['create','produce'].includes(j.action)
-        &&j.inputHash===job.inputHash&&j.planHash===project.approval?.planHash&&j.status!=='failed');
-      if(previous?.status==='needs_input'&&previous.pendingExport){
-        await verifyCandidate(previous.pendingExport,project.run);context.pendingExport=previous.pendingExport;
+      const previous=pendingEvidence(project);
+      if(previous){
+        await verifyCandidate(previous.pendingExport,project.run);context.pendingExport=previous.pendingExport;job.pendingExport=previous.pendingExport;
       }
     }
     for(const answer of context.voice.answers)if(answer.recording){const file=await contained(answer.recording.path,path.join(project.run,'voice-references'));if(await fileHash(file)!==answer.recording.sha256)throw new Error('已提交的音色录音发生变化，请恢复原录音后继续。');}
     await unlink(path.join(project.run,'workbench-cancelled.json')).catch(()=>{});await unlink(path.join(project.run,'workbench-progress.json')).catch(()=>{});}
-  if(['create','produce'].includes(action)&&project.narration){
+  if(['create','produce'].includes(action)&&project.narration&&!context.pendingExport){
     context.narrationEndpoint={url:'http://127.0.0.1:'+port+'/api/narration',token:randomUUID()};
   }
   if(action==='review'){
@@ -576,7 +594,7 @@ function libraryState(){return {entries:libraryEntries,candidates:libraryCandida
 function publicState(){return {readOnly:historicalProject(project),feedback:revisionFeedback(project),project,projects:projectStore.list(project.id),runtime,desktop:desktop.state(),catalog:{savedVoice:catalog.profile?.voice||null,savedVoices:catalog.savedVoices||[],version:catalog.version,styles:catalog.styles.options,styleErrors:catalog.styles.errors,styleBrowser:catalog.styleBrowser},library:libraryState(),activeJobId:active?.job.id||null,busy:!!active||mutation};}
 async function openFolder(directory){directory=await realpath(directory);if(![...project.deliveries,...(project.provisionalDeliveries||[])].some(d=>d.directory===directory) && directory!==await realpath(project.outputRoot))throw new Error('只能打开本项目的输出文件夹。');const command=process.platform==='darwin'?['open',[directory]]:process.platform==='win32'?['explorer.exe',[directory]]:['xdg-open',[directory]];await execute(command[0],command[1],{timeout:10000});}
 async function openMaterialFolder(id){const source=project.sources.find(s=>s.id===id&&s.status==='ready');if(!source)throw new Error('请选择已经采集的素材。');const directory=path.dirname(await contained(source.localPath,project.run));const command=process.platform==='darwin'?['open',[directory]]:process.platform==='win32'?['explorer.exe',[directory]]:['xdg-open',[directory]];await execute(command[0],command[1],{timeout:10000});}
-const historyActions=new Set(['/api/projects/switch','/api/reset','/api/open-folder','/api/open-material-folder','/api/library/open-folder','/api/runtime/check','/api/catalog/refresh','/api/desktop/configure']);
+const historyActions=new Set(['/api/projects/switch','/api/reset','/api/open-folder','/api/open-material-folder','/api/library/open-folder','/api/runtime/check','/api/catalog/refresh','/api/desktop/configure','/api/desktop/recover']);
 function rejectsHistoricalWrite(route){return historicalProject(project)&&!historyActions.has(route);}
 const historyMessage='历史项目为只读。可以查看、下载已有文件，或新建项目制作。';
 const server=http.createServer(async(req,res)=>{
@@ -589,6 +607,7 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='GET' && route==='/api/health')return send(res,200,{app:'video-studio-workbench',version:plugin.version,dataDirectory:dataDir,workingDirectory:process.cwd(),runtimeIdentity});
     if(req.method==='GET' && route==='/api/state'){await refreshLibrary();return send(res,200,publicState());}
     if(req.method==='GET' && route==='/api/desktop/sessions')return send(res,200,{sessions:await desktop.list()});
+    if(req.method==='GET' && route==='/api/desktop/status')return send(res,200,{recovery:await desktop.recovery()});
     if(req.method==='GET' && route==='/api/projects')return send(res,200,{projects:projectStore.list(project.id),errors:projectStore.errors});
     if(req.method==='GET' && route==='/api/library'){await refreshLibrary();return send(res,200,libraryState());}
     if(['GET','HEAD'].includes(req.method) && route.startsWith('/api/library/media/')){try{const {entry,file}=await library.resolve(route.split('/').pop(),url.searchParams.has('thumbnail'));return await streamFile(req,res,file,{download:url.searchParams.has('download'),name:path.basename(entry.localPath)});}catch(e){return send(res,404,{error:cleanError(e.message)});}}
@@ -636,6 +655,12 @@ const server=http.createServer(async(req,res)=>{
         if(payload.projectId!==project.id)throw Error('当前项目已变化，请刷新');
         const feedback=String(payload.feedback??'');if(feedback.length>12000)throw Error('反馈最多 12000 字');
         project.feedbackDraft=feedback;await persist();return send(res,200,{saved:true});
+      }
+      if(route==='/api/desktop/recover'){
+        if(mutation||active&&!active.recoveryError)throw Error('当前任务仍由工作台跟踪，请等待结束或先停止；不会强行释放执行中的任务。');
+        const recovery=await desktop.recovery(true);
+        if(active?.recoveryError&&recovery.status==='released'&&recovery.jobId===active.job.id){active.job.status='interrupted';active.job.error='已核实旧任务结束并释放运行锁；原文件保留，继续前核对已有远端结果。';active.job.completedAt=new Date().toISOString();active=null;if(project.automatic)project.automatic.status='paused';await persist();}
+        return send(res,200,{recovery});
       }
       if(route==='/api/cancel'){cancelGeneration++;if(project.automatic)project.automatic.status='paused';if(active){active.job.status='cancelling';active.job.cancelRequested=true;await writeFile(path.join(project.run,'workbench-cancelled.json'),JSON.stringify({jobId:active.job.id,time:new Date().toISOString()}));active.controller?.cancel();}await persist();return send(res,200,{ok:true});}
       if(route==='/api/open-folder'){if(!historicalProject(project))await mkdir(project.outputRoot,{recursive:true});await openFolder(payload.directory||project.outputRoot);return send(res,200,{ok:true});}
@@ -740,7 +765,7 @@ if(recovering){
   try{const context=JSON.parse(await readFile(path.join(dataDir,'jobs',recovering.id,'request.json'),'utf8'));
     if(context.jobId!==recovering.id||context.run!==project.run)throw Error('恢复上下文与当前项目不一致');
     active.controller=runDesktopAgent({codex:runtime.codexPath,reader:desktop.reader(),job:recovering,context,restore:true,event:(type,message)=>addEvent(recovering,type,message),onSourceProgress:snapshot=>saveSourceProgress(recovering,context,snapshot),onProductionCheckpoint:context.productionCheckpointPath?value=>adoptProductionCheckpoint(recovering,context,value):null,onFinish:value=>finishJob(recovering,context,value)});
-  }catch(error){addEvent(recovering,'warning','无法自动恢复桌面状态：'+error.message+'。请在桌面确认停止后再恢复，工作台暂不接受新任务。');}
+  }catch(error){active.recoveryError=true;addEvent(recovering,'warning','无法自动恢复桌面状态：'+error.message+'。请在桌面确认停止后，使用“桌面执行会话 → 核对并恢复”核验终态；不会强制释放仍在执行的任务。');}
 }
 server.listen(port,'127.0.0.1',()=>{console.log(`Video Agent Demo: http://127.0.0.1:${port}`);console.log(`Video Studio ${plugin.version} · ${runtime.authenticated?'Codex 已登录':'请登录 Codex'}`);});
 function shutdown(){if(active?.job.execution?.backend==='desktop'){active.controller?.detach();persist().catch(()=>{});}else{if(active){active.job.status='interrupted';persist().catch(()=>{});}active?.controller?.cancel();}desktop.close();server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),3000).unref();}

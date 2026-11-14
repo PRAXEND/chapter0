@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,writeFile,readFile,rm,symlink} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,rm,symlink,access} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {randomUUID} from 'node:crypto';
 import {desktopSessions,inspectDesktop,atomicJson,desktopActivity} from '../desktop-session.mjs';
-import {runDesktopAgent,recordedTool} from '../desktop-agent.mjs';
+import {runDesktopAgent,recordedTool,dispatchWarning} from '../desktop-agent.mjs';
+import {reconcileDesktopLock,findDesktopTurn} from '../desktop-recovery.mjs';
+import {lockPath,updateTicket,releaseDesktopLock,withDesktopMutex,assertTicket} from '../desktop-lock.mjs';
 import {workerCommand,readRegularJson,validateResult} from '../desktop-worker.mjs';
 import {desktopSetupMarkup} from '../public/desktop-setup.js';
 
@@ -93,4 +95,91 @@ test('lifecycle reader follows appended events and ignores an incomplete trailin
   const line=JSON.stringify({type:'event_msg',payload:{type:'task_complete',turn_id:'t1'}});
   await writeFile(f.rollout,line.slice(0,30),{flag:'a'});assert.equal((await desktopActivity(f.reader,f.job.execution.desktopThreadId)).turns.get('t1'),'inProgress');
   await writeFile(f.rollout,line.slice(30)+'\n',{flag:'a'});assert.equal((await desktopActivity(f.reader,f.job.execution.desktopThreadId)).turns.get('t1'),'completed');
+});
+
+async function abandoned(f,{status='completed',claimed=true,expired=false}={}){
+  const oldId=randomUUID(),directory=path.join(f.base,'jobs',oldId,'desktop'),file=path.join(directory,'ticket.json');
+  await mkdir(directory,{recursive:true});await mkdir(lockPath(f.base,f.job.execution.desktopThreadId));
+  const ticket={schema:1,jobId:oldId,threadId:f.job.execution.desktopThreadId,requestId:randomUUID(),marker:'[old-task]',leaseUntil:expired?0:Date.now()+120000};
+  await atomicJson(file,ticket);await atomicJson(path.join(lockPath(f.base,ticket.threadId),'owner.json'),{jobId:oldId});
+  if(claimed)await atomicJson(path.join(directory,'desktop-ack.json'),{jobId:oldId,threadId:ticket.threadId,requestId:ticket.requestId});
+  f.reader.turns=status?[{id:'old-turn',status,items:[{type:'userMessage',content:[{type:'text',text:ticket.marker}]}]}]:[];
+  return {ticket,file};
+}
+test('completed old owner is recovered before new dispatch, without rewriting the historical project',async t=>{
+ const f=await fixture(t),old=await abandoned(f);const history=path.join(f.base,'old-project.json');await writeFile(history,'unchanged historical bytes');
+ const result=await new Promise(resolve=>runDesktopAgent({...f.opts,queue:async()=>{await f.accept();return {};},onFinish:resolve}));
+ assert.equal(result.code,0,result.error);assert.equal((await readRegularJson(old.file)).revoked,true);assert.equal(await readFile(history,'utf8'),'unchanged historical bytes');
+ assert.ok(f.events.some(e=>e.type==='recovery'));
+});
+test('unknown, live, and incomplete history keep their owner; only proven expired unclaimed work can release',async t=>{
+ for(const variant of [{status:'inProgress'},{status:null},{status:null,claimed:false,expired:true}]){
+  const f=await fixture(t),old=await abandoned(f,variant);
+  const r=await reconcileDesktopLock({dataDir:f.base,threadId:old.ticket.threadId,reader:f.reader,release:true});
+  assert.equal(r.status,variant.expired?'released':variant.status==='inProgress'?'active':'unknown');
+  if(!variant.expired)assert.equal((await readRegularJson(old.file)).revoked,undefined);
+ }
+});
+test('second page turn is found; repeated cursors cannot be treated as a completed search',async t=>{
+ const f=await fixture(t),original=f.reader.call.bind(f.reader);let pages=0;
+ const result=await new Promise(resolve=>runDesktopAgent({...f.opts,queue:async()=>{
+  await f.accept();const current=f.reader.turns[0];
+  f.reader.call=async(method,params)=>{if(method!=='thread/turns/list')return original(method,params);pages++;return params.cursor?{data:[current]}:{data:Array.from({length:100},(_,i)=>({id:'unrelated-'+i,items:[]})),nextCursor:'older'};};return {};
+ },onFinish:resolve}));assert.equal(result.code,0,result.error);assert.ok(pages>=2);
+ f.reader.call=async()=>({data:[],nextCursor:'same'});await assert.rejects(findDesktopTurn(f.reader,{threadId:f.job.threadId,marker:'not-found'}),/分页重复/);
+});
+test('late old finish and stale heartbeat cannot revoke or delete a replacement owner',async t=>{
+ const f=await fixture(t),old=await abandoned(f),threadId=old.ticket.threadId;
+ const acquired=await reconcileDesktopLock({dataDir:f.base,threadId,reader:f.reader,jobId:f.job.id});
+ await updateTicket(old.file,{...old.ticket,revoked:false,leaseUntil:Date.now()+120000});
+ await releaseDesktopLock(old.file,old.ticket);
+ assert.equal((await readRegularJson(old.file)).revoked,true);
+ assert.equal((await readRegularJson(path.join(lockPath(f.base,threadId),'owner.json'))).token,acquired.owner.token);
+ await assert.rejects(workerCommand('claim',old.file),/已停止/);
+});
+test('two recovery contenders cannot both acquire the same desktop slot',async t=>{
+ const f=await fixture(t),old=await abandoned(f);
+ const results=await Promise.allSettled([1,2].map(()=>reconcileDesktopLock({dataDir:f.base,threadId:old.ticket.threadId,reader:f.reader,jobId:randomUUID()})));
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(results.filter(r=>r.status==='rejected').length,1);
+});
+test('claim and complete wait for revocation mutex; revoked work cannot publish',async t=>{
+ const f=await fixture(t);let signal;const queued=new Promise(r=>signal=r),controller=runDesktopAgent({...f.opts,ackTimeoutMs:10000,queue:async()=>{signal();return {};},onFinish(){}});t.after(()=>controller.detach());await queued;
+ let attempt;
+ await withDesktopMutex(f.base,async()=>{const ticket=await readRegularJson(f.ticketFile);attempt=workerCommand('claim',f.ticketFile);await atomicJson(f.ticketFile,{...ticket,revoked:true});});
+ await assert.rejects(attempt,/已停止/);
+});
+test('resume failure warning is visible but credentials and task prompt are redacted',()=>{
+ const warning=dispatchWarning('resume failed token=secret authorization=Bearer secret4 Bearer secret2 https://local/?token=secret3 [VideoStudio request:x] private task body');
+ assert.match(warning,/resume failed/);assert.doesNotMatch(warning,/secret|private task body/);
+});
+
+test('a claim that wins the mutex during timeout is retained until real turn termination',async t=>{
+const base=await mkdtemp(path.join(os.tmpdir(),'vs-peer-race-')),threadId=randomUUID(),id=randomUUID();
+const jobDirectory=path.join(base,'jobs',id),run=path.join(base,'run'),sessions=path.join(base,'sessions');
+await Promise.all([mkdir(jobDirectory,{recursive:true}),mkdir(run),mkdir(sessions)]);
+const rollout=path.join(sessions,'session.jsonl');
+await writeFile(rollout,[{type:'session_meta',payload:{id:threadId}},{type:'turn_context',payload:{approval_policy:'never',sandbox_policy:{type:'danger-full-access'}}}].map(JSON.stringify).join('\n'));
+await writeFile(path.join(run,'run.json'),'{}');
+const ticketFile=path.join(jobDirectory,'desktop','ticket.json');let claiming,staged=false,controller;t.after(()=>controller?.detach());
+const reader={codexHome:base,activity:async()=>({latest:null,turns:new Map()}),async call(method){
+ if(method==='thread/read')return{thread:{id:threadId,path:rollout,source:'vscode',originator:'Codex Desktop'}};
+ if(method==='thread/turns/list'){
+  if(staged)return{data:[]};staged=true;
+  let acquired;const held=new Promise(r=>acquired=r);
+  // Model a valid claim already holding the common OS mutex, whose ack write
+  // completes after poll's initial non-atomic ack read. It uses the same token
+  // validation and serialized ack persistence as the actual claim command.
+  claiming=withDesktopMutex(base,async()=>{
+   const ticket=JSON.parse(await readFile(ticketFile));assertTicket(ticket);acquired();
+   await new Promise(r=>setTimeout(r,150));
+   await writeFile(path.join(path.dirname(ticketFile),'desktop-ack.json'),JSON.stringify({schema:1,jobId:id,requestId:ticket.requestId,threadId}));
+  });await held;return{data:[]};
+ }throw Error(method);
+}};
+const job={id,action:'connect',startedAt:new Date().toISOString(),toolCalls:[],execution:{backend:'desktop',desktopThreadId:threadId}};
+let finished=null;
+controller=runDesktopAgent({codex:'unused',reader,job,context:{jobId:id,jobDirectory,run,selectedSources:[],brief:{},pluginRoot:base},ackTimeoutMs:-1,pollMs:20,event(){},queue:async()=>({}),onFinish:result=>{finished=result;}});
+await new Promise(r=>setTimeout(r,600));await claiming;controller.detach();
+let exists=true;try{await access(lockPath(base,threadId));}catch{exists=false;}
+assert.equal(finished,null);assert.equal(exists,true);await new Promise(r=>setTimeout(r,50));await rm(base,{recursive:true,force:true});
 });

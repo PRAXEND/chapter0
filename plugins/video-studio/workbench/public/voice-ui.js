@@ -6,6 +6,7 @@ export function currentVoiceRequest(project){
   const local=project.voiceSelectionRequest;
   if(local&&!local.answeredAt&&local.voiceIntent===(project.voiceIntent||'saved')&&(local.voiceSelectionId||null)===(project.voiceSelectionId||null))return local;
   const job=project.jobs.find(j=>['voice','produce','create'].includes(j.action)),r=job?.voiceRequest;
+  if(job?.manualProduction)return job.status==='needs_input'&&r&&!r.answeredAt&&r.planHash===project.approval?.planHash&&r.inputHash===project.approval?.inputHash?r:null;
   if(['voice','create'].includes(job?.action))return job.status==='needs_input'&&r&&!r.answeredAt&&job.voiceIntent===(project.voiceIntent||'saved')&&(job.voiceSelectionId||null)===(project.voiceSelectionId||null)?r:null;
   return project.narration&&job?.status==='needs_input'&&r&&!r.answeredAt&&r.planHash===project.approval?.planHash&&r.inputHash===project.approval?.inputHash?r:null;
 }
