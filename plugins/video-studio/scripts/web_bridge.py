@@ -253,6 +253,10 @@ def approve(payload):
 
 
 def check_plan_data(run, approval):
+    data = studio.load_run(run)
+    portrait = studio.production_plan.layout(data["settings"])["mode"] == "portrait-centered"
+    if portrait and (not approval.get("plan_data_sha256") or not approval.get("production_plan_sha256")):
+        raise ValueError("旧竖版方案需按客户排版重新生成并审阅。")
     if not approval.get("plan_data_sha256"):
         return  # Previously approved plans retain their original recovery path.
     plan = read(Path(run) / "workbench-plan.json")
@@ -368,6 +372,7 @@ def production_context(payload):
     return {"schema": 1, "run": str(run), "revision": data["revision"], "brief": data["brief"], "settings": data["settings"],
             "style": style, "style_plan_sha256": (data.get("style_plan") or {}).get("sha256"),
             "production_plan_sha256": (data.get("production_plan") or {}).get("sha256"),
+            "layout_contract": studio.production_plan.layout(data["settings"]),
             "production_policy": str(ROOT / "references" / "production-policy.md"),
             "review_policy": (data.get("brief") or {}).get("requirements", {}).get("review_policy"),
             "review_methods": studio.quality_policy.methods(data, studio.REVIEW_METHODS),

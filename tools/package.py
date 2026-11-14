@@ -7,6 +7,8 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = [
+    'docs/tasks/README.md',
+    'docs/tasks/T-20261114-portrait-layout.md',
     'plugins/video-studio/references/legacy-review-policy.md',
     'plugins/video-studio/scripts/style_context.py',
     'plugins/video-studio/scripts/delivery_requirements.py',

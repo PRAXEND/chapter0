@@ -7,7 +7,7 @@ import {durationLabel,validateDurationRange} from '../public/duration.js';
 
 function fixture(){
   const project={...initialStudio(),topic:'事件',ratio:'16:9',selected:['a'],sources:[{id:'a',kind:'video',status:'ready',sha256:'a'.repeat(64),duration:70}]};
-  const plan=to=>({title:'事件',script:'真实内容',productionPlan:{version:1,materialReview:'Synthetic test',layout:{mode:'unchanged',bottomInset:0}},shots:[{id:'s1',from:0,to,sourceIds:['a'],sourceUses:[{id:'u1',sourceId:'a',inSeconds:0,outSeconds:to,actionGroup:'first',role:'primary',purpose:'test',compatibility:'test'}],layout:{composition:'test',contentBottom:null,captionBottom:null},narration:'内容',visual:'画面',screenText:'',transition:'cut'}]});
+  const plan=to=>({title:'事件',script:'真实内容',productionPlan:{version:1,materialReview:'Synthetic test',layout:{mode:'unchanged'}},shots:[{id:'s1',from:0,to,sourceIds:['a'],sourceUses:[{id:'u1',sourceId:'a',inSeconds:0,outSeconds:to,actionGroup:'first',role:'primary',purpose:'test',compatibility:'test'}],layout:{composition:'test',contentBottom:null,captionBottom:null},narration:'内容',visual:'画面',screenText:'',transition:'cut'}]});
   return {project,plan};
 }
 test('new videos default to 60–70 seconds and export both bounds to the production brief',()=>{

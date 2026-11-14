@@ -2,7 +2,7 @@
 新制作的自动授权、音色前置、独立验收及用户确认修订遵循 [共用制片约定](production-policy.md)。新策略 sampled-objective-v1 允许有证据的抽帧视觉与客观音频验收，采用下文当前方法；不得将无法听审当作免检音量、峰值或字幕同步的理由。
 
 
-所有新制作方案还遵循 [通用素材连续性与竖版构图](common-production.md)：独立于风格的 productionPlan、sourceUses/layout、production_plan 记录与最终 material_continuity / portrait_layout 验收。历史已确认记录可继续恢复，新生成/保存的方案采用新校验。
+所有新制作方案还遵循 [通用素材连续性与竖版构图](common-production.md)：独立于风格的 productionPlan、sourceUses/layout、production_plan 记录与最终 material_continuity / portrait_layout 验收。历史文件保持只读查看；旧竖版批准不得直接用于新制作，须按客户排版重新生成并审阅。横版、方形原恢复路径保留。
 
 ## 新项目的逐项方法
 

@@ -1,6 +1,6 @@
 # Video Studio · Video Generation Workbench
 
-**0.3.0-web.35 · macOS · 分支 `video-generation-workbench`**
+**0.3.0-web.36 · 开发中 · macOS · 分支 `video-generation-workbench-feature`**
 
 输入主题方向、时长范围、横/竖画幅、风格和音色，由同一主会话完成选材、文案、动效与可编辑剪辑；独立验收通过后正式交付。工作台使用专用 Codex 桌面会话控制 hosted ChatCut 网页工程。
 
@@ -16,6 +16,8 @@ python3 tools/verify_checkout.py
 ```
 
 首次使用请按 INSTALL.md 完成环境与插件安装后启动；上面的校验只证明发行文件完整，不证明账号连接或制作权限已配置。
+
+本功能分支从 `76aac51` 建立，尚未发布或安装。竖版采用客户统一排版：居中等比素材、顶部两行标题留空、下方固定白色字幕、花字在实际素材内；不再使用整体上移和底部留量。横版、方形及封面保持原构图。旧竖版方案继续制作前需重新生成并审阅，历史文件保留。见 [本次任务与验证](docs/tasks/T-20261114-portrait-layout.md)。下列安装命令仍指向已发布分支。
 
 ## 本分支范围
 

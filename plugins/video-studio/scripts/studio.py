@@ -37,7 +37,7 @@ DEFAULTS = {
     "max_video_sources": 6, "max_download_seconds": 300,
     "voice": None, "default_style": None,
     "narration": None, "captions": None, "audio_required": None,
-    "review_policy": None, "production_preferences": {}, "portrait_bottom_inset": .18, "replay_authorization": None,
+    "review_policy": None, "production_preferences": {}, "layout_policy": "customer-portrait-v1", "replay_authorization": None,
 }
 REVIEW_METHODS = {"material_continuity": "source_windows_and_playback",
                   "portrait_layout": "composited_sequence_inspection", "visuals": "continuous_playback", "audio_listening": "full_mix_listening",
@@ -178,10 +178,17 @@ def profile():
     result = {**DEFAULTS, "output_root": str(Path.home() / "Movies/Video Studio")}
     if path.exists():
         result.update(read(path))
+    result.pop("portrait_bottom_inset", None)
+    result["layout_policy"] = "customer-portrait-v1"
     return result
 
 
 def validate_settings(result, complete=False):
+    result = dict(result)
+    result.pop("portrait_bottom_inset", None)
+    if result.get("layout_policy", "customer-portrait-v1") != "customer-portrait-v1":
+        raise StudioError("Unsupported layout policy")
+    result["layout_policy"] = "customer-portrait-v1"
     if result.get("review_policy") not in (None, quality_policy.POLICY):
         raise StudioError("Unsupported review policy")
     production_plan.layout(result)
@@ -248,6 +255,9 @@ def apply_brief(data, payload, directory):
     if payload.get("workbench_rules") == 2 and type(payload.get("generate_music")) is not bool:
         raise StudioError("Record the explicit generate_music setting")
     patch = payload.get("requirements", {})
+    if isinstance(patch, dict):
+        patch = {k: v for k, v in patch.items() if k != "portrait_bottom_inset"}
+        payload = {**payload, "requirements": {**patch, "layout_policy": "customer-portrait-v1"}}
     if not isinstance(patch, dict) or set(patch) - set(DEFAULTS):
         raise StudioError("Unknown brief requirements")
     settings = validate_settings({**data["settings"], **patch}, complete=True)

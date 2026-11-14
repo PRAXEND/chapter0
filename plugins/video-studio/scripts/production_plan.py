@@ -10,13 +10,72 @@ def numeric(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
+def same(left, right):
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(same(left[k], right[k]) for k in left)
+    if numeric(left) and numeric(right):
+        return left == right
+    return type(left) is type(right) and left == right
+
+
 def layout(settings):
-    portrait = (settings.get("height") or 0) > (settings.get("width") or 0)
-    inset = settings.get("portrait_bottom_inset", .18)
-    if not numeric(inset) or not 0 <= inset <= .4:
-        raise ValueError("竖版底部留量需要在 0–40% 之间。")
-    return {"mode": "portrait-safe" if portrait else "unchanged",
-            "bottomInset": inset if portrait else 0}
+    width, height = settings.get("width"), settings.get("height")
+    portrait = numeric(width) and numeric(height) and 0 < width < height
+    if not portrait:
+        return {"mode": "unchanged"}
+    return {"mode": "portrait-centered", "version": 1, "background": "#000000",
+            "titleBox": dict(left=.05, top=.04, right=.95, bottom=.28),
+            "mediaBox": dict(left=0, top=.32, right=1, bottom=.68),
+            "captionBox": dict(left=.05, top=.72, right=.95, bottom=.88),
+            "fit": "contain", "captionStyle": {
+                "fontFamily": "sans-serif", "fontSize": width * .05,
+                "fontWeight": 600, "lineHeight": 1.25, "color": "#FFFFFF",
+                "align": "center", "verticalAlign": "top"}}
+
+
+def box(value):
+    return (isinstance(value, dict) and set(value) == {"left", "top", "right", "bottom"}
+            and all(numeric(v) for v in value.values())
+            and 0 <= value["left"] < value["right"] <= 1
+            and 0 <= value["top"] < value["bottom"] <= 1)
+
+
+def inside(inner, outer, tolerance_x=0, tolerance_y=0):
+    return (box(inner) and box(outer) and inner["left"] >= outer["left"] - tolerance_x
+            and inner["top"] >= outer["top"] - tolerance_y
+            and inner["right"] <= outer["right"] + tolerance_x
+            and inner["bottom"] <= outer["bottom"] + tolerance_y)
+
+
+def validate_placement(placement, settings, measured=False):
+    if not isinstance(placement, dict) or not text(placement.get("composition")):
+        raise ValueError("请记录镜头构图与动作保护方式。")
+    expected = layout(settings)
+    if expected["mode"] == "unchanged":
+        return
+    # Actual timeline pixels may round by one pixel; plans use exact normalized boxes.
+    tolerance_x = 1 / settings["width"] + 1e-9 if measured else 1e-9
+    tolerance_y = 1 / settings["height"] + 1e-9 if measured else 1e-9
+    for key in ("mediaBox", "captionBox"):
+        actual = placement.get(key)
+        if key == "captionBox" and not settings.get("captions"):
+            if actual is not None:
+                raise ValueError("关闭字幕时 captionBox 应为 null。")
+            continue
+        if not box(actual) or any(abs(actual[k] - expected[key][k]) > (tolerance_x if k in {"left", "right"} else tolerance_y) for k in actual):
+            raise ValueError("素材区必须居中，字幕区必须固定在素材下方；全片使用相同布局。")
+    if placement.get("fit") != "contain" or placement.get("titleClear") is not True:
+        raise ValueError("素材须等比完整适配，顶部标题区保持空白。")
+    if not same(placement.get("captionStyle"), expected["captionStyle"] if settings.get("captions") else None):
+        raise ValueError("普通字幕的字体、字号、白色、对齐和位置必须统一。")
+    emphasis = placement.get("emphasisBoxes")
+    if not isinstance(emphasis, list):
+        raise ValueError("请记录花字动画包围盒；没有花字时使用空列表。")
+    for item in emphasis:
+        # footageBounds excludes contain padding, so text cannot occupy black bars.
+        if (not isinstance(item, dict) or not inside(item.get("footageBounds"), expected["mediaBox"], tolerance_x, tolerance_y)
+                or not inside(item.get("bounds"), item.get("footageBounds"), tolerance_x, tolerance_y)):
+            raise ValueError("花字完整动画必须位于对应的实际素材画面内，不能进入黑底留白区。")
 
 
 def source_identity(source):
@@ -81,7 +140,9 @@ def validate(plan, data, required=True):
     if policy is None and not required:
         return plan
     expected = layout(settings)
-    if not isinstance(policy, dict) or type(policy.get("version")) is not int or policy.get("version") != 1 or policy.get("layout") != expected or not text(policy.get("materialReview")):
+    saved_layout = policy.get("layout") if isinstance(policy, dict) else None
+    compatible_landscape = expected == {"mode": "unchanged"} and saved_layout == {"mode": "unchanged", "bottomInset": 0}
+    if not isinstance(policy, dict) or type(policy.get("version")) is not int or policy.get("version") != 1 or (not same(saved_layout, expected) and not compatible_landscape) or not text(policy.get("materialReview")):
         raise ValueError("请补充通用素材检查和与实际画幅一致的布局方案。")
     sources = {s["id"]: s for s in data.get("sources", [])}
     all_uses, shots = [], set()
@@ -105,18 +166,7 @@ def validate(plan, data, required=True):
         if visuals != {u.get("sourceId") for u in uses}:
             raise ValueError("每个画面来源都需要具体使用记录。")
         all_uses.extend(uses)
-        placement = shot.get("layout")
-        if not isinstance(placement, dict) or not text(placement.get("composition")):
-            raise ValueError("请记录镜头构图与动作保护方式。")
-        for key in ("contentBottom", "captionBottom"):
-            value = placement.get(key)
-            needed = expected["mode"] == "portrait-safe" and (key == "contentBottom" or settings.get("captions"))
-            if value is None and not needed:
-                continue
-            if not numeric(value) or not 0 <= value <= 1:
-                raise ValueError("关键画面和字幕下缘需用 0–1 的画高比例表示。")
-            if expected["mode"] == "portrait-safe" and value > 1 - expected["bottomInset"] + 1e-9:
-                raise ValueError("字幕或关键画面进入竖版底部避让区。")
+        validate_placement(shot.get("layout"), settings)
     if not shots:
         raise ValueError("通用制作方案需要实际镜头。")
     validate_uses(all_uses, sources, settings.get("replay_authorization"))
@@ -146,7 +196,7 @@ def implementation_errors(data, directory, frames):
     expected = {u["id"]: (s["id"], u) for s in plan["shots"] for u in s["sourceUses"]}
     shots = {s["id"]: s for s in plan["shots"]}
     seen, covered, actual, errors = set(), set(), [], []
-    portrait = layout(data["settings"])["mode"] == "portrait-safe"
+    portrait = layout(data["settings"])["mode"] == "portrait-centered"
     def proof(row):
         return (isinstance(row.get("item_ids"), list) and bool(row["item_ids"]) and all(text(i) for i in row["item_ids"])
                 and text(row.get("observations")) and isinstance(row.get("evidence_files"), list) and bool(row["evidence_files"])
@@ -183,9 +233,8 @@ def implementation_errors(data, directory, frames):
             actual.append(row)
         if portrait:
             result = beat.get("layout_result") or {}
-            fake = {"productionPlan": plan["productionPlan"], "shots": [{**shots[sid], "sourceIds": [], "sourceUses": [], "layout": result}]}
             try:
-                validate(fake, data)
+                validate_placement(result, data["settings"], measured=True)
                 if not proof(result):
                     raise ValueError("Missing evidence")
             except (ValueError, KeyError, TypeError):

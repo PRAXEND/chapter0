@@ -1,3 +1,4 @@
+import {productionLayout} from '../public/production-plan.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn,execFile} from 'node:child_process';
@@ -136,7 +137,7 @@ else {
     const again=await api('/api/library/use',{id:cached.id});assert.equal(again.value.project.sources.length,1);assert.deepEqual(again.value.project.selected,[source.id]);
     const actual={...settings,selected:[source.id]};await api('/api/project',actual);
     state=(await api('/api/state')).value;const choices=JSON.parse(await readFile(path.join(state.project.run,'material-selection.json'),'utf8'));assert.deepEqual(choices.selected_source_ids,[source.id]);assert.equal(choices.confirmed_by_user,true);
-    const plan={productionPlan:{version:1,materialReview:'Synthetic HTTP fixture',layout:{mode:'unchanged',bottomInset:0}},title:'方案',summary:'人工审核测试',script:'可编辑内容',shots:[{id:'1',from:0,to:2,sourceIds:[source.id],sourceUses:[{id:'u1',sourceId:source.id,inSeconds:0,outSeconds:1,actionGroup:'diagnostic-segment',role:'primary',purpose:'HTTP fixture',compatibility:'Synthetic, no news claims'}],layout:{composition:'Full frame diagnostic',contentBottom:null,captionBottom:null},narration:'',visual:'真实素材',screenText:'测试',transition:'无'}],gaps:[],notes:[]};
+    const plan={productionPlan:{version:1,materialReview:'Synthetic HTTP fixture',layout:{mode:'unchanged'}},title:'方案',summary:'人工审核测试',script:'可编辑内容',shots:[{id:'1',from:0,to:2,sourceIds:[source.id],sourceUses:[{id:'u1',sourceId:source.id,inSeconds:0,outSeconds:1,actionGroup:'diagnostic-segment',role:'primary',purpose:'HTTP fixture',compatibility:'Synthetic, no news claims'}],layout:{composition:'Full frame diagnostic',contentBottom:null,captionBottom:null},narration:'',visual:'真实素材',screenText:'测试',transition:'无'}],gaps:[],notes:[]};
     await writeFile(path.join(state.project.run,'fixture-plan.json'),JSON.stringify({...plan,stylePlan:null,limitations:[]}));
     const planned=await api('/api/jobs',{action:'plan'});assert.equal(planned.status,202,JSON.stringify(planned.value));let planningJob;
     for(let n=0;n<100;n++){planningJob=(await api('/api/jobs/'+planned.value.job.id)).value;if(!['running','cancelling'].includes(planningJob.status)&&!(await api('/api/state')).value.activeJobId)break;await new Promise(r=>setTimeout(r,100));}
@@ -198,6 +199,21 @@ else {
     let directJob;for(let n=0;n<80;n++){directJob=(await api('/api/jobs/'+direct.value.job.id)).value;if(!['running','cancelling'].includes(directJob.status))break;await new Promise(r=>setTimeout(r,100));}
     assert.equal(directJob.status,'completed',directJob.error);assert.equal(directJob.execution,'direct_repository');assert.equal(directJob.threadId,undefined);assert.deepEqual(directJob.usage,{input_tokens:0,output_tokens:0});
     const directState=(await api('/api/state')).value;assert.ok(directState.project.sources.some(s=>s.status==='ready'&&s.sha256===directSha&&s.acquisitionReport));assert.deepEqual(directState.project.selected,[]);
+    // Real HTTP + Python bridge: portrait contracts survive save/approval and bad layouts cannot overwrite them.
+    const portraitSource=directState.project.sources.find(s=>s.status==='ready');
+    const portraitSettings={...directState.project,ratio:'9:16',duration:3,durationMin:null,narration:false,captions:true,music:'none',styleSelector:null,selected:[portraitSource.id]};
+    assert.equal((await api('/api/project',portraitSettings)).status,200);
+    const layout=productionLayout({width:1080,height:1920});
+    const portraitPlan={...plan,productionPlan:{...plan.productionPlan,layout},shots:[{...plan.shots[0],sourceIds:[portraitSource.id],sourceUses:[{...plan.shots[0].sourceUses[0],sourceId:portraitSource.id}],layout:{composition:'Synthetic centered fixture; not visual QA',mediaBox:layout.mediaBox,captionBox:layout.captionBox,captionStyle:layout.captionStyle,fit:'contain',titleClear:true,emphasisBoxes:[]}}]};
+    const portraitSaved=await api('/api/plan',{plan:portraitPlan});assert.equal(portraitSaved.status,200,JSON.stringify(portraitSaved.value));
+    const portraitApproved=await api('/api/approve',{planHash:portraitSaved.value.plan.planHash});assert.equal(portraitApproved.status,200);
+    const beforeBad=(await api('/api/state')).value.project;
+    const bad=structuredClone(portraitPlan);bad.shots[0].layout.titleClear=false;
+    assert.equal((await api('/api/plan',{plan:bad})).status,400);
+    const afterBad=(await api('/api/state')).value.project;assert.deepEqual(afterBad.approval,beforeBad.approval);
+    const runState=JSON.parse(await readFile(path.join(afterBad.run,'run.json'),'utf8'));
+    assert.equal(runState.settings.layout_policy,'customer-portrait-v1');assert.equal(runState.settings.portrait_bottom_inset,undefined);
+    assert.deepEqual(runState.production_plan.plan.productionPlan.layout,layout);
     console.log('API verified: review hashes, file upload/range serving, source validation, no fabricated export, scoped access.');
   }finally{server?.kill('SIGTERM');if(server&&server.exitCode===null)await new Promise(r=>{const timer=setTimeout(()=>{server.kill('SIGKILL');r();},4000);server.once('exit',()=>{clearTimeout(timer);r();});});await rm(temp,{recursive:true,force:true});}
 });

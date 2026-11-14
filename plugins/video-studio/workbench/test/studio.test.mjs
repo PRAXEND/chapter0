@@ -1,3 +1,7 @@
+import {productionLayout} from '../public/production-plan.js';
+const layoutSettings={width:1080,height:1920,captions:true};
+const portraitLayout=()=>productionLayout(layoutSettings);
+const placement=(captions=true)=>({composition:'Centered material',mediaBox:{...portraitLayout().mediaBox},captionBox:captions?{...portraitLayout().captionBox}:null,captionStyle:captions?{...portraitLayout().captionStyle}:null,fit:'contain',titleClear:true,emphasisBoxes:[]});
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {initialStudio,validateSettings,updateSettings,validatePlan,inputHash,assertReady,brief,taskPrompt,approvalAuthority} from '../studio-workflow.mjs';
@@ -5,7 +9,7 @@ import {privateAddress,publicUrl} from '../media.mjs';
 
 function project(){const p=initialStudio();Object.assign(p,{duration:30,durationMin:null,topic:'测试内容',sources:[{id:'a',kind:'video',duration:30,sha256:'a'.repeat(64),status:'ready',localPath:'/tmp/a.mp4'}],selected:['a']});return p;}
 function settings(p){const {topic,purpose,duration,ratio,fps,language,narration,captions,music,voiceDirection,styleSelector,styleDescription,outputRoot,selected}=p;return {topic,purpose,duration,ratio,fps,language,narration,captions,music,voiceDirection,styleSelector,styleDescription,outputRoot,selected};}
-function plan(){return {productionPlan:{version:1,materialReview:'Synthetic observations',layout:{mode:'portrait-safe',bottomInset:.18}},title:'方案',script:'文案',shots:[{id:'1',from:0,to:30,sourceIds:['a'],sourceUses:[{id:'u1',sourceId:'a',inSeconds:0,outSeconds:30,actionGroup:'capture-01',role:'primary',purpose:'test',compatibility:'synthetic'}],layout:{composition:'Full action protected',contentBottom:.8,captionBottom:.8},narration:'文案',visual:'画面',screenText:'标题',transition:'硬切'}],gaps:[],notes:[]};}
+function plan(){return {productionPlan:{version:1,materialReview:'Synthetic observations',layout:portraitLayout()},title:'方案',script:'文案',shots:[{id:'1',from:0,to:30,sourceIds:['a'],sourceUses:[{id:'u1',sourceId:'a',inSeconds:0,outSeconds:30,actionGroup:'capture-01',role:'primary',purpose:'test',compatibility:'synthetic'}],layout:placement(),narration:'文案',visual:'画面',screenText:'标题',transition:'硬切'}],gaps:[],notes:[]};}
 test('sound choices reach the production brief and changes revoke approval',()=>{
   const p=project();assert.equal(p.narration,true);assert.equal(brief(p).requirements.audio_required,true);
   for(const choice of [{narration:false,music:'source'},{narration:false,music:'instrumental'},{narration:false,music:'none'},{narration:true,music:'none'}]){

@@ -2,7 +2,7 @@
 新制作的自动授权、音色前置、独立验收及用户确认修订遵循 [共用制片约定](production-policy.md)。新策略 sampled-objective-v1 允许有证据的抽帧视觉与客观音频验收，优先于下文历史播放/听审要求；不得将无法听审当作免检音量、峰值或字幕同步的理由。
 
 
-所有新制作方案还遵循 [通用素材连续性与竖版构图](common-production.md)：独立于风格的 productionPlan、sourceUses/layout、production_plan 记录与最终 material_continuity / portrait_layout 验收。历史已确认记录可继续恢复，新生成/保存的方案采用新校验。
+所有新制作方案还遵循 [通用素材连续性与竖版构图](common-production.md)：独立于风格的 productionPlan、sourceUses/layout、production_plan 记录与最终 material_continuity / portrait_layout 验收。历史文件保持只读查看；旧竖版批准不得直接用于新制作，须按客户排版重新生成并审阅。横版、方形原恢复路径保留。
 
 网页代码与服务位于本插件 `workbench/`，由 [open-video-workbench](../skills/open-video-workbench/SKILL.md) 启动和打开。`scripts/open-workbench.mjs` 核对已有服务后返回实际地址，不依赖仓库外的 sites 目录。项目数据使用独立用户应用数据目录，或 VIDEO_STUDIO_WEB_DATA 指定的位置，不能写到插件版本缓存里。
 

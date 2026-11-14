@@ -13,13 +13,24 @@ import studio
 import web_bridge
 
 
+def placement(settings):
+    policy = common.layout(settings)
+    if policy['mode'] == 'unchanged':
+        return dict(composition='原画幅构图')
+    return dict(composition='素材居中完整显示，字幕固定下方',
+                mediaBox=copy.deepcopy(policy['mediaBox']),
+                captionBox=copy.deepcopy(policy['captionBox']) if settings['captions'] else None,
+                captionStyle=copy.deepcopy(policy['captionStyle']) if settings['captions'] else None,
+                fit='contain', titleClear=True, emphasisBoxes=[])
+
+
 def proposed(width=1080, height=1920, captions=True):
-    settings = dict(width=width, height=height, captions=captions, portrait_bottom_inset=.18)
+    settings = dict(width=width, height=height, captions=captions)
     source = dict(id='a', kind='video', duration=10, sha256='a'*64, url='https://example.org/a', start=100)
     use = dict(id='u1', sourceId='a', inSeconds=1, outSeconds=3, actionGroup='capture-a-01',
                role='primary', purpose='实际动作', compatibility='对应旁白且无冲突文字')
     shot = dict(id='s1', sourceIds=['a'], sourceUses=[use],
-                layout=dict(composition='完整动作上移且背景铺满', contentBottom=.78, captionBottom=.80 if captions else None),
+                layout=placement(settings),
                 **{'from': 0, 'to': 2}, narration='', visual='实际画面', screenText='', transition='硬切')
     plan = dict(title='Synthetic', script='test', shots=[shot],
                 productionPlan=dict(version=1, materialReview='synthetic observations', layout=common.layout(settings)))
@@ -27,34 +38,73 @@ def proposed(width=1080, height=1920, captions=True):
 
 
 class PlanRulesTests(unittest.TestCase):
-    def test_no_style_and_each_style_get_the_same_rules(self):
-        for style in (None, 'henry-hot-news@8', 'henry-technical-explainer@8'):
+    def test_no_style_and_each_style_get_the_same_centered_regions(self):
+        for style in (None, 'henry-hot-news@8', 'henry-technical-explainer@8', 'shawn-action-breakdown@2'):
             p, d = proposed(); d['style_snapshot'] = style
             common.validate(p, d)
-            p['shots'][0]['layout']['captionBottom'] = .9
-            with self.assertRaisesRegex(ValueError, '避让区'): common.validate(p, d)
+            region = p['productionPlan']['layout']['mediaBox']
+            self.assertEqual((region['left']+region['right'])/2, .5)
+            self.assertEqual((region['top']+region['bottom'])/2, .5)
+            self.assertGreater(p['shots'][0]['layout']['captionBox']['bottom'], .82)
+            p['shots'][0]['layout']['captionBox']['top'] = .6
+            with self.assertRaisesRegex(ValueError, '固定'): common.validate(p, d)
 
     def test_portrait_dimensions_not_style_or_resolution_control_layout(self):
+        self.assertEqual(common.layout(dict(width=None,height=1920)), dict(mode="unchanged"))
         for w, h in ((1080, 1920), (720, 1280), (900, 1200)):
             p, d = proposed(w, h, False); common.validate(p, d)
-            p['shots'][0]['layout']['contentBottom'] = .85
+            p['shots'][0]['layout']['mediaBox']['top'] = .2
             with self.assertRaises(ValueError): common.validate(p, d)
         for w, h in ((1920, 1080), (1080, 1080)):
             p, d = proposed(w, h)
-            p['shots'][0]['layout'].update(contentBottom=None, captionBottom=.98)
-            self.assertEqual(p['productionPlan']['layout'], dict(mode='unchanged', bottomInset=0))
+            self.assertEqual(p['productionPlan']['layout'], dict(mode='unchanged'))
             common.validate(p, d)
 
-    def test_portrait_override_and_optional_captions(self):
+    def test_removed_inset_cannot_shift_layout_or_validate_old_portrait(self):
         p, d = proposed(captions=False)
-        common.validate(p, d)
-        d['settings']['portrait_bottom_inset'] = .25
+        for value in (.25, True, float('nan'), -.1, .41, '18'):
+            d['settings']['portrait_bottom_inset'] = value
+            common.validate(p, d)
+        p['shots'][0]['layout']['captionBox'] = dict(left=.05,top=.72,right=.95,bottom=.88)
         with self.assertRaises(ValueError): common.validate(p, d)
-        p['productionPlan']['layout'] = common.layout(d['settings'])
-        p['shots'][0]['layout']['contentBottom'] = .75
+        p, d = proposed()
+        p['productionPlan']['layout'] = dict(mode='portrait-safe', bottomInset=.18)
+        with self.assertRaises(ValueError): common.validate(p, d)
+
+    def test_title_caption_style_and_contain_are_mandatory(self):
+        for field, value in [('titleClear', False), ('titleClear', 1), ('fit', 'cover'), ('emphasisBoxes', None)]:
+            p, d = proposed(); p['shots'][0]['layout'][field] = value
+            with self.assertRaises(ValueError): common.validate(p, d)
+        for field, value in [('color','#FFFF00'), ('fontSize',30), ('align','left'), ('verticalAlign','center')]:
+            p, d = proposed(); p['shots'][0]['layout']['captionStyle'][field] = value
+            with self.assertRaises(ValueError): common.validate(p, d)
+
+    def test_emphasis_stays_in_actual_footage_not_contain_padding(self):
+        p, d = proposed()
+        # Portrait source within a wider display container: black side padding is not footage.
+        item = dict(footageBounds=dict(left=.3,top=.32,right=.7,bottom=.68),
+                    bounds=dict(left=.4,top=.4,right=.6,bottom=.5))
+        p['shots'][0]['layout']['emphasisBoxes'] = [item]
         common.validate(p, d)
-        for value in (True, float('nan'), -.1, .41, '18'):
-            with self.assertRaises(ValueError): common.layout(dict(portrait_bottom_inset=value))
+        for field, value in [('left',.1), ('top',.2), ('bottom',.73), ('right',float('nan'))]:
+            bad = copy.deepcopy(p); bad['shots'][0]['layout']['emphasisBoxes'][0]['bounds'][field] = value
+            with self.assertRaisesRegex(ValueError, '花字'): common.validate(bad, d)
+
+    def test_actual_bounds_allow_one_pixel_rounding_per_axis_only(self):
+        _, d = proposed(); actual = placement(d['settings'])
+        actual['mediaBox']['top'] += 1/1920
+        actual['captionBox']['left'] += 1/1080
+        actual['emphasisBoxes'] = [dict(footageBounds=dict(left=.3,top=.32,right=.7,bottom=.68),
+            bounds=dict(left=.3-1/1080,top=.4,right=.6,bottom=.5))]
+        common.validate_placement(actual,d['settings'],measured=True)
+        with self.assertRaises(ValueError): common.validate_placement(actual,d['settings'])
+        actual['emphasisBoxes'][0]['bounds']['left'] -= 1/1080
+        with self.assertRaises(ValueError): common.validate_placement(actual,d['settings'],measured=True)
+
+    def test_legacy_landscape_zero_field_does_not_block_approved_layout(self):
+        p, d = proposed(1920,1080)
+        p['productionPlan']['layout'] = dict(mode='unchanged',bottomInset=0)
+        common.validate(p,d)
 
     def test_known_repeats_overlap_and_same_bytes_are_rejected(self):
         for mode in ('same-source', 'same-bytes', 'same-file', 'source-loop', 'repost-group', 'url-offset'):
@@ -172,11 +222,11 @@ class ProductionAuditTests(unittest.TestCase):
     def test_portrait_requires_actual_placement_and_caption_bounds(self):
         data = studio.load_run(self.run); data['settings'].update(width=90, height=160, captions=True)
         studio.write(self.run/'run.json', data)
-        self.plan['productionPlan']['layout'] = common.layout(data['settings']); self.plan['shots'][0]['layout']['captionBottom'] = .80
+        self.plan['productionPlan']['layout'] = common.layout(data['settings']); self.plan['shots'][0]['layout'] = placement(data['settings'])
         self.save(); self.assertTrue(self.errors())
         self.beat['layout_result'] = {**self.plan['shots'][0]['layout'], **self.proof}
         studio.record(self.run, 'beat', self.beat); self.assertEqual(self.errors(), [])
-        self.beat['layout_result']['contentBottom'] = .95
+        self.beat['layout_result']['mediaBox']['top'] = .2
         studio.record(self.run, 'beat', self.beat); self.assertTrue(self.errors())
 
     def test_web_approval_binds_common_plan_without_a_style(self):
@@ -201,3 +251,30 @@ class ProductionAuditTests(unittest.TestCase):
         self.assertEqual(changed['status'], 'awaiting_confirmation')
         with self.assertRaises(ValueError): web_bridge.check_approval(request)
         self.assertEqual(self.errors(), [])
+
+    def test_portrait_per_beat_validation_does_not_apply_full_duration_minimum(self):
+        data = studio.load_run(self.run); data['settings'].update(width=90,height=160,captions=True,min_seconds=4,max_seconds=4)
+        studio.write(self.run/'run.json',data)
+        self.plan['productionPlan']['layout'] = common.layout(data['settings'])
+        first = self.plan['shots'][0]; first['layout'] = placement(data['settings'])
+        second = copy.deepcopy(first); second.update(id='s2', **{'from':2,'to':4})
+        second['sourceUses'][0].update(id='u2', inSeconds=3,outSeconds=5,actionGroup='capture-02')
+        self.plan['shots'].append(second)
+        self.save()
+        self.beat['layout_result'] = {**copy.deepcopy(first['layout']), **self.proof}
+        studio.record(self.run,'beat',self.beat)
+        next_beat = {**self.beat,'id':'b2','shot_id':'s2','from_frame':50,'to_frame':100,
+                     'source_uses':[{**second['sourceUses'][0], **self.proof,'from_frame':50,'to_frame':100}]}
+        studio.record(self.run,'beat',next_beat)
+        self.assertEqual(common.implementation_errors(studio.load_run(self.run),self.run,100),[])
+
+    def test_legacy_portrait_approval_cannot_bypass_missing_bindings(self):
+        self.save()
+        saved = web_bridge.save_plan(dict(run=str(self.run),plan=self.plan,inputHash='a'*64))
+        data = studio.load_run(self.run); data['settings'].update(width=90,height=160)
+        studio.write(self.run/'run.json',data)
+        for missing in ('plan_data_sha256','production_plan_sha256'):
+            approval = {**saved}; approval.pop(missing,None)
+            with self.assertRaisesRegex(ValueError,'旧竖版'):
+                web_bridge.check_plan_data(self.run,approval)
+        with self.assertRaises(ValueError): web_bridge.check_plan_data(self.run,saved)

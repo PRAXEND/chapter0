@@ -430,7 +430,7 @@ async function startJob(action,options={}){
   requireDependencies([...capabilities,...(['discover','plan','produce','create'].includes(action)?styleCapabilities(project.styleSelector):[])]);
   if(action==='discover'){const query=String(options.query||project.topic).trim();if(!query)throw new Error('请输入要查找的素材关键词。');adoptTopic(query);}
   if(action==='collect'){const source=project.sources.find(s=>s.id===options.sourceId);if(!source)throw new Error('找不到选中的内容。');adoptTopic(source.title);}
-  if(action==='plan'){adoptTopic(project.sources.find(s=>project.selected.includes(s.id))?.title);project.workflowVersion=1;project.portraitBottomInset??=.18;project.approval=null;if(project.plan)project.plan.stale=true;if(!project.planningGeneration||project.jobs.find(j=>j.action==='plan')?.status==='completed')project.planningGeneration=randomUUID();}
+  if(action==='plan'){adoptTopic(project.sources.find(s=>project.selected.includes(s.id))?.title);project.workflowVersion=1;project.approval=null;if(project.plan)project.plan.stale=true;if(!project.planningGeneration||project.jobs.find(j=>j.action==='plan')?.status==='completed')project.planningGeneration=randomUUID();}
   const desktopExecution=!directCollection&&desktopAction(action)?await desktop.requireReady():null;
   await ensureRun();
   if(['plan','produce'].includes(action))await checkSelected();
