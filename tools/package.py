@@ -7,6 +7,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = [
+    'UPGRADE.md',
     'docs/tasks/T-20261115-web35-session-audit.md',
     'plugins/video-studio/scripts/desktop_mutex.py',
     'plugins/video-studio/scripts/music_residual.py',

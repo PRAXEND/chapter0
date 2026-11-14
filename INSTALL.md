@@ -1,6 +1,8 @@
 # Video Studio 工作台安装与完整使用说明
 
-适用版本：`0.3.0-web.35`；Git 分支：`video-generation-workbench`；支持平台：macOS。仓库：https://github.com/PRAXEND/chapter0 。本说明核对日期：2026-11-06。
+适用版本：`0.3.0-web.38`；Git 分支：`video-generation-workbench`；支持平台：macOS。仓库：https://github.com/PRAXEND/chapter0 。本说明核对日期：2026-11-15。
+
+从 web.35 / web.36 / web.37 更新，请先按 **[UPGRADE.md](UPGRADE.md)** 备份、更新安装副本并重启空闲工作台。下载入口：[web.38 安装包](https://github.com/PRAXEND/chapter0/releases/tag/v0.3.0-web.38)。ZIP 不包含大型风格媒体，首次完整安装仍使用下方 Git + LFS 流程。
 
 这份仓库提供插件、网页工作台、公开风格规则、参考试片、复现媒体和校验工具。Codex、ChatCut 账号、电脑/浏览器授权和服务额度需要使用者自行配置。不能只下载 `plugins/video-studio` 文件夹：风格媒体位于仓库根目录 `user-packs/henry-video-styles`，通过 Git LFS 下载。
 
@@ -151,7 +153,7 @@ python3 tools/run_workbench.py --check
 python3 tools/run_workbench.py
 ```
 
-正常返回 `ok:true`、`version:0.3.0-web.35` 和 `http://127.0.0.1:4317`。浏览器打开该地址即可。服务在后台运行，日志在个人应用数据目录。启动工具会携带当前完整 Python、实际安装目录和此 checkout 的媒体路径；不用双击 HTML，不用安装网站开发依赖。
+正常返回 `ok:true`、`version:0.3.0-web.38` 和 `http://127.0.0.1:4317`。浏览器打开该地址即可。服务在后台运行，日志在个人应用数据目录。启动工具会携带当前完整 Python、实际安装目录和此 checkout 的媒体路径；不用双击 HTML，不用安装网站开发依赖。
 
 首次使用在页面的“桌面执行会话”区域完成：
 
@@ -223,6 +225,8 @@ python3 tools/run_workbench.py
 ## 10. 更新、备份与常见问题
 
 更新前请等待在制项目完成，或在原版本停止。更新后既有项目只读，可以查看与下载；点击「新建项目」使用新版制作规则。
+
+web.38 的逐步升级、三处版本核对、旧会话恢复和回退方法以 [UPGRADE.md](UPGRADE.md) 为准。验收不通过暂停的是该项目；制作另一条视频应新建项目，可复用空闲的桌面执行会话。
 
 后续更新顺序：停止或等待当前任务完成 → `git pull --ff-only origin video-generation-workbench` → `git lfs pull --include='user-packs/henry-video-styles/media/**' --exclude=''` → `python3 tools/verify_checkout.py` → 按第 4 节刷新本地来源并重新 `plugin add` 保存安装 JSON → 重启空闲工作台 → 刷新页面。若 CLI 报告已安装而版本未更新，核对来源和安装返回值，必要时仅移除并重装 Video Studio 插件，保留用户数据目录。
 

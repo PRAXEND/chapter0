@@ -1,6 +1,6 @@
 # web.35 遗留问题与桌面会话阻塞复核
 
-状态：web.38 本地实现、回归、独立复核和安装包启动验证通过；本地开发工作台已升级。未合并、未推送、未发布，不等于客户验收。第一轮审查结论保留如下，最新实现与验证见文末。负责人：当前主 Agent。日期：2026-11-15。
+状态：web.38 实现与独立复核通过，已按用户指令合入发布分支；本次发行与升级记录见文末。历史阶段结论保留，不等于客户成片验收。负责人：当前主 Agent。日期：2026-11-15。
 
 ## 目标与边界
 
@@ -96,3 +96,14 @@ python3 -B tools/verify_checkout.py --strict-tree
 ```
 
 证据：`validation/web38-python.log`、`web38-node.log`、`web38-music-final.log`、`web38-plugin-verify.log`、`web38-portable-verify.log`、`web38-runtime-verify.json`及包清单。首轮测试中的VM依赖注入、重复测试变量和临时目录创建竞态已修正；未放宽断言。根目录企渡官网的上下文检查器不适用于本独立视频仓库，也未修改官网代码。
+
+
+## 第三轮：web.38 发布与客户升级（2026-11-15）
+
+用户明确授权合并发布分支、推送远端并更新安装包和升级说明。先核实远端 `video-generation-workbench` 为 `76aac51`，发布工作区干净；本地通过 `git merge --ff-only a4e3118` 保留全部已审查提交，再更新发行资料。未改仓库默认分支、官网代码、客户数据或本机插件缓存。
+
+发布目标为 `PRAXEND/chapter0` 的 `video-generation-workbench` 分支和 `v0.3.0-web.38` 标签；标签指向包含发行资料与严格清单的最终发行提交，不只指向实现提交。公开交付入口为 [web.38 Release](https://github.com/PRAXEND/chapter0/releases/tag/v0.3.0-web.38)，以远端分支、标签和 Release 状态共同确认发布成功。附件为源码/插件/便携工作台三个 ZIP、INSTALL.md、UPGRADE.md 和统一 SHA256SUMS.txt；媒体仍通过完整 Git + LFS 获取，42个媒体字节不变。
+
+客户入口：[UPGRADE.md](../../UPGRADE.md)。明确 Git 源码、Codex 安装副本、运行服务三个版本分别核对；便携 ZIP 有独立步骤，不执行缺失的 tools 脚本，并显式绑定包内 pluginRoot。回退使用隔离配置/工作台/输出目录，新建测试项目；备份中绝对路径不视为自动迁移。旧项目、音色和交付保留，旧验收结论不改变。
+
+发行同伴在隔离工作树只读复核升级与打包增量，无阻断；便携入口与回退路径的两条意见已修复。主实现另经针对 a4e3118 的独立只读审查，无可确认的新缺陷。发布工作区274项Python、199项Node完整回归通过，无跳过；插件和便携包逐文件哈希及空白HTTP启动通过。最终包和远端下载校验结果保存在发布工作区忽略目录 validation/web38-release-*。发布检查不代替客户机器的账号连接或真实成片验收。

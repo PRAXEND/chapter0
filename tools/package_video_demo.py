@@ -14,7 +14,7 @@ VERSION = json.loads((ROOT / 'plugins/video-studio/plugin.json').read_text())['v
 NAME = f'Frame-Video-Studio-{VERSION}'
 GUIDE = f"""# Video Studio 网页工作台 {VERSION}
 
-安装与完整使用说明见随包 INSTALL.md。推荐从 video-generation-workbench Git 分支配合 Git LFS 安装；本便携 ZIP 只含插件代码、风格文本与启动入口，不含 42 个大型参考/复现音视频。
+安装与完整使用说明见随包 INSTALL.md；已有用户升级见 UPGRADE.md。推荐从 video-generation-workbench Git 分支配合 Git LFS 安装；本便携 ZIP 只含插件代码、风格文本与启动入口，不含 42 个大型参考/复现音视频。
 
 本机支持范围为 macOS。需完整 Python 3.10+、Node.js 20+、FFmpeg/ffprobe、支持桌面 queue 的 Codex，以及已连接的 hosted ChatCut。配置自己的专用桌面会话和浏览器授权后，点击一键才启动制作。验收失败暂停并提供临时包，确认修订才继续；正式交付必须通过独立验收。
 
@@ -36,6 +36,7 @@ def build():
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
         shutil.copy2(ROOT / 'INSTALL.md', target / 'INSTALL.md')
+        shutil.copy2(ROOT / 'UPGRADE.md', target / 'UPGRADE.md')
         (target / 'README.md').write_text(GUIDE, encoding='utf-8')
         (target / '先读我.txt').write_text(GUIDE, encoding='utf-8')
         (target / 'start.mjs').write_text("import './plugins/video-studio/workbench/start.mjs';\n")
