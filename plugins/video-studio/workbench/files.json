@@ -78,6 +78,7 @@
   "desktop-rpc.mjs",
   "desktop-session.mjs",
   "desktop-agent.mjs",
+  "desktop-wake.mjs",
   "desktop-worker.mjs",
   "public/desktop-setup.js",
   "test/desktop.test.mjs",
@@ -94,5 +95,8 @@
   "desktop-lock.mjs",
   "desktop-recovery.mjs",
   "evidence-resume.mjs",
-  "test/desktop-recovery-api.test.mjs"
+  "test/desktop-recovery-api.test.mjs",
+  "test/narration.test.mjs",
+  "test/recovery-boundaries.test.mjs",
+  "test/registration.test.mjs"
 ]

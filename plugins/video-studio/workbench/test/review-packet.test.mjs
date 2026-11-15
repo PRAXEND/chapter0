@@ -28,19 +28,19 @@ test('preflight preserves caption tolerances, actual text matching and known fai
       assert.equal((await prepareReviewPacket(f.context,f.inspect)).report.completed,false);
     }
     await writeFile(f.probe.metrics,JSON.stringify(f.metrics));f.context.candidate.qaStatus='failed';
-    assert.ok((await prepareReviewPacket(f.context,f.inspect)).report.checks.producer_unresolved);
+    const disputed=await prepareReviewPacket(f.context,f.inspect);assert.equal(disputed.report,null);assert.equal(disputed.packet.producerConcerns.length,1);assert.match(disputed.packet.instructions,/Independently adjudicate/);
   }finally{await rm(f.run,{recursive:true,force:true});}
 });
 test('known defects stop before the independent model and return a durable repair report',async()=>{
   const f=await fixture();try{
-    f.context.candidate.qaStatus='failed';let called=0,resolve;const done=new Promise(r=>resolve=r);
+    f.metrics.audio.hard_failures=['true_peak_exceeded'];await writeFile(f.probe.metrics,JSON.stringify(f.metrics));let called=0,resolve;const done=new Promise(r=>resolve=r);
     const source=await readFile(new URL('../studio-server.mjs',import.meta.url),'utf8');
     const fn=source.slice(source.indexOf('function runReviewAgent('),source.indexOf('\nfunction runRepositoryCollection('));
     const options={job:{id:'review'},context:f.context,onFinish:resolve};
     const sandbox=vm.createContext({options,path,prepareReviewPacket,addEvent:()=>{},runAgent:()=>called++,bridge:async(action,p)=>action==='prepare-review'?f.probe:f.inspect(p.file)});
     vm.runInContext(fn,sandbox);vm.runInContext('runReviewAgent(options)',sandbox);await done;
     assert.equal(called,0);assert.equal(f.context.preflightReport.completed,false);assert.ok(f.context.preflightReport.preflight);
-    assert.match(await readFile(path.join(f.run,'review-packet.json'),'utf8'),/producer_unresolved/);
+    assert.match(await readFile(path.join(f.run,'review-packet.json'),'utf8'),/true_peak_exceeded/);
   }finally{await rm(f.run,{recursive:true,force:true});}
 });
 

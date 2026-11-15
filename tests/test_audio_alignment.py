@@ -15,6 +15,55 @@ import quality_probe as qp
 import review_audio_alignment as alignment
 
 
+class CompleteSearchTests(unittest.TestCase):
+    def test_flat_energy_match_and_competing_channel_peak(self):
+        rng = random.Random(876)
+        reference = [.5 if rng.random() > .5 else -.5 for _ in range(1500)]
+        delayed = [0.] * 88 + reference + [0.] * 600
+        report = alignment.match_window(reference, [delayed], [], 0)
+        self.assertEqual(report['offset_ms'], 44)
+        self.assertGreater(report['correlation'], .99)
+        self.assertFalse(report['ambiguous'])
+        other = [0.] * 288 + reference + [0.] * 400
+        self.assertTrue(alignment.match_window(reference, [delayed, other], [], 0)['ambiguous'])
+
+    def test_search_boundary_and_periodic_ambiguity(self):
+        rng = random.Random(33); reference = [rng.uniform(-1, 1) for _ in range(500)]
+        report = alignment.match_window(reference, [[0.] * 600 + reference], [], 0)
+        self.assertEqual(report['offset_ms'], 300)
+        report = alignment.match_window(reference, [[0.] * 601 + reference], [], 0)
+        self.assertLess(report['correlation'], .55)
+        periodic = [math.sin(i * math.pi / 20) for i in range(1500)]
+        self.assertTrue(alignment.match_window(periodic[:500], [periodic], [], 300)['ambiguous'])
+
+    def test_source_silence_is_distinguished_from_a_real_short_drop(self):
+        clip = {'id':'clip','asset':{'id':'voice'},'sourceRange':{'start':0,'end':1000000},'timelineRange':{'fromFrame':0,'toFrame':30},'kind':'item','itemType':'audio','trackId':'A1'}
+        evidence = {'narration_tracks':['A1'],'timeline':{'timeline':{'totalEntries':1,'entries':[clip],'tracks':[{'id':'A1'}]}},
+          'voice_sources':[{'assetId':'voice','data':[{'transcript':{'status':'available','ranges':[{'segments':[{'text':'再','startMs':100,'endMs':160}]}]}}]}]}
+        audio = {'windows':[{'from':0,'to':1,'channels':[{'rms_dbfs':-70}]}]}
+        quiet = [0.] * 2000
+        source = alignment.source_word_activity(evidence,clip,quiet,30)
+        result = qp.speech_activity(evidence,audio,30,{'source_word_activity':source})
+        self.assertEqual(result['status'],'checked');self.assertFalse(result['hard_failures'])
+        self.assertEqual(len(result['source_silent_asr_intervals']),1)
+        loud = quiet[:];loud[200:320] = [.1] * 120
+        source = alignment.source_word_activity(evidence,clip,loud,30)
+        result = qp.speech_activity(evidence,audio,30,{'status':'checked','source_word_activity':source})
+        self.assertEqual(result['hard_failures'],['speech_interval_silent_in_mix'])
+        self.assertEqual(qp.speech_activity(evidence,audio,30,{})['status'],'unverified')
+        # A short sound inside a broad ASR interval must not be averaged away.
+        evidence['voice_sources'][0]['data'][0]['transcript']['ranges'][0]['segments'][0]['endMs']=500
+        brief = quiet[:];brief[200:240]=[.01]*40
+        source = alignment.source_word_activity(evidence,clip,brief,30)
+        self.assertGreater(source[0]['rms_dbfs'],-50)
+        self.assertEqual(qp.speech_activity(evidence,audio,30,{'source_word_activity':source})['hard_failures'],['speech_interval_silent_in_mix'])
+        evidence['voice_sources'][0]['data'][0]['transcript']['ranges'][0]['segments'][0]['endMs']=160
+        # Nonzero source trim and playback rate use the same exact projection.
+        clip['sourceRange']={'start':100000,'end':600000};clip['timelineRange']={'fromFrame':30,'toFrame':60}
+        source = alignment.source_word_activity(evidence,clip,[.1]*2000,30)
+        self.assertAlmostEqual(source[0]['from'],1);self.assertAlmostEqual(source[0]['to'],1.12)
+
+
 class AlignmentTests(unittest.TestCase):
     def setUp(self):
         if not studio.native_tool("ffmpeg"): self.skipTest("FFmpeg unavailable")

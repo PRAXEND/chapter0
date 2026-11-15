@@ -1,5 +1,5 @@
-import {pendingEvidence} from '../evidence-resume.mjs';
-import {revisionFeedback} from '../revisions.mjs';
+import {pendingEvidence,pendingRegistration} from '../evidence-resume.mjs';
+import {revisionFeedback,saveWorkflowError} from '../revisions.mjs';
 import {durationLabel} from '../public/duration.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -96,7 +96,7 @@ test('preproduction intake needs no approved plan and survives sources/plan chan
 test('host preflight failure preserves a resumable blocked stage instead of a running ghost task',async()=>{
   const source=await readFile(new URL('../studio-server.mjs',import.meta.url),'utf8');
   const fn=source.slice(source.indexOf('async function startAutomatic('),source.indexOf('\nfunction adoptTopic'));
-  const p=project(),context=vm.createContext({pendingEvidence,revisionFeedback,project:p,beginAutomatic,nextAutomatic,persist:async()=>{},pendingVoiceRequest:()=>null,inputHash:()=>'',voiceScope:()=>'',getCatalog:async()=>({}),savedVoiceChoices:()=>[],startJob:async()=>{throw Error('actual preflight unavailable');}});
+  const p=project(),context=vm.createContext({pendingEvidence,pendingRegistration,requestHash,revisionFeedback,saveWorkflowError,cleanError:String,project:p,beginAutomatic,nextAutomatic,persist:async()=>{},pendingVoiceRequest:()=>null,inputHash:()=>'',voiceScope:()=>'',getCatalog:async()=>({}),savedVoiceChoices:()=>[],startJob:async()=>{throw Error('actual preflight unavailable');}});
   vm.runInContext(fn,context);
   await assert.rejects(()=>vm.runInContext('startAutomatic()',context),/preflight unavailable/);
   assert.equal(p.automatic.status,'blocked');assert.equal(p.automatic.stage,'voice');
@@ -122,7 +122,7 @@ test('one-click reuses a saved explicit voice without a separate model lookup',a
   const source=await readFile(new URL('../studio-server.mjs',import.meta.url),'utf8');
   const fn=source.slice(source.indexOf('async function startAutomatic('),source.indexOf('\nfunction adoptTopic'));
   const p=project(),calls=[],voice={provider:'fixture',voiceId:'saved',name:'Saved',voiceType:'custom',selected_by_user:true};
-  const context=vm.createContext({pendingEvidence,revisionFeedback,project:p,beginAutomatic,nextAutomatic,requestHash,voiceScope,savedVoiceChoices,updateSettings,inputHash,pendingVoiceRequest,
+  const context=vm.createContext({pendingEvidence,pendingRegistration,revisionFeedback,project:p,beginAutomatic,nextAutomatic,requestHash,voiceScope,savedVoiceChoices,updateSettings,inputHash,pendingVoiceRequest,
     getCatalog:async()=>({profile:{voice}}),persist:async()=>{},bridge:async(action,value)=>{assert.equal(action,'save-voice');return {voice:value.voice};},startJob:async action=>{calls.push(action);return {id:'fixture'};}});
   vm.runInContext(fn,context);await vm.runInContext('startAutomatic()',context);
   assert.deepEqual(calls,['create']);assert.equal(p.voiceChoice.voiceId,'saved');assert.equal(p.voiceReady.scope,voiceScope(p));

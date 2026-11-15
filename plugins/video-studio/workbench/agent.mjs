@@ -27,6 +27,12 @@ export async function prepareAgentRequest(job,context){
     if(job.action==='review'&&context.requiredChecks?.length){
       schema.properties.checks.items.properties.check={type:'string',enum:context.requiredChecks};
     }
+    if(job.action==='review'&&context.producerConcerns?.length){
+      schema.properties.producerConcerns={type:'array',items:{type:'object',additionalProperties:false,
+        properties:{id:{type:'string',enum:context.producerConcerns.map(c=>c.id)},disposition:{type:'string',enum:['resolved','unresolved']},observations:{type:'string'},evidencePaths:{type:'array',items:{type:'string'}}},
+        required:['id','disposition','observations','evidencePaths']}};
+      schema.required.push('producerConcerns');
+    }
     if(job.action==='review'&&context.brief?.workbench_rules===2&&context.brief.requirements.captions){
       const check=schema.properties.checks.items;
       check.properties.captionObservations={type:'array',items:{type:'object',additionalProperties:false,properties:{frame:{type:'integer'},text:{type:'string'}},required:['frame','text']}};

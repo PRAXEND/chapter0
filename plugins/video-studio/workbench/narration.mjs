@@ -5,14 +5,31 @@ const allowed = new Set(['text','name','modelId','speed','stability','speedRatio
 
 export function narrationArguments(voice, catalog, request, project) {
   if (!voice?.selected_by_user || !voice.provider || !voice.voiceId) throw Error('请先选择本期具体音色。');
-  const match = catalog.voices?.find(v => v.provider === voice.provider && v.voiceId === voice.voiceId);
+  const matches = (catalog.voices || []).filter(v => {
+    if (v.type && v.voiceType && v.type !== v.voiceType) return false;
+    const type = v.type || v.voiceType;
+    if (voice.voiceType && type && type !== voice.voiceType) return false;
+    if (v.customVoiceId) {
+      // Saved custom identities use the ChatCut ID, never a provider's model ID.
+      return voice.voiceType === 'custom' && voice.provider === 'fish-audio' &&
+        (!type || type === 'custom') && v.customVoiceId === voice.voiceId &&
+        (!v.provider || v.provider === voice.provider) && (!v.voiceId || v.voiceId === voice.voiceId);
+    }
+    return v.provider === voice.provider && v.voiceId === voice.voiceId;
+  });
+  const match = matches.length === 1 ? matches[0] : null;
   if (!match || match.available === false || !match.supportedUses?.includes('tts')) throw Error('所选音色目前无法用于配音，请重新选择。');
   if (!request || typeof request.text !== 'string' || !request.text.trim()) throw Error('缺少正式旁白文本。');
   for (const field of Object.keys(request)) {
     if (!allowed.has(field)) throw Error('配音身份和工程由工作台指定，无法接受字段 '+field);
     if (!['name','text'].includes(field) && !match.capabilities?.supportedControls?.includes(field)) throw Error('当前音色不支持参数 '+field);
   }
-  return {...request, provider:voice.provider, voiceId:voice.voiceId, projectId:project.projectId,timelineId:project.timelineId};
+  // Refresh the opaque reference for each submission; do not persist or reconstruct it.
+  let identity;
+  if (typeof match.voiceRef === 'string' && match.voiceRef.trim()) identity = {voiceRef:match.voiceRef};
+  else if (match.provider === voice.provider && match.voiceId === voice.voiceId) identity = {provider:voice.provider,voiceId:voice.voiceId};
+  else throw Error('音色目录缺少当前配音标识，请刷新 ChatCut 连接后再试。');
+  return {...request, ...identity, projectId:project.projectId,timelineId:project.timelineId};
 }
 
 // A short-lived tool-only thread shares the installed ChatCut login and never starts a model turn.

@@ -1,6 +1,9 @@
 export function revisionMarkup(project,view,draft,busy,esc){
   const waiting=!!(view.questions?.length||view.proposal||view.issues?.length);
   return `<div class="section-heading"><h2>修订与补充反馈</h2><span>${busy?'任务执行中，可先保存反馈':waiting?'有待处理建议':'按需补充'}</span></div>
+    ${view.technicalBlocker?`<div class="job-question"><strong>${view.technicalBlocker.action==='delivery'?'保存交付受阻':view.technicalBlocker.action==='review'?'验收准备受阻':'任务准备受阻'}</strong><p>${esc(view.technicalBlocker.message)}</p><p>${view.technicalBlocker.action==='delivery'?'已有验收结论会在继续时重新核对；文件和证据仍有效时，只重试保存交付。':'本次属于技术阻塞，没有新增质量修改建议。处理上面的原因后点击继续，会先核对已有任务和文件。'}原工程和方案会保留，无需在意见栏填写“重新制作”。</p></div>`:''}
+    ${view.packageError?`<div class="job-question"><strong>临时交付尚未保存</strong><p>${esc(view.packageError.message)}</p><p>原候选和已有验收结果已保存。重试只整理本地文件，不启动制作或验收。</p><button class="button secondary" data-provisional-retry ${busy?'disabled':''}>重试保存临时交付</button></div>`:''}
+    ${view.registrationPending?'<div class="job-question"><strong>已有制作结果等待登记</strong><p>点击继续会先核对并恢复本地登记，再进行独立验收；不会重新制作视频，无需在意见栏填写修改要求。</p></div>':''}
     ${view.evidencePending?`<div class="job-question"><strong>补齐原件后继续验收原试片</strong><p>${esc(view.evidencePending.summary)}</p>${view.evidencePending.questions.map(q=>`<p>${esc(q)}</p>`).join('')}<p>补交文件无需确认创意修订。补齐后点击原制作流程的“继续”，会保留原方案批准和已导出视频。</p></div>`:''}
     ${view.submitted?`<details><summary>本轮已确认的修改要求</summary><p>${esc(view.submitted)}</p></details>`:''}
     ${view.proposal?`<div class="job-question"><strong>${esc(view.proposal.summary)}</strong>${(view.proposal.changes||[]).map(s=>`<p>${esc(s)}</p>`).join('')}</div>`:''}

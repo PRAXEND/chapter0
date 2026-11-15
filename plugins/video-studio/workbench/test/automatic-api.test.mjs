@@ -45,7 +45,7 @@ if(c.voice?.savedVoice&&c.productionContext.settings.voice?.voiceId!==c.voice.sa
 record('material_plan',{topic:c.brief.topic,style:c.brief.style,needs:[{id:'fixture',purpose:'Synthetic protocol',query:'fixture',acceptance:'Known diagnostic bytes'}]});
 const file=path.join(c.run,'clip.mp4');fs.copyFileSync(path.join(process.env.VIDEO_STUDIO_TEST_MEDIA,'clip.mp4'),file);
 const source={id:'source',title:'Synthetic source',localPath:file,sha256:hash(file),kind:'video',url:'https://example.com/fixture',sourceType:'other',needIds:['fixture'],start:0};
-const plan={title:c.userRevision?'用户确认局部修订':'协议回归样片',summary:'Fixture',script:'Test',productionPlan:{version:1,materialReview:'Synthetic source',layout:{mode:'unchanged'}},shots:[{id:'s1',from:0,to:3,narration:'',visual:'Synthetic diagnostic pattern',screenText:'',transition:'cut',sourceIds:[source.id],sourceUses:[{id:'u1',sourceId:source.id,inSeconds:0,outSeconds:3,actionGroup:'capture',role:'primary',purpose:'fixture',compatibility:'diagnostic'}],layout:{composition:'Full frame',contentBottom:null,captionBottom:null},design:[]}],stylePlan:{selector:'sample@1',rules:[{ruleId:'structure',disposition:'planned',shotIds:['s1'],treatment:'Fixture'}],referenceChecks:[{referenceId:'r1',location:'Fixture',observation:'No aesthetic claim',adaptation:'Fixture narrative'}],contrastReview:'Protocol test only'},gaps:[],limitations:[],notes:[]};
+const plan={title:c.userRevision&&!c.brief.topic.includes('补证复用')?'用户确认局部修订':'协议回归样片',summary:'Fixture',script:'Test',productionPlan:{version:1,materialReview:'Synthetic source',layout:{mode:'unchanged'}},shots:[{id:'s1',from:0,to:3,narration:'',visual:'Synthetic diagnostic pattern',screenText:'',transition:'cut',sourceIds:[source.id],sourceUses:[{id:'u1',sourceId:source.id,inSeconds:0,outSeconds:3,actionGroup:'capture',role:'primary',purpose:'fixture',compatibility:'diagnostic'}],layout:{composition:'Full frame',contentBottom:null,captionBottom:null},design:[]}],stylePlan:{selector:'sample@1',rules:[{ruleId:'structure',disposition:'planned',shotIds:['s1'],treatment:'Fixture'}],referenceChecks:[{referenceId:'r1',location:'Fixture',observation:'No aesthetic claim',adaptation:'Fixture narrative'}],contrastReview:'Protocol test only'},gaps:[],limitations:[],notes:[]};
 write(c.productionCheckpointPath,{schema:1,jobId:c.jobId,requestId:'prepare-1',sources:[source],editorial:{title:'协议回归样片',rationale:'Fixture',captions:false,music:'none'},plan});
 let accepted;for(let n=0;n<100;n++){if(fs.existsSync(c.productionCheckpointResultPath)){accepted=load(c.productionCheckpointResultPath);break;}await new Promise(r=>setTimeout(r,100));}
 if(!accepted?.ok)throw Error('Checkpoint failed: '+JSON.stringify(accepted));
@@ -55,7 +55,7 @@ if(fs.existsSync(path.join(process.env.VIDEO_STUDIO_TEST_MEDIA,'after-checkpoint
 }
 if(['produce','create'].includes(c.taskAction)){
 if(c.pendingExport){
-console.log(JSON.stringify({type:'item.completed',item:{type:'mcp_tool_call',server:'chatcut',tool:'track_export',status:'completed'}}));
+// No export tool call: evidence-only continuation must retain genuine original provenance.
 result={status:'exported',summary:'Evidence only, no new render',projectId:c.pendingExport.projectId,timelineId:c.pendingExport.timelineId,editorUrl:'',files:c.pendingExport.files.map(({path,role})=>({path,role})),qaStatus:'needs_review',notes:[],questions:[],voiceRequest:{kind:'none',message:'',candidates:[]}};
 }else{
 const folder=path.join(c.run,'deliverables');fs.mkdirSync(folder,{recursive:true});
@@ -64,8 +64,11 @@ fs.writeFileSync(path.join(folder,'copy.txt'),'标题：回归测试\\n\\n正文
 record('project',{projectId:'fixture-project',timelineId:'fixture-timeline',planHash:c.planHash,inputHash:c.inputHash});
 const evidence=path.join(c.run,'review-evidence.json');write(evidence,{timeline:{timeline:{fps:30,totalEntries:1,entries:[{id:'item',timelineRange:{fromFrame:0,toFrame:90}}],tracks:[]}}});
 record('beat',{id:'b1',shot_id:'s1',from_frame:0,to_frame:90,source_ids:c.selectedSources.map(s=>s.id),visual_anchor:'Diagnostic full frame',source_uses:[{...c.plan.shots[0].sourceUses[0],item_ids:['item'],from_frame:0,to_frame:90,observations:'Fixture implementation',evidence_files:[{path:evidence,sha256:hash(evidence)}]}],design_results:[]});
-console.log(JSON.stringify({type:'item.completed',item:{type:'mcp_tool_call',server:'chatcut',tool:'track_export',status:'completed'}}));
+if(!(c.userRevision&&c.brief.topic.includes('补证复用')))console.log(JSON.stringify({type:'item.completed',item:{type:'mcp_tool_call',server:'chatcut',tool:'track_export',status:'completed'}}));
 result={status:'exported',summary:'Synthetic export fixture',projectId:'fixture-project',timelineId:'fixture-timeline',editorUrl:'',files:[['clip.mp4','video'],['portrait.png','cover_portrait'],['landscape.png','cover_landscape'],['copy.txt','copy']].map(([n,role])=>({path:path.join(folder,n),role})),qaStatus:'needs_review',notes:['Protocol fixture only'],questions:[],voiceRequest:{kind:'none',message:'',candidates:[]}};
+result.files.push({path:path.join(c.run,'run.json'),role:'project'},{path:path.join(c.run,'material-selection.json'),role:'sources'});
+if(c.brief.topic.includes('登记恢复')){const f=path.join(c.run,'run.json'),r=load(f);r.project.timelineId='temporary-registration-mismatch';write(f,r);}
+if(c.userRevision&&c.brief.topic.includes('补证复用')){result.qaStatus='failed';result.unresolvedIssues=['旧检测疑点待独立复核'];}
 const defectFile=path.join(process.env.VIDEO_STUDIO_TEST_MEDIA,'delivery-defect');
 if(fs.existsSync(defectFile)&&(!c.repair&&!c.userRevision||fs.readFileSync(defectFile,'utf8')==='always'))result.files=result.files.filter(f=>!['cover_landscape','copy'].includes(f.role));
 if(c.brief.topic.includes('补齐原件')){result.status='needs_input';result.summary='请补齐原件';result.questions=['请补齐旁白和配乐原件后继续'];}
@@ -74,13 +77,14 @@ if(c.brief.topic.includes('补齐原件')){result.status='needs_input';result.su
 if(fs.existsSync(path.join(process.env.VIDEO_STUDIO_TEST_MEDIA,'review-crash')))throw Error('Fixture technical review failure');
 const manifest=load(c.probe.manifest),ref={path:c.probe.manifest,sha256:hash(c.probe.manifest)},fail=c.brief.topic.includes('拒绝')&&!c.reviewDelta?.requestedRevision;
 result={summary:'Independent fixture',observedSheets:manifest.contact_sheets.map(s=>s.id),observedReferenceSheets:[],issues:fail?[{id:'visual-1',check:'visuals',symptom:'Fixture action cropped',suggested_fix:'替换开头，保留动作完整'}]:[],limitations:['No real aesthetic review'],checks:['visuals','occlusion','transitions','flicker','output_details','style_match','material_continuity'].map(check=>({check,result:fail?'fail':'pass',observations:'Isolated protocol observation',evidencePaths:[ref.path],issueIds:check==='visuals'&&fail?['visual-1']:[],rules:check==='style_match'?[{id:'structure',result:fail?'fail':'pass',observations:'Fixture rule'}]:[],issues:[],notApplicableReason:''}))};
+if(c.producerConcerns?.length)result.producerConcerns=c.producerConcerns.map(r=>({id:r.id,disposition:'resolved',observations:'Fixture independent adjudication using current metrics',evidencePaths:[c.probe.metrics]}));
 }else throw Error('Unexpected fixture stage '+c.taskAction);
 console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify(result)}}));console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:1,output_tokens:1}}));
 }
 `);await chmod(fixture,0o755);await exec(process.execPath,['--check',fixture]);env.VIDEO_DEMO_CODEX_BIN=fixture;
     async function launch(){server=spawn(process.execPath,[path.join(root,'studio-server.mjs')],{env,stdio:['ignore','pipe','pipe']});let log='';server.stderr.on('data',b=>log+=b);await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error(log||'server timeout')),15000);server.stdout.on('data',b=>{if(b.toString().includes('Video Agent Demo:')){clearTimeout(timer);resolve();}});});}
     await launch();
-    const scenarios=[{topic:'补齐原件后继续',evidenceResume:true},{topic:'旧项目恢复完整回归',legacy:true},{topic:'检查点后重启恢复',checkpointCrash:true},{topic:'正常交付协议测试'},{topic:'交付复制失败恢复',deliveryCrash:true},{topic:'拒绝交付协议测试',failure:true},{topic:'交付包确认修订',defect:'first',failure:true},{topic:'交付包持续失败',defect:'always',failure:true},{topic:'手动验收恢复',reviewCrash:true}];
+    const scenarios=[{topic:'登记恢复跨重启',registrationCrash:true},{topic:'拒绝交付补证复用',failure:true,evidenceRevision:true},{topic:'补齐原件后继续',evidenceResume:true},{topic:'旧项目恢复完整回归',legacy:true},{topic:'检查点后重启恢复',checkpointCrash:true},{topic:'正常交付协议测试'},{topic:'交付复制失败恢复',deliveryCrash:true},{topic:'手动交付复制失败恢复',deliveryCrash:true,manualDelivery:true},{topic:'拒绝交付协议测试',failure:true},{topic:'交付包确认修订',defect:'first',failure:true},{topic:'交付包持续失败',defect:'always',failure:true},{topic:'手动验收恢复',reviewCrash:true}];
     for(const [index,scenario] of scenarios.entries()){
       if(index)await api('/api/reset',{});
       const failure=!!scenario.failure;
@@ -88,7 +92,7 @@ console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',tex
       if(scenario.defect)await writeFile(path.join(temp,'delivery-defect'),scenario.defect);
       if(scenario.checkpointCrash)await writeFile(path.join(temp,'after-checkpoint-crash'),'fixture');
       if(scenario.reviewCrash)await writeFile(path.join(temp,'review-crash'),'fixture');
-      const deliveryRoot=path.join(temp,scenario.deliveryCrash?'blocked-delivery':'delivery');if(scenario.deliveryCrash)await writeFile(deliveryRoot,'transient unavailable output');
+      const deliveryRoot=path.join(temp,scenario.deliveryCrash?'blocked-delivery-'+index:'delivery');if(scenario.deliveryCrash)await writeFile(deliveryRoot,'transient unavailable output');
       const {project:p}=await api('/api/state');await api('/api/project',{...p,topic:scenario.topic,styleSelector:'sample@1',ratio:'16:9',duration:3,durationMin:null,narration:false,captions:false,music:'none',advancedOverrides:{narration:true,music:true,captions:true},outputRoot:deliveryRoot});
       if(scenario.legacy){
         await stop();const old=(await readFile(path.join(data,'workbench-v2.json'),'utf8'));const p=JSON.parse(old);
@@ -108,9 +112,27 @@ console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',tex
       await api('/api/jobs',{action:'auto'});
       let current;for(let n=0;n<500;n++){current=await api('/api/state');if(['completed','quality_failed','blocked',...(scenario.evidenceResume?['needs_input']:[])].includes(current.project.automatic?.status)&&!current.activeJobId)break;await new Promise(r=>setTimeout(r,100));}
       let q=current.project;
+      if(scenario.registrationCrash){
+        assert.equal(q.automatic.status,'blocked');const job=q.jobs[0];assert.ok(job.pendingRegistration);assert.equal(job.pendingRegistration.completed,false);
+        const recordFile=path.join(q.run,'run.json'),record=JSON.parse(await readFile(recordFile));record.project.timelineId='fixture-timeline';
+        await writeFile(recordFile,JSON.stringify(record));await stop();await launch();
+        const responses=await Promise.all([0,1].map(()=>fetch(base+'/api/jobs',{method:'POST',headers:{'Content-Type':'application/json','X-Video-Demo':'1'},body:JSON.stringify({action:'auto'})})));
+        assert.equal(responses.filter(r=>r.ok).length,1);assert.equal(responses.filter(r=>!r.ok).length,1);
+        for(let n=0;n<500;n++){current=await api('/api/state');if(current.project.automatic?.status!=='running'&&!current.activeJobId)break;await new Promise(r=>setTimeout(r,100));}
+        q=current.project;assert.equal(q.automatic.status,'completed',q.jobs[0].error);
+        const resumed=q.jobs.find(j=>j.id===job.id);assert.equal(resumed.registrationAttempts,1);assert.equal(resumed.pendingRegistration.completed,true);
+        assert.equal(q.jobs.filter(j=>j.action==='create').length,1);
+      }
       if(scenario.evidenceResume){
         assert.equal(q.automatic.status,'needs_input');assert.equal(current.feedback.questions.length,0);assert.ok(current.feedback.evidencePending);
         const approval=structuredClone(q.approval),pending=structuredClone(q.jobs[0].pendingExport);
+        const video=pending.files.find(f=>f.role==='video'),original=await readFile(video.path);
+        await writeFile(video.path,'changed fixture');
+        await assert.rejects(api('/api/jobs',{action:'auto'}),/待验收文件已变化/);
+        assert.match((await api('/api/state')).feedback.technicalBlocker.message,/待验收文件已变化/);
+        await stop();await launch();
+        assert.match((await api('/api/state')).feedback.technicalBlocker.message,/待验收文件已变化/);
+        await writeFile(video.path,original);
         await stop();await launch();await api('/api/jobs',{action:'auto'});
         for(let n=0;n<300;n++){current=await api('/api/state');if(current.project.automatic?.status!=='running'&&!current.activeJobId)break;await new Promise(r=>setTimeout(r,100));}
         q=current.project;assert.deepEqual(q.approval,approval);assert.equal(q.automatic.status,'completed',JSON.stringify(q.jobs.map(j=>({action:j.action,error:j.error}))));
@@ -120,9 +142,10 @@ console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',tex
       }
       if(scenario.deliveryCrash){
         assert.equal(q.automatic.status,'blocked');assert.equal(q.qualityCycle.report.completed,true);assert.equal(q.deliveries.length,0);
-        const count=q.jobs.length;await stop();await rm(deliveryRoot);await launch();
-        const resumed=await api('/api/jobs',{action:'auto'});assert.equal(resumed.job,null);
-        current=await api('/api/state');q=current.project;assert.equal(q.jobs.length,count);assert.equal(q.automatic.status,'completed');assert.equal(q.deliveries.length,1);
+        const count=q.jobs.length;if(scenario.manualDelivery)await api('/api/project',{...q,mode:'manual'});
+        await stop();await rm(deliveryRoot);await launch();
+        const resumed=await api('/api/jobs',{action:scenario.manualDelivery?'review':'auto'});assert.equal(resumed.job,null);
+        current=await api('/api/state');q=current.project;assert.equal(q.jobs.length,count);if(!scenario.manualDelivery)assert.equal(q.automatic.status,'completed');assert.equal(q.deliveries.length,1);
       }
       if(scenario.checkpointCrash){
         assert.equal(q.automatic.status,'blocked');assert.equal(q.jobs[0].action,'create');assert.equal(q.approval.status,'confirmed');
@@ -140,7 +163,8 @@ console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',tex
         await api('/api/jobs',{action:'review'});
         for(let n=0;n<500;n++){current=await api('/api/state');if(!current.activeJobId)break;await new Promise(r=>setTimeout(r,100));}
         q=current.project;assert.equal(q.jobs[0].status,'completed',q.jobs[0].error);assert.equal(q.automatic,null);
-      }else assert.equal(q.automatic.status,failure?'quality_failed':'completed',JSON.stringify(q.jobs.map(j=>({action:j.action,status:j.status,error:j.error,summary:j.summary}))));
+      }else if(scenario.manualDelivery)assert.equal(q.automatic,null);
+      else assert.equal(q.automatic.status,failure?'quality_failed':'completed',JSON.stringify(q.jobs.map(j=>({action:j.action,status:j.status,error:j.error,summary:j.summary}))));
       assert.equal(q.jobs.filter(j=>j.action==='create').length,scenario.checkpointCrash||scenario.evidenceResume?2:1);
       assert.equal(q.jobs.filter(j=>j.action==='produce').length,0);
       assert.ok(!q.jobs.some(j=>['discover','collect','curate','plan','plan_review'].includes(j.action)));
@@ -180,7 +204,12 @@ console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',tex
         assert.equal(revised.project.automatic.status,scenario.defect==='always'?'quality_failed':'completed',revised.project.jobs[0].error);
         const context=JSON.parse(await readFile(path.join(revision.job.directory,'request.json'),'utf8'));
         assert.equal(context.productionMode,'recover');assert.equal(context.existingProject.projectId,'fixture-project');assert.match(context.userRevision.request,/替换开头/);
-        assert.notEqual(revised.project.approval.planHash,q.approval.planHash);
+        if(scenario.evidenceRevision){
+          assert.equal(revised.project.qualityCycle.candidate.producerJobId,q.qualityCycle.candidate.producerJobId);
+          assert.equal(revised.project.jobs.find(j=>j.id===revision.job.id).toolCalls.some(t=>/export/.test(t.tool)),false);
+          assert.equal(revised.project.qualityCycle.candidate.registeredByJobId,revision.job.id);
+          assert.ok(revised.project.qualityCycle.report.completed);
+        }else assert.notEqual(revised.project.approval.planHash,q.approval.planHash);
         await api('/api/cancel',{});assert.equal((await api('/api/state')).project.automatic.status,'paused');
       }
       else{assert.equal(q.deliveries[0].qaStatus,'passed');assert.match(path.basename(q.deliveries[0].directory),/^\d{4}-\d{2}-\d{2}_/);assert.ok(q.deliveries[0].files.some(f=>f.name==='发布文案.txt'));}

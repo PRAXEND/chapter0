@@ -6,12 +6,14 @@ ambiguous matches remain unverified; unrelated BGM cannot establish narration.
 """
 import array
 import math
+from operator import mul
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 
 import studio
+import review_sync
 
 RATE = 2000
 
@@ -62,32 +64,29 @@ def correlation(reference, candidate):
 
 
 def match_window(reference, channels, envelopes, expected, max_shift=.3):
-    """Envelope search narrows the acoustic sample-level search without new deps."""
-    hop = 10
-    coarse_ref = envelope(reference, hop)
-    coarse_position = round(expected / hop)
-    coarse_radius = math.ceil(max_shift * RATE / hop)
+    """Search every sample in the permitted range, including competing peaks.
+
+    Envelope peaks are not sound-wave peaks: flat energy or a music bed can
+    hide either the true match or an equally good, ambiguous second match.
+    """
+    size = len(reference)
+    if not size: return {"correlation": 0.0, "offset_ms": None, "ambiguous": True, "channel": None}
+    mean = sum(reference) / size
+    centered = [v - mean for v in reference]
+    power = sum(v * v for v in centered)
+    radius = math.ceil(max_shift * RATE)
     candidates = []
-    for channel, env in enumerate(envelopes):
-        rows = []
-        for offset in range(-coarse_radius, coarse_radius + 1):
-            first = coarse_position + offset
-            if first < 0 or first + len(coarse_ref) > len(env): continue
-            score = correlation(coarse_ref, env[first:first + len(coarse_ref)])
-            rows.append((score, first * hop))
-        peaks = []
-        for score, position in sorted(rows, reverse=True):
-            if all(abs(position - old) > 3 * hop for old in peaks): peaks.append(position)
-            if len(peaks) >= 3: break
-        # Always inspect the expected location, including low-envelope dynamics.
-        peaks.append(expected)
-        visited = set()
-        for peak in peaks:
-            for first in range(max(0, peak - hop), peak + hop + 1):
-                if first in visited or first + len(reference) > len(channels[channel]): continue
-                visited.add(first)
-                score = abs(correlation(reference, channels[channel][first:first + len(reference)]))
-                candidates.append((score, first, channel))
+    for channel, values in enumerate(channels):
+        start, end = max(0, expected - radius), min(len(values) - size, expected + radius)
+        if start > end: continue
+        total = sum(values[start:start + size]); squares = sum(v * v for v in values[start:start + size])
+        for first in range(start, end + 1):
+            denominator = math.sqrt(max(0, power * (squares - total * total / size)))
+            score = abs(sum(map(mul, centered, values[first:first + size]))) / denominator if denominator > 1e-14 else 0.0
+            candidates.append((score, first, channel))
+            if first < end:
+                old, new = values[first], values[first + size]
+                total += new - old; squares += new * new - old * old
     if not candidates: return {"correlation": 0.0, "offset_ms": None, "ambiguous": True, "channel": None}
     best = max(candidates)
     alternative = max((score for score, position, _ in candidates if abs(position - best[1]) > RATE * .04), default=0)
@@ -96,9 +95,32 @@ def match_window(reference, channels, envelopes, expected, max_shift=.3):
             "alternative_correlation": round(alternative, 5)}
 
 
+def source_word_activity(evidence, clip, samples, fps):
+    """Measure the actual source at exact projected ASR bounds; never alter ASR."""
+    try:
+        row = next(r for r in evidence['voice_sources'] if r['assetId'] == clip['asset']['id'])
+        transcript = next(v['transcript'] for v in row['data'] if 'transcript' in v)
+        if transcript.get('status') != 'available' or transcript.get('truncated') or any(r.get('truncated') for r in transcript['ranges']): return []
+        words, issues = review_sync.project_words([clip], {row['assetId']: [w for r in transcript['ranges'] for w in r['segments']]}, fps)
+        if issues: return []
+        left = clip['timelineRange']['fromFrame'] / fps
+        result = []
+        for word in words:
+            first, last = round((word['start'] - left) * RATE), round((word['end'] - left) * RATE)
+            if not 0 <= first < last <= len(samples): continue
+            # A whole-word average dilutes short consonants in broad ASR bounds.
+            # Use 20 ms peak windows, finer than the mix detector's 100 ms bins.
+            windows = [samples[i:min(i + round(.02 * RATE), last)] for i in range(first, last, round(.02 * RATE))]
+            rms = max(math.sqrt(sum(v * v for v in window) / len(window)) for window in windows)
+            result.append({'item_id': clip['id'], 'text': word['text'], 'from': word['start'], 'to': word['end'],
+                           'rms_dbfs': 20 * math.log10(max(rms, 1e-12)), 'measurement':'peak_20ms_source_rms'})
+        return result
+    except (KeyError, TypeError, ValueError, StopIteration): return []
+
+
 def check(video, evidence, run, fps):
     root = Path(run).resolve()
-    result = {"schema": 1, "status": "unverified", "method": "source_waveform_to_final_mix", "windows": [], "hard_failures": [],
+    result = {"schema": 2, "status": "unverified", "method": "source_waveform_to_final_mix", "search": "exhaustive_sample_offsets", "windows": [], "source_word_activity": [], "hard_failures": [],
               "limitations": ["Waveform matching verifies presence/timing of supplied TTS audio, not pronunciation or subjective listening quality.",
                               "Weak or multi-peak matches and very short clips require further evidence; they are not accepted automatically."]}
     try:
@@ -135,6 +157,7 @@ def check(video, evidence, run, fps):
                 source = max(decoded, key=lambda c: sum(v * v for v in c))
                 if abs(len(source) / RATE - (right - left)) > .1 + 1 / fps:
                     raise ValueError("Decoded TTS reference does not cover its actual timeline window")
+                result['source_word_activity'].extend(source_word_activity(evidence, clip, source, fps))
                 usable = min(len(source), round((right - left) * RATE))
                 if usable < RATE * .25:
                     result["windows"].append({"item_id": clip["id"], "from": left, "to": right, "status": "unverified", "reason": "Source window shorter than 250 ms"})

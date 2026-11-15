@@ -1,7 +1,7 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileHash,contained} from './media.mjs';
-import {reviewMethods,validateDeliveryFiles} from './quality.mjs';
+import {reviewMethods,validateDeliveryFiles,producerConcerns} from './quality.mjs';
 
 export async function prepareReviewPacket(context,inspect){
   const {probe,candidate,run,jobDirectory}=context;
@@ -9,8 +9,9 @@ export async function prepareReviewPacket(context,inspect){
   const issues=[];
   const add=(check,text)=>issues.push({check,text});
   for(const [check,message] of Object.entries(metrics.requirement_errors||{}))add(check,message);
-  for(const message of candidate.unresolvedIssues||[])add('producer_unresolved',message);
-  if(candidate.qaStatus==='failed')add('producer_unresolved',candidate.summary||'制作方已报告未解决问题。');
+  // Producer suspicions must be independently adjudicated, not promoted into
+  // objective measurements or silently discarded when fresh metrics pass.
+  const concerns=producerConcerns(candidate);
   try{await validateDeliveryFiles(candidate,run,inspect);}catch(error){add('delivery_package',error.message);}
   if(context.brief.requirements.captions&&!candidate.files.some(f=>f.role==='subtitles'))add('caption_sync','缺少实际字幕文件。');
   for(const name of ['audio','speech_activity','narration_alignment'])for(const error of metrics[name]?.hard_failures||[])add(name,error);
@@ -45,11 +46,12 @@ export async function prepareReviewPacket(context,inspect){
   const coverage={...manifest,sample_frame_count:manifest.sample_frames?.length};delete coverage.sample_frames;
   const packet={schema:1,artifactSha256:probe.artifact_sha256,subtitleSha256:probe.subtitle_sha256,
     requiredChecks:context.requiredChecks||Object.keys(reviewMethods),coverage,objective,preflightIssues:issues,
-    delta:context.reviewDelta||null,evidence,
+    delta:context.reviewDelta||null,evidence,producerConcerns:concerns,
     titleRequirement:[2,3].includes(context.plan?.productionPlan?.layout?.version)?{coverTitle:context.plan.productionPlan.coverTitle,titleEmphasis:context.plan.productionPlan.titleEmphasis,
       files:candidate.files.filter(f=>['video','cover_portrait','cover_landscape'].includes(f.role)).map(({role,path,sha256})=>({role,path,sha256}))}:null,
     presentationRequirement:context.plan?.productionPlan?.layout?.version===3?context.plan.productionPlan.layout:null,
     instructions:'For customer-portrait-v3 inspect spacing, white/yellow title emphasis, dense moving low-contrast background and all-layer ending. Return presentationObservations [{feature,frames,observations}] in portrait_layout for spacing/title_color/background, and in transitions for ending. Background needs multiple actually observed times. Ending must include a frame in the middle half (25%-75%) of the 1.2s fade, a frame during the 0.6s black hold before the last frame, and the final frame. In each titleObservations row also transcribe emphasisText (the yellow text), for the video and both covers. The title remains visible except the approved all-layer fade/black hold. Target parameters and preflight checks still require your independent observation of actual pixels. When titleRequirement is present, inspect actual video top titles and open BOTH cover PNGs. In output_details return titleObservations [{role,path,text}] for video, cover_portrait, cover_landscape with the exact visible text (line breaks allowed); compare to coverTitle. Never copy the expected title as an observation. Check at most two top-title lines, margins, clipping and stable visibility through all shots, also when captions are off. Other checks use titleObservations: []. For each coverage.caption_samples frame, read the actual visible subtitle from that MP4 frame; use review-frames at native resolution if needed. Return captionObservations in the caption_flow check with frame and transcribed text; if invisible or illegible report failure. Inspect every listed contact sheet; declare actual globally observed sheet IDs once. Use original-size/native-rate frames for uncertain details. All contact sheets remain listed; read hashed detailed metrics when investigating measurements. Return concise observations and each issue once. Do not author report-building scripts, recompute already current deterministic metrics, or repeat schema/hash bookkeeping. Never relax a failing metric; return the precise failure or missing evidence.'};
+  if(concerns.length)packet.instructions+=' Independently adjudicate every producerConcerns entry. Return producerConcerns [{id,disposition:resolved|unresolved,observations,evidencePaths}] with exact IDs and actual evidence. Fresh objective metrics may rebut an old detector claim, but the producer summary is not proof. Unresolved or missing dispositions prevent delivery.';
   const file=path.join(jobDirectory,'review-packet.json');await writeFile(file,JSON.stringify(packet,null,2));
   return {file,sha256:await fileHash(file),packet,report:issues.length?{completed:false,preflight:true,artifact_sha256:probe.artifact_sha256,
     failures:issues.map(i=>i.check),checks:Object.fromEntries([...new Set(issues.map(i=>i.check))].map(check=>[check,{status:'fail',observations:issues.filter(i=>i.check===check).map(i=>i.text).join('；'),issues:issues.filter(i=>i.check===check).map(i=>i.text)}]))}:null};

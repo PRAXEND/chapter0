@@ -2,7 +2,7 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 export function desktopSetupMarkup(config,busy=false){
   if(config?.mode==='cli')return '<p class="helper-text">当前使用兼容 CLI 执行模式。桌面电脑控制仅在桌面会话模式可用。</p>';
   return `<details ${config?.configured?'':'open'}><summary>桌面执行会话 · ${config?.configured?esc(config.title):'首次使用请先配置'}</summary>
-  <p>制作会在你选择的 Codex 桌面会话中执行。此配置在本机保存，后续可以复用。</p>
+  <p>制作会在你选择的 Codex 桌面会话中执行。macOS 上提交任务后会自动唤起该会话，无需手动点开对话。此配置在本机保存，后续可以复用。</p>
   <ol><li>在这台电脑的 Codex 桌面端新建专用会话，命名为“Video Studio 制作”。</li><li>把该会话权限设为<strong>完全访问</strong>，发送一条简短消息，等待回复完成。</li><li>确保该会话已启用 Video Studio、ChatCut 和电脑控制；在需要的浏览器中登录 ChatCut。系统及浏览器授权需在电脑上完成。</li><li>点击下方“读取桌面会话”，选择刚才的会话并保存。制作期间保持 Codex 桌面端和此会话可用，不在其中提交其他工作。</li></ol>
   <p class="helper-text">完全访问设置不会代替操作系统或网站授权，首次使用仍可能出现它们的确认。这里只读取本机状态；点击一键生成才派发制作任务。独立验收保留单独的 CLI 会话。</p>
   <div class="desktop-recovery"><button class="button secondary" data-desktop-status ${!config?.configured?'disabled':''}>查看会话运行状态</button><button class="button secondary" data-desktop-recover ${!config?.configured?'disabled':''}>核对并恢复</button><p class="helper-text">恢复仅释放已经核实结束或未领取且失效的旧任务，不修改历史项目、不重复派发制作。</p></div>

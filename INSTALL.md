@@ -1,8 +1,8 @@
 # Video Studio 工作台安装与完整使用说明
 
-适用版本：`0.3.0-web.38`；Git 分支：`video-generation-workbench`；支持平台：macOS。仓库：https://github.com/PRAXEND/chapter0 。本说明核对日期：2026-11-15。
+适用版本：`0.3.0-web.39`；Git 分支：`video-generation-workbench`；支持平台：macOS。仓库：https://github.com/PRAXEND/chapter0 。本说明核对日期：2026-11-16。
 
-从 web.35 / web.36 / web.37 更新，请先按 **[UPGRADE.md](UPGRADE.md)** 备份、更新安装副本并重启空闲工作台。下载入口：[web.38 安装包](https://github.com/PRAXEND/chapter0/releases/tag/v0.3.0-web.38)。ZIP 不包含大型风格媒体，首次完整安装仍使用下方 Git + LFS 流程。
+从 web.35 / web.36 / web.37 / web.38 更新，请先按 **[UPGRADE.md](UPGRADE.md)** 备份、更新安装副本并重启空闲工作台。下载入口：[web.39 安装包](https://github.com/PRAXEND/chapter0/releases/tag/v0.3.0-web.39)。ZIP 不包含大型风格媒体，首次完整安装仍使用下方 Git + LFS 流程。
 
 这份仓库提供插件、网页工作台、公开风格规则、参考试片、复现媒体和校验工具。Codex、ChatCut 账号、电脑/浏览器授权和服务额度需要使用者自行配置。不能只下载 `plugins/video-studio` 文件夹：风格媒体位于仓库根目录 `user-packs/henry-video-styles`，通过 Git LFS 下载。
 
@@ -72,7 +72,7 @@ export VS_CODEX="/Applications/Codex.app/Contents/Resources/codex-cli/CodexCLI.a
 export VIDEO_DEMO_CODEX_BIN="$VS_CODEX"
 ```
 
-本次发行实测 CLI 为 `0.166.0-alpha.5.1`，以所需命令实际存在和工作台“重新检测”通过为准；只满足版本号不代表模型或桌面队列兼容。缺少 `queue` 或 `--approve-for-me` 时升级实际选用的应用/CLI，不静默切到其他模型。未登录时执行 `"$VS_CODEX" login` 并完成自己的登录。
+本次发行实测 CLI 为 `0.167.0-alpha.3.2`，以所需命令实际存在和工作台“重新检测”通过为准；只满足版本号不代表模型或桌面队列兼容。缺少 `queue` 或 `--approve-for-me` 时升级实际选用的应用/CLI，不静默切到其他模型。未登录时执行 `"$VS_CODEX" login` 并完成自己的登录。
 
 `VS_CODEX`、PATH 等 export 只对当前终端有效；重新打开终端时重新设置。后面命令默认仍在仓库根目录。
 
@@ -153,7 +153,7 @@ python3 tools/run_workbench.py --check
 python3 tools/run_workbench.py
 ```
 
-正常返回 `ok:true`、`version:0.3.0-web.38` 和 `http://127.0.0.1:4317`。浏览器打开该地址即可。服务在后台运行，日志在个人应用数据目录。启动工具会携带当前完整 Python、实际安装目录和此 checkout 的媒体路径；不用双击 HTML，不用安装网站开发依赖。
+正常返回 `ok:true`、`version:0.3.0-web.39` 和 `http://127.0.0.1:4317`。浏览器打开该地址即可。服务在后台运行，日志在个人应用数据目录。启动工具会携带当前完整 Python、实际安装目录和此 checkout 的媒体路径；不用双击 HTML，不用安装网站开发依赖。
 
 首次使用在页面的“桌面执行会话”区域完成：
 
@@ -184,6 +184,8 @@ python3 tools/run_workbench.py
 已有可用音色可以直接选择。查询账号音色目录或创建克隆在点击一键后执行；若所选克隆不存在，会在工作台提示上传录音并确认本人声音或已获授权。成功后保存到自己的配置，之后复用。不要上传参考片中的他人声音来冒充授权录音。
 
 **点击“一键生成视频”才提交本轮后台制作。** AI 在同一主会话核实选题、选素材、写稿、搭分镜与动效并剪辑；按实际素材和声音推进，不需要人工逐个审查中间表格。具体方案通过宿主检查点保存，生成任务 ID 和原工程会保留。
+
+macOS 上工作台会自动唤起已配置的桌面执行会话，无需手动点开对话；电脑需保持唤醒，Codex 与已授权插件仍需可用。系统可能在 Codex 内切换到所选执行会话。工作台以实际领取回执和执行记录确认开始，服务重启不会重复发送制作消息。
 
 右侧查看当前阶段、真实工具记录和 Token 用量。等待导出下载时保持浏览器和编辑器打开，使用已有 render ID，不重新点一键提交第二份制作。没有固定完成时长承诺：取材、生成服务、下载和模型负载都会影响速度。
 
@@ -224,9 +226,9 @@ python3 tools/run_workbench.py
 
 ## 10. 更新、备份与常见问题
 
-更新前请等待在制项目完成，或在原版本停止。更新后既有项目只读，可以查看与下载；点击「新建项目」使用新版制作规则。
+更新前请等待在制项目完成，或在原版本停止并确认执行已结束。web.38 项目保留原状态和可继续阶段；更早已标记只读的历史项目仍可查看与下载。新视频请点击「新建项目」，保留原项目。
 
-web.38 的逐步升级、三处版本核对、旧会话恢复和回退方法以 [UPGRADE.md](UPGRADE.md) 为准。验收不通过暂停的是该项目；制作另一条视频应新建项目，可复用空闲的桌面执行会话。
+web.39 的逐步升级、三处版本核对、旧会话恢复和回退方法以 [UPGRADE.md](UPGRADE.md) 为准。验收不通过暂停的是该项目；制作另一条视频应新建项目，可复用空闲的桌面执行会话。
 
 后续更新顺序：停止或等待当前任务完成 → `git pull --ff-only origin video-generation-workbench` → `git lfs pull --include='user-packs/henry-video-styles/media/**' --exclude=''` → `python3 tools/verify_checkout.py` → 按第 4 节刷新本地来源并重新 `plugin add` 保存安装 JSON → 重启空闲工作台 → 刷新页面。若 CLI 报告已安装而版本未更新，核对来源和安装返回值，必要时仅移除并重装 Video Studio 插件，保留用户数据目录。
 

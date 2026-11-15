@@ -71,3 +71,15 @@ test('failure cleanup never recursively removes a populated delivery reservation
     assert.equal(await fs.readFile(path.join(f.destination,'keep.txt'),'utf8'),'external file');
   }finally{await f.close();}
 });
+
+test('multiple producer QA attachments keep unique filenames and their actual formats',async()=>{
+  const f=await fixture();
+  try{
+    for(const [name,bytes] of [['metrics.json','{"measured":true}'],['notes.md','# Actual review notes']]){
+      const file=path.join(f.run,name);await fs.writeFile(file,bytes);f.candidate.files.push({path:file,role:'qa',sha256:await fileHash(file)});
+    }
+    const d=await f.deliver(),reports=d.files.filter(x=>x.name.startsWith('producer-qa-report'));
+    assert.deepEqual(Array.from(reports,f=>f.name),['producer-qa-report.json','producer-qa-report-2.md']);
+    for(const file of reports)assert.equal(await fileHash(file.path),file.sha256);
+  }finally{await f.close();}
+});

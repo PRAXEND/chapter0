@@ -83,7 +83,9 @@ def review_errors(data, review, base, read, file_hash):
             errors.append("complete_timeline_boundaries_missing")
         actual = review.get("observed_sheets", [])
         expected = [s["id"] for s in manifest["contact_sheets"]]
-        if not expected or not isinstance(actual, list) or set(actual) != set(expected):
+        # Supplemental/native/source sheets do not invalidate complete coverage;
+        # they also cannot stand in for a missing required candidate sheet.
+        if not expected or not isinstance(actual, list) or not all(isinstance(s, str) for s in actual) or not set(expected).issubset(set(actual)):
             errors.append("sampled_sheets_not_fully_reviewed")
     check = review["check"]
     from production_plan import presentation_review_errors

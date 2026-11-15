@@ -1,6 +1,6 @@
 # video-generation-workbench 发布范围
 
-本分支发行 Video Studio `0.3.0-web.38`，标签 `v0.3.0-web.38`。在 web.35（`76aac51`）发布基线上快进纳入已审查的功能分支至 `a4e3118`，再补齐发行说明和包清单。保留原发布分支历史，不合并官网、其他项目或私人项目提交。
+本分支发行 Video Studio `0.3.0-web.39`，标签 `v0.3.0-web.39`。在 web.38 发布基线 `c057229` 上纳入已经同伴复核的配音、候选登记、恢复、验收误报与桌面唤起修复，再更新发行说明和包清单。保留原发布分支历史，不合并官网、其他项目或私人项目提交。
 
 包含当前插件完整代码、marketplace、技能、公开风格文本包、源码风格包、42 个 Git LFS 媒体、参考试片、复现代码/时间线/字幕、校验清单、安装教程、测试和构建工具。`sites/video-agent-demo` 只保留兼容已有启动入口的 4 个文本文件。
 
@@ -8,6 +8,6 @@
 
 `release-manifest.json` 列出本次发行的文件、大小和实际内容 SHA-256（媒体是 LFS 下载后的内容哈希），不包含清单自身。`tools/verify_checkout.py --strict-tree` 校验文件内容、媒体完整性和 Git 跟踪范围。
 
-[GitHub Release](https://github.com/PRAXEND/chapter0/releases/tag/v0.3.0-web.38) 提供源码 ZIP、插件 ZIP、便携工作台 ZIP、安装/升级说明及统一 SHA256SUMS.txt。ZIP 使用显式白名单，不包含 42 个大型风格音视频；完整 Git checkout + LFS 及已有登记媒体可以继续使用。发布分支、发行标签和下载包都需指向 web.38，不能用仓库根分支的自动源码包替代完整媒体安装。
+[GitHub Release](https://github.com/PRAXEND/chapter0/releases/tag/v0.3.0-web.39) 提供源码 ZIP、插件 ZIP、便携工作台 ZIP、安装/升级说明及统一 SHA256SUMS.txt。ZIP 使用显式白名单，不包含 42 个大型风格音视频；完整 Git checkout + LFS 及已有登记媒体可以继续使用。发布分支、发行标签和下载包都需指向 web.39，不能用仓库根分支的自动源码包替代完整媒体安装。
 
 媒体范围为风格包资源清单中的真实参考/复现文件，不包含用户私人项目素材或每个新选题尚未采集的画面。七种其他公开文本风格没有在本分支声称提供本地参考片。系统程序、账户服务、字体许可和编辑器内置资源按 INSTALL.md 配置。

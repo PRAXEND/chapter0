@@ -202,7 +202,7 @@ def audio_metrics(video, stream, duration, directory, required):
     return result
 
 
-def speech_activity(evidence, audio, fps):
+def speech_activity(evidence, audio, fps, alignment=None):
     """Verify expected spoken intervals are not silent in the exported mix.
 
     BGM can mask missing narration; this check does not identify speakers or words.
@@ -225,12 +225,17 @@ def speech_activity(evidence, audio, fps):
             sources[source["assetId"]] = [w for r in transcript["ranges"] for w in r["segments"]]
         words, issues = review_sync.project_words(clips, sources, fps)
         if not words or issues: raise ValueError("Missing, repeated or clipped narration words")
-        missing = []
+        missing, source_silence, unknown = [], [], []
         for word in words:
             overlapping = [w for w in audio.get("windows", []) if w["from"] < word["end"] and w["to"] > word["start"]]
             if not overlapping or max(c["rms_dbfs"] for w in overlapping for c in w["channels"]) <= -50:
-                missing.append({"text": word["text"], "from": word["start"], "to": word["end"]})
-        return {"status": "checked", "word_count": len(words), "silent_words": missing,
+                row = {"text": word["text"], "from": word["start"], "to": word["end"]}
+                source = next((w for w in (alignment or {}).get('source_word_activity', []) if w['item_id'] == word['item_id'] and w['text'] == word['text'] and abs(w['from'] - word['start']) < 1e-7 and abs(w['to'] - word['end']) < 1e-7), None)
+                if source is None: unknown.append(row)
+                elif source['rms_dbfs'] <= -50: source_silence.append({**row, 'source_rms_dbfs': source['rms_dbfs']})
+                else: missing.append(row)
+        return {"status": "unverified" if unknown else "checked", "word_count": len(words), "silent_words": missing,
+                "source_silent_asr_intervals": source_silence, "unverified_source_intervals": unknown,
                 "hard_failures": ["speech_interval_silent_in_mix"] if missing else [],
                 "limitations": ["Mix energy cannot establish pronunciation or isolate speech from background music."]}
     except (KeyError, TypeError, ValueError, StopIteration) as exc:
@@ -296,8 +301,8 @@ def prepare(run, file, subtitles=None, directory=None, selected_voice=None):
     if evidence and cues and cuts_file.is_file():
         try: sync = {"status": "checked", "report": review_sync.review(evidence, cues, studio.read(cuts_file), fps, root=root)}
         except (ValueError, KeyError, TypeError, StopIteration) as exc: sync = {"status": "unverified", "reason": str(exc)}
-    activity = speech_activity(evidence, audio, fps) if evidence and data["settings"].get("narration") else {"status": "unverified" if data["settings"].get("narration") else "not_applicable"}
     alignment = review_audio_alignment.check(video, evidence, root, fps) if data["settings"].get("narration") else {"status": "not_applicable"}
+    activity = speech_activity(evidence, audio, fps, alignment) if evidence and data["settings"].get("narration") else {"status": "unverified" if data["settings"].get("narration") else "not_applicable"}
     music = review_music.check_file(video, evidence, required=studio.music_expected(data)) if studio.music_expected(data) else {"status": "not_applicable"}
     requirements = delivery_requirements.check(data, evidence, cues, fps, selected_voice, root=root) if current_rules else {}
     if (evidence or {}).get('voice_derivations'):

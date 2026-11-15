@@ -133,6 +133,13 @@ class ProbeTests(unittest.TestCase):
         review = studio.load_run(self.run)["reviews"]["visuals"]
         with self.assertRaisesRegex(studio.StudioError, "Sampled review"):
             studio.record(self.run, "review", {**review, "observed_sheets": []})
+        sheets = review['observed_sheets']
+        extras = ['supplemental-native-sheet', '/current-review/source-sheet.jpg']
+        studio.record(self.run, 'review', {**review, 'observed_sheets': sheets + extras})
+        for invalid in [sheets[1:] + extras, 'not-an-array', None, [1], [{}], [[]]]:
+            with self.subTest(observed=invalid):
+                with self.assertRaisesRegex(studio.StudioError, 'Sampled review'):
+                    studio.record(self.run, 'review', {**review, 'observed_sheets': invalid})
         with self.assertRaisesRegex(studio.StudioError, "appropriate method"):
             studio.record(self.run, "review", {**review, "method": "continuous_playback"})
         studio.record(self.run, "project", {"projectId": "changed"})

@@ -11,6 +11,7 @@ import {productionCheckpointReader} from './continuous.mjs';
 import {acceptProductionProgress,toolFailure} from './production-progress.mjs';
 import {updateTicket,releaseDesktopLock,revokeAndCheckClaim} from './desktop-lock.mjs';
 import {findDesktopTurn,reconcileDesktopLock} from './desktop-recovery.mjs';
+import {wakeDesktopThread,beginDesktopWake} from './desktop-wake.mjs';
 
 const execute=promisify(execFile),root=path.dirname(fileURLToPath(import.meta.url));
 const quote=value=>"'"+String(value).replaceAll("'","'\\''")+"'";
@@ -22,7 +23,7 @@ export function recordedTool(item){
 
 // Queuing is not acknowledgement. Success requires a matching desktop turn,
 // its actual terminal state, a worker claim, and a schema-checked result.
-export function runDesktopAgent({codex,reader,job,context,event,onFinish,onProductionCheckpoint,onSourceProgress,restore=false,pollMs=2500,ackTimeoutMs=120000,queue=execute}){
+export function runDesktopAgent({codex,reader,job,context,event,onFinish,onProductionCheckpoint,onSourceProgress,restore=false,pollMs=2500,ackTimeoutMs=120000,queue=execute,wake=wakeDesktopThread,wakeAfterMs=0,wakeRetryMs=15000}){
   const directory=path.join(context.jobDirectory,'desktop'),ticketFile=path.join(directory,'ticket.json');
   let ticket,timer,stopped=false,detached=false,polling=false,lastProgress='',lastWarning='',lockOwned=false,publishes=Promise.resolve();
   const seen=new Map(),readCheckpoint=onProductionCheckpoint?productionCheckpointReader({job,context,adopt:onProductionCheckpoint,event}):async()=>{};
@@ -78,6 +79,7 @@ export function runDesktopAgent({codex,reader,job,context,event,onFinish,onProdu
           if(claimed){eventOnce('桌面已领取任务，正在等待执行状态；请保持桌面端开启，勿重复开始。');return;}
           await finish(1,job.cancelRequested?'已撤销尚未执行的桌面消息':'桌面会话未接收任务。请打开并保持所选 Codex 会话，再点击继续；本次排队消息已作废，不会重复制作。');return;
         }
+        if(!ack&&activity.turns.get(activity.latest)!=='inProgress')await requestWake();
         return;
       }
       const actualStatus=activity.turns.get(turn.id);
@@ -101,11 +103,36 @@ export function runDesktopAgent({codex,reader,job,context,event,onFinish,onProdu
     finally{polling=false;}
   }
   function eventOnce(message){if(lastWarning!==message){lastWarning=message;event('warning',message);}}
+  async function requestWake(){
+    if(stopped||detached||job.cancelRequested||ticket.revoked)return;
+    const requests=ticket.wakeRequests||[],last=requests.at(-1);
+    if(requests.length>=2||Date.now()-ticket.queuedAt<wakeAfterMs||last&&Date.now()-Date.parse(last.startedAt)<wakeRetryMs)return;
+    const request={startedAt:new Date().toISOString(),status:'requesting'};
+    ticket.wakeRequests=[...requests,request];job.desktop.wakeRequests=ticket.wakeRequests;
+    // Persist intent before invoking the OS. Reattachment may retry this wake
+    // within the same bound, but never queues a second copy of the task.
+    await publish();
+    let ack;try{ack=await readRegularJson(path.join(directory,'desktop-ack.json'));}catch(error){if(error.code!=='ENOENT')throw error;}
+    if(ack&&['jobId','requestId','threadId'].some(k=>ack[k]!==ticket[k]))throw Error('桌面执行回执与本次任务不一致');
+    if(ack)return;
+    const activity=await desktopActivity(reader,ticket.threadId);
+    if(activity.turns.get(activity.latest)==='inProgress'||await findDesktopTurn(reader,ticket,job.desktop.turnId||ticket.turnId))return;
+    const started=await beginDesktopWake(ticketFile,ticket,()=>!stopped&&!detached&&!job.cancelRequested&&!ticket.revoked&&Date.now()-ticket.queuedAt<=ackTimeoutMs,()=>{
+      event('queued',requests.length?'正在再次自动唤起执行会话，仍使用同一条任务消息':'正在自动唤起所选桌面执行会话，无需手动点开对话');
+      return wake(ticket.threadId);
+    });
+    if(!started)return;
+    const outcome=await started.outcome;
+    if(outcome.ok)request.status='requested';
+    else{request.status='failed';request.error=dispatchWarning(outcome.error.stderr||outcome.error.message);if(!stopped&&!detached&&!job.cancelRequested)eventOnce('自动唤起暂未成功：'+request.error+'。工作台会核对实际领取状态。');}
+    if(!detached&&!stopped)await publish();
+  }
   (async()=>{
     await mkdir(directory,{recursive:true});
     if(restore){
       ticket=await readRegularJson(ticketFile);
       job.desktop??={requestId:ticket.requestId,threadId:ticket.threadId,directory};
+      job.desktop.wakeRequests=ticket.wakeRequests||[];
       if(ticket.jobId!==job.id||ticket.threadId!==job.execution.desktopThreadId)throw Error('桌面恢复记录身份不一致');
       const owner=await readRegularJson(path.join(lock,'owner.json'));if(owner.jobId!==job.id)throw Error('桌面会话已被其他工作台任务占用');lockOwned=true;
       if(ticket.leaseUntil<Date.now()||job.cancelRequested)await revoke();
@@ -126,7 +153,9 @@ export function runDesktopAgent({codex,reader,job,context,event,onFinish,onProdu
       if(job.cancelRequested){await finish(1,'任务在排队前已取消');return;}
       // Persist dispatch intent before invoking queue. Recovery only observes it;
       // even an uncertain CLI exit must never trigger an automatic second send.
-      try{const reply=await queue(codex,['queue','--thread',ticket.threadId,'--message',prompt,'--resume'],{cwd:context.jobDirectory,timeout:20000,maxBuffer:64000});job.desktop.queueWarning=!!reply.stderr;if(reply.stderr){job.desktop.dispatchWarning=dispatchWarning(reply.stderr);event('warning','任务已排队，但唤起桌面有警告：'+job.desktop.dispatchWarning+'。请打开所选会话；工作台正在等待实际领取。');}}
+      // A generic daemon cannot supply the desktop's client-side tools. Queue
+      // once, then wake the original desktop host through its supported link.
+      try{const reply=await queue(codex,['queue','--thread',ticket.threadId,'--message',prompt],{cwd:context.jobDirectory,timeout:20000,maxBuffer:64000});job.desktop.queueWarning=!!reply.stderr;if(reply.stderr){job.desktop.dispatchWarning=dispatchWarning(reply.stderr);event('warning','任务入队提示：'+job.desktop.dispatchWarning+'。工作台将自动唤起所选桌面会话并核对领取状态。');}}
       catch(e){job.desktop.queueWarning=true;job.desktop.dispatchWarning=dispatchWarning(e.stderr||e.code||e.message);event('warning','排队或唤起尚未确认：'+job.desktop.dispatchWarning+'。正在核对是否已接收，不会重复发送。');}
     }
     job.attempts??=[];if(!job.attempts.includes(attempt))job.attempts.push(attempt);job.usageIncomplete=!job.desktop.usageRecorded;

@@ -9,7 +9,7 @@ import net from 'node:net';
 import {fileURLToPath} from 'node:url';
 
 const execute=promisify(execFile),root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-test('real HTTP voice intake survives restart, branches both ways and isolates the recording from materials',{timeout:60000},async()=>{
+for(const catalogShape of ['legacy','voiceRef'])test('real HTTP voice intake survives restart, branches both ways and isolates the recording from materials: '+catalogShape,{timeout:60000},async()=>{
   const temp=await mkdtemp(path.join(os.tmpdir(),'voice-api-test-'));let server;
   const listener=net.createServer();await new Promise(r=>listener.listen(0,'127.0.0.1',r));const port=listener.address().port;await new Promise(r=>listener.close(r));
   const dataDir=path.join(temp,'state'),userDir=path.join(temp,'user'),base='http://127.0.0.1:'+port;
@@ -26,7 +26,7 @@ else if(process.argv.includes('app-server')){
  let buffer='';process.stdin.on('data',block=>{buffer+=block;let i;while((i=buffer.indexOf('\\n'))>=0){const request=JSON.parse(buffer.slice(0,i));buffer=buffer.slice(i+1);if(!request.id)continue;
  let result=request.method==='config/read'?{config:{model:'gpt-6-astra'}}:request.method==='model/list'?{data:[{id:'gpt-6-astra',model:'gpt-6-astra',isDefault:true}],nextCursor:null}:request.method==='thread/start'?{thread:{id:'fixture-tool-thread'}}:{};
  if(request.method==='mcpServer/tool/call'){
-   if(request.params.tool==='manage_voice')result={structuredContent:{voices:[{provider:'fixture',voiceId:'cloned-fixture',available:true,supportedUses:['tts'],capabilities:{supportedControls:[]}}]}};
+   if(request.params.tool==='manage_voice')result={structuredContent:{voices:[{...${catalogShape==='legacy'?"{provider:'fish-audio',voiceId:'cloned-fixture'}":"{type:'custom',customVoiceId:'cloned-fixture',voiceRef:'current-fixture-ref'}"},available:true,supportedUses:['tts'],capabilities:{supportedControls:[]}}]}};
    else if(request.params.tool==='submit_voice'){fs.appendFileSync(${JSON.stringify(path.join(temp,'narration-calls.jsonl'))},JSON.stringify(request.params.arguments)+'\\n');result={structuredContent:{jobId:'fixture-tts'}};}
  }
  console.log(JSON.stringify({id:request.id,result}));}});
@@ -51,7 +51,7 @@ else{
  if(c.taskAction==='voice'&&kind==='voice_choice'){candidates=[{key:'official-fixture',name:'测试旁白',summary:'协议测试音色',sampleUrl:'https://93.184.215.14/fixture.mp3',provider:'internal-fixture',voiceId:'official-catalog-fixture',voiceType:'official'}];console.log(JSON.stringify({type:'item.completed',item:{type:'mcp_tool_call',server:'chatcut',tool:'manage_voice',status:'completed'}}));}
  if(c.taskAction==='voice'&&kind==='none'){
   console.log(JSON.stringify({type:'item.completed',item:{type:'mcp_tool_call',server:'chatcut',tool:'manage_voice',status:'completed'}}));
-  console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify({status:'ready',summary,voice:c.voice.savedVoice||{provider:'fixture',voiceId:'cloned-fixture',name:a.name,voiceType:'custom'},questions:[],voiceRequest:{kind:'none',message:'',candidates:[]}})}}));
+  console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify({status:'ready',summary,voice:c.voice.savedVoice||{provider:'fish-audio',voiceId:'cloned-fixture',name:a.name,voiceType:'custom'},questions:[],voiceRequest:{kind:'none',message:'',candidates:[]}})}}));
  }else console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify({status:'needs_input',summary,projectId:'',timelineId:'',editorUrl:'',files:[],qaStatus:'needs_review',notes:[],questions:kind==='none'?['Fixture stops before actual TTS.']:[],voiceRequest:{kind,message:'测试流程',candidates}})}}));
 }
 `);await chmod(fake,0o755);
@@ -107,7 +107,11 @@ else{
     job=await produce();assert.equal(job.summary,'fixture received selected voice');
     const cloneContext=JSON.parse(await readFile(path.join(dataDir,'jobs',job.id,'request.json'),'utf8')),answer=cloneContext.voice.answers.findLast(a=>a.action==='recording');
     const boundVoice=cloneContext.voice.answers.at(-1);assert.equal(boundVoice.action,'select');assert.equal(boundVoice.voice.voiceId,'cloned-fixture');assert.equal(boundVoice.voiceScope,null);assert.equal(boundVoice.planHash,revised.value.plan.planHash);assert.ok(boundVoice.preparedByJobId);
-    const narrated=JSON.parse((await readFile(path.join(temp,'narration-calls.jsonl'),'utf8')).trim().split('\n')[0]);assert.equal(narrated.voiceId,'cloned-fixture');assert.equal(narrated.provider,'fixture');assert.equal(narrated.projectId,'fixture-project');assert.ok(job.toolCalls.some(t=>t.tool==='submit_voice'&&t.source==='locked_workbench_voice'));
+    const submitted=(await readFile(path.join(temp,'narration-calls.jsonl'),'utf8')).trim().split('\n');assert.equal(submitted.length,1);
+    const narrated=JSON.parse(submitted[0]);
+    const identity=catalogShape==='legacy'?{provider:'fish-audio',voiceId:'cloned-fixture'}:{voiceRef:'current-fixture-ref'};
+    assert.deepEqual(narrated,{text:'本轮新克隆音色正式配音协议测试',...identity,projectId:'fixture-project',timelineId:'fixture-timeline'});
+    assert.ok(job.toolCalls.some(t=>t.tool==='submit_voice'&&t.source==='locked_workbench_voice'));
     assert.equal(answer.confirmedConsent,true);assert.equal(answer.recording.duration,12);assert.equal(answer.name,'我的测试音色');
     assert.equal(path.dirname(answer.recording.path),path.join(p.run,'voice-references'));
     p=(await api('/api/state')).value.project;assert.equal(p.sources.length,initialSources);assert.equal(p.approval.planHash,revised.value.plan.planHash);assert.equal(p.deliveries.length,0);

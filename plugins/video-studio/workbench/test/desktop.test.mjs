@@ -10,9 +10,10 @@ import {reconcileDesktopLock,findDesktopTurn} from '../desktop-recovery.mjs';
 import {lockPath,updateTicket,releaseDesktopLock,withDesktopMutex,assertTicket} from '../desktop-lock.mjs';
 import {workerCommand,readRegularJson,validateResult} from '../desktop-worker.mjs';
 import {desktopSetupMarkup} from '../public/desktop-setup.js';
+import {wakeDesktopThread} from '../desktop-wake.mjs';
 
 async function fixture(t){
-  const base=await mkdtemp(path.join(os.tmpdir(),'vs-desktop-'));t.after(()=>rm(base,{recursive:true,force:true}));
+  const base=await mkdtemp(path.join(os.tmpdir(),'vs-desktop-'));t.after(()=>rm(base,{recursive:true,force:true,maxRetries:10,retryDelay:25}));
   const threadId=randomUUID(),id=randomUUID(),jobDirectory=path.join(base,'jobs',id),run=path.join(base,'run'),sessions=path.join(base,'sessions');
   await Promise.all([mkdir(jobDirectory,{recursive:true}),mkdir(run),mkdir(sessions)]);
   const rollout=path.join(sessions,'session.jsonl');
@@ -23,7 +24,7 @@ async function fixture(t){
   const job={id,action:'connect',startedAt:new Date().toISOString(),toolCalls:[],execution:{backend:'desktop',desktopThreadId:threadId}};
   const context={jobId:id,jobDirectory,run,selectedSources:[],brief:{},pluginRoot:base};
   const ticketFile=path.join(jobDirectory,'desktop','ticket.json'),events=[];
-  const opts={codex:'unused',reader,job,context,pollMs:10,ackTimeoutMs:100,event:(type,message)=>events.push({type,message})};
+  const opts={codex:'unused',reader,job,context,pollMs:10,ackTimeoutMs:100,wake:async()=>{},event:(type,message)=>events.push({type,message})};
   async function accept({complete=true}={}){const ticket=await readRegularJson(ticketFile);await workerCommand('claim',ticketFile);reader.turns=[{id:'turn-current',status:complete?'completed':'inProgress',items:[{type:'userMessage',content:[{type:'text',text:ticket.marker}]}]}];if(complete){const file=path.join(jobDirectory,'answer.json');await writeFile(file,JSON.stringify({connected:true,message:'fixture'}));await workerCommand('complete',ticketFile,file);}return ticket;}
   return {base,reader,job,context,ticketFile,events,opts,accept,rollout};
 }
@@ -151,6 +152,90 @@ test('claim and complete wait for revocation mutex; revoked work cannot publish'
 test('resume failure warning is visible but credentials and task prompt are redacted',()=>{
  const warning=dispatchWarning('resume failed token=secret authorization=Bearer secret4 Bearer secret2 https://local/?token=secret3 [VideoStudio request:x] private task body');
  assert.match(warning,/resume failed/);assert.doesNotMatch(warning,/secret|private task body/);
+});
+
+test('desktop wake uses only the validated official thread link and no shell',async()=>{
+  const id=randomUUID(),calls=[];const run=async(...args)=>calls.push(args);
+  await wakeDesktopThread(id,{platform:'darwin',run});
+  assert.deepEqual(calls[0].slice(0,2),['/usr/bin/open',['-g','codex://threads/'+id]]);
+  assert.equal(calls[0][2].timeout,10000);
+  await assert.rejects(wakeDesktopThread(id+'?prompt=bad',{platform:'darwin',run}),/有效/);
+  await assert.rejects(wakeDesktopThread(id,{platform:'linux',run}),/不支持/);
+  assert.equal(calls.length,1);
+});
+test('an unloaded desktop receives one queue then a wake and a real acknowledgement',async t=>{
+  const f=await fixture(t);let sent=0,woken=0;
+  const result=await new Promise(resolve=>runDesktopAgent({...f.opts,wakeAfterMs:0,ackTimeoutMs:3000,
+    queue:async(command,args)=>{sent++;assert.ok(!args.includes('--resume'));return {};},
+    wake:async id=>{woken++;assert.equal(id,f.job.execution.desktopThreadId);assert.equal((await readRegularJson(f.ticketFile)).wakeRequests.length,1);await f.accept();},onFinish:resolve}));
+  assert.equal(result.code,0);assert.equal(sent,1);assert.equal(woken,1);assert.equal(f.job.desktop.acknowledged,true);
+});
+test('a successful OS wake without a claim never reports task success and retries are bounded',async t=>{
+  const f=await fixture(t);let sent=0,woken=0;
+  const result=await new Promise(resolve=>runDesktopAgent({...f.opts,wakeAfterMs:0,wakeRetryMs:0,ackTimeoutMs:700,
+    queue:async()=>{sent++;return {};},wake:async()=>{woken++;},onFinish:resolve}));
+  assert.equal(result.code,1);assert.equal(sent,1);assert.equal(woken,2);assert.ok(!f.job.desktop.acknowledged);
+  assert.equal((await readRegularJson(f.ticketFile)).wakeRequests.length,2);
+});
+test('an already matching turn and claim do not request desktop navigation',async t=>{
+  const f=await fixture(t);let woken=0;
+  const result=await new Promise(resolve=>runDesktopAgent({...f.opts,wakeAfterMs:0,ackTimeoutMs:3000,
+    queue:async()=>{await f.accept();return {};},wake:async()=>{woken++;},onFinish:resolve}));
+  assert.equal(result.code,0);assert.equal(woken,0);
+});
+test('a wake failure or uncertain queue exit still accepts real execution without resending',async t=>{
+  const f=await fixture(t);let sent=0,woken=0;
+  const result=await new Promise(resolve=>runDesktopAgent({...f.opts,wakeAfterMs:0,ackTimeoutMs:3000,
+    queue:async()=>{sent++;throw Error('queue timed out after submission');},wake:async()=>{woken++;await f.accept();throw Error('navigation timed out token=secret');},onFinish:resolve}));
+  assert.equal(result.code,0);assert.equal(sent,1);assert.equal(woken,1);
+  assert.doesNotMatch(JSON.stringify(f.job.desktop.wakeRequests),/secret/);
+});
+test('a claim without an indexed turn suppresses wake requests',async t=>{
+  const f=await fixture(t);let woken=0,controller;
+  const claimed=new Promise(resolve=>{controller=runDesktopAgent({...f.opts,wakeAfterMs:0,ackTimeoutMs:3000,
+    queue:async()=>{await workerCommand('claim',f.ticketFile);resolve();return {};},wake:async()=>{woken++;},onFinish(){}});});
+  t.after(()=>controller.detach());await claimed;await new Promise(r=>setTimeout(r,120));controller.detach();assert.equal(woken,0);
+});
+test('cancellation during the final wake recheck suppresses the OS call',async t=>{
+  const f=await fixture(t);let controller,woken=0;const activity=f.reader.activity;
+  f.reader.activity=async()=>{const result=await activity();if(f.job.desktop?.wakeRequests?.length)controller.cancel();return result;};
+  const result=await new Promise(resolve=>{controller=runDesktopAgent({...f.opts,wakeAfterMs:0,ackTimeoutMs:3000,
+    queue:async()=>({}),wake:async()=>{woken++;},onFinish:resolve});});
+  assert.equal(result.code,1);assert.equal(woken,0);assert.match(result.error,/已撤销/);
+});
+test('another live turn suppresses automatic navigation',async t=>{
+  const f=await fixture(t);let woken=0;
+  const result=await new Promise(resolve=>runDesktopAgent({...f.opts,wakeAfterMs:0,ackTimeoutMs:250,
+    queue:async()=>{f.reader.turns=[{id:'other-turn',status:'inProgress',items:[]}];return {};},wake:async()=>{woken++;},onFinish:resolve}));
+  assert.equal(result.code,1);assert.equal(woken,0);
+});
+for(const change of ['claim','owner','revoked','expired'])test(`final wake decision rechecks ${change} after asynchronous history reads`,async t=>{
+  const f=await fixture(t);let controller,woken=0,changed=false,signal;
+  const observed=new Promise(r=>signal=r),activity=f.reader.activity;
+  f.reader.activity=async()=>{
+    const result=await activity();
+    if(!changed&&f.job.desktop?.wakeRequests?.length){
+      changed=true;
+      if(change==='claim')await workerCommand('claim',f.ticketFile);
+      else if(change==='owner')await atomicJson(path.join(lockPath(f.base,f.job.execution.desktopThreadId),'owner.json'),{jobId:'new-owner',token:'new-token'});
+      else{const ticket=await readRegularJson(f.ticketFile);await atomicJson(f.ticketFile,{...ticket,...(change==='revoked'?{revoked:true}:{leaseUntil:0})});}
+      signal();
+    }
+    return result;
+  };
+  controller=runDesktopAgent({...f.opts,wakeAfterMs:0,wakeRetryMs:10000,ackTimeoutMs:3000,queue:async()=>({}),wake:async()=>{woken++;},onFinish(){}});
+  t.after(()=>controller.detach());await observed;await new Promise(r=>setTimeout(r,150));controller.detach();
+  assert.equal(woken,0);
+});
+test('restart keeps the wake allowance and never queues a second message',async t=>{
+  const f=await fixture(t);let sent=0,woken=0,controller;
+  let signal;const firstWake=new Promise(r=>signal=r);
+  controller=runDesktopAgent({...f.opts,wakeAfterMs:0,wakeRetryMs:0,ackTimeoutMs:3000,
+    queue:async()=>{sent++;return {};},wake:async()=>{woken++;controller.detach();signal();},onFinish(){assert.fail('detached');}});
+  await firstWake;assert.equal((await readRegularJson(f.ticketFile)).wakeRequests.length,1);
+  const result=await new Promise(resolve=>runDesktopAgent({...f.opts,restore:true,wakeAfterMs:0,wakeRetryMs:0,ackTimeoutMs:700,
+    queue:async()=>{sent++;throw Error('duplicate');},wake:async()=>{woken++;},onFinish:resolve}));
+  assert.equal(result.code,1);assert.equal(sent,1);assert.equal(woken,2);
 });
 
 test('a claim that wins the mutex during timeout is retained until real turn termination',async t=>{

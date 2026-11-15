@@ -1,9 +1,9 @@
-import {revisionFeedback,confirmRevision,reviewDelta,currentRevision} from './revisions.mjs';
-import {pendingEvidence} from './evidence-resume.mjs';
+import {revisionFeedback,confirmRevision,reviewDelta,currentRevision,saveWorkflowError,clearWorkflowError} from './revisions.mjs';
+import {pendingEvidence,currentCandidate,pendingRegistration,saveRegistrationResult,loadRegistrationResult,verifyRegistrationArtifacts} from './evidence-resume.mjs';
 import {prepareReviewPacket} from './review-packet.mjs';
 import {provisionalPackage} from './provisional.mjs';
 import {beginAutomatic,nextAutomatic,advanceAutomatic,curateSelection,requestHash} from './automatic.mjs';
-import {bindCandidate,verifyCandidate,recoverFailedReview,registerIndependentReview,reviewDeliveryPackage,validateDeliveryFiles,enforceIndependentReview,assertCanProduce} from './quality.mjs';
+import {bindCandidate,bindReusedCandidate,hasExportRecord,verifyCandidate,recoverRecordedReview,registerIndependentReview,reviewDeliveryPackage,validateDeliveryFiles,enforceIndependentReview,assertCanProduce} from './quality.mjs';
 import http from 'node:http';
 import {normalizeDownloadRequest} from './production-progress.mjs';
 import {searchContext} from './search-context.mjs';
@@ -158,6 +158,55 @@ async function saveSourceProgress(job,context,snapshot){
   await refreshLibrary();await persist();addEvent(job,'partial',`已保存 ${job.partialSourceIds.length} 条中间候选，仍在检索与核实；尚未下载。`);
 }
 function cleanEditor(raw){try{const url=new URL(raw);if(url.protocol!=='https:'||url.hostname!=='app.chatcut.io')return '';url.searchParams.delete('editor-boot-token');url.searchParams.delete('dockviewLayout');return url.href;}catch{return '';}}
+function transientFailure(error){
+  const temporary=['EBUSY','EAGAIN','EINTR','EMFILE','ENFILE','ECONNRESET','ECONNREFUSED','ETIMEDOUT','EAI_AGAIN'];
+  const code=error.code||error.cause?.code;
+  if(code&&code!=='preflight_failed')return temporary.includes(code);
+  return /\b(EBUSY|EAGAIN|EINTR|EMFILE|ENFILE|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN)\b|模型兼容检查超时|CLI (登录状态|执行参数)检查超时/.test(String(error.message));
+}
+// Use only around read-only preparation or local file operations. Never wrap a
+// runner, a paid tool submission, or delivery together with its later persist.
+async function retryLocal(operation,label,{job=null,current=()=>true}={}){
+  const ownerId=project.id,generation=cancelGeneration;let notice;
+  const assertCurrent=()=>{if(project.id!==ownerId||cancelGeneration!==generation||job?.cancelRequested&&active?.job.id===job.id||!current())throw Object.assign(Error('操作已停止或当前项目已变化，已有文件保留。'),{code:'operation_cancelled'});};
+  try{
+    for(let attempt=1;attempt<=3;attempt++){
+      assertCurrent();
+      try{return await operation();}
+      catch(error){
+        assertCurrent();if(!transientFailure(error))throw error;
+        if(attempt===3){error.message=`${label}已自动尝试 3 次，仍未恢复：${error.message}`;throw error;}
+        notice={label,attempt:attempt+1,total:3};runtime.recovery=notice;
+        if(job)addEvent(job,'recovery',`${label}遇到短暂异常，正在自动恢复（第 ${attempt+1}/3 次），无需重复点击。`);
+        await new Promise(resolve=>setTimeout(resolve,attempt===1?300:900));
+      }
+    }
+  }finally{if(notice&&runtime.recovery===notice)delete runtime.recovery;}
+}
+async function saveProvisional(candidate,report){
+  try{const delivery=await retryLocal(()=>provisionalPackage(project,candidate,report,bridge),'保存临时交付',{job:project.jobs.find(j=>j.id===candidate.producerJobId),current:()=>currentCandidate(project)===candidate});clearWorkflowError(project,'provisional');return delivery;}
+  catch(error){if(error.code==='operation_cancelled')throw error;saveWorkflowError(project,'provisional','provisional',cleanError(error.message));return null;}
+}
+async function retryProvisional(){
+  const candidate=currentCandidate(project);if(!candidate)throw Error('当前方案没有可恢复的实际导出，请核对本期方案与候选。');
+  const report=candidate===project.qualityCycle?.candidate?project.qualityCycle.report:null;
+  const delivery=await saveProvisional(candidate,report);await persist();
+  if(!delivery)throw Error(project.workflowErrors.provisional.message);return delivery;
+}
+async function resumeDelivery(){
+  const cycle=project.qualityCycle,candidate=cycle?.candidate;
+  if(!cycle?.report?.completed||!candidate)throw Error('尚未取得可恢复交付的验收结果。');
+  const producer=project.jobs.find(j=>j.id===candidate.producerJobId);
+  if(!producer)throw Error('缺少原制作任务，不能恢复交付。');
+  if(candidate.planHash!==project.approval?.planHash||candidate.inputHash!==inputHash(project))throw Error('成片与当前方案不一致，不能恢复交付。');
+  await checkMedia();await verifyCandidate(candidate,project.run);
+  const delivery=await retryLocal(()=>deliver(candidate,producer),'保存正式交付',{job:producer,current:()=>currentCandidate(project)===candidate});
+  const review=project.jobs.find(j=>j.id===cycle.reviewJobId);
+  if(review){review.deliveryId=delivery.id;review.status='completed';review.error='';}
+  if(project.automatic){project.automatic.stage='delivery';project.automatic.status='completed';}
+  clearWorkflowError(project,'preparation');clearWorkflowError(project,'provisional');
+  addEvent(producer,'completed','已复用有效验收结果完成交付，未重新制作或调用验收模型');await retryLocal(()=>persist(),'保存交付记录');return null;
+}
 async function deliver(result,job){
   if(!project.qualityCycle?.report?.completed||project.qualityCycle.candidate.producerJobId!==job.id)throw Error('独立验收未通过，不能交付。');
   await validateDeliveryFiles(result,project.run,file=>bridge('inspect-media',{file}));
@@ -194,7 +243,8 @@ async function deliver(result,job){
     for(const [file,value] of Object.entries(extras))await writeFile(path.join(staging,file),JSON.stringify(value,null,2));
     const files=[];
     async function add(file,name,role){if(files.some(f=>f.name===name))throw new Error('交付文件名重复，请核对导出结果。');const destination=path.join(staging,name);await copyFile(file,destination);const expected=registered.find(f=>f.path===file)?.sha256;if(expected&&await fileHash(destination)!==expected)throw Error('交付复制后的文件与验收文件不一致。');files.push({id:randomUUID(),name,role,path:destination,bytes:(await stat(destination)).size,sha256:await fileHash(destination)});}
-    for(const item of registered){const ext=path.extname(item.path).toLowerCase();if(!['.mp4','.srt','.json','.md','.txt','.png','.jpg','.jpeg','.webp'].includes(ext))continue;const name=item.role==='video'?'final.mp4':item.role==='subtitles'?'字幕.srt':item.role==='qa'?'producer-qa-report.json':item.role==='cover_portrait'?'封面_竖版_3x4.png':item.role==='cover_landscape'?'封面_横版_4x3.png':item.role==='copy'?'发布文案.txt':`${files.length+1}-${path.basename(item.path)}`;await add(item.path,name,item.role);}
+    let qaCount=0;
+    for(const item of registered){const ext=path.extname(item.path).toLowerCase();if(!['.mp4','.srt','.json','.md','.txt','.png','.jpg','.jpeg','.webp'].includes(ext))continue;if(item.role==='qa')qaCount++;const name=item.role==='video'?'final.mp4':item.role==='subtitles'?'字幕.srt':item.role==='qa'?`producer-qa-report${qaCount===1?'':'-'+qaCount}${ext}`:item.role==='cover_portrait'?'封面_竖版_3x4.png':item.role==='cover_landscape'?'封面_横版_4x3.png':item.role==='copy'?'发布文案.txt':`${files.length+1}-${path.basename(item.path)}`;await add(item.path,name,item.role);}
     const approval=await bridge('check-approval',{run:project.run,planHash:project.approval.planHash,inputHash:inputHash(project)});await add(approval.file,'script-storyboard.md','plan');
     for(const file of Object.keys(extras)){const p=path.join(staging,file);files.push({id:randomUUID(),name:file,role:file.startsWith('sources')?'sources':file.startsWith('project')?'project':'qa',path:p,bytes:(await stat(p)).size,sha256:await fileHash(p)});}
     await rename(staging,directory);published=true;for(const file of files)file.path=path.join(directory,file.name);
@@ -232,7 +282,7 @@ async function adoptProductionCheckpoint(job,context,value){
   return {planHash:job.planHash,inputHash:job.inputHash,approval:project.approval,productionContext:context.productionContext};
 }
 async function finishJob(job,context,{code,error,finalText}){
-  let followup=null;
+  const ownerId=project.id,finishGeneration=cancelGeneration;let followup=null;
   try{
     if(job.failureKind==='cli_incompatible'){
       rejectedRuntime={path:job.execution?.cliPath,version:job.execution?.cliVersion,model:job.execution?.model,error:cleanError(error)};
@@ -290,15 +340,22 @@ async function finishJob(job,context,{code,error,finalText}){
       const review=context.preflightReport||await registerIndependentReview({result,job,candidate:cycle.candidate,probe:context.probe,run:project.run,bridge,methods:context.productionContext.review_methods,referenceProbe:context.referenceProbe,requiredChecks:context.requiredChecks});
       cycle.report=await reviewDeliveryPackage(review,cycle.candidate,project.run,file=>bridge('inspect-media',{file}));
       cycle.reviewJobId=job.id;
-      if(!cycle.report.completed)await provisionalPackage(project,cycle.candidate,cycle.report,bridge);
+      if(!cycle.report.completed){
+        cycle.terminal='quality_failed';job.status='quality_failed';
+        if(project.automatic)project.automatic.status='quality_failed';
+      }
+      // Save the review decision before filesystem packaging can fail.
+      await retryLocal(()=>persist(),'保存验收结果',{job});
+      if(!cycle.report.completed)await saveProvisional(cycle.candidate,cycle.report);
       await writeFile(path.join(project.run,'independent-review.json'),JSON.stringify(cycle.report,null,2));
       if(cycle.report.completed){
         const producer=project.jobs.find(j=>j.id===cycle.candidate.producerJobId);if(!producer)throw Error('缺少原制作任务。');
-        job.deliveryId=(await deliver(cycle.candidate,producer)).id;job.status='completed';
+        job.deliveryId=(await retryLocal(()=>deliver(cycle.candidate,producer),'保存正式交付',{job,current:()=>currentCandidate(project)===cycle.candidate})).id;job.status='completed';
+        clearWorkflowError(project,'provisional');
         if(project.automatic){project.automatic.status='completed';project.automatic.stage='delivery';}
       }else{
         cycle.terminal='quality_failed';job.status='quality_failed';
-        job.error='验收未通过，完整临时交付与问题报告已保留。请确认修订建议后继续，或停止制作保留现有文件。';
+        job.error=project.workflowErrors?.provisional?'验收未通过，候选和问题报告已保存；临时交付保存失败，可重试保存后确认修订。':'验收未通过，完整临时交付与问题报告已保留。请确认修订建议后继续，或停止制作保留现有文件。';
         if(project.automatic)project.automatic.status='quality_failed';
       }
     }
@@ -349,50 +406,76 @@ async function finishJob(job,context,{code,error,finalText}){
       const evidencePending=result.status==='needs_input'&&!job.voiceRequest&&!job.revisionProposal
         &&result.files?.some(f=>f.role==='video')&&result.projectId&&result.timelineId;
       if(result.status!=='exported'&&!evidencePending){job.status=result.status==='needs_input'?'needs_input':'blocked';job.error=job.downloadRequest?'':result.summary||'制片步骤需要处理。';return;}
+      await saveRegistrationResult(project,job,context,result);await retryLocal(()=>persist(),'保存待登记结果',{job});
       if(!project.approval||job.planHash!==project.approval.planHash||job.inputHash!==inputHash(project))throw Error('制作候选缺少当前已校验的制作检查点');
       await bridge('check-approval',{run:project.run,planHash:job.planHash,inputHash:job.inputHash});
       await checkSelected();
       const exported=evidencePending?{...result,status:'exported',qaStatus:'needs_review'}:result;
-      const candidate=await bindCandidate(exported,project.run,job,run=>bridge('recover-subtitles',{run})),old=project.qualityCycle;
-      if(context.pendingExport){
-        const prior=context.pendingExport;
-        if(candidate.projectId!==prior.projectId||candidate.timelineId!==prior.timelineId||prior.files.some(f=>!candidate.files.some(g=>g.role===f.role&&g.sha256===f.sha256)))throw Error('补证流程必须复用原候选和交付文件；修改成片需要另行确认修订。');
-        candidate.producerJobId=prior.producerJobId;candidate.producerThreadId=prior.producerThreadId;
-      }
-      candidate.selectedVoice=context.pendingExport?.selectedVoice||context.voice?.answers?.findLast(a=>a.action==='select')?.voice||context.voice?.savedVoice||null;
+      const revision=currentRevision(project);
+      const history=revision&&(!context.historyReuseId||context.historyReuseId===revision.id)?project.revisionHistory?.find(h=>h.id===revision.id):null;
+      const prior=context.pendingExport||(!hasExportRecord(job)?history?.qualityCycle?.candidate:null);
+      let candidate;
+      if(prior){
+        const producer=project.jobs.find(j=>j.id===prior.producerJobId);
+        const noteApproval=revision&&revision.evidenceReuseReview?.revisionId===revision.id?revision.evidenceReuseReview:null;
+        candidate=await bindReusedCandidate({result:exported,run:project.run,job,prior,producer,
+          previousPlan:history?.plan,currentPlan:project.plan,noteApproval,evidenceOnly:!!context.pendingExport});
+      }else candidate=await bindCandidate(exported,project.run,job,run=>bridge('recover-subtitles',{run}));
+      await verifyRegistrationArtifacts(job,project.run,candidate);
+      const old=project.qualityCycle;
+      candidate.selectedVoice=candidate.selectedVoice||context.voice?.answers?.findLast(a=>a.action==='select')?.voice||context.voice?.savedVoice||null;
+      candidate.registrationResultSha256=job.pendingRegistration.resultSha256;
+      job.pendingRegistration.completed=true;job.error='';clearWorkflowError(project,'preparation');
       if(evidencePending){
-        await provisionalPackage(project,candidate,null,bridge);
         job.pendingExport=candidate;job.status='needs_input';job.error=result.summary;
+        await retryLocal(()=>persist(),'保存候选记录',{job});await saveProvisional(candidate,null);
         return;
       }
       project.qualityCycle={candidate,repairCount:context.repair?old.repairCount:0,repairCompleted:!!context.repair,repair:context.repair?old.repair:null,report:null,previous:old?.candidate?.inputHash===job.inputHash?{candidate:old.candidate,report:old.report,repair:old.repair}:null};
-      await provisionalPackage(project,candidate,null,bridge);
+      await retryLocal(()=>persist(),'保存候选记录',{job});await saveProvisional(candidate,null);
       if(currentRevision(project))project.userRevision.status='candidate_ready';
       if(project.automatic)project.automatic.stage='review';
       await writeFile(path.join(project.run,'quality-cycle.json'),JSON.stringify(project.qualityCycle,null,2));
       job.status='completed';followup={action:'review'};
     }
     addEvent(job,job.status==='completed'?'completed':'warning',job.status==='completed'?'任务结果已校验并保存':job.summary);
-  }catch(e){job.status='failed';job.error=e instanceof SyntaxError?'Agent 未返回有效的结构化结果，请查看执行记录并重试。':cleanError(e.message);addEvent(job,'error',job.error);}
-  finally{job.completedAt=new Date().toISOString();if(job.candidateCacheId)await library.markAcquisition(job.candidateCacheId,job).catch(e=>library.errors.push({title:'候选采集记录',error:cleanError(e.message)}));await refreshLibrary();await persist().catch(()=>{});if(active?.job.id===job.id)active=null;
+  }catch(e){job.status='failed';job.error=e instanceof SyntaxError?'Agent 未返回有效的结构化结果，请查看执行记录并重试。':cleanError(e.message);if(job.pendingRegistration&&!job.pendingRegistration.completed)saveWorkflowError(project,'preparation','registration',job.error);addEvent(job,'error',job.error);}
+  finally{try{job.completedAt=new Date().toISOString();if(job.candidateCacheId)await library.markAcquisition(job.candidateCacheId,job).catch(e=>library.errors.push({title:'候选采集记录',error:cleanError(e.message)}));await refreshLibrary();await persist().catch(()=>{});
     if(!followup)advanceAutomatic(project,job);
     if(job.cancelRequested){if(project.automatic)project.automatic.status='paused';followup=null;}
-    if(project.qualityCycle&&project.run)await writeFile(path.join(project.run,'quality-cycle.json'),JSON.stringify(project.qualityCycle,null,2));
-    await persist();
-    if(followup||project.automatic?.status==='running')queueMicrotask(()=>continuePipeline(followup?{...followup,automaticId:job.automaticId||null}:null).catch(async error=>{if(project.automatic?.status==='running')project.automatic.status='blocked';job.error=cleanError(error.message);addEvent(job,'error',job.error);await persist();}));
+    if(project.qualityCycle&&project.run)await retryLocal(()=>writeFile(path.join(project.run,'quality-cycle.json'),JSON.stringify(project.qualityCycle,null,2)),'保存验收状态');
+    await retryLocal(()=>persist(),'保存任务状态');
+    }catch(error){
+      const action=followup?.action||job.action;followup=null;
+      if(project.automatic?.status==='running')project.automatic.status='blocked';
+      job.error='保存任务状态失败：'+cleanError(error.message);
+      if(!['quality_failed','needs_input'].includes(job.status))job.status='failed';
+      saveWorkflowError(project,'preparation',action,job.error);await persist().catch(()=>{});
+    }finally{
+      if(job.cancelRequested||cancelGeneration!==finishGeneration){
+        followup=null;if(project.automatic)project.automatic.status='paused';
+        if(job.status==='cancelling')job.status='cancelled';await persist().catch(()=>{});
+      }
+      if(active?.job.id===job.id)active=null;
+    }
+    // A local registration retry completes inside the HTTP mutation lock. Wait
+    // for that lock's promise/finally to settle before dispatching the next stage.
+    if(!job.cancelRequested&&cancelGeneration===finishGeneration&&(followup||project.automatic?.status==='running'))setImmediate(()=>continuePipeline(followup?{...followup,automaticId:job.automaticId||null}:null,ownerId,finishGeneration).catch(async error=>{if(project.id!==ownerId)return;if(project.automatic?.status==='running')project.automatic.status='blocked';job.error=cleanError(error.message);addEvent(job,'error',job.error);await persist();}));
   }
 }
-async function continuePipeline(followup=null){
+async function continuePipeline(followup=null,ownerId=project.id,generation=cancelGeneration){
+  if(project.id!==ownerId||cancelGeneration!==generation)return;
   const projectId=project.id,automaticId=project.automatic?.id;
   if((!followup||followup.automaticId)&&project.automatic&&project.automatic.status!=='running')return;
   if(active||mutation)return; // A newer user action owns the project; explicit resume retains the checkpoint.
   await exclusive(async()=>{
-    if(project.id!==projectId||project.automatic?.id!==automaticId||(!followup||followup.automaticId)&&project.automatic&&project.automatic.status!=='running')return;
+    if(project.id!==projectId||cancelGeneration!==generation||project.automatic?.id!==automaticId||(!followup||followup.automaticId)&&project.automatic&&project.automatic.status!=='running')return;
     const next=followup||nextAutomatic(project);if(!next||next.action==='delivery')return;
     await startJob(next.action,{...next,automaticId:followup?followup.automaticId:project.automatic?.status==='running'?project.automatic.id:null});
   });
 }
 async function startAutomatic(options={}){
+  const registration=pendingRegistration(project,requestHash(project));if(registration)return startJob(registration.action);
   if(revisionFeedback(project).questions.length&&!String(options.followup||'').trim())throw Error('有待确认的修订建议，请在“修订与补充反馈”中确认后继续。');
   if(!pendingEvidence(project)&&project.narration&&project.voiceReady?.scope!==voiceScope(project)&&!pendingVoiceRequest(project,inputHash(project))){
     const directory=await getCatalog(),saved=savedVoiceChoices({profile:{voice:project.voiceChoice||((project.voiceIntent||'saved')==='saved'?directory.profile?.voice:null)}})[0];
@@ -404,19 +487,10 @@ async function startAutomatic(options={}){
     if(pendingVoiceRequest(project,inputHash(project))){project.automatic.status='needs_input';await persist();return null;}
     const next=nextAutomatic(project);if(!next)throw Error('没有可继续的自动阶段。');
     if(next.action==='delivery'){
-      const cycle=project.qualityCycle,candidate=cycle.candidate;
-      const producer=project.jobs.find(j=>j.id===candidate.producerJobId);
-      if(!producer)throw Error('缺少原制作任务，不能恢复交付。');
-      if(candidate.planHash!==project.approval?.planHash||candidate.inputHash!==inputHash(project))throw Error('成片与当前方案不一致，不能恢复交付。');
-      await verifyCandidate(candidate,project.run);
-      const delivery=await deliver(candidate,producer);
-      const review=project.jobs.find(j=>j.id===cycle.reviewJobId);
-      if(review){review.deliveryId=delivery.id;review.status='completed';review.error='';}
-      project.automatic.stage='delivery';project.automatic.status='completed';
-      addEvent(producer,'completed','已复用有效验收结果完成交付，未重新制作或调用验收模型');await persist();return null;
+      return await resumeDelivery();
     }
     return await startJob(next.action,{...next,followup:String(options.followup||'').slice(0,4000),automaticId:project.automatic.id});
-  }catch(error){if(project.automatic?.status==='running')project.automatic.status='blocked';await persist();throw error;}
+  }catch(error){if(project.automatic?.status==='running')project.automatic.status='blocked';saveWorkflowError(project,'preparation',project.qualityCycle?.report?.completed?'delivery':project.automatic?.stage||'auto',cleanError(error.message));await persist().catch(()=>{});throw error;}
 }
 async function selectExistingVoice(voice,source){
   const saved=await bridge('save-voice',{voice:{...voice,selected_by_user:true}});
@@ -428,8 +502,25 @@ async function selectExistingVoice(voice,source){
 }
 function adoptTopic(value){if(!project.topic.trim()&&String(value||'').trim())updateSettings(project,{topic:String(value).trim().slice(0,200),selected:project.selected});}
 async function startJob(action,options={}){
+  try{const registration=['create','produce','review'].includes(action)&&pendingRegistration(project,requestHash(project));return registration?await resumeRegistration(registration):await prepareJob(action,options);}
+  catch(error){saveWorkflowError(project,'preparation',action==='review'&&project.qualityCycle?.report?.completed?'delivery':action,cleanError(error.message));await persist().catch(()=>{});throw error;}
+}
+async function resumeRegistration(job){
+  const generation=cancelGeneration;assertReady(project,'review');
+  const {result,context}=await loadRegistrationResult(project,job,requestHash(project));
+  if(cancelGeneration!==generation)throw Error('恢复登记已取消。');
+  job.cancelRequested=false;delete job.stopReason;job.status='running';
+  job.registrationAttempts=(job.registrationAttempts||0)+1;
+  active={job,controller:{cancel(){job.cancelRequested=true;}}};
+  if(project.automatic)project.automatic.status='running';
+  addEvent(job,'verification','正在恢复已完成结果的本地登记，复用原导出；未重新启动制作。');
+  await finishJob(job,context,{code:0,finalText:JSON.stringify(result)});
+  return job;
+}
+async function prepareJob(action,options={}){
   const startGeneration=cancelGeneration;
   assertReady(project,action);
+  if(action==='review'&&project.qualityCycle?.report?.completed)return resumeDelivery();
   if(action==='create'&&(!options.automaticId||project.automatic?.id!==options.automaticId))throw Error('连续制作需要当前一键生成授权');
   if(['produce','create'].includes(action))assertCanProduce(project.qualityCycle,project.approval?.planHash,inputHash(project));
   if(options.automaticId&&project.automatic?.id===options.automaticId)project.automatic.stage=action;
@@ -442,9 +533,11 @@ async function startJob(action,options={}){
   }
   const directCollection=action==='collect'&&canCollectRepository(project.sources.find(s=>s.id===options.sourceId));
   const capabilities=action==='collect'?sourceCapabilities(project.sources.find(s=>s.id===options.sourceId),{direct:directCollection}):action==='discover'?['python','media','downloader']:['plan','produce','create','review','voice','plan_review','curate'].includes(action)?['python','media']:['python'];
-  if(directCollection)rememberDependencies(await bridge('preflight',{capabilities}));else await checkLocal(capabilities,['discover','plan','produce','create'].includes(action)?project.styleSelector:null);
-  if(!directCollection&&!runtime.compatible)throw preflightError(runtime.error||'请先完成 CLI 兼容检查。');
-  requireDependencies([...capabilities,...(['discover','plan','produce','create'].includes(action)?styleCapabilities(project.styleSelector):[])]);
+  await retryLocal(async()=>{
+    if(directCollection)rememberDependencies(await bridge('preflight',{capabilities}));else await checkLocal(capabilities,['discover','plan','produce','create'].includes(action)?project.styleSelector:null);
+    if(!directCollection&&!runtime.compatible)throw preflightError(runtime.error||'请先完成 CLI 兼容检查。');
+    requireDependencies([...capabilities,...(['discover','plan','produce','create'].includes(action)?styleCapabilities(project.styleSelector):[])]);
+  },'检查运行环境');
   if(action==='discover'){const query=String(options.query||project.topic).trim();if(!query)throw new Error('请输入要查找的素材关键词。');adoptTopic(query);}
   if(action==='collect'){const source=project.sources.find(s=>s.id===options.sourceId);if(!source)throw new Error('找不到选中的内容。');adoptTopic(source.title);}
   if(action==='plan'){adoptTopic(project.sources.find(s=>project.selected.includes(s.id))?.title);project.workflowVersion=1;project.approval=null;if(project.plan)project.plan.stale=true;if(!project.planningGeneration||project.jobs.find(j=>j.action==='plan')?.status==='completed')project.planningGeneration=randomUUID();}
@@ -500,6 +593,7 @@ async function startJob(action,options={}){
     const runRecord=JSON.parse(await readFile(path.join(context.run,'run.json'),'utf8'));
     const recorded=runRecord.project;
     if(currentRevision(project)&&action==='create'){context.userRevision=currentRevision(project);context.creativeId=context.userRevision.creativeId||context.creativeId;context.revisionDelta=reviewDelta(project);}
+    if(context.userRevision)context.historyReuseId=context.userRevision.id;
     if(recorded?.planHash===context.planHash&&recorded?.inputHash===context.inputHash||action==='create'&&recorded?.creativeId===context.creativeId){context.existingProject={projectId:recorded.projectId,timelineId:recorded.timelineId,editorUrl:cleanEditor(recorded.editorUrl)};job.editorUrl=context.existingProject.editorUrl;if(action==='create')context.productionMode='recover';}
     if(action==='create'&&currentRevision(project)&&recorded?.projectId){context.existingProject={projectId:recorded.projectId,timelineId:recorded.timelineId,editorUrl:cleanEditor(recorded.editorUrl)};context.productionMode='recover';job.editorUrl=context.existingProject.editorUrl;}
     const currentCatalog=await getCatalog();
@@ -523,17 +617,27 @@ async function startJob(action,options={}){
     const candidate=project.qualityCycle?.candidate;await verifyCandidate(candidate,project.run);
     if(candidate.inputHash!==inputHash(project)||candidate.planHash!==project.approval?.planHash)throw Error('成片与当前确认方案不一致。');
     const lastReview=project.jobs.find(j=>j.id!==job.id&&j.action==='review'&&j.planHash===candidate.planHash&&j.inputHash===candidate.inputHash);
-    if(lastReview?.status==='failed')context.interruptedReview={id:lastReview.id,threadId:lastReview.threadId,directory:lastReview.directory,summary:lastReview.summary};
+    if(['failed','interrupted','cancelled'].includes(lastReview?.status))context.interruptedReview={id:lastReview.id,threadId:lastReview.threadId,directory:lastReview.directory,summary:lastReview.summary};
     context.candidate=candidate;context.reviewDelta=reviewDelta(project);context.referenceProbe=await bridge('prepare-reference',{run:project.run});
     job.productionStage='reviewing';
   }
   if(startGeneration!==cancelGeneration)throw Error('任务在准备期间已取消。');
-  project.jobs.unshift(job);rememberUsage(project);project.jobs=project.jobs.slice(0,50);active={job,controller:null};addEvent(job,'queued',directCollection?'正在直接采集所选仓库媒体并校验固定版本':['discover','collect'].includes(action)?'网页已提交任务，正在加载插件的素材采集工具及适用来源规则':'网页已提交任务，正在加载 Video Studio 与 ChatCut 插件');await persist();
+  clearWorkflowError(project,'preparation');project.jobs.unshift(job);rememberUsage(project);project.jobs=project.jobs.slice(0,50);active={job,controller:null};addEvent(job,'queued',directCollection?'正在直接采集所选仓库媒体并校验固定版本':['discover','collect'].includes(action)?'网页已提交任务，正在加载插件的素材采集工具及适用来源规则':'网页已提交任务，正在加载 Video Studio 与 ChatCut 插件');
+  try{
+  await retryLocal(()=>persist(),'保存待执行任务',{job});
+  if(startGeneration!==cancelGeneration||job.cancelRequested)throw Error('任务在准备期间已取消。');
   const agentOptions={codex:runtime.codexPath,job,context,event:(type,message)=>addEvent(job,type,message),onSourceProgress:snapshot=>saveSourceProgress(job,context,snapshot),onProductionCheckpoint:context.productionCheckpointPath?value=>adoptProductionCheckpoint(job,context,value):null,onFinish:value=>finishJob(job,context,value)};
   active.controller=directCollection?runRepositoryCollection(job,context):action==='review'?runReviewAgent(agentOptions):action==='plan'?runPlanningAgent({...agentOptions,runAgent,onCheckpoint:async(stage,result)=>{
     if(stage==='script')job.planDraft=project.planDraft={inputHash:context.inputHash,title:result.title,script:result.script,summary:result.summary,gaps:result.gaps,limitations:result.limitations,savedAt:new Date().toISOString()};
     await persist();
   }}):runAgent(agentOptions);return job;
+  }catch(error){
+    job.cancelRequested=job.cancelRequested||startGeneration!==cancelGeneration;
+    job.status=job.cancelRequested?'cancelled':'failed';job.completedAt=new Date().toISOString();job.error=cleanError(error.message);
+    if(project.automatic?.id===job.automaticId&&project.automatic.status==='running')project.automatic.status=job.cancelRequested?'paused':'blocked';
+    if(active?.job.id===job.id)active=null;
+    throw error;
+  }
 }
 function runReviewAgent(options){
   let child,cancelled=false;const {job,context}=options;
@@ -545,10 +649,10 @@ function runReviewAgent(options){
     const last=context.interruptedReview;
     if(last){
       const audit=await bridge('review-audit',{run:context.run,file:file.path,subtitles:subtitles?.path});
-      const recovered=await recoverFailedReview(audit,last,candidate,context.run);
+      const recovered=await recoverRecordedReview(audit,last,candidate,context.run);
       if(recovered&&!cancelled){
         context.preflightReport=recovered;
-        addEvent(job,'verification','已恢复同一成片上独立验收员登记的问题，未重新启动模型。');
+        addEvent(job,'verification','已恢复同一成片上登记的独立验收结果，未重新启动模型。');
         await options.onFinish({code:0,finalText:JSON.stringify({summary:last.summary,checks:[],limitations:recovered.limitations})});return;
       }
     }
@@ -556,6 +660,7 @@ function runReviewAgent(options){
     if(cancelled){await options.onFinish({code:1,error:'验收已停止',finalText:''});return;}
     context.requiredChecks=context.probe.required_checks;
     const prepared=await prepareReviewPacket(context,file=>bridge('inspect-media',{file}));
+    context.producerConcerns=prepared.packet.producerConcerns;
     context.reviewPacket={file:prepared.file,sha256:prepared.sha256};
     if(prepared.report){
       context.preflightReport=prepared.report;
@@ -738,13 +843,13 @@ const server=http.createServer(async(req,res)=>{
         if(route==='/api/revision/confirm'){
           // Preserve the current export before its approval/cycle is superseded.
           if(payload.projectId!==project.id||payload.token!==revisionFeedback(project).token)throw Error('修订建议或项目已变化，请刷新后重新确认。');
-          if(project.qualityCycle?.candidate)await provisionalPackage(project,project.qualityCycle.candidate,project.qualityCycle.report,bridge);
+          const candidate=currentCandidate(project);
+          if(candidate&&!await saveProvisional(candidate,candidate===project.qualityCycle?.candidate?project.qualityCycle.report:null)){await persist();throw Error(project.workflowErrors.provisional.message);}
           confirmRevision(project,payload);project.mode='automatic';project.userRevision.requestHash=requestHash(project);await persist();
           const job=await startAutomatic({followup:project.userRevision.request});return send(res,202,{job});
         }
         if(route==='/api/provisional'){
-          const candidate=project.qualityCycle?.candidate;if(!candidate)throw Error('当前没有实际导出的视频');
-          const delivery=await provisionalPackage(project,candidate,project.qualityCycle.report,bridge);await persist();return send(res,200,{delivery});
+          return send(res,200,{delivery:await retryProvisional()});
         }
         if(route==='/api/jobs'){if(project.mode==='automatic'&&payload.action!=='auto'&&!project.automatic)throw Error('一键模式只在点击一键生成后启动 Codex。');const job=payload.action==='auto'?await startAutomatic(payload):await startJob(payload.action,payload);return send(res,202,{job});}
         if(route==='/api/projects/switch'){const next=projectStore.load(payload.projectId);for(const job of next.jobs)if(!historicalProject(next)&&['running','cancelling'].includes(job.status)){job.status='interrupted';job.error='该项目的本地会话已结束；继续前应核对已有远端任务。';}await activateProject(next);rememberDependencies(await bridge('preflight',{capabilities:['git_lfs',...styleMediaChecks],styleSelector:project.styleSelector}));return send(res,200,publicState());}

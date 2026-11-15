@@ -9,6 +9,7 @@ function harness(failures){
  const files=[],events=[];let saves=0,attempts=0;
  const job={id:'test',action:'plan'},context={jobDirectory:'/isolated-test'};
  const c=vm.createContext({advanceAutomatic,job,context,files,events,JSON,Date,Promise,SyntaxError,path:{join:(...p)=>p.join('/')},project:{},mkdir:async()=>{},writeFile:async(p,s)=>files.push([p,s]),checkSelected:async()=>{},savePlan:async()=>{if(saves++<failures)throw Error('referenceChecks[0].referenceId 无效');},cleanError:s=>s,addEvent:(_,t,m)=>events.push([t,m]),runtime:{codexPath:'test'},active:{job},library:{},refreshLibrary:async()=>{},persist:async()=>{},runAgent:({context,onFinish})=>{attempts++;assert.match(context.planRepair.validationError,/referenceId/);queueMicrotask(()=>onFinish({code:0,finalText:'{"summary":"draft"}'}));return {};}});
+ Object.assign(c,{cancelGeneration:0,retryLocal:async operation=>operation()});
  vm.runInContext(finish,c);
  return {job,files,events,attempts:()=>attempts,run:()=>vm.runInContext('finishJob(job,context,{code:0,finalText:\'{"summary":"draft"}\'})',c)};
 }

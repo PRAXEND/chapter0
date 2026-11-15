@@ -1,7 +1,21 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {inputHash} from './studio-workflow.mjs';
 import {requestHash} from './automatic.mjs';
-import {pendingEvidence} from './evidence-resume.mjs';
+import {pendingEvidence,currentCandidate,pendingRegistration} from './evidence-resume.mjs';
+
+function errorScope(p){
+  const candidate=currentCandidate(p);
+  return {projectId:p.id,requestHash:requestHash(p),inputHash:inputHash(p),planHash:p.approval?.planHash||null,
+    automaticId:p.automatic?.id||null,producerJobId:candidate?.producerJobId||null,artifactSha256:candidate?.files?.find(f=>f.role==='video')?.sha256||null};
+}
+export function saveWorkflowError(p,kind,action,message){
+  (p.workflowErrors??={})[kind]={...errorScope(p),action,message:String(message).slice(0,4000),at:new Date().toISOString()};
+}
+export function clearWorkflowError(p,kind){if(p.workflowErrors)delete p.workflowErrors[kind];}
+export function currentWorkflowError(p,kind){
+  const saved=p.workflowErrors?.[kind],scope=errorScope(p);
+  return saved&&Object.entries(scope).every(([key,value])=>saved[key]===value)?saved:null;
+}
 
 function checkSuggestion(check,c){
   const detail=String(c.observations||'');
@@ -15,15 +29,21 @@ function checkSuggestion(check,c){
 export function revisionFeedback(p){
   const current=currentRevision(p),consumed=new Set(p.userRevision?.consumedJobs||[]);
   const scope=requestHash(p);
-  const evidence=pendingEvidence(p);
-  const pending=evidence?null:p.jobs.find(j=>['create','produce'].includes(j.action)&&!consumed.has(j.id)&&(j.requestHash?j.requestHash===scope:!j.inputHash||j.inputHash===inputHash(p))&&(j.questions?.length||j.revisionProposal));
+  const evidence=pendingEvidence(p),registration=pendingRegistration(p,scope);
+  const pending=evidence||registration?null:p.jobs.find(j=>['create','produce'].includes(j.action)&&!consumed.has(j.id)&&(j.requestHash?j.requestHash===scope:!j.inputHash||j.inputHash===inputHash(p))&&(j.questions?.length||j.revisionProposal));
   const report=(!p.qualityCycle?.candidate||p.qualityCycle.candidate.inputHash===inputHash(p))?p.qualityCycle?.report:null;
   const issues=Object.entries(report?.checks||{}).filter(([,c])=>!['pass','not_applicable'].includes(c.status)).flatMap(([check,c])=>c.issues?.length?c.issues.map(i=>({check,text:typeof i==='string'?i:i.suggested_fix||i.symptom||JSON.stringify(i)})):[{check,text:checkSuggestion(check,c)}]);
   const proposal=pending?.revisionProposal||null;
   const suggestions=[...(proposal?[proposal.summary,...(proposal.changes||[])]:[]),...(pending?.questions||[]),...issues.map(i=>i.text)];
   const suggested=[...new Set(suggestions.filter(Boolean))].join('\n').slice(0,12000);
+  const candidate=p.qualityCycle?.candidate;
+  const preparationError=currentWorkflowError(p,'preparation'),packageError=currentWorkflowError(p,'provisional');
+  const producerIndex=candidate?p.jobs.findIndex(j=>j.id===candidate.producerJobId):-1;
+  const technicalJob=candidate&&candidate.inputHash===inputHash(p)&&candidate.planHash===p.approval?.planHash
+    &&producerIndex>=0&&p.qualityCycle.report===null&&p.automatic?.status==='blocked'&&p.automatic.stage==='review'&&p.automatic.requestHash===scope
+    ?p.jobs.slice(0,producerIndex+1).find(j=>j.error&&(j.id===candidate.producerJobId||j.action==='review'&&j.automaticId===p.automatic.id&&j.inputHash===candidate.inputHash&&j.planHash===candidate.planHash)):null;
   const token=createHash('sha256').update(JSON.stringify({project:p.id,plan:p.approval?.planHash,input:p.approval?.inputHash,candidate:p.qualityCycle?.candidate?.files,report,request:pending?.id,proposal,suggested,revision:p.userRevision?.id})).digest('hex');
-  return {token,proposal,questions:pending?.questions||[],issues,suggested,requestJobId:pending?.id||null,submitted:current?.request||'',hasCandidate:!!p.qualityCycle?.candidate,evidencePending:evidence?{jobId:evidence.id,questions:evidence.questions||[],summary:evidence.summary||evidence.error||''}:null};
+  return {token,proposal,questions:pending?.questions||[],issues,suggested,technicalBlocker:preparationError||(technicalJob?{action:'review',message:technicalJob.error}:null),packageError,registrationPending:registration?{jobId:registration.id}:null,requestJobId:pending?.id||null,submitted:current?.request||'',hasCandidate:!!p.qualityCycle?.candidate,evidencePending:evidence?{jobId:evidence.id,questions:evidence.questions||[],summary:evidence.summary||evidence.error||''}:null};
 }
 
 // A click authorizes a bounded new revision, never converts a failed review to pass.
@@ -41,7 +61,8 @@ export function confirmRevision(p,{projectId,token,feedback}){
 }
 
 export function reviewDelta(p){
-  const previous=p.qualityCycle?.previous||(currentRevision(p)?p.revisionHistory?.[0]?.qualityCycle:null);
+  const revision=currentRevision(p);
+  const previous=p.qualityCycle?.previous||(revision?p.revisionHistory?.find(h=>h.id===revision.id)?.qualityCycle:null);
   const report=previous?.report;
   const previousReport=report?{completed:report.completed,failures:report.failures,checks:Object.fromEntries(Object.entries(report.checks||{}).filter(([,c])=>!['pass','not_applicable'].includes(c.status)).map(([key,c])=>[key,{status:c.status,observations:c.observations,issues:c.issues}]))}:null;
   return {previousReport,previousArtifact:previous?.candidate?.files?.find(f=>f.role==='video')?.sha256||null,

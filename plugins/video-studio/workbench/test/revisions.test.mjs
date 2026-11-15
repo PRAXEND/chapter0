@@ -44,6 +44,25 @@ test('AI prefill never turns rejected reviewer claims into user-approved quality
   const text=revisionFeedback(p).suggested;assert.doesNotMatch(text,/328ms 属于 intended|已全部查看/);assert.match(text,/不能用/);assert.match(text,/实际查看/);
 });
 
+test('technical review preparation errors explain empty suggestions without requesting a creative revision',()=>{
+  const p=fixture();p.jobs=[{id:'producer',action:'create',status:'completed',error:'待验收文件已变化（material-selection.json）'}];
+  p.qualityCycle={candidate:{producerJobId:'producer',inputHash:inputHash(p),planHash:'plan',files:[]},report:null};
+  p.automatic={id:'current-cycle',status:'blocked',stage:'review',requestHash:requestHash(p)};
+  const view=revisionFeedback(p);
+  assert.match(view.technicalBlocker.message,/material-selection/);assert.equal(view.suggested,'');assert.deepEqual(view.issues,[]);
+  const ui=revisionMarkup(p,view,'',false,s=>String(s??''));
+  assert.match(ui,/验收准备受阻/);assert.match(ui,/没有新增质量修改建议/);assert.match(ui,/data-feedback-suggestion disabled/);
+  p.automatic.status='running';assert.equal(revisionFeedback(p).technicalBlocker,null);
+  p.automatic.status='blocked';p.topic='another topic';assert.equal(revisionFeedback(p).technicalBlocker,null);p.topic='本期事实';
+  p.automatic.stage='voice';assert.equal(revisionFeedback(p).technicalBlocker,null);p.automatic.stage='review';
+  const oldReview={id:'old-review',action:'review',error:'old candidate error',inputHash:inputHash(p),planHash:'plan',automaticId:'old-cycle'};
+  p.jobs.unshift(oldReview,{id:'new-producer',action:'create',status:'completed'});
+  p.qualityCycle.candidate.producerJobId='new-producer';assert.equal(revisionFeedback(p).technicalBlocker,null);
+  // Even the same cycle cannot borrow a review from before this producer.
+  oldReview.automaticId='current-cycle';p.jobs.splice(0,1);p.jobs.splice(1,0,oldReview);assert.equal(revisionFeedback(p).technicalBlocker,null);
+  p.qualityCycle.report={completed:true,checks:{}};assert.equal(revisionFeedback(p).technicalBlocker,null);
+});
+
 test('evidence-only continuation keeps approval and candidate; actual revisions still invalidate them',()=>{
   const p={...initialStudio(),topic:'原候选补证',styleSelector:'sample@1',plan:{stale:false}};
   const hash=inputHash(p);p.approval={planHash:'approved',inputHash:hash};

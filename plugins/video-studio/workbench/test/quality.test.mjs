@@ -4,7 +4,7 @@ import {mkdtemp,writeFile,readFile,rm,mkdir} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {fileHash} from '../media.mjs';
-import {bindCandidate,verifyCandidate,recoverFailedReview,registerIndependentReview,reviewDeliveryPackage,validateDeliveryFiles,enforceIndependentReview,assertCanProduce} from '../quality.mjs';
+import {bindCandidate,verifyCandidate,recoverRecordedReview,registerIndependentReview,reviewDeliveryPackage,validateDeliveryFiles,enforceIndependentReview,assertCanProduce} from '../quality.mjs';
 
 async function fixture(){
   const run=await mkdtemp(path.join(os.tmpdir(),'oneclick-quality-')),file=path.join(run,'final.mp4'),manifest=path.join(run,'manifest.json');
@@ -39,9 +39,29 @@ test('only recover already recorded independent failures on the same edit and im
     const probe={...f.probe,evidence_files:[{path:f.manifest,sha256:await fileHash(f.manifest)}]};
     await writeFile(path.join(f.run,'request.json'),JSON.stringify({probe,candidate:f.candidate}));
     const audit={completed:false,checks:{visuals:{status:'fail',method:'sampled_composited_frames'}}};
-    assert.equal((await recoverFailedReview(audit,last,f.candidate,f.run)).completed,false);
-    assert.equal(await recoverFailedReview({...audit,completed:true},last,f.candidate,f.run),null);
-    await writeFile(f.manifest,'changed');assert.equal(await recoverFailedReview(audit,last,f.candidate,f.run),null);
+    assert.equal((await recoverRecordedReview(audit,last,f.candidate,f.run)).completed,false);
+    assert.equal(await recoverRecordedReview({...audit,completed:true},last,f.candidate,f.run),null);
+    await writeFile(f.manifest,'changed');assert.equal(await recoverRecordedReview(audit,last,f.candidate,f.run),null);
+  }finally{await rm(f.run,{recursive:true,force:true});}
+});
+test('completed independent registration can recover after a host crash only with every current binding',async()=>{
+  const f=await fixture();
+  try{
+    const last={id:'review',threadId:'independent',directory:f.run};
+    const check={result:'pass',reviewer_job_id:last.id,reviewer:last.threadId,producer_job_id:f.producer.id,revision:7,artifact_sha256:f.probe.artifact_sha256};
+    const record={revision:7,reviews:{visuals:check}};
+    await writeFile(path.join(f.run,'run.json'),JSON.stringify(record));
+    const probe={...f.probe,evidence_files:[{path:f.manifest,sha256:await fileHash(f.manifest)}]};
+    const request={probe,candidate:f.candidate};await writeFile(path.join(f.run,'request.json'),JSON.stringify(request));
+    const audit={completed:true,artifact_sha256:f.probe.artifact_sha256,subtitle_sha256:null,checks:{visuals:{status:'pass',method:'sampled_composited_frames'}}};
+    assert.equal((await recoverRecordedReview(audit,last,f.candidate,f.run)).completed,true);
+    for(const patch of [{inputHash:'other'},{planHash:'other'},{producerJobId:'other'}])assert.equal(await recoverRecordedReview(audit,last,{...f.candidate,...patch},f.run),null);
+    assert.equal(await recoverRecordedReview({...audit,artifact_sha256:'other'},last,f.candidate,f.run),null);
+    assert.equal(await recoverRecordedReview(audit,{...last,threadId:f.candidate.producerThreadId},f.candidate,f.run),null);
+    await writeFile(path.join(f.run,'run.json'),JSON.stringify({...record,reviews:{visuals:{...check,reviewer_job_id:'unrelated-review'}}}));
+    assert.equal(await recoverRecordedReview(audit,last,f.candidate,f.run),null);
+    await writeFile(path.join(f.run,'run.json'),JSON.stringify(record));await writeFile(f.manifest,'changed');
+    assert.equal(await recoverRecordedReview(audit,last,f.candidate,f.run),null);
   }finally{await rm(f.run,{recursive:true,force:true});}
 });
 test('claimed export without actual recorded project/tool evidence cannot become a candidate',async()=>{
@@ -51,6 +71,58 @@ test('candidate mutation and producer self-review are rejected',async()=>{
   const f=await fixture();try{
     await assert.rejects(()=>registerIndependentReview({...f,result:{checks:[]},job:{id:'different',threadId:'producer-thread'}}),/独立/);
     await writeFile(f.file,'changed');await assert.rejects(()=>verifyCandidate(f.candidate,f.run),/变化/);
+  }finally{await rm(f.run,{recursive:true,force:true});}
+});
+test('export records are frozen while live selection and review bookkeeping can change',async()=>{
+  const f=await fixture();
+  try{
+    const selection=path.join(f.run,'material-selection.json');
+    await writeFile(selection,JSON.stringify({selected_source_ids:['real-source'],updated_at:'first'}));
+    const result={...f.result,files:[...f.result.files,{role:'project',path:path.join(f.run,'run.json')},{role:'sources',path:selection}]};
+    const candidate=await bindCandidate(result,f.run,f.producer);
+    for(const role of ['project','sources']){
+      const row=candidate.files.find(f=>f.role===role);
+      assert.notEqual(row.path,row.sourcePath);assert.equal(await fileHash(row.path),await fileHash(row.sourcePath));
+    }
+    assert.equal(candidate.files[0].path,f.candidate.files[0].path);
+    await writeFile(selection,JSON.stringify({selected_source_ids:['real-source'],updated_at:'next'}));
+    const live=JSON.parse(await readFile(path.join(f.run,'run.json'),'utf8'));live.reviews={visuals:{result:'fail'}};
+    await writeFile(path.join(f.run,'run.json'),JSON.stringify(live));
+    await verifyCandidate(candidate,f.run);
+    // A new registration gets a different snapshot, without replacing the old bytes.
+    const another=await bindCandidate(result,f.run,f.producer);
+    assert.notEqual(another.files[1].path,candidate.files[1].path);
+    await verifyCandidate(candidate,f.run);
+    await writeFile(candidate.files[2].path,'tampered snapshot');
+    await assert.rejects(()=>verifyCandidate(candidate,f.run),/material-selection.json/);
+  }finally{await rm(f.run,{recursive:true,force:true});}
+});
+test('evidence-only resume keeps original snapshots and all artifact hashes',async()=>{
+  const f=await fixture();
+  try{
+    const record=path.join(f.run,'run.json'),result={...f.result,files:[...f.result.files,{role:'project',path:record}]};
+    const prior=await bindCandidate(result,f.run,f.producer);
+    const live=JSON.parse(await readFile(record,'utf8'));live.reviews={};live.updated_at='later';await writeFile(record,JSON.stringify(live));
+    const resumed=await bindCandidate(result,f.run,{...f.producer,id:'resume'},null,prior);
+    assert.deepEqual(resumed.files,prior.files);
+    await assert.rejects(()=>bindCandidate(result,f.run,f.producer,null,{...prior,planHash:'another'}),/不一致/);
+    await writeFile(f.file,'changed movie');
+    await assert.rejects(()=>bindCandidate(result,f.run,f.producer,null,prior),/变化/);
+  }finally{await rm(f.run,{recursive:true,force:true});}
+});
+test('recording an independent review does not invalidate its exported project snapshot',async()=>{
+  const f=await fixture();
+  try{
+    f.candidate=await bindCandidate({...f.result,files:[...f.result.files,{role:'project',path:path.join(f.run,'run.json')}]},f.run,f.producer);
+    const job={id:'review',threadId:'independent',directory:f.run};
+    const result={checks:[{check:'visuals',result:'fail',observations:'Visible issue',evidenceFiles:[]}],limitations:[]};
+    await registerIndependentReview({...f,job,result,bridge:async(action,p)=>{
+      if(action==='record-review'){
+        const file=path.join(f.run,'run.json'),record=JSON.parse(await readFile(file,'utf8'));record.reviews={visuals:p.review};await writeFile(file,JSON.stringify(record));return {};
+      }
+      return {completed:false,checks:{visuals:{status:'fail',method:'sampled_composited_frames'}}};
+    }});
+    await verifyCandidate(f.candidate,f.run);
   }finally{await rm(f.run,{recursive:true,force:true});}
 });
 test('matching project IDs cannot reuse an export under a different plan or input',async()=>{
@@ -175,5 +247,27 @@ test('title review requires reading video and both current covers, not a matchin
     const alternate={...f.candidate,files:f.candidate.files.map(file=>file.role==='cover_portrait'?{...file,path:path.join(f.run,'replacement.png')}:file)};
     assert.equal((await enforceIndependentReview(report,f.run,alternate)).completed,false);
     await writeFile(f.candidate.files[1].path,'changed cover');await assert.rejects(()=>run(rows),/变化/);
+  }finally{await rm(f.run,{recursive:true,force:true});}
+});
+
+test('an observed native video frame binds back to the current MP4 only with its exact current-job manifest',async()=>{
+  const f=await fixture();try{
+    const record=JSON.parse(await readFile(path.join(f.run,'run.json'),'utf8'));
+    record.production_plan={sha256:'plan',plan:{productionPlan:{coverTitle:'Test title',titleEmphasis:'title',layout:{mode:'portrait-centered',version:3}}}};
+    await writeFile(path.join(f.run,'run.json'),JSON.stringify(record));
+    for(const role of ['cover_portrait','cover_landscape']){const file=path.join(f.run,role+'.png');await writeFile(file,'cover fixture');f.candidate.files.push({role,path:file,sha256:await fileHash(file)});}
+    const directory=path.join(path.dirname(f.candidate.files[0].path),'review-job'),images=path.join(directory,'frames');await mkdir(images,{recursive:true});
+    const png=path.join(images,'native-000001.png'),mf=path.join(images,'frames.json');
+    await writeFile(png,Buffer.from([137,80,78,71,13,10,26,10]));
+    const native={frame:12,path:png,sha256:await fileHash(png)},manifest={file:f.file,sha256:f.candidate.files[0].sha256,frames:[12],native_frames:[native]};
+    const rows=f.candidate.files.map(file=>({role:file.role,path:file.role==='video'?png:file.path,text:'Test title',emphasisText:'title'}));
+    const saved=[];const args={...f,job:{id:'review',threadId:'review-thread',directory},result:{checks:[{check:'output_details',result:'pass',observations:'observed actual native frame',titleObservations:rows}]},bridge:async(action,p)=>{if(action==='record-review')saved.push(p.review);return {completed:false};}};
+    const check=async value=>{await writeFile(mf,JSON.stringify(value));await registerIndependentReview(args);return saved.at(-1);};
+    const good=await check(manifest);assert.equal(good.result,'pass');
+    assert.equal(good.title_observations[0].path,f.candidate.files[0].path);assert.equal(good.title_observations[0].observed_path,png);
+    for(const file of [png,mf])assert.ok(good.evidence_files.some(e=>e.path===file));
+    for(const patch of [{sha256:'old-video'},{file:f.manifest},...[[], '12',null,12,{},[12,12],[12,90],[12,.5]].map(frames=>({frames})),{native_frames:[native,native]},{native_frames:[{...native,frame:90}]},{native_frames:[{...native,frame:.5}]},{native_frames:[{...native,sha256:'changed-frame'}]}])assert.equal((await check({...manifest,...patch})).result,'fail');
+    args.job.directory=path.join(f.run,'another-job');await mkdir(args.job.directory);assert.equal((await check(manifest)).result,'fail');args.job.directory=directory;
+    await writeFile(png,'a jpeg is not a native PNG');assert.equal((await check({...manifest,native_frames:[{...native,sha256:await fileHash(png)}]})).result,'fail');
   }finally{await rm(f.run,{recursive:true,force:true});}
 });
