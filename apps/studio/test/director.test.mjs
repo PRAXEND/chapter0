@@ -358,3 +358,16 @@ test('the director verifies and opens a registered personal style frame on deman
   const director=createDirector(deps);t.after(()=>director.close());
   await director.run(p.id,{kind:'revise'});assert.deepEqual(opened,['neutral',1,'frame-2']);
 });
+test('timeline inspection requests the exact frame from the same versioned preview used in the workbench',async t=>{
+  const {p,deps}=await fixture(t,{settings:{voiceMode:'original',shareFrames:true},timeline:{clips:[{id:'shot',track:'video',assetId:'picture',start:0,duration:300}]}});
+  let checked=false;
+  deps.drafts={async open(project,from){assert.equal(project.revision,p.revision);assert.equal(from,150);return {name:'cached.mp4',fromFrame:150};}};
+  deps.media.frameAt=async(file,seconds,target)=>{assert.ok(file.endsWith('/drafts/cached.mp4'));assert.equal(seconds,1.2);checked=true;await writeFile(target,'test-pixels');};
+  deps.client={account:async()=>({connected:true}),thread:async()=>'t',close(){},async runTurn({onStart,tool}){
+    await onStart('turn');
+    await tool({tool:'studio_frame',arguments:{source:'timeline',seconds:7.2}});
+    await assert.rejects(tool({tool:'studio_frame',arguments:{source:'timeline',seconds:12}}),/超出|超过/);return '已核对。';
+  }};
+  const director=createDirector(deps);t.after(()=>director.close());
+  await director.run(p.id,{kind:'revise'});assert.equal(checked,true);
+});

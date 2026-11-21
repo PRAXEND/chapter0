@@ -50,7 +50,8 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   const release=owner?await nativeOwner(root):async()=>{};
   const store=createStore(root,{probeMedia:dependencies.probeMedia||media.probeMedia});
   const styles=dependencies.styles||createStyleLibrary(root);
-  const director=dependencies.director||createDirector({store,styleLibrary:styles,media,audio});
+  const drafts=draftPreviews(store,dependencies.media||media);
+  const director=dependencies.director||createDirector({store,styleLibrary:styles,media,audio,drafts});
   const standardLibrary=path.resolve(root)===path.resolve(defaultRoot())&&!process.env.STUDIO_DATA_ROOT;
   const movies=path.join(os.homedir(),'Movies','Video Studio');
   const deliveryRoot=process.env.STUDIO_DELIVERY_ROOT||(standardLibrary?path.join(movies,'交付'):path.join(root,'deliveries'));
@@ -64,7 +65,6 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       if(features.length){const {prepareMedia}=await import('../scripts/prepare-media.mjs');for(const f of features){onProgress('首次准备本机组件 · '+f);await prepareMedia(f,{signal,onProgress});}}
     }});
   const legacy=legacyLibrary(legacyRoot),music=createMusic(store),voices=voiceLibrary(store);
-  const drafts=draftPreviews(store,dependencies.media||media);
   const token=randomBytes(32).toString('base64url'),cookie=randomBytes(32).toString('base64url');
   let opened=false,authority,stopped=false,blindHandler,install,installChild;
   const staged=new Map();

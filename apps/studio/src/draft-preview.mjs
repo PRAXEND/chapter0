@@ -4,9 +4,10 @@ import {fault} from './project.mjs';
 
 export function draftPreviews(store, media) {
   const active = new Map();
-  async function open(project, frame = 0) {
+  async function open(project, frame = 0, signal) {
+    signal?.throwIfAborted();
     if (!Number.isSafeInteger(frame) || frame < 0) throw fault('请选择有效的预览帧。');
-    const length = project.timeline.clips.reduce((end, c) => Math.max(end, c.start + c.duration), 0);
+    const length = project.timeline.clips.filter(c=>!c.hidden&&c.enabled!==false).reduce((end, c) => Math.max(end, c.start + c.duration), 0);
     if (!length) throw fault('画面尚在编排中。时间线出现片段后即可预览。', 409);
     const span = 6 * project.profile.fps;
     const fromFrame = Math.max(0, Math.min(frame, length - span));
@@ -22,7 +23,16 @@ export function draftPreviews(store, media) {
         .finally(() => active.delete(output));
       active.set(output, {controller,promise});
     }
-    await active.get(output).promise;
+    const work=active.get(output).promise;
+    if(signal){
+      let abort;
+      try{
+        await Promise.race([work,new Promise((_,reject)=>{
+          abort=()=>reject(signal.reason);signal.addEventListener('abort',abort,{once:true});
+          if(signal.aborted)abort();
+        })]);
+      }finally{signal.removeEventListener('abort',abort);}
+    }else await work;
     return result;
   }
   async function close() {

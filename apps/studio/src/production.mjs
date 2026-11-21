@@ -5,6 +5,7 @@ import { CodexClient } from './codex.mjs';
 import { directSources, importSource, searchSources, searchFacts, readBriefSources } from './sources.mjs';
 import { applyScenes, localScenes, transcriptFor, reviseLine, sceneIdentity } from './storyboard.mjs';
 import { describeFrames } from './vision.mjs';
+import { draftPreviews } from './draft-preview.mjs';
 
 const object = (properties = {}, required = []) => ({
   type: 'object',
@@ -329,6 +330,7 @@ function allowedCommands(commands, p) {
 export function createDirector(deps) {
   const { store, styleLibrary, media, audio } = deps;
   const client = deps.client || new CodexClient();
+  const drafts = deps.drafts || draftPreviews(store,media);
   const search = deps.searchSources || searchSources,
     research = deps.searchFacts || searchFacts,
     acquire = deps.importSource || importSource;
@@ -547,7 +549,7 @@ export function createDirector(deps) {
       if (!Number.isFinite(seconds) || seconds < 0) throw new Error('需提供有效时间。');
       const { cache } = await store.paths(id);
       await mkdir(cache, { recursive: true });
-      let source;
+      let source,sourceSeconds=seconds;
       if (args.source === 'asset') {
         const asset = current.assets.find((a) => a.id === args.id && a.kind !== 'audio');
         if (!asset || (asset.kind === 'video' && seconds >= asset.duration))
@@ -563,18 +565,18 @@ export function createDirector(deps) {
         source = verified.path;
       } else if (args.source === 'timeline') {
         if (!current.timeline.clips.some((c) => c.track === 'video')) throw new Error('工程还没有画面。');
-        const result = await media.renderProject(current, {
-          directory: cache,
-          preview: true,
-          output: path.join(cache, 'director-preview-' + current.revision + '.mp4'),
-          signal,
-        });
-        source = result.videoPath;
+        const fps=current.profile.fps, frame=Math.floor(seconds*fps);
+        const duration=current.timeline.clips.filter(c=>!c.hidden&&c.enabled!==false).reduce((n,c)=>Math.max(n,c.start+c.duration),0);
+        if(frame>=duration)throw new Error('所选时刻超过当前成片的时长。');
+        const chunk=Math.floor(frame/(6*fps))*6*fps;
+        const result=await drafts.open(current,chunk,signal);
+        source=path.join(cache,'drafts',result.name);
+        sourceSeconds=(frame-result.fromFrame)/fps;
       } else throw new Error('帧来源无效。');
       const dir = await mkdtemp(path.join(cache, 'frame-'));
       try {
         const target = path.join(dir, 'frame.jpg');
-        await media.frameAt(source, seconds, target, { signal, maxWidth: 720 });
+        await media.frameAt(source, sourceSeconds, target, { signal, maxWidth: 720 });
         const data = await readFile(target);
         if (data.length > 1_500_000) throw new Error('参考帧超过可发送大小。');
         signal?.throwIfAborted();
@@ -727,7 +729,7 @@ export function createDirector(deps) {
   return {
     account: () => client.account(),
     login: () => client.login(),
-    close: () => client.close(),
+    close: async () => {await client.close();if(!deps.drafts)await drafts.close();},
     run,
     steer,
     transcribe: getTranscript,
