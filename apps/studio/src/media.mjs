@@ -1,15 +1,15 @@
-import { stat, mkdir, writeFile, rename } from 'node:fs/promises';
+import { stat, mkdir, writeFile, rename, link, unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { createAss, createSrt } from './text-tracks.mjs';
-import { ffBase, inputArgs, mediaTool, requiredTool, run, scratch } from './media-runtime.mjs';
+import { ffBase, inputArgs, mediaSlot, mediaTool, requiredTool, run, scratch } from './media-runtime.mjs';
 
 export { mediaTool };
 
 export async function mediaCapabilities() {
   const [ffmpeg, ffprobe, melt] = await Promise.all(['ffmpeg', 'ffprobe', 'melt'].map(mediaTool));
-  return { ffmpeg, ffprobe, melt, ready: Boolean(ffmpeg && ffprobe), engine: melt ? 'mlt' : 'ffmpeg' };
+  return { ffmpeg, ffprobe, melt, ready: Boolean(ffmpeg && ffprobe), engine: melt && process.env.VIDEO_STUDIO_RENDER_ENGINE !== 'ffmpeg' ? 'mlt' : 'ffmpeg' };
 }
 
 export async function probeMedia(file, { signal } = {}) {
@@ -180,7 +180,11 @@ async function renderMix(clips, media, work, fps, length, ffmpeg, signal) {
   return mix;
 }
 
-export async function renderProject(project, { directory, output, preview = false, signal, onProgress = () => {} }) {
+export function renderProject(project, options) {
+  return mediaSlot(() => render(project, options), options.signal);
+}
+
+async function render(project, { directory, output, preview = false, signal, onProgress = () => {} }) {
   if (!path.isAbsolute(output) || path.extname(output).toLowerCase() !== '.mp4') throw new Error('导出目标须为 MP4 的绝对路径');
   const { width, height, fps, clips, length } = validate(project);
   const profile = { width, height, fps };
@@ -222,9 +226,17 @@ export async function renderProject(project, { directory, output, preview = fals
     if (!info.hasAudio || info.width !== width || info.height !== height || Math.abs(info.duration - length / fps) > 1 / fps || (info.frames && info.frames !== length)) throw new Error('导出结果与工程的帧数或规格不符');
     const sha256 = await fileHash(final);
     signal?.throwIfAborted();
-    // Callers publish this pair by revision only after this function returns.
+    // Keep any old SRT available for rollback if replacing its partner fails.
+    const backup = path.join(work, 'previous.srt');
+    let previous = false;
+    try { await link(srtPath, backup); previous = true; }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
     await rename(path.join(work, 'captions.srt'), srtPath);
-    await rename(final, output);
+    try { await rename(final, output); }
+    catch (error) {
+      if (previous) await rename(backup, srtPath); else await unlink(srtPath);
+      throw error;
+    }
     onProgress(1);
     return { videoPath: output, srtPath, sha256, duration: info.duration, frames: length, engine: melt ? 'mlt' : 'ffmpeg', revision: project.revision };
   });

@@ -1,22 +1,39 @@
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { executable, mediaCache, mediaTool, requiredTool, run, scratch, ffBase, inputArgs } from './media-runtime.mjs';
+import { executable, mediaCache, mediaSlot, mediaTool, requiredTool, run, scratch, ffBase, inputArgs } from './media-runtime.mjs';
 import { fileHash, probeMedia } from './media.mjs';
 export { createMusicBed } from './music-library.mjs';
 
 const worker = fileURLToPath(new URL('../scripts/clone-voice.py', import.meta.url));
-const present = async file => (await stat(file).catch(() => null))?.isFile() ?? false;
+const present = async file => {
+  const info = await stat(file).catch(() => null);
+  return Boolean(info?.isFile() && info.size > 0);
+};
+const pythonChecks = new Map();
+async function speechPython(candidates) {
+  for (const candidate of candidates) {
+    if (!await executable([candidate])) continue;
+    const key = candidate + ':' + (await stat(candidate)).mtimeMs;
+    if (!pythonChecks.has(key)) {
+      pythonChecks.set(key, run(candidate, ['-c', 'from mlx_audio.tts.utils import load_model; import soundfile, mlx.core'],
+        { env: { HF_HUB_OFFLINE: '1', HF_HUB_DISABLE_TELEMETRY: '1' } }).then(() => true, () => false));
+    }
+    if (await pythonChecks.get(key)) return candidate;
+    pythonChecks.delete(key);
+  }
+  return null;
+}
 
 export async function audioCapabilities() {
   const cache = mediaCache();
-  const python = await executable([process.env.VIDEO_STUDIO_MLX_PYTHON || path.join(cache, 'venv/bin/python')]);
   const cloneModel = process.env.VIDEO_STUDIO_QWEN_MODEL || path.join(cache, 'models/qwen3-tts-0.6b-base-4bit');
   const whisperModel = process.env.VIDEO_STUDIO_WHISPER_MODEL || path.join(cache, 'models/whisper/ggml-base.bin');
   const [whisper, voiceTool, weights, codec, asrWeights] = await Promise.all([
     mediaTool('whisper-cli'), executable(['/usr/bin/say']), present(path.join(cloneModel, 'model.safetensors')),
     present(path.join(cloneModel, 'speech_tokenizer/model.safetensors')), present(whisperModel)
   ]);
+  const python = weights && codec ? await speechPython(process.env.VIDEO_STUDIO_MLX_PYTHON ? [process.env.VIDEO_STUDIO_MLX_PYTHON] : [path.join(cache, 'voice-runtime/bin/python'), path.join(cache, 'venv/bin/python')]) : null;
   return { system: Boolean(voiceTool), clone: Boolean(python && weights && codec), transcription: Boolean(whisper && asrWeights),
     voiceTool, python, cloneModel, whisper, whisperModel };
 }
@@ -46,7 +63,7 @@ export async function synthesize(text, { mode = 'system', referencePath, referen
       referenceHash = await fileHash(referencePath);
       const request = path.join(tmp, 'request.json');
       await writeFile(request, JSON.stringify({ model: caps.cloneModel, reference, referenceText, text, language, output: rendered }), { mode: 0o600 });
-      const log = await run(caps.python, [worker, request], { signal, env: { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', HF_HUB_DISABLE_TELEMETRY: '1', TOKENIZERS_PARALLELISM: 'false' } });
+      const log = await mediaSlot(() => run(caps.python, [worker, request], { signal, env: { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', HF_HUB_DISABLE_TELEMETRY: '1', TOKENIZERS_PARALLELISM: 'false' } }), signal);
       peakModelBytes = JSON.parse(log.trim().split('\n').at(-1)).peakModelBytes;
     } else {
       throw new Error('未识别的配音方式');
@@ -60,7 +77,7 @@ export async function synthesize(text, { mode = 'system', referencePath, referen
   });
 }
 
-export async function transcribe(file, { directory = path.dirname(file), signal, language = 'auto' } = {}) {
+export async function transcribe(file, { directory = path.dirname(file), signal, language = 'auto', maxChars } = {}) {
   const caps = await audioCapabilities();
   if (!caps.transcription) throw new Error('需先准备 whisper.cpp 与多语言模型');
   const ffmpeg = await requiredTool('ffmpeg');
@@ -69,7 +86,8 @@ export async function transcribe(file, { directory = path.dirname(file), signal,
     const stem = path.join(tmp, 'transcript');
     await run(ffmpeg, [...ffBase, ...inputArgs(path.resolve(file)), '-map', '0:a:0', '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', wav], { signal });
     const { duration } = await probeMedia(wav, { signal });
-    await run(caps.whisper, ['-m', caps.whisperModel, '-f', wav, '-l', language, '-t', '2', '-oj', '-of', stem], { signal });
+    const length = Number.isInteger(maxChars) && maxChars > 0 ? ['-ml', String(Math.min(maxChars, 160))] : [];
+    await mediaSlot(() => run(caps.whisper, ['-m', caps.whisperModel, '-f', wav, '-l', language, '-t', '2', ...length, '-oj', '-of', stem], { signal }), signal);
     const data = JSON.parse(await readFile(stem + '.json', 'utf8'));
     if (!Array.isArray(data.transcription)) throw new Error('转录文件缺少时间码');
     let lastEnd = 0;

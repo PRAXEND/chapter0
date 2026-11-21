@@ -68,17 +68,47 @@ export async function scratch(parent, task) {
   finally { await rm(directory, { recursive: true, force: true }); }
 }
 
+// Apple Silicon shares one memory pool across all open projects.
+let busy = false;
+const waiting = [];
+export function mediaSlot(task, signal) {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const start = () => {
+      signal?.removeEventListener('abort', abort);
+      busy = true;
+      Promise.resolve().then(task).then(resolve, reject).finally(() => {
+        const next = waiting.shift();
+        if (next) next(); else busy = false;
+      });
+    };
+    const abort = () => {
+      const index = waiting.indexOf(start);
+      if (index >= 0) waiting.splice(index, 1);
+      reject(signal.reason);
+    };
+    if (!busy) start();
+    else { waiting.push(start); signal?.addEventListener('abort', abort, { once: true }); }
+  });
+}
+
 export function run(exe, args, { cwd, signal, env, progress, maxOutput = 16 * 1024 * 1024 } = {}) {
   signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
-    const child = spawn(exe, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const group = process.platform !== 'win32';
+    const child = spawn(exe, args, { cwd, env: { ...process.env, ...env }, detached: group, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     let timer;
     let exceeded = false;
+    function kill(sig) {
+      if (!child.pid) return;
+      try { if (group) process.kill(-child.pid, sig); else child.kill(sig); }
+      catch (e) { if (e.code !== 'ESRCH') throw e; }
+    }
     function stop() {
-      child.kill('SIGTERM');
-      timer = setTimeout(() => child.kill('SIGKILL'), 1800);
+      kill('SIGTERM');
+      timer = setTimeout(() => kill('SIGKILL'), 1800);
       timer.unref();
     }
     signal?.addEventListener('abort', stop, { once: true });
