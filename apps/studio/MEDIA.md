@@ -15,6 +15,8 @@ node --test test/media.test.mjs
 
 `VIDEO_STUDIO_MEDIA_HOME` 可指定缓存目录。`VIDEO_STUDIO_FFMPEG`、`VIDEO_STUDIO_FFPROBE`、`VIDEO_STUDIO_MELT`、`VIDEO_STUDIO_WHISPER_CLI`、`VIDEO_STUDIO_WHISPER_MODEL`、`VIDEO_STUDIO_MLX_PYTHON` 和 `VIDEO_STUDIO_QWEN_MODEL` 可指向其他本机安装。`VIDEO_STUDIO_RENDER_ENGINE=ffmpeg` 选择 FFmpeg 拼接同一组已剪片段，可用于复核后备引擎。
 
+`renderProject(project, {directory, output, window: {fromFrame, toFrame}})` 可导出工程中的任意非空帧区间，包含起始帧，截止帧不计入片段。导出的 MP4 和 SRT 都从零计时。转场和花字使用工程原时钟，音乐混音保留片段开头之前的压低状态。需要保存风格修改前后样片时，可对两个工程快照分别传入各自的区间。
+
 ## 可复现的成片检查
 
 `scripts/media-proof.mjs` 使用 Blender Foundation 的《Big Buck Bunny》原片、macOS 合成的中文参考录音、Qwen 本地克隆及工作台自主生成的配乐。脚本读取原片，提取六个片段，并保存可编辑时间线、配音、MP4、SRT、封面与实测记录。原作署名写入时间线和工程元数据。[原片下载](https://download.blender.org/peach/bigbuckbunny_movies/) · [原作署名和许可](https://peach.blender.org/about/)

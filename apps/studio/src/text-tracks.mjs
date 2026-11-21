@@ -27,10 +27,13 @@ function color(value, fallback) {
 }
 const alpha = opacity => `&H${pad(Math.round(255 * (1 - bound(opacity, 0, 1))).toString(16))}&`;
 
-export function createSrt(clips, fps) {
-  const captions = clips.filter(c => c.track === 'caption' && c.hidden !== true && c.enabled !== false && cleanText(c.text).trim())
+export function createSrt(clips, fps, { fromFrame = 0, toFrame = Infinity } = {}) {
+  const captions = clips.filter(c => c.track === 'caption' && c.hidden !== true && c.enabled !== false && cleanText(c.text).trim() && c.start < toFrame && c.start + c.duration > fromFrame)
     .sort((a, b) => a.start - b.start);
-  return captions.map((c, i) => `${i + 1}\n${clock(c.start, fps)} --> ${clock(c.start + c.duration, fps)}\n${cleanText(c.text).trim()}\n`).join('\n');
+  return captions.map((c, i) => {
+    const start = Math.max(c.start, fromFrame) - fromFrame, end = Math.min(c.start + c.duration, toFrame) - fromFrame;
+    return `${i + 1}\n${clock(start, fps)} --> ${clock(end, fps)}\n${cleanText(c.text).trim()}\n`;
+  }).join('\n');
 }
 
 export function createAss(clips, profile) {

@@ -85,6 +85,8 @@ test('render two cuts and a dissolve, measure pixels, mix audio, read subtitles 
     { id: 'b', track: 'video', assetId: 'red', start: 45, duration: 45, sourceIn: 5, speed: 1.3, transition: { type: 'crossfade', duration: 15 } },
     { id: 'n', track: 'narration', assetId: 'audio', start: 30, duration: 40, sourceIn: 5, gain: 1 },
     { id: 'm', track: 'music', assetId: 'audio', start: 0, duration: 90, gain: 0.3 },
+    { id: 'first-cue', track: 'caption', text: '渐变', start: 43, duration: 13, style: { fontSize: 12 } },
+    { id: 'moving', track: 'graphic', start: 42, duration: 36, geometry: { x: 0.1, y: 0.36, width: 0.1, height: 0.2 }, keyframes: [{ frame: 36, x: 0.9, scale: 1.4 }], style: { color: '#00ff00' } },
     { id: 't', track: 'caption', text: '进入下一幕', start: 62, duration: 15, style: { fontSize: 12 } }
   ];
   const project = { revision: 2, profile, assets, timeline: { clips } };
@@ -107,6 +109,39 @@ test('render two cuts and a dissolve, measure pixels, mix audio, read subtitles 
   assert.ok(after[0] > 220 && after[2] < 25, 'incoming shot is red');
   const { stdout } = await exec(caps.ffmpeg, [...ffBase, '-i', output, '-vn', '-ac', '1', '-ar', '8000', '-f', 's16le', 'pipe:1'], { encoding: 'buffer' });
   assert.ok([...new Int16Array(stdout.buffer, stdout.byteOffset, Math.floor(stdout.length / 2))].some(n => Math.abs(n) > 600), 'mixed track carries an audible signal');
+  const window = { fromFrame: 50, toFrame: 69 };
+  const trim = await renderProject(project, { directory: dir, output: path.join(dir, '区间.mp4'), window });
+  assert.deepEqual(trim.window, window);
+  assert.equal(trim.frames, 19);
+  assert.equal((await probeMedia(trim.videoPath)).frames, 19);
+  assert.equal(await readFile(trim.srtPath, 'utf8'), '1\n00:00:00,000 --> 00:00:00,200\n渐变\n\n2\n00:00:00,400 --> 00:00:00,633\n进入下一幕\n');
+  async function pixels(file, frame) {
+    const { stdout } = await exec(caps.ffmpeg, [...ffBase, '-i', file, '-an', '-vf', `select=eq(n\\,${frame})`, '-frames:v', '1', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1'], { encoding: 'buffer' });
+    return stdout;
+  }
+  let priorX = -Infinity;
+  for (const frame of [0, 4, 10, 18]) {
+    const [original, excerpt] = await Promise.all([pixels(output, window.fromFrame + frame), pixels(trim.videoPath, frame)]);
+    assert.equal(excerpt.length, profile.width * profile.height * 3);
+    let error = 0, green = 0, x = 0;
+    for (let i = 0; i < excerpt.length; i++) error += Math.abs(excerpt[i] - original[i]);
+    for (let i = 0; i < excerpt.length; i += 3) {
+      if (excerpt[i + 1] > 150 && excerpt[i] < 60 && excerpt[i + 2] < 60) { green++; x += (i / 3) % profile.width; }
+    }
+    assert.ok(error / excerpt.length < 2.5, 'excerpt pixels match the same full-project dissolve, keyframe and subtitle position');
+    assert.ok(green > 100 && x / green > priorX + 5, 'the original keyframed shape continues moving');
+    priorX = x / green;
+  }
+  const { stdout: excerptPcm } = await exec(caps.ffmpeg, [...ffBase, '-i', trim.videoPath, '-vn', '-ac', '1', '-ar', '8000', '-f', 's16le', 'pipe:1'], { encoding: 'buffer' });
+  const excerptAudio = new Int16Array(excerptPcm.buffer, excerptPcm.byteOffset, Math.floor(excerptPcm.length / 2));
+  const wholeAudio = new Int16Array(stdout.buffer, stdout.byteOffset, Math.floor(stdout.length / 2));
+  let aa = 0, ab = 0, bb = 0;
+  for (let n = 400; n < excerptAudio.length - 400; n++) {
+    const a = excerptAudio[n], b = wholeAudio[Math.round(8000 * window.fromFrame / profile.fps) + n];
+    aa += a * a; ab += a * b; bb += b * b;
+  }
+  assert.ok(ab / Math.sqrt(aa * bb) > 0.97, 'excerpt preserves the source and ducked mix clock');
+  await assert.rejects(renderProject(project, { directory: dir, output, window: { fromFrame: 72, toFrame: 95 } }), /工程内/);
   const jpg = path.join(dir, 'frame.jpg');
   await frameAt(output, 2.5, jpg, { maxWidth: 80 });
   assert.equal((await probeMedia(jpg)).width, 80);

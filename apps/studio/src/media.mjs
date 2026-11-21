@@ -25,7 +25,9 @@ export async function probeMedia(file, { signal } = {}) {
   const rotation = Math.abs(Number(video?.side_data_list?.find(s => s.rotation != null)?.rotation ?? video?.tags?.rotate ?? 0)) % 180;
   const width = video ? Number(rotation === 90 ? video.height : video.width) : 0;
   const height = video ? Number(rotation === 90 ? video.width : video.height) : 0;
-  return { kind: image ? 'image' : video ? 'video' : 'audio', duration, width, height, hasAudio: Boolean(audio), videoCodec: video?.codec_name, audioCodec: audio?.codec_name, frames: Number(video?.nb_frames) || undefined, sampleRate: Number(audio?.sample_rate) || undefined };
+  const [numerator, denominator] = (video?.avg_frame_rate ?? '').split('/').map(Number);
+  const frameRate = video?.r_frame_rate === video?.avg_frame_rate && denominator > 0 ? numerator / denominator : undefined;
+  return { kind: image ? 'image' : video ? 'video' : 'audio', duration, width, height, hasAudio: Boolean(audio), videoCodec: video?.codec_name, audioCodec: audio?.codec_name, frames: Number(video?.nb_frames) || undefined, sampleRate: Number(audio?.sample_rate) || undefined, frameRate };
 }
 
 export async function fileHash(file) {
@@ -62,7 +64,7 @@ function validate(project) {
   return { width, height, fps, clips, length };
 }
 
-function pictureSpans(clips, length) {
+function pictureSpans(clips, length, fromFrame, toFrame) {
   const video = clips.filter(c => c.track === 'video').sort((a, b) => a.start - b.start);
   const cuts = new Set([0, length]);
   for (const c of video) {
@@ -70,9 +72,11 @@ function pictureSpans(clips, length) {
     if (['fade', 'crossfade', 'dissolve'].includes(c.transition?.type) && Number.isInteger(c.transition.duration) && c.transition.duration > 0) cuts.add(c.start + Math.min(c.transition.duration, c.duration));
   }
   const positions = [...cuts].sort((a, b) => a - b);
-  return positions.slice(0, -1).map((start, i) => {
+  return positions.slice(0, -1).flatMap((origin, i) => {
+    const start = Math.max(origin, fromFrame), end = Math.min(positions[i + 1], toFrame);
+    if (end <= start) return [];
     const active = video.filter(c => c.start <= start && c.start + c.duration > start);
-    return { start, duration: positions[i + 1] - start, top: active.at(-1), under: active.at(-2) };
+    return [{ origin, start, duration: end - start, top: active.at(-1), under: active.at(-2) }];
   });
 }
 
@@ -81,13 +85,15 @@ const videoEncode = ['-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset',
 
 function buildVisualInput(clip, span, asset, profile, index) {
   const { width, height, fps } = profile;
-  const d = span.duration / fps;
   const rate = clip.speed ?? 1;
-  const source = ((clip.sourceIn ?? 0) + (span.start - clip.start) * rate) / fps;
+  // Retimed and variable-rate footage must keep the same fps sampling phase as the full span.
+  const anchor = asset.kind === 'image' || (rate === 1 && asset.frameRate === fps) ? span.start : span.origin;
+  const skip = span.start - anchor;
+  const source = ((clip.sourceIn ?? 0) + (anchor - clip.start) * rate) / fps;
   const args = asset.kind === 'image' ? ['-loop', '1', '-framerate', String(fps), ...inputArgs(asset.path)] : ['-ss', rounded(source), ...inputArgs(asset.path)];
   const cover = clip.fit === 'cover';
   const size = cover ? `scale=${width}:${height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${width}:${height}` : `scale=${width}:${height}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black`;
-  const chain = `[${index}:v:0]setpts=(PTS-STARTPTS)/${rounded(rate)},fps=${fps},${size},setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration=${rounded(d)},trim=end_frame=${span.duration},setpts=N/(${fps}*TB)[v${index}]`;
+  const chain = `[${index}:v:0]setpts=(PTS-STARTPTS)/${rounded(rate)},fps=${fps},tpad=stop_mode=clone:stop=-1,trim=start_frame=${skip}:end_frame=${skip + span.duration},setpts=N/(${fps}*TB),${size},setsar=1,format=yuv420p[v${index}]`;
   return { args, chain };
 }
 
@@ -141,19 +147,27 @@ function tempo(rate) {
   return filters;
 }
 
-async function renderMix(clips, media, work, fps, length, ffmpeg, signal) {
+async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, signal) {
   const audioClips = clips.filter(c => ['video', 'narration', 'music'].includes(c.track) && media.get(c.assetId)?.hasAudio && (c.gain ?? 1) > 0 && !c.muted);
   const buses = { voice: [], music: [] };
+  const sampleAt = frame => Math.round(frame * 48000 / fps);
   for (const [index, c] of audioClips.entries()) {
+    const first = Math.max(c.start, mixStart), end = Math.min(c.start + c.duration, mixEnd);
+    if (end <= first) continue;
     const asset = media.get(c.assetId);
     const rate = c.speed ?? 1;
-    const duration = c.duration / fps;
+    const skip = sampleAt(first) - sampleAt(c.start);
+    const count = sampleAt(end) - sampleAt(first);
+    // Keep atempo's phase for retimed dialogue. Ordinary audio can seek directly.
+    const seek = rate === 1 ? skip : 0;
+    const source = (c.sourceIn ?? 0) / fps + seek / 48000;
+    const duration = rate * c.duration / fps - seek / 48000;
     const out = path.join(work, `sound-${index}.wav`);
-    const filter = [`atrim=duration=${rounded(duration * rate)}`, 'asetpts=PTS-STARTPTS', 'aresample=48000', ...tempo(rate), `volume=${rounded(c.gain ?? 1)}`, 'apad', `atrim=end_sample=${Math.round(duration * 48000)}`].join(',');
-    await run(ffmpeg, [...ffBase, '-ss', rounded((c.sourceIn ?? 0) / fps), ...inputArgs(asset.path), '-map', '0:a:0', '-vn', '-af', filter, '-ar', '48000', '-ac', '2', '-c:a', 'pcm_f32le', out], { signal });
-    buses[c.track === 'music' ? 'music' : 'voice'].push({ file: out, offset: Math.round(c.start * 48000 / fps) });
+    const filter = [`atrim=duration=${rounded(duration)}`, 'asetpts=PTS-STARTPTS', 'aresample=48000', ...tempo(rate), `volume=${rounded(c.gain ?? 1)}`, 'apad', `atrim=start_sample=${skip - seek}:end_sample=${skip - seek + count}`, 'asetpts=PTS-STARTPTS'].join(',');
+    await run(ffmpeg, [...ffBase, '-ss', rounded(source), ...inputArgs(asset.path), '-map', '0:a:0', '-vn', '-af', filter, '-ar', '48000', '-ac', '2', '-c:a', 'pcm_f32le', out], { signal });
+    buses[c.track === 'music' ? 'music' : 'voice'].push({ file: out, offset: sampleAt(first) - sampleAt(mixStart) });
   }
-  const samples = Math.round(length * 48000 / fps);
+  const samples = sampleAt(mixEnd) - sampleAt(mixStart);
   async function mixBus(items, name) {
     let groupIndex = 0;
     while (items.length) {
@@ -184,14 +198,22 @@ export function renderProject(project, options) {
   return mediaSlot(() => render(project, options), options.signal);
 }
 
-async function render(project, { directory, output, preview = false, signal, onProgress = () => {} }) {
+async function render(project, { directory, output, preview = false, window, signal, onProgress = () => {} }) {
   if (!path.isAbsolute(output) || path.extname(output).toLowerCase() !== '.mp4') throw new Error('导出目标须为 MP4 的绝对路径');
-  const { width, height, fps, clips, length } = validate(project);
+  const { width, height, fps, clips, length: projectLength } = validate(project);
+  const { fromFrame, toFrame } = window ?? { fromFrame: 0, toFrame: projectLength };
+  if (!Number.isSafeInteger(fromFrame) || !Number.isSafeInteger(toFrame) || fromFrame < 0 || toFrame <= fromFrame || toFrame > projectLength) throw new Error('预览区间须为工程内的非空帧区间');
+  const length = toFrame - fromFrame;
+  const spans = pictureSpans(clips, projectLength, fromFrame, toFrame);
+  // Start the 320 ms ducking release before the sample and keep limiter lookahead at its end.
+  const mixStart = Math.max(0, fromFrame - 3 * fps), mixEnd = Math.min(projectLength, toFrame + fps);
+  const audible = clips.filter(c => ['video', 'narration', 'music'].includes(c.track) && c.start < mixEnd && c.start + c.duration > mixStart && (c.gain ?? 1) > 0 && !c.muted);
+  const relevant = window ? new Set([...audible, ...spans.flatMap(s => [s.top, s.under]).filter(Boolean)]) : clips.filter(c => ['video', 'narration', 'music'].includes(c.track));
   const profile = { width, height, fps };
   const ffmpeg = await requiredTool('ffmpeg');
   const melt = process.env.VIDEO_STUDIO_RENDER_ENGINE === 'ffmpeg' ? null : await mediaTool('melt');
   const media = new Map();
-  for (const c of clips.filter(c => ['video', 'narration', 'music'].includes(c.track))) {
+  for (const c of relevant) {
     const asset = project.assets.find(a => a.id === c.assetId);
     if (!asset?.path) throw new Error(`片段 ${c.id} 缺少素材`);
     if (!media.has(asset.id)) {
@@ -202,7 +224,6 @@ async function render(project, { directory, output, preview = false, signal, onP
     if (c.track === 'video' ? info.kind === 'audio' : !info.hasAudio) throw new Error(`素材与 ${c.track} 轨道不匹配`);
     if (info.kind !== 'image' && ((c.sourceIn ?? 0) + c.duration * (c.speed ?? 1)) / fps > info.duration + Math.max(0.075, 1 / fps)) throw new Error(`片段 ${c.id} 超出原素材时长`);
   }
-  const spans = pictureSpans(clips, length);
   const srtPath = output.slice(0, -4) + '.srt';
   await mkdir(path.dirname(output), { recursive: true });
   const result = await scratch(path.dirname(output), async work => {
@@ -213,15 +234,18 @@ async function render(project, { directory, output, preview = false, signal, onP
     onProgress(0.45);
     const picture = await assemblePicture(spans, work, profile, ffmpeg, melt, signal);
     onProgress(0.6);
-    const mix = await renderMix(clips, media, work, fps, length, ffmpeg, signal);
-    const text = clips.some(c => ['caption', 'graphic'].includes(c.track));
-    if (text) await writeFile(path.join(work, 'layers.ass'), createAss(clips, profile));
-    const srt = createSrt(clips, fps);
+    const mix = await renderMix(audible, media, work, fps, mixStart, mixEnd, ffmpeg, signal);
+    const layers = clips.filter(c => ['caption', 'graphic'].includes(c.track) && c.start < toFrame && c.start + c.duration > fromFrame);
+    if (layers.length) await writeFile(path.join(work, 'layers.ass'), createAss(layers, profile));
+    const srt = createSrt(layers, fps, { fromFrame, toFrame });
     await writeFile(path.join(work, 'captions.srt'), srt);
     const final = path.join(work, 'final.mp4');
-    const encoding = text ? ['-vf', 'ass=layers.ass', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', preview ? 'ultrafast' : 'veryfast', '-crf', preview ? '22' : '18', '-threads', '2'] : ['-c:v', 'copy'];
+    const overlay = fromFrame ? `settb=1/${fps},setpts=N+${fromFrame},ass=layers.ass,setpts=N` : 'ass=layers.ass';
+    const encoding = layers.length ? ['-vf', overlay, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', preview ? 'ultrafast' : 'veryfast', '-crf', preview ? '22' : '18', '-threads', '2'] : ['-c:v', 'copy'];
+    const sampleAt = frame => Math.round(frame * 48000 / fps);
+    const mixWindow = window ? ['-af', `atrim=start_sample=${sampleAt(fromFrame) - sampleAt(mixStart)}:end_sample=${sampleAt(toFrame) - sampleAt(mixStart)},asetpts=PTS-STARTPTS`] : [];
     onProgress(0.76);
-    await run(ffmpeg, [...ffBase, ...inputArgs(picture), ...inputArgs(mix), '-map', '0:v:0', '-map', '1:a:0', ...encoding, '-c:a', 'aac', '-ar', '48000', '-b:a', '192k', '-movflags', '+faststart', '-t', rounded(length / fps), final], { cwd: work, signal });
+    await run(ffmpeg, [...ffBase, ...inputArgs(picture), ...inputArgs(mix), '-map', '0:v:0', '-map', '1:a:0', ...encoding, ...mixWindow, '-c:a', 'aac', '-ar', '48000', '-b:a', '192k', '-movflags', '+faststart', '-t', rounded(length / fps), final], { cwd: work, signal });
     const info = await probeMedia(final, { signal });
     if (!info.hasAudio || info.width !== width || info.height !== height || Math.abs(info.duration - length / fps) > 1 / fps || (info.frames && info.frames !== length)) throw new Error('导出结果与工程的帧数或规格不符');
     const sha256 = await fileHash(final);
@@ -238,7 +262,7 @@ async function render(project, { directory, output, preview = false, signal, onP
       throw error;
     }
     onProgress(1);
-    return { videoPath: output, srtPath, sha256, duration: info.duration, frames: length, engine: melt ? 'mlt' : 'ffmpeg', revision: project.revision };
+    return { videoPath: output, srtPath, sha256, duration: info.duration, frames: length, engine: melt ? 'mlt' : 'ffmpeg', revision: project.revision, ...(window && { window: { fromFrame, toFrame } }) };
   });
   return result;
 }
