@@ -152,3 +152,11 @@ test('render two cuts and a dissolve, measure pixels, mix audio, read subtitles 
   await assert.rejects(async () => renderProject(project, { output: path.join(dir, 'cancel.mp4'), directory: dir, signal: ctrl.signal }));
   assert.equal(await stat(path.join(dir, 'cancel.mp4')).catch(() => null), null);
 });
+test('a single-frame JPEG can supply the cover and the first source preview',async t=>{
+  const {ffmpeg}=await mediaCapabilities();if(!ffmpeg){t.skip('requires FFmpeg');return;}
+  const dir=await mkdtemp(path.join(os.tmpdir(),'studio-single-picture-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  const source=path.join(dir,'original.jpg'), preview=path.join(dir,'cover.png');
+  await run(ffmpeg,[...ffBase,'-f','lavfi','-i','color=c=blue:s=180x120','-frames:v','1','-update','1',source]);
+  await frameAt(source,0,preview);
+  const info=await probeMedia(preview);assert.equal(info.kind,'image');assert.equal(info.width,180);assert.equal(info.height,120);
+});
