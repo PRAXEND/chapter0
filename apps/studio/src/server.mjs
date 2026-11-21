@@ -51,7 +51,10 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   const store=createStore(root,{probeMedia:dependencies.probeMedia||media.probeMedia});
   const styles=dependencies.styles||createStyleLibrary(root);
   const director=dependencies.director||createDirector({store,styleLibrary:styles,media,audio});
-  const deliveryRoot=process.env.STUDIO_DELIVERY_ROOT||(path.resolve(root)===path.resolve(defaultRoot())&&!process.env.STUDIO_DATA_ROOT?path.join(os.homedir(),'Movies','Video Studio','交付'):path.join(root,'deliveries'));
+  const standardLibrary=path.resolve(root)===path.resolve(defaultRoot())&&!process.env.STUDIO_DATA_ROOT;
+  const movies=path.join(os.homedir(),'Movies','Video Studio');
+  const deliveryRoot=process.env.STUDIO_DELIVERY_ROOT||(standardLibrary?path.join(movies,'交付'):path.join(root,'deliveries'));
+  const blindRoot=process.env.STUDIO_REVIEW_ROOT||(standardLibrary?path.join(movies,'盲评工作台'):root);
   const queue=createQueue({store,director,deliveryRoot,styles,media:dependencies.media||media,reviewProject:dependencies.reviewProject||reviewProject,
     async prepare(project,{signal,onProgress}){
       const caps=await audio.audioCapabilities();
@@ -82,7 +85,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       if(!equal(cookies['vs_'+authority.split(':')[1]],cookie))throw fault('请从工作台启动入口打开。',403);
       const parts=url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
       if(parts[0]==='blind'||(parts[0]==='api'&&parts[1]==='blind')){
-        if(!blindHandler){const {createBlindRoutes}=await import('./blind-routes.mjs');const {createBlindReview}=await import('./blind-review.mjs');blindHandler=createBlindRoutes({blind:createBlindReview(root),store});}
+        if(!blindHandler){const {createBlindRoutes}=await import('./blind-routes.mjs');const {createBlindReview}=await import('./blind-review.mjs');blindHandler=createBlindRoutes({blind:createBlindReview(blindRoot),store});}
         return await blindHandler(req,res,url);
       }
       if(parts[0]!=='api'){
