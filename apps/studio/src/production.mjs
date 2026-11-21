@@ -107,7 +107,7 @@ const tools = [
   ),
   tool(
     'studio_narrate',
-    'Rewrite one spoken line, reusing other generated audio and its approved voice identity.',
+    'Regenerate just the selected spoken line, retaining the project voice. A narration ID replaces the whole line; a caption ID replaces only that cue in the line. Other caption cues keep their original words. A locked member protects the whole line.',
     {
       baseRevision: int,
       clipId: str,
@@ -223,7 +223,9 @@ const clipFields = [
 ];
 const projectClip = (c, shareText = true) =>
   Object.fromEntries(
-    clipFields.filter((k) => Object.hasOwn(c, k) && (shareText || k !== 'text')).map((k) => [k, c[k]])
+    [...clipFields, 'speechGroup', 'speechCue', 'alignmentMethod', 'cueTiming']
+      .filter((k) => Object.hasOwn(c, k) && (shareText || k !== 'text'))
+      .map((k) => [k, c[k]])
   );
 async function context(deps, project, selection) {
   const s = project.style?.id ? await deps.styleLibrary.get(project.style.id, project.style.version) : null;

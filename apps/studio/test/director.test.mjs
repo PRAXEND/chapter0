@@ -5,6 +5,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { createDirector } from '../src/production.mjs';
 import { applyScenes, reviseLine } from '../src/storyboard.mjs';
+import { alignScript } from '../src/speech-alignment.mjs';
 
 const picture = {
   id: 'picture',
@@ -118,6 +119,93 @@ test('local script measures each generated phrase and reuses unchanged recording
   await reviseLine(deps, clone(p), 'scene-0-caption', '换一句。');
   assert.equal(counts().syntheses, 3);
   assert.equal(p.timeline.clips.find((c) => c.id === 'scene-1-narration').assetId, unchanged);
+});
+
+test('synthetic captions follow actual voice windows, preserve approved words and revise a single cue group', async (t) => {
+  const { p, deps, counts } = await fixture(t);
+  const first = '请先观察红色指示灯，',
+    second = '再确认蓝色灯光。',
+    secondLine = '列车已经到站。';
+  let recognized = first;
+  let calls = 0;
+  deps.audio.transcribe = async (file, opts) => {
+    assert.equal(opts.maxChars, 8);
+    assert.ok(file);
+    calls++;
+    if (calls === 2) return [{ text: secondLine, start: 0.3, end: 1.65 }];
+    return [
+      { text: recognized.replace('灯', '登'), start: 0.2, end: 0.85 },
+      { text: second, start: 1.12, end: 1.83 },
+    ];
+  };
+  const beats = [first + second, secondLine].map((narration) => ({ assetId: picture.id, narration }));
+  await applyScenes(deps, clone(p), beats);
+  const cues = () =>
+    p.timeline.clips
+      .filter((c) => c.track === 'caption' && c.speechGroup === 'scene-0-narration')
+      .sort((a, b) => a.start - b.start);
+  assert.deepEqual(
+    cues().map((c) => [c.text, c.start, c.duration]),
+    [
+      [first, 5, 16],
+      [second, 28, 18],
+    ]
+  );
+  assert.equal(p.timeline.clips.find((c) => c.id === 'scene-0-narration').duration, 50);
+  assert.ok(cues().every((c) => c.cueTiming === 'asr-segments'));
+  await applyScenes(deps, clone(p), beats);
+  assert.equal(calls, 2, 'a matching audio hash and approved-script hash reuses measured timing');
+  assert.equal(counts().syntheses, 2);
+  const protectedVoice = p.timeline.clips.find((c) => c.id === 'scene-1-narration');
+  protectedVoice.locked = true;
+  const otherGroup = clone(p.timeline.clips.filter((c) => c.id.startsWith('scene-1-')));
+  const revised = '请先观察绿色指示灯，';
+  recognized = revised;
+  await reviseLine(deps, clone(p), 'scene-0-caption', revised);
+  assert.deepEqual(
+    cues().map((c) => c.text),
+    [revised, second]
+  );
+  assert.deepEqual(
+    p.timeline.clips.filter((c) => c.id.startsWith('scene-1-')),
+    otherGroup
+  );
+  assert.equal(calls, 3);
+  assert.ok(p.assets.some((a) => a.source.text === revised + second));
+  p.timeline.clips.find((c) => c.id === 'scene-0-caption-2').locked = true;
+  await assert.rejects(reviseLine(deps, clone(p), 'scene-0-caption', '再改一遍'), /锁定/);
+  assert.equal(calls, 3);
+});
+
+test('long phrases retain unrecognized proper names, expose estimated subsegment boundaries and recover without ASR', async (t) => {
+  const { p, deps } = await fixture(t);
+  const words = '火箭朝夜色中的发射场慢慢移动，镜头跟着运输车一直走到开阔的场地。';
+  const timed = alignScript(words, [{ text: words.replace('运输车', '运树车'), start: 0, end: 7 }], 7.5, {
+    start: 0.31,
+    end: 6.48,
+  });
+  assert.equal(timed.method, 'whisper.cpp');
+  assert.ok(timed.cues.length >= 2);
+  assert.equal(timed.cues[0].start, 0.31);
+  assert.equal(timed.cues.at(-1).end, 6.48);
+  assert.equal(timed.cues.map((c) => c.text).join(''), words);
+  assert.ok(timed.cues.some((c) => c.timing === 'within-segment'));
+  deps.audio.transcribe = async () => {
+    throw Error('离线模型未准备');
+  };
+  await applyScenes(deps, clone(p), [{ assetId: picture.id, narration: words }]);
+  assert.equal(Object.values(p.speechAlignments)[0].method, 'duration-fallback');
+  assert.ok(p.directorNotes.some((n) => n.kind === 'speech-alignment' && n.message.includes('总时长')));
+  const c = p.timeline.clips.find((c) => c.track === 'caption'),
+    v = p.timeline.clips.find((c) => c.track === 'narration');
+  p.timeline.clips = p.timeline.clips.filter((x) => x.track !== 'caption' || x === c);
+  delete c.speechGroup;
+  delete v.speechGroup;
+  c.start = v.start;
+  c.duration = v.duration;
+  c.text = words;
+  await reviseLine(deps, clone(p), v.id, '旧工程新旁白。');
+  assert.equal(p.timeline.clips.find((c) => c.track === 'caption').speechGroup, v.id);
 });
 
 test('interview keeps the last repeated take, uses the original source window and can restore a deleted utterance', async (t) => {

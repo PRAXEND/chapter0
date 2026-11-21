@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { alignmentNote, captionCues, narrationAlignment } from './speech-alignment.mjs';
 
 const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const visual = (asset) => asset.kind === 'video' || asset.kind === 'image';
@@ -179,23 +180,49 @@ export async function reviseLine(deps, project, clipId, text, signal) {
   if (!target || !words || words.length > 650) throw new Error('选择一个字幕或旁白片段，并输入 1 到 650 字。');
   if (!['clone', 'system'].includes(voiceMode(project)))
     throw new Error('同期声或外部录音请从原句裁切；替换台词需选择可合成的声音。');
-  const group = project.timeline.clips.filter((c) => c.start === target.start && c.duration === target.duration);
-  const voice = group.find((c) => c.track === 'narration'),
-    caption = group.find((c) => c.track === 'caption');
-  if (!voice || !caption || voice.locked || caption.locked) throw new Error('该句需要可编辑的同段旁白与字幕。');
+  const clips = project.timeline.clips;
+  const voices =
+    target.track === 'narration'
+      ? [target]
+      : clips.filter(
+          (c) =>
+            c.track === 'narration' &&
+            (target.speechGroup
+              ? c.id === target.speechGroup
+              : c.start === target.start && c.duration === target.duration)
+        );
+  if (voices.length !== 1) throw new Error('该字幕没有可唯一定位的同段旁白，请在时间线上选择对应的声音。');
+  const [voice] = voices;
+  let captions = clips.filter((c) => c.track === 'caption' && c.speechGroup === voice.id);
+  if (!captions.length) {
+    captions = clips.filter(
+      (c) => c.track === 'caption' && !c.speechGroup && c.start === voice.start && c.duration === voice.duration
+    );
+    if (captions.length > 1) throw new Error('这条旧旁白关联多个同时字幕，需在时间线上确定对应关系。');
+  }
+  if (target.track === 'caption' && !captions.some((c) => c.id === target.id))
+    throw new Error('所选字幕未绑定到对应旁白。');
+  if (!captions.length || voice.locked || captions.some((c) => c.locked))
+    throw new Error('该句需要未锁定的旁白和同组字幕。');
+  captions.sort((a, b) => a.start - b.start || (a.speechCue || 0) - (b.speechCue || 0));
+  const fullText =
+    target.track === 'caption' ? captions.map((c) => (c.id === target.id ? words : c.text)).join('') : words;
+  if (fullText.length > 650) throw new Error('更新后的完整旁白句超过 650 字。');
   const expected = sceneIdentity(project),
-    audio = await recordedNarration(deps, project, words, signal);
+    audio = await recordedNarration(deps, project, fullText, signal);
+  const alignment = await narrationAlignment(deps, project.id, audio, fullText, signal);
   const frames = Math.max(1, Math.round(audio.duration * project.profile.fps));
-  let speed = frames / target.duration;
+  let speed = frames / voice.duration;
   const changes = [];
   if (speed < 0.85 || speed > 1.18) {
-    const delta = frames - target.duration,
-      end = target.start + target.duration;
+    const delta = frames - voice.duration,
+      end = voice.start + voice.duration;
+    const groupIds = new Set([voice.id, ...captions.map((c) => c.id)]);
     const overlaps = project.timeline.clips.filter(
-      (c) => c.start < end && c.start + c.duration > target.start && c.id !== voice.id && c.id !== caption.id
+      (c) => c.start < end && c.start + c.duration > voice.start && !groupIds.has(c.id)
     );
     if (
-      overlaps.some((c) => c.locked || c.start !== target.start || c.duration !== target.duration) ||
+      overlaps.some((c) => c.locked || c.start !== voice.start || c.duration !== voice.duration) ||
       project.timeline.clips.some((c) => c.start >= end && c.locked)
     )
       throw new Error('新台词时长会移动受保护或跨句片段，请缩短台词或先在时间线上调整空间。');
@@ -211,16 +238,75 @@ export async function reviseLine(deps, project, clipId, text, signal) {
       changes.push({ op: 'update', id: c.id, changes: { duration: frames } });
     }
     for (const c of project.timeline.clips.filter((c) => c.start >= end))
-      changes.push({ op: 'update', id: c.id, changes: { start: c.start + delta } });
+      changes.push({
+        op: 'update',
+        id: c.id,
+        changes: {
+          start: c.start + delta,
+          ...(Number.isInteger(c.actionFrame) ? { actionFrame: c.actionFrame + delta } : {}),
+        },
+      });
     speed = 1;
   }
-  const duration = speed === 1 ? frames : target.duration;
-  changes.push({ op: 'update', id: voice.id, changes: { assetId: audio.id, sourceIn: 0, speed, duration } });
-  changes.push({ op: 'update', id: caption.id, changes: { text: words, duration } });
+  const duration = speed === 1 ? frames : voice.duration;
+  changes.push({
+    op: 'update',
+    id: voice.id,
+    changes: { assetId: audio.id, sourceIn: 0, speed, duration, speechGroup: voice.id },
+  });
+  const replacements = captionCues(alignment, {
+    id: captions[0].id,
+    group: voice.id,
+    assetId: audio.id,
+    start: voice.start,
+    duration,
+    speed,
+    fps: project.profile.fps,
+  });
+  // Retain individual formatting on reusable cue IDs, or inherit it from the first
+  // caption when a new cue is needed. Time, text and audio binding come from alignment.
+  const previous = new Map(captions.map((c) => [c.id, c]));
+  for (const cue of replacements) {
+    const { id, track, sourceIn, speed, gain, ...values } = cue;
+    if (previous.has(id)) {
+      const old = previous.get(id);
+      if (old.keyframes?.length && old.duration !== cue.duration)
+        values.keyframes = old.keyframes.map((k) => ({
+          ...k,
+          frame: Math.round((k.frame * cue.duration) / old.duration),
+        }));
+      changes.push({ op: 'update', id, changes: values });
+      previous.delete(id);
+    } else {
+      const { locked: ignore, keyframes: oldAnimation, ...template } = captions[0];
+      changes.push({ op: 'add', clip: { ...template, ...cue } });
+    }
+  }
+  for (const id of previous.keys()) changes.push({ op: 'remove', id });
   signal?.throwIfAborted();
   const latest = await deps.store.get(project.id);
   if (sceneIdentity(latest) !== expected) throw new Error('合成期间工程已更新，请对照当前版本重试。');
-  return deps.store.apply(project.id, latest.revision, changes, 'codex');
+  const result = await deps.store.apply(project.id, latest.revision, changes, 'codex');
+  const note = alignmentNote(alignment, voice.id, voice.start);
+  const move = (frame) => (frame >= voice.start + voice.duration ? frame + duration - voice.duration : frame);
+  const notes = (result.directorNotes || [])
+    .filter((n) => n.speechGroup !== voice.id)
+    .map((n) => ({ ...n, frame: move(n.frame) }));
+  if (note) notes.push(note);
+  const board = (result.storyboard || []).map((row) =>
+    row.speechGroup === voice.id ||
+    (!row.speechGroup && row.start === voice.start && row.duration === voice.duration)
+      ? {
+          ...row,
+          duration,
+          speechGroup: voice.id,
+          speechAssetId: audio.id,
+          speechScriptHash: alignment.scriptHash,
+        }
+      : { ...row, start: move(row.start) }
+  );
+  const facts = (result.facts || []).map((f) => ({ ...f, start: move(f.start) }));
+  return deps.store.setMeta(project.id, { directorNotes: notes, storyboard: board, facts });
 }
 
 export async function applyScenes(
@@ -275,7 +361,7 @@ export async function applyScenes(
     ) {
       throw new Error('分镜源区间超出素材范围。');
     }
-    let duration, utterance, voice, captionStart, captionDuration;
+    let duration, utterance, voice, alignment, captionStart, captionDuration;
     if (project.mode === 'interview') {
       const rows = await transcriptFor(deps, await deps.store.get(project.id), asset, signal);
       utterance = rows.find((row) => row.id === beat.utteranceId);
@@ -315,6 +401,7 @@ export async function applyScenes(
       if (!words || words.length > 650) throw new Error('单段旁白需包含 1 到 650 字。');
       voice = await recordedNarration(deps, await deps.store.get(project.id), words, signal);
       duration = Math.max(1, Math.round(voice.duration * fps));
+      alignment = await narrationAlignment(deps, project.id, voice, words, signal);
     } else {
       const suggested = Number(beat.durationSeconds || readingSeconds(words));
       if (!Number.isFinite(suggested) || suggested <= 0) throw new Error('镜头时长无效。');
@@ -346,6 +433,7 @@ export async function applyScenes(
         message: '原镜头短于旁白，结尾使用来源相同的定格，可替换特写。',
       });
     }
+    const speechGroup = 'scene-' + i + '-narration';
     if (voice && mode !== 'import')
       clips.push(
         make('narration', i, {
@@ -353,9 +441,23 @@ export async function applyScenes(
           start: cursor,
           duration,
           sourceIn: 0,
+          speechGroup,
         })
       );
-    if (words)
+    if (alignment) {
+      clips.push(
+        ...captionCues(alignment, {
+          id: 'scene-' + i + '-caption',
+          group: speechGroup,
+          assetId: voice.id,
+          start: cursor,
+          duration,
+          fps,
+        })
+      );
+      const note = alignmentNote(alignment, speechGroup, cursor);
+      if (note) notes.push(note);
+    } else if (words)
       clips.push(
         make('caption', i, { text: words, start: captionStart ?? cursor, duration: captionDuration ?? duration })
       );
@@ -416,6 +518,7 @@ export async function applyScenes(
       start: cursor,
       duration,
       utteranceId: utterance?.id,
+      ...(alignment ? { speechGroup, speechAssetId: voice.id, speechScriptHash: alignment.scriptHash } : {}),
       claimUrl: beat.claimUrl || asset.source?.url,
       continuity: String(beat.continuity || '').slice(0, 240),
     });
