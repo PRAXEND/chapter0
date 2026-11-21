@@ -200,12 +200,16 @@ export function createStyleLibrary(dataRoot, options={}) {
     finally { await rm(temp,{force:true}); }
     return get(spec.id,spec.version);
   }
-  async function savePreference({id,version,instruction,before,after,source}) {
+  async function savePreference({id,version,instruction,before,after,source,references=[]}) {
     if(typeof instruction!=='string'||!instruction.trim()||instruction.length>2000) throw Error('请填写要保存的风格偏好');
     const reg=await registry(), current=select(reg,id);
     if(current.spec.version!==version) throw Error('风格版本已更新，请读取最新版再保存');
+    if(!Array.isArray(references)||references.length>2) throw Error('请选择此改稿的两个片段');
+    for(const ref of references) {
+      if(!validId.test(ref.id)||ref.kind!=='video'||!ref.locator?.startsWith('library:')||!(await verifiedReference({},ref,[])).verified) throw Error('改稿的片段未通过指纹核对');
+    }
     const preference={instruction:instruction.trim(),before,after,source,basis:'user_direction'};
-    return publish({...current.spec,version:version+1,preferences:[...(current.spec.preferences||[]),preference],
+    return publish({...current.spec,version:version+1,references:[...(current.spec.references||[]),...references],preferences:[...(current.spec.preferences||[]),preference],
       rules:[...(current.spec.rules||[]),{id:'preference-'+(version+1),basis:'user_direction',instruction:preference.instruction}]});
   }
   async function captureReference(file,{kind='video',title='试片',id='reference'}={}) {
