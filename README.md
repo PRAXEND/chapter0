@@ -1,5 +1,7 @@
 # Video Studio · Video Generation Workbench
 
+独立 Apple Silicon Mac 剪辑工作台提供 Codex 对话、可编辑时间线和本地成片交付。使用及构建见 [独立工作台](apps/studio/README.md)。
+
 **0.3.0-web.39 · macOS · 发布分支 `video-generation-workbench`**
 
 已有用户请看 **[web.39 升级说明](UPGRADE.md)**。安装包及 SHA-256 校验文件见 **[web.39 下载页](https://github.com/PRAXEND/chapter0/releases/tag/v0.3.0-web.39)**；升级需要同时更新插件安装副本和运行中的工作台，仅 `git pull` 不会替换旧服务。

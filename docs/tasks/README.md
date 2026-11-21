@@ -1,5 +1,7 @@
 # 任务记录
 
+- [独立 Mac 自动剪辑工作台](T-20261122-standalone-mac.md)
+
 web.39（2026-11-16）汇总以下三项累计修复及后台唤起改进，基线为已发布 web.38 `c057229`。发行范围与升级以 [RELEASE_SCOPE](../../RELEASE_SCOPE.md)、[VALIDATION](../../VALIDATION.md)、[UPGRADE](../../UPGRADE.md) 为准；固定标签 `v0.3.0-web.39`。任务正文保留历史阶段的当时状态。
 
 - [T-20261115-recovery-hardening](T-20261115-recovery-hardening.md)：连续恢复、候选登记、验收证据/音频误报和桌面自动唤起；本机修复与真实工作台入口验证通过，纳入 web.39。既有成片的真实质量暂停状态保留。

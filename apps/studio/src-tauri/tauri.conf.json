@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Video Studio",
+  "version": "0.1.0",
+  "identifier": "studio.local.videoworkbench",
+  "build": {"frontendDist":"../shell"},
+  "app": {"windows": [], "security": {"capabilities":[]}},
+  "bundle": {"active": true, "targets":["app"], "macOS":{"minimumSystemVersion":"13.5"}}
+}

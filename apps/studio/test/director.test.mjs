@@ -142,7 +142,11 @@ test('interview keeps the last repeated take, uses the original source window an
   assert.equal(counts().transcriptions, 1);
   assert.equal(counts().syntheses, 0);
   await d.restoreUtterance(p.id, { assetId: 'video', utteranceId: 'video-s0', baseRevision: p.revision });
-  assert.equal(p.timeline.clips.filter((c) => c.track === 'video').at(-1).sourceIn, 25);
+  const positions=p.timeline.clips.filter(c=>c.track==='video').sort((a,b)=>a.start-b.start).map(c=>[c.start,c.sourceIn]);
+  assert.deepEqual(positions,[[0,25],[50,100],[100,175]]);
+  const revision=p.revision;
+  await d.restoreUtterance(p.id,{assetId:'video',utteranceId:'video-s0',baseRevision:revision});
+  assert.equal(p.revision,revision);
 });
 
 test('topic claims retain real source links and editorial and visual sources can differ', async (t) => {
@@ -335,4 +339,22 @@ test('a new direction goes only to the active project job after its Codex turn r
   finish.resolve();
   await running;
   await assert.rejects(d.steer(p.id, options), (e) => e.status === 409);
+});
+test('the director verifies and opens a registered personal style frame on demand', async t => {
+  const {p,deps} = await fixture(t,{settings:{voiceMode:'original',shareFrames:true}});
+  deps.styleLibrary.get = async () => ({id:'neutral',version:1,references:[{id:'frame-2',kind:'image',locator:'local:frame',available:null}]});
+  let opened;
+  deps.styleLibrary.getReference = async (style,version,id) => {
+    opened=[style,version,id];return {available:true,verified:true,kind:'image',path:'verified-local-file'};
+  };
+  deps.media.frameAt=async (file,seconds,target)=>{assert.equal(file,'verified-local-file');await writeFile(target,'test-pixels');};
+  deps.client={account:async()=>({connected:true}),thread:async()=>'thread',close(){},async runTurn({onStart,tool}){
+    await onStart('turn');
+    const ctx=JSON.parse((await tool({tool:'studio_context',arguments:{}})).contentItems[0].text);
+    assert.equal(ctx.style.references[0].resolvable,true);
+    const response=await tool({tool:'studio_frame',arguments:{source:'style',id:'frame-2',seconds:0}});
+    assert.equal(response.contentItems[0].type,'inputImage');return '已核对参考。';
+  }};
+  const director=createDirector(deps);t.after(()=>director.close());
+  await director.run(p.id,{kind:'revise'});assert.deepEqual(opened,['neutral',1,'frame-2']);
 });

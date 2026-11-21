@@ -194,7 +194,7 @@ function selectedStyle(s) {
       .map((t) => (typeof t === 'string' ? t : { id: t.id, name: t.name })),
     references: (s.references || [])
       .slice(0, 20)
-      .map((r) => ({ id: r.id, kind: r.kind, title: trim(r.title), available: Boolean(r.available) })),
+      .map((r) => ({ id: r.id, kind: r.kind, title: trim(r.title), available: r.available ?? null, resolvable: r.available!==false&&Boolean(r.locator||r.path) })),
     baselineAvailable: Boolean(s.baseline?.available),
     unknownDimensions: s.unknownDimensions || [],
   };
@@ -342,23 +342,38 @@ export function createDirector(deps) {
     currentRevision(p, baseRevision);
     if (!row) throw new Error('找不到原句。');
     const fps = p.profile.fps;
-    const start = Math.max(
-      0,
-      ...p.timeline.clips.filter((c) => c.track === 'video').map((c) => c.start + c.duration)
-    );
-    const sourceIn = Math.round(row.start * fps),
-      duration = Math.max(1, Math.round(row.end * fps) - sourceIn);
-    const asset = p.assets.find((a) => a.id === assetId),
-      tag = randomUUID();
+    const sourceIn = Math.round(row.start * fps);
+    const duration = Math.max(1, Math.round(row.end * fps) - sourceIn);
+    const asset = p.assets.find((a) => a.id === assetId), tag = randomUUID();
+    const track = asset.kind === 'audio' ? 'narration' : 'video';
+    const clips = p.timeline.clips;
+    const family = clips.filter(c => c.assetId===assetId && c.track===track && c.enabled!==false && !c.hidden);
+    if (family.some(c => (c.sourceIn||0)<=sourceIn && (c.sourceIn||0)+c.duration*(c.speed||1)>=sourceIn+duration)) return p;
+    const successor = family.filter(c => (c.sourceIn||0)>=sourceIn+duration)
+      .sort((a,b)=>(a.sourceIn||0)-(b.sourceIn||0)||a.start-b.start)[0];
+    const last=clips.filter(c => c.track==='video'||c.track==='narration').reduce((n,c)=>Math.max(n,c.start+c.duration),0);
+    let start=successor?.start ?? last;
+    const shifts=[];
+    if(successor){
+      const gapStart=start-duration;
+      const canFit=gapStart>=0 && !clips.some(c=>c.track!=='music' && c.start<start && c.start+c.duration>gapStart);
+      if(canFit)start=gapStart;
+      else{
+        if(clips.some(c=>c.start>=start&&c.locked))throw Object.assign(Error('恢复这句话会移动锁定片段。请先在原句位置留出空间。'),{status:409});
+        if(clips.some(c=>c.track!=='music'&&c.start<start&&c.start+c.duration>start))throw Object.assign(Error('原句位置有连续的剪辑。请先在该处留出空间。'),{status:409});
+        for(const c of clips.filter(c=>c.start>=start))shifts.push({op:'update',id:c.id,changes:{start:c.start+duration}});
+      }
+    }
     return store.apply(
       id,
       baseRevision,
       [
+        ...shifts,
         {
           op: 'add',
           clip: {
             id: tag + '-source',
-            track: asset.kind === 'audio' ? 'narration' : 'video',
+            track,
             assetId,
             start,
             duration,
@@ -538,8 +553,10 @@ export function createDirector(deps) {
         const style = current.style?.id && (await styleLibrary.get(current.style.id, current.style.version));
         const ref =
           args.id && args.id !== 'baseline' ? style?.references?.find((r) => r.id === args.id) : style?.baseline;
-        if (!ref?.available || !ref?.path) throw new Error('参考片暂不可读取。');
-        source = ref.path;
+        if (!ref || ref.available === false) throw new Error('参考片暂不可读取。');
+        const verified = ref.available && ref.path ? ref : await styleLibrary.getReference(style.id, style.version, ref.id);
+        if (!verified?.available || !verified.path || ['audio','script'].includes(verified.kind)) throw new Error('此参考没有可分享的画面。');
+        source = verified.path;
       } else if (args.source === 'timeline') {
         if (!current.timeline.clips.some((c) => c.track === 'video')) throw new Error('工程还没有画面。');
         const result = await media.renderProject(current, {
