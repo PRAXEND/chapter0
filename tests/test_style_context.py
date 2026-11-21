@@ -71,3 +71,17 @@ class StyleContextTests(unittest.TestCase):
     def test_script_only_style_has_no_invented_visual_benchmark(self):
         with patch.object(studio, 'load_run', return_value={'style_snapshot': self.saved}):
             self.assertIsNone(style_context.reference_probe(self.run))
+
+    def test_blueprint_returns_reference_and_component_without_inlining_source(self):
+        del self.spec['reproduction_bundle']
+        self.spec['references'] = [dict(kind='video', id='atlas-benchmark', locator='resource:media/benchmarks/atlas.mp4', sha256='1234')]
+        self.spec['reproduction_blueprint'] = {'components': [{'id': 'rail', 'role': '分步说明', 'code': 'not in guide'}],
+                                               'effect_recipes': [{'name': '局部放大'}]}
+        self.snapshot()
+        guide = studio.read(style_context.prepare(self.run, self.saved)['guide'])['reproduction']
+        self.assertEqual(guide['baseline']['reference_id'], 'atlas-benchmark')
+        self.assertEqual(guide['baseline']['sha256'], '1234')
+        self.assertEqual(guide['components'], [{'id': 'rail', 'role': '分步说明'}])
+        self.assertEqual(guide['effect_recipes'], ['局部放大'])
+        self.assertIn('components', guide['on_demand_fields'])
+        self.assertIn('effect_recipes', guide['on_demand_fields'])

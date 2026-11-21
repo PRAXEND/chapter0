@@ -1,0 +1,100 @@
+const el=id=>document.getElementById(id);
+const show=(id,yes=true)=>{el(id).hidden=!yes;};
+const setNotice=value=>{el('notice').textContent=value||'';};
+const labels={gate:'交付判断',style:'风格辨认',pair:'前台与工作台配对',usable:'愿意直接用',minor:'愿意用但想小修',redo:'必须重剪',tie:'两版相当',A:'A 版',B:'B 版'};
+const dimensionNames={facts:'事实与叙事',shots:'镜头选择',sync:'声画落点',rework:'需要返工之处'};
+let candidates=[],studies=[],chosen,session,active;
+async function api(url,body) {
+  const res=await fetch(url,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+  const data=await res.json();
+  if(!res.ok) throw Error(data.error||'请求失败');
+  return data;
+}
+function run(fn) {return async e=>{e?.preventDefault();setNotice('');try{await fn(e);}catch(error){setNotice(error.message);}};}
+function make(tag,text='',parent) {const n=document.createElement(tag);n.textContent=text;if(parent)parent.append(n);return n;}
+function control(tag,label,wrapper) {const group=make('label',label,wrapper);const input=document.createElement(tag);group.append(input);return input;}
+function option(select,value,label) {const o=make('option',label,select);o.value=value;}
+function sourcePick(wrapper,label,cls) {
+  const select=control('select',label,wrapper);select.className=cls;
+  for(const item of candidates) option(select,item.jobId,item.title+' · v'+item.revision+' · '+item.createdAt.slice(0,10));
+  return select;
+}
+function sample() {
+  const section=make('div','',el('samples'));section.className='sample';
+  sourcePick(section,'候选成片','source');
+  if(el('kind').value==='style') {
+    control('input','实际风格',section).className='expected';
+    control('input','题材组',section).className='group';
+  }
+  if(el('kind').value==='pair') {
+    sourcePick(section,'对比成片','comparison');
+    const src=control('select','第一份候选来自',section);src.className='primary-source';option(src,'workbench','工作台');option(src,'foreground','前台 Codex');
+  }
+  const remove=make('button','移除',section);remove.onclick=()=>section.remove();
+}
+async function refresh() {
+  studies=await api('/api/blind/studies');el('studies').replaceChildren();
+  for(const s of studies) {
+    const row=make('div','',el('studies'));row.className='row';make('span',s.title+' · '+labels[s.kind]+' · '+s.count+' 段',row);
+    const btn=make('button','打开',row);btn.onclick=run(()=>choose(s));
+  }
+  if(!studies.length) make('p','尚未建立盲评。',el('studies'));
+}
+async function choose(s) {
+  chosen=s;session=null;el('study-title').textContent=s.title;show('setup',false);show('screen',false);show('identity');await progress();
+  const url=new URL(location.href);url.searchParams.set('study',s.id);history.replaceState(null,'',url);
+}
+async function progress() {
+  if(!chosen) return;
+  const p=await api('/api/blind/studies/'+chosen.id+'/summary');show('report');const dest=el('report-text');dest.replaceChildren();
+  make('p','已完成全部样本的审片人 '+p.completeReviewers+' 位。',dest);
+  if(p.status==='awaiting-human-ratings') {make('p','两位审片人分别提交后显示汇总。',dest);return;}
+  if(p.disagreements) make('p','有 '+p.disagreements+' 段意见仍不一致，可由第三位审片人独立复核。',dest);
+  const m=p.metrics;
+  if(p.kind==='gate') make('p','可用 '+m.usable+' 段，其中误拦 '+m.falseBlocks+' 段。严重 '+m.severe+' 段，其中正确拦截并定位 '+m.severeLocated+' 段。',dest);
+  if(p.kind==='style') make('p','正确辨认 '+m.identified+' / '+p.count+' 段。',dest);
+  if(p.kind==='pair') make('p','工作台更好 '+m.workbench+' 次，前台更好 '+m.foreground+' 次，相当 '+m.tie+' 次。',dest);
+  if(p.thresholdMet!==null) make('p',p.thresholdMet?'达到首发样本门槛。':'本组尚未达到完整首发样本门槛。',dest);
+}
+async function loadSession() {
+  session=await api('/api/blind/studies/'+chosen.id+'/session',{reviewer:el('reviewer').value});
+  active=session.items.find(i=>!i.answered);
+  if(!active){el('movies').replaceChildren();show('screen',false);setNotice('这一组样本已评完。');await progress();return;}
+  show('screen');el('progress').textContent='样本 '+active.index+' / '+session.count;el('movies').replaceChildren();el('decision').replaceChildren();el('observation').value='';el('from').value='';el('to').value='';
+  for(const s of active.sides) {
+    const figure=make('figure','',el('movies')),video=make('video','',figure);
+    video.controls=true;video.preload='metadata';video.src='/api/blind/studies/'+chosen.id+'/media?'+new URLSearchParams({reviewer:el('reviewer').value,code:active.code,side:s});
+    video.onerror=()=>setNotice('候选无法播放，请检查原文件或重新准备研究。');
+    if(active.sides.length>1) make('figcaption',s+' 版',figure);
+  }
+  for(const decision of session.choices) option(el('decision'),decision,labels[decision]||decision);
+  el('dimensions').replaceChildren();show('dimensions',session.kind==='pair');
+  if(session.kind==='pair') for(const [key,label] of Object.entries(dimensionNames)) control('input',label,el('dimensions')).dataset.dimension=key;
+  el('decision').onchange();
+}
+el('decision').onchange=()=>show('range',session?.kind==='gate'&&el('decision').value==='redo');
+el('new').onclick=run(async()=>{
+  candidates=await api('/api/blind/candidates');if(!candidates.length) throw Error('请先在工作台完成至少一个可播放的正式候选。');
+  show('setup');show('screen',false);show('identity',false);show('report',false);el('samples').replaceChildren();sample();
+});
+el('kind').onchange=()=>{el('samples').replaceChildren();sample();};
+el('add').onclick=sample;
+el('create').onclick=run(async()=>{
+  const samples=[...el('samples').querySelectorAll('.sample')].map(row=>{
+    const source=candidates.find(c=>c.jobId===row.querySelector('.source')?.value);
+    const comp=candidates.find(c=>c.jobId===row.querySelector('.comparison')?.value);
+    return {...source,expected:row.querySelector('.expected')?.value.trim(),topicGroup:row.querySelector('.group')?.value.trim(),comparisonProjectId:comp?.projectId,comparisonJobId:comp?.jobId,primary:row.querySelector('.primary-source')?.value};
+  });
+  const s=await api('/api/blind/studies',{kind:el('kind').value,title:el('title').value,samples});await refresh();await choose(s);
+});
+el('begin').onclick=run(loadSession);
+el('ballot').onsubmit=run(async()=>{
+  const dims=Object.fromEntries([...el('dimensions').querySelectorAll('input')].map(i=>[i.dataset.dimension,i.value]));
+  const answer={reviewer:el('reviewer').value,code:active.code,decision:el('decision').value,observation:el('observation').value,dimensions:dims};
+  if(session.kind==='gate'&&answer.decision==='redo'){
+    if(!el('from').value||!el('to').value)throw Error('请记录需要重剪的帧区间。');
+    answer.fromFrame=Number(el('from').value);answer.toFrame=Number(el('to').value);
+  }
+  await api('/api/blind/studies/'+chosen.id+'/rating',answer);await loadSession();
+});
+await run(async()=>{await refresh();const id=new URLSearchParams(location.search).get('study'),s=studies.find(x=>x.id===id);if(s){show('library',false);await choose(s);}})();

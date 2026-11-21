@@ -1,0 +1,47 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {writeFile,mkdtemp,rm} from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import {nativeMediaTool} from '../../../plugins/video-studio/workbench/media.mjs';
+import {reviewProject,classifyLegacyReview,classifyReview,deterministicRepairs} from '../src/review.mjs';
+import {fileSha256} from '../src/style.mjs';
+const exec=promisify(execFile), profile={width:192,height:128,fps:25};
+test('severity grades distinguish major, uncertain evidence and repeated minor observations',()=>{
+  const minor={id:'flash',severity:'minor',symptom:'字幕闪空',from_frame:4,to_frame:5};
+  assert.equal(classifyReview([]).status,'deliverable');
+  const advice=classifyLegacyReview({decode_pass:true,completed:false,checks:{captions:{status:'fail',issues:[minor]},flicker:{status:'fail',issues:[minor]}}});
+  assert.equal(advice.issues.length,1);assert.equal(advice.status,'advisory');assert.equal(advice.deliverable,true);
+  assert.equal(classifyLegacyReview({preflight:true,checks:{music_fit:{status:'fail',issues:['缺少生成任务记录']}}}).status,'unverified');
+  assert.equal(classifyReview([minor,{...minor,severity:'major'},{id:'fixed',status:'resolved'}]).status,'repair');
+});
+test('actual decode, SRT, source to mix timing, independent missing voice and anchored event',async t=>{
+  const ffmpeg=await nativeMediaTool('ffmpeg'),ffprobe=await nativeMediaTool('ffprobe');
+  if(!ffmpeg||!ffprobe){t.skip('requires FFmpeg and ffprobe');return;}
+  const d=await mkdtemp(path.join(os.tmpdir(),'studio-review-video-'));t.after(()=>rm(d,{recursive:true,force:true}));
+  const voice=path.join(d,'voice.wav'),video=path.join(d,'candidate.mp4'),sub=path.join(d,'candidate.srt');
+  await exec(ffmpeg,['-v','error','-f','lavfi','-i','anoisesrc=c=pink:a=0.25:s=24000:r=24000:d=3','-c:a','pcm_s16le',voice]);
+  await exec(ffmpeg,['-v','error','-f','lavfi','-i','color=green:s=192x128:r=25:d=3','-i',voice,'-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac','-t','3',video]);
+  await writeFile(sub,'1\n00:00:00,000 --> 00:00:01,000\n一句话\n');
+  const p={revision:3,mode:'script',profile,settings:{voiceMode:'import'},assets:[{id:'a',path:voice,sha256:await fileSha256(voice)}],timeline:{clips:[
+    {id:'v',track:'video',start:0,duration:75,assetId:'video',sourceIn:0,gain:0},{id:'n',track:'narration',start:0,duration:75,assetId:'a',sourceIn:0,gain:1},
+    {id:'c',track:'caption',start:0,duration:25,text:'一句话'}]}};
+  const opts={videoPath:video,srtPath:sub,resolveTool:async name=>name==='ffmpeg'?ffmpeg:ffprobe};
+  const report=await reviewProject(p,opts);
+  assert.ok(report.candidatePlayable);assert.equal(report.status,'deliverable',JSON.stringify(report));assert.equal(report.evidence.audio.length,1);
+  assert.ok(report.evidence.audio[0].windows.some(w=>w.similarity>.75&&Math.abs(w.offset)<.05));
+  const anchored={id:'callout',track:'graphic',templateRole:'action',actionFrame:30,anchorAssetId:'video',anchorSourceFrame:30,start:5,duration:46};
+  p.timeline.clips.push(anchored);
+  const mistimed=await reviewProject(p,opts);
+  assert.equal(mistimed.status,'repair');assert.equal(mistimed.repairs[0].commands[0].changes.start,30);
+  anchored.locked=true;assert.deepEqual(deterministicRepairs(p,mistimed),[]);p.timeline.clips.pop();
+  const delayed=path.join(d,'late.mp4');
+  await exec(ffmpeg,['-v','error','-i',video,'-i',voice,'-map','0:v','-map','1:a','-af','adelay=310:all=1','-c:v','copy','-c:a','aac','-t','3',delayed]);
+  const lag=await reviewProject(p,{...opts,videoPath:delayed});
+  assert.ok(lag.issues.some(i=>i.id==='voice-drift-n'),JSON.stringify(lag));
+  p.settings.voiceMode='clone';const missing=await reviewProject(p,opts);
+  assert.equal(missing.status,'unverified');assert.ok(missing.issues[0].id.includes('voice-identity'));
+  await writeFile(video,'broken');const damaged=await reviewProject(p,opts);assert.equal(damaged.status,'repair');assert.equal(damaged.candidatePlayable,false);
+});

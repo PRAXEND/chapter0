@@ -7,6 +7,24 @@ import studio
 import style_media
 
 
+def reproduction_guide(spec, spec_path):
+    bundle = spec.get('reproduction_bundle') or {}
+    blueprint = spec.get('reproduction_blueprint') or {}
+    baseline = bundle.get('baseline')
+    if not baseline:
+        benchmarks = [ref for ref in spec.get('references', []) if ref.get('kind') == 'video'
+                      and ref.get('locator', '').startswith('resource:media/benchmarks/')]
+        if len(benchmarks) == 1:
+            ref = benchmarks[0]
+            baseline = {'path': ref['locator'], 'sha256': ref.get('sha256'), 'reference_id': ref.get('id')}
+    fields = [key for source, names in ((bundle, ('specific_edit_recipe', 'motion_graphics', 'canonical_captions')),
+              (blueprint, ('components', 'effect_recipes', 'shot_reference', 'captions'))) for key in names if key in source]
+    return {'baseline': baseline, 'documents': bundle.get('documents', {}), 'full_spec': str(spec_path),
+            'on_demand_fields': fields, 'components': [{'id': row.get('id'), 'role': row.get('role')}
+                for row in blueprint.get('components', [])],
+            'effect_recipes': [row.get('name') for row in blueprint.get('effect_recipes', []) if row.get('name')]}
+
+
 def prepare(run, snapshot):
     if not snapshot:
         return None
@@ -18,13 +36,10 @@ def prepare(run, snapshot):
         if studio.file_hash(folder / name) != expected:
             raise ValueError('Style snapshot changed')
     spec = studio.read(folder / 'style.json')
-    bundle = spec.get('reproduction_bundle') or {}
     guide = {key: spec[key] for key in ('id', 'version', 'name', 'description', 'adaptation', 'rules',
              'references', 'material_requirements', 'storyboard_contract', 'unknown_dimensions') if key in spec}
     # Preserve every rule, but load implementation source only for the chosen effect.
-    guide['reproduction'] = {'baseline': bundle.get('baseline'), 'documents': bundle.get('documents', {}),
-                             'full_spec': str(folder / 'style.json'),
-                             'on_demand_fields': ['specific_edit_recipe', 'motion_graphics', 'canonical_captions']}
+    guide['reproduction'] = reproduction_guide(spec, folder / 'style.json')
     target = root / 'style-context' / snapshot['files']['style.json']
     if not target.resolve().is_relative_to(root):
         raise ValueError('Style context outside run')

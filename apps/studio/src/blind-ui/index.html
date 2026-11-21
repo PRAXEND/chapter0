@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>审片室 · Video Studio</title><link rel="stylesheet" href="/blind/styles.css"></head>
+<body><main><header><a href="/">返回工作台</a><h1>审片室</h1></header>
+<section id="library"><h2>看片研究</h2><div id="studies"></div><button id="new">新建盲评</button></section>
+<section id="setup" hidden><h2>准备样本</h2><label>研究名称<input id="title" maxlength="180" value="看片盲评"></label>
+<label>研究方式<select id="kind"><option value="gate">交付判断</option><option value="style">风格辨认</option><option value="pair">前台与工作台配对</option></select></label>
+<div id="samples"></div><div class="controls"><button id="add">增加样本</button><button class="primary" id="create">冻结候选，生成盲评</button></div></section>
+<section id="identity" hidden><h2 id="study-title"></h2><label>审片人名称<input id="reviewer" maxlength="80" autocomplete="off"></label><button class="primary" id="begin">开始或继续看片</button></section>
+<section id="screen" hidden><h2 id="progress"></h2><div id="movies"></div><form id="ballot"><label>看片判断<select id="decision"></select></label><label>画面或听感依据<textarea id="observation" required maxlength="3000" rows="3"></textarea></label>
+<div id="range" hidden><label>问题起始帧<input id="from" type="number" min="0"></label><label>问题结束帧<input id="to" type="number" min="0"></label></div><div id="dimensions" hidden></div><button class="primary">提交此样本</button></form></section>
+<section id="report" hidden><h2>评审进度</h2><div id="report-text"></div></section>
+<div id="notice" role="status" aria-live="polite"></div>
+</main><script type="module" src="/blind/app.js"></script></body></html>
