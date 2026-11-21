@@ -152,13 +152,47 @@ function publicSource(source = {}) {
 }
 function selectedStyle(s) {
   if (!s) return null;
+  const describe = (value) =>
+    trim(value, 550).replace(/(?:file:\/\/)?\/(?:Users|private|Volumes)\/[^\s，。；]+/gu, '[本地参考]');
   return {
     id: s.id,
     name: s.name,
     version: s.version,
+    description: describe(s.description),
+    adaptation: describe(s.adaptation),
     rules: (s.rules || [])
       .slice(0, 40)
-      .map((r) => (typeof r === 'string' ? trim(r) : { id: r.id, instruction: trim(r.instruction || r.text) })),
+      .map((r) =>
+        typeof r === 'string'
+          ? describe(r)
+          : { id: r.id, instruction: describe(r.instruction || r.text), basis: r.basis }
+      ),
+    preferences: (s.preferences || []).slice(-14).map((p) => describe(p.instruction)),
+    components: (s.components || [])
+      .slice(0, 30)
+      .map((c) => ({
+        id: c.id,
+        name: describe(c.name),
+        role: describe(c.role),
+        editable: (Array.isArray(c.editable) ? c.editable : Object.keys(c.editable || {}))
+          .slice(0, 20)
+          .map((e) => describe(typeof e === 'string' ? e : e?.name || e?.id)),
+      })),
+    effectRecipes: (s.effectRecipes || [])
+      .slice(0, 16)
+      .map((r) => ({
+        name: describe(r.name || r.id),
+        parameters: Object.fromEntries(
+          Object.entries(r).filter(
+            ([k, v]) =>
+              !['id', 'name'].includes(k) &&
+              (typeof v === 'number' || (Array.isArray(v) && v.length <= 8 && v.every(Number.isFinite)))
+          )
+        ),
+      })),
+    knownExceptions: (s.knownExceptions || [])
+      .slice(0, 12)
+      .map((x) => describe(typeof x === 'string' ? x : x.instruction || x.description)),
     templates: (s.templates || [])
       .slice(0, 16)
       .map((t) => (typeof t === 'string' ? t : { id: t.id, name: t.name })),
@@ -239,13 +273,11 @@ async function context(deps, project, selection) {
     review: last
       ? {
           result: last.qa.label,
-          findings: (last.qa.issues || last.qa.findings || [])
-            .slice(0, 30)
-            .map((f) => ({
-              severity: f.severity,
-              frame: f.frame,
-              message: shared ? trim(f.message || f.summary) : undefined,
-            })),
+          findings: (last.qa.issues || last.qa.findings || []).slice(0, 30).map((f) => ({
+            severity: f.severity,
+            frame: f.frame,
+            message: shared ? trim(f.message || f.summary) : undefined,
+          })),
         }
       : null,
     factSources: (project.factSources || []).map((f) => ({ ...f, url: urlForModel(f.url) })),
@@ -513,14 +545,12 @@ export function createDirector(deps) {
         if (!Number.isInteger(offset) || offset < 0) throw new Error('转录起始位置无效。');
         return toolText({
           total: rows.length,
-          rows: rows
-            .slice(offset, offset + 120)
-            .map((r) => ({
-              id: r.id,
-              start: r.start,
-              end: r.end,
-              text: current.settings?.shareTranscript !== false ? trim(r.text, 600) : undefined,
-            })),
+          rows: rows.slice(offset, offset + 120).map((r) => ({
+            id: r.id,
+            start: r.start,
+            end: r.end,
+            text: current.settings?.shareTranscript !== false ? trim(r.text, 600) : undefined,
+          })),
         });
       }
       if (name === 'studio_observe') {

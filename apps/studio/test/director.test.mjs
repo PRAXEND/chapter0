@@ -267,3 +267,31 @@ test('explicit original or selected music remains a required gap until a track i
     true
   );
 });
+
+test('imported narration remains one original clip including silences; subtitles keep measured timings', async (t) => {
+  const audio = { ...picture, kind: 'audio', id: 'recording', duration: 12, hasAudio: true };
+  const { p, deps } = await fixture(t, {
+    assets: [picture, audio],
+    settings: { voiceMode: 'import', narrationAssetId: audio.id, musicMode: 'none' },
+  });
+  const director = createDirector(deps);
+  t.after(() => director.close());
+  await director.run(p.id, { engine: 'local' });
+  const voices = p.timeline.clips.filter((c) => c.track === 'narration');
+  assert.deepEqual(
+    voices.map((c) => [c.assetId, c.start, c.sourceIn, c.duration]),
+    [['recording', 0, 0, 300]]
+  );
+  assert.deepEqual(
+    p.timeline.clips.filter((c) => c.track === 'caption').map((c) => [c.start, c.duration]),
+    [
+      [25, 50],
+      [100, 50],
+      [175, 50],
+    ]
+  );
+  assert.equal(
+    p.timeline.clips.filter((c) => c.track === 'video').reduce((n, c) => n + c.duration, 0),
+    300
+  );
+});

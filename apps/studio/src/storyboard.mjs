@@ -248,6 +248,13 @@ export async function applyScenes(
   });
   const imported = mode === 'import' ? narrationInput(project, 'narrationAssetId') : null;
   const voiceRows = imported ? await transcriptFor(deps, project, imported, signal) : null;
+  if (
+    mode === 'import' &&
+    project.mode !== 'interview' &&
+    (!voiceRows || beats.length !== voiceRows.length || beats.some((b, i) => b.utteranceId !== voiceRows[i].id))
+  ) {
+    throw new Error('导入的完整旁白须按原顺序覆盖所有转录语句，保留录音中的停顿。');
+  }
   const style = project.style?.id ? await deps.styleLibrary.get(project.style.id, project.style.version) : null;
   let cursor = 0;
   for (const [i, beat] of beats.entries()) {
@@ -268,7 +275,7 @@ export async function applyScenes(
     ) {
       throw new Error('分镜源区间超出素材范围。');
     }
-    let duration, utterance, voice;
+    let duration, utterance, voice, captionStart, captionDuration;
     if (project.mode === 'interview') {
       const rows = await transcriptFor(deps, await deps.store.get(project.id), asset, signal);
       utterance = rows.find((row) => row.id === beat.utteranceId);
@@ -276,11 +283,32 @@ export async function applyScenes(
       words = utterance.text;
       sourceStart = utterance.start;
       sourceEnd = utterance.end;
+      const index = rows.findIndex((row) => row.id === utterance.id),
+        next = rows[index + 1],
+        nextBeat = beats[i + 1];
+      if (
+        next &&
+        nextBeat?.assetId === asset.id &&
+        nextBeat.utteranceId === next.id &&
+        next.start >= sourceEnd &&
+        next.start - sourceEnd <= 0.6
+      ) {
+        sourceEnd = next.start;
+      }
+      captionStart = cursor;
+      captionDuration = Math.max(1, Math.round(utterance.end * fps) - Math.round(utterance.start * fps));
       duration = Math.max(1, Math.round(sourceEnd * fps) - Math.round(sourceStart * fps));
     } else if (mode === 'import') {
       utterance = voiceRows?.find((row) => row.id === beat.utteranceId);
       if (!utterance) throw new Error('导入录音的每个镜头须绑定一个有效的录音语句。');
-      duration = Math.max(1, Math.round(utterance.end * fps) - Math.round(utterance.start * fps));
+      const until = voiceRows[i + 1]?.start ?? imported.duration;
+      duration = Math.round(until * fps) - cursor;
+      if (duration < 1) throw new Error('导入旁白的转录时码无法按工程帧率排列。');
+      captionStart = Math.round(utterance.start * fps);
+      captionDuration = Math.max(
+        1,
+        Math.min(Math.round(until * fps), Math.round(utterance.end * fps)) - captionStart
+      );
       words = utterance.text;
       voice = imported;
     } else if (mode === 'system' || mode === 'clone') {
@@ -318,16 +346,19 @@ export async function applyScenes(
         message: '原镜头短于旁白，结尾使用来源相同的定格，可替换特写。',
       });
     }
-    if (voice)
+    if (voice && mode !== 'import')
       clips.push(
         make('narration', i, {
           assetId: voice.id,
           start: cursor,
           duration,
-          sourceIn: mode === 'import' ? Math.round(utterance.start * fps) : 0,
+          sourceIn: 0,
         })
       );
-    if (words) clips.push(make('caption', i, { text: words, start: cursor, duration }));
+    if (words)
+      clips.push(
+        make('caption', i, { text: words, start: captionStart ?? cursor, duration: captionDuration ?? duration })
+      );
     const userAnchor = (project.sourceAnchors || []).find(
       (r) =>
         r.assetId === asset.id &&
@@ -400,6 +431,14 @@ export async function applyScenes(
     cursor += duration;
     onEvent?.({ type: 'progress', message: '已编排 ' + (i + 1) + ' / ' + beats.length + ' 段' });
   }
+  if (imported && project.mode !== 'interview')
+    clips.push(
+      make('narration', 'recording', {
+        assetId: imported.id,
+        start: 0,
+        duration: Math.round(imported.duration * fps),
+      })
+    );
   const musicMode =
     project.settings?.musicEnabled === false
       ? 'none'
