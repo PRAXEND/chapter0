@@ -487,20 +487,12 @@ export async function applyScenes(
           userAnchor?.sourceFrame === anchor);
       if (sourceKnown) {
         const actionFrame = cursor + anchor - sourceIn;
-        const shapes = deps.styleLibrary.compileScene(
-          {
-            style,
-            template: beat.template,
-            start: cursor,
-            duration,
-            actionFrame,
-            text: String(emphasis).slice(0, 70),
-            followup: beat.followup,
-            subject: beat.subject,
-            continuity: beat.continuity,
-          },
-          project.profile
-        );
+        const scene={style,template:beat.template,start:cursor,duration,actionFrame,
+          text:String(emphasis).slice(0,70),followup:beat.followup,subject:beat.subject,continuity:beat.continuity,
+          anchorAssetId:asset.id,anchorSourceFrame:anchor,soundEnabled:project.settings?.sceneSound===false?false:(beat.soundEnabled??project.settings?.sceneSound),soundAssetId:beat.soundAssetId};
+        const shapes=deps.compileSceneWithSound
+          ? (await deps.compileSceneWithSound(deps.styleLibrary,deps.store,await deps.store.get(project.id),scene)).clips
+          : deps.styleLibrary.compileScene(scene,project.profile);
         for (const [j, shape] of shapes.entries())
           clips.push({
             ...shape,

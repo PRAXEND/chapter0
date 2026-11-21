@@ -14,6 +14,7 @@ import {createStore,defaultRoot,fault} from './project.mjs';
 import {createQueue} from './jobs.mjs';
 import {draftPreviews} from './draft-preview.mjs';
 import {capturePreference} from './style-preference.mjs';
+import {compileSceneWithSound} from './scene-sound.mjs';
 import {legacyLibrary} from './library.mjs';
 import {createMusic} from './music.mjs';
 import * as media from './media.mjs';
@@ -185,12 +186,17 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
           if(b.assetId&&!a)throw fault('参考素材不在本工程。');
           const references=a?[await styles.captureReference(await contained(a.path,store.paths(id).assets),{kind:a.kind,title:a.name})]:[];
           const observations=a&&b.observation?.trim()?[{dimension:a.kind==='audio'?'audio':'visual',instruction:b.observation.trim(),evidence:'reference',basis:'user_direction'}]:[];
-          const s=await styles.learn({id:'personal-'+randomUUID(),name:b.name,script:b.script||'',observations,references});
+          const s=await styles.learn({id:'personal-'+randomUUID(),name:b.name,script:b.script||'',observations,references,templateIds:['action-result','step-reveal'].includes(b.templateId)?[b.templateId]:[],knownExceptions:b.exception?.trim()?[String(b.exception).trim().slice(0,2000)]:[]});
           return json(res,s,201);
         }
-        if(action==='scene'&&method==='POST'){const b=await readJson(req);const style=await styles.get(p.style.id,p.style.version);const selected=p.timeline.clips.find(c=>c.id===p.selection?.clipId && c.track==='video');
+        if(action==='scene'&&method==='POST'){const b=await readJson(req);
+          if(b.baseRevision!==p.revision)throw fault('时间线已更新，请重新选择入点。',409);
+          const style=await styles.get(p.style.id,p.style.version);
+          const selected=p.timeline.clips.find(c=>c.id===(b.clipId||p.selection?.clipId) && c.track==='video');
           const anchor=selected&&b.actionFrame>=selected.start&&b.actionFrame<selected.start+selected.duration?{anchorAssetId:selected.assetId,anchorSourceFrame:Math.round((selected.sourceIn||0)+(b.actionFrame-selected.start)*(selected.speed||1))}:{};
-          const clips=styles.compileScene({...b,...anchor,style},p.profile);return json(res,disclose(store.apply(id,b.baseRevision,clips.map(clip=>({op:'add',clip})),'user')));}
+          const scene={...b,anchorAssetId:anchor.anchorAssetId,anchorSourceFrame:anchor.anchorSourceFrame,style};
+          const result=await compileSceneWithSound(styles,store,p,scene);
+          return json(res,disclose(store.apply(id,result.baseRevision,result.clips.map(clip=>({op:'add',clip})),'user')));}
         if(action==='legacy'&&method==='POST'){const b=await readJson(req);const a=await legacy.item(b.projectId,b.itemId);return json(res,await store.addAsset(id,a.path,{...a.source,name:a.name,legacyProject:b.projectId,legacyItem:a.id,legacyStatus:a.status}),201);}
         if(action==='cloud-music'&&method==='POST')return json(res,await music.compose(id,await readJson(req)),201);
         if(action==='music-receipt'&&part&&method==='GET')return json(res,await music.check(id,part));

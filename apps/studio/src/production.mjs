@@ -6,6 +6,7 @@ import { directSources, importSource, searchSources, searchFacts, readBriefSourc
 import { applyScenes, localScenes, transcriptFor, reviseLine, sceneIdentity } from './storyboard.mjs';
 import { describeFrames } from './vision.mjs';
 import { draftPreviews } from './draft-preview.mjs';
+import { compileSceneWithSound } from './scene-sound.mjs';
 
 const object = (properties = {}, required = []) => ({
   type: 'object',
@@ -330,6 +331,7 @@ function allowedCommands(commands, p) {
 }
 
 export function createDirector(deps) {
+  deps={...deps,compileSceneWithSound:deps.compileSceneWithSound||compileSceneWithSound};
   const { store, styleLibrary, media, audio } = deps;
   const client = deps.client || new CodexClient();
   const drafts = deps.drafts || draftPreviews(store,media);
@@ -557,6 +559,7 @@ export function createDirector(deps) {
         if (!asset || (asset.kind === 'video' && seconds >= asset.duration))
           throw new Error('素材帧不在可用范围内。');
         source = asset.path;
+        if(asset.kind==='image')sourceSeconds=0;
       } else if (args.source === 'style') {
         const style = current.style?.id && (await styleLibrary.get(current.style.id, current.style.version));
         const ref =
@@ -565,6 +568,7 @@ export function createDirector(deps) {
         const verified = ref.available && ref.path ? ref : await styleLibrary.getReference(style.id, style.version, ref.id);
         if (!verified?.available || !verified.path || ['audio','script'].includes(verified.kind)) throw new Error('此参考没有可分享的画面。');
         source = verified.path;
+        if(verified.kind==='image')sourceSeconds=0;
       } else if (args.source === 'timeline') {
         if (!current.timeline.clips.some((c) => c.track === 'video')) throw new Error('工程还没有画面。');
         const fps=current.profile.fps, frame=Math.floor(seconds*fps);

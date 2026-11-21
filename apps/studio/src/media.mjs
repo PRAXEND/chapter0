@@ -43,7 +43,9 @@ export async function frameAt(file, seconds, output, { signal, maxWidth } = {}) 
   await scratch(path.dirname(output), async work => {
     const target = path.join(work, 'frame' + ext);
     const scale = Number.isInteger(maxWidth) && maxWidth > 1 ? ['-vf', `scale='min(iw,${Math.min(8192, maxWidth)})':-2`] : [];
-    await run(await requiredTool('ffmpeg'), [...ffBase, '-ss', String(seconds), ...inputArgs(path.resolve(file)), '-map', '0:v:0', '-an', ...scale, '-frames:v', '1', '-update', '1', target], { signal });
+    // Seeking to zero on a single-frame JPEG can advance the demuxer to EOF.
+    const seek=seconds>0?['-ss',String(seconds)]:[];
+    await run(await requiredTool('ffmpeg'), [...ffBase, ...seek, ...inputArgs(path.resolve(file)), '-map', '0:v:0', '-an', ...scale, '-frames:v', '1', '-update', '1', target], { signal });
     if (!(await stat(target).catch(() => null))?.size) throw new Error('所选区间没有可读取的画面');
     signal?.throwIfAborted();
     await rename(target, output);
