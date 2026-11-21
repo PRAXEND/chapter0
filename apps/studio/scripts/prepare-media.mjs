@@ -92,7 +92,7 @@ async function installSpeech(cache, work, log, signal) {
     const cmake = path.join(path.dirname(python), 'cmake'), src = path.join(work, 'whisper.tar.gz'), build = path.join(work, 'build');
     await fetchFile(whisperSrc, src, 'ff1a9053feb509ff9d7729703355541ae9690073a6b1c40eb692c962e0dc1720', signal);
     await run('/usr/bin/tar', ['-xzf', src, '-C', work], { signal });
-    await run(cmake, ['-S', path.join(work, 'whisper.cpp-1.9.5'), '-B', build, '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_SHARED_LIBS=OFF', '-DWHISPER_BUILD_TESTS=OFF', '-DWHISPER_BUILD_SERVER=OFF', '-DGGML_METAL_EMBED_LIBRARY=ON', '-DGGML_NATIVE=OFF'], { signal });
+    await run(cmake, ['-S', path.join(work, 'whisper.cpp-1.9.5'), '-B', build, '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_OSX_DEPLOYMENT_TARGET=13.5', '-DBUILD_SHARED_LIBS=OFF', '-DWHISPER_BUILD_TESTS=OFF', '-DWHISPER_BUILD_SERVER=OFF', '-DGGML_METAL_EMBED_LIBRARY=ON', '-DGGML_NATIVE=OFF'], { signal });
     await run(cmake, ['--build', build, '--target', 'whisper-cli', '--parallel', '2'], { signal });
     await mkdir(path.join(cache, 'bin'), { recursive: true });
     await rename(path.join(build, 'bin/whisper-cli'), path.join(cache, 'bin/whisper-cli'));
@@ -104,9 +104,21 @@ async function installSpeech(cache, work, log, signal) {
 
 async function installClone(cache, work, log, signal) {
   log('准备 Apple Silicon 本地语音依赖');
+  const [major, minor] = (await run('/usr/bin/sw_vers', ['-productVersion'], { signal })).trim().split('.').map(Number);
+  if (major < 14) throw new Error('本地语音克隆需要运行 macOS 14 或更新版本的 Apple Silicon Mac');
   const python = process.env.VIDEO_STUDIO_MLX_PYTHON || await pythonEnv(cache, work, signal, log);
   if (!process.env.VIDEO_STUDIO_MLX_PYTHON) {
-    await run(python, ['-m', 'pip', '--disable-pip-version-check', 'install', '--quiet', '--no-cache-dir', 'mlx-audio==0.6.7', 'mlx-lm==0.32.2', 'soundfile==0.14.0'], { signal });
+    let mlx = ['mlx==0.32.4', 'mlx-metal==0.32.4'];
+    if (major === 26 && minor < 2) {
+      // The macosx_26_0 wheels are tagged 26.0 but their Mach-O deployment target is 26.2.
+      // On 26.0/26.1 the corresponding 15.0 binaries remain compatible.
+      await run(python, ['-c', 'import sys; assert sys.version_info[:2] == (3, 12), "此系统需使用工作台自带的 Python 3.12"'], { signal });
+      mlx = [
+        'https://files.pythonhosted.org/packages/6d/92/7a999dcf6460525a31e555905cdca2f835ec0d786c528e969e04cd00d158/mlx-0.32.4-cp312-cp312-macosx_15_0_arm64.whl#sha256=f0604cb3015091f285c79c7b7dbfcabcfa9948248728c7bab6e0263513c3d3fe',
+        'https://files.pythonhosted.org/packages/54/8c/9754dd6c4db485037f59cc8be6495738e14cdeb8bf19d5bddb5e96da890f/mlx_metal-0.32.4-py3-none-macosx_15_0_arm64.whl#sha256=9f0a3cc26d89724434d9684932fc6f3e4e83669d2a895d858ed2c8a55eb84e8b'
+      ];
+    }
+    await run(python, ['-m', 'pip', '--disable-pip-version-check', 'install', '--quiet', '--no-cache-dir', ...mlx, 'mlx-audio==0.6.7', 'mlx-lm==0.32.2', 'transformers==5.24.0', 'soundfile==0.14.0'], { signal });
   }
   await run(python, ['-c', 'from mlx_audio.tts.utils import load_model; import soundfile, mlx.core'], { signal });
   if (!process.env.VIDEO_STUDIO_QWEN_MODEL) {
@@ -147,7 +159,12 @@ export async function prepareMedia(group, { signal, onProgress = () => {} } = {}
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
-  prepareMedia(process.argv[2] || 'all', { onProgress: msg => console.error(msg) })
+  const controller = new AbortController();
+  const stop = signal => { process.exitCode = signal === 'SIGINT' ? 130 : 143; controller.abort(new Error('本地媒体准备已取消')); };
+  const terminate = () => stop('SIGTERM'), interrupt = () => stop('SIGINT');
+  process.once('SIGTERM', terminate); process.once('SIGINT', interrupt);
+  prepareMedia(process.argv[2] || 'all', { signal: controller.signal, onProgress: msg => console.error(msg) })
     .then(state => console.log(JSON.stringify(state, null, 2)))
-    .catch(error => { console.error(error.message); process.exitCode = 1; });
+    .catch(error => { console.error(error.message); process.exitCode ||= 1; })
+    .finally(() => { process.off('SIGTERM', terminate); process.off('SIGINT', interrupt); });
 }

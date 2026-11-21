@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { setTimeout as wait } from 'node:timers/promises';
+import { once } from 'node:events';
 import { promisify } from 'node:util';
 import { createSrt, createAss } from '../src/text-tracks.mjs';
 import { renderProject, mediaCapabilities, probeMedia, frameAt, fileHash } from '../src/media.mjs';
@@ -12,6 +15,35 @@ import { createMusicBed } from '../src/audio.mjs';
 
 const exec = promisify(execFile);
 const profile = { width: 160, height: 96, fps: 30 };
+
+test('closing the app stops the preparation worker and releases its cache lock', { timeout: 20000, skip: process.platform !== 'darwin' }, async t => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'studio-stop-install-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const fake = path.join(dir, 'python');
+  await writeFile(fake, '#!' + process.execPath + '\n' +
+    'const fs=require("node:fs"); process.on("SIGTERM",()=>{fs.writeFileSync(process.env.STAGE_MARKER,"stopped");process.exit(0)});' +
+    'fs.writeFileSync(process.env.STAGE_MARKER,String(process.pid));setInterval(()=>{},1000);', { mode: 0o755 });
+  for (const [interrupt, expected] of [['SIGTERM', 143], ['SIGINT', 130]]) {
+    const marker = path.join(dir, interrupt);
+    const cli = spawn(process.execPath, [fileURLToPath(new URL('../scripts/prepare-media.mjs', import.meta.url)), 'clone'], {
+      env: { ...process.env, VIDEO_STUDIO_MEDIA_HOME: dir, VIDEO_STUDIO_MLX_PYTHON: fake, STAGE_MARKER: marker }, stdio: 'ignore'
+    });
+    const closed = once(cli, 'close');
+    try {
+      let pid;
+      for (let tries = 0; tries < 100 && !pid; tries++) { await wait(25); pid = Number(await readFile(marker, 'utf8').catch(() => '')); }
+      assert.ok(pid > 0, 'installer started a child worker');
+      cli.kill(interrupt);
+      assert.equal((await closed)[0], expected);
+      assert.equal(await readFile(marker, 'utf8'), 'stopped');
+      assert.equal(await stat(path.join(dir, 'prepare.pid')).catch(() => null), null);
+    } finally {
+      cli.kill('SIGKILL');
+      const pid = Number(await readFile(marker, 'utf8').catch(() => ''));
+      if (pid > 0) { try { process.kill(pid, 'SIGTERM'); } catch { /* already reaped */ } }
+    }
+  }
+});
 
 test('visible SRT and composed graphics use the same half-open frame clock', () => {
   const clips = [
