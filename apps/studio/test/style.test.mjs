@@ -24,6 +24,10 @@ test('verified LFS pointers can recover the pinned local object without acceptin
   const lib=createStyleLibrary(dir,{packsRoot:path.join(dir,'packs'),legacyHome:false});
   const style=await lib.get('test-lfs');assert.ok(style.baseline.verified);assert.deepEqual(await readFile(style.baseline.path),bytes);
   await writeFile(file,'edited benchmark data');assert.equal((await lib.get('test-lfs')).baseline.available,false);
+  const worktree=path.join(dir,'secondary');await git('worktree','add','--quiet','--detach',worktree,'HEAD');
+  await writeFile(file,bytes);await rm(path.join(obj,sha));
+  const moved=createStyleLibrary(path.join(dir,'fresh'),{packsRoot:path.join(dir,'none'),legacyHome:false,packRoots:[worktree]});
+  const recovered=await moved.get('test-lfs');assert.equal(recovered.baseline.verified,true);assert.deepEqual(await readFile(recovered.baseline.path),bytes);
 });
 
 test('legacy pack formats verify their own benchmark, components and renderable template',async t=>{

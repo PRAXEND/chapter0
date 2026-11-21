@@ -3,6 +3,7 @@ from pathlib import Path
 from fractions import Fraction
 import math
 import re
+import stat
 import subprocess
 
 import studio
@@ -14,7 +15,9 @@ def verified_benchmark(pack, locator, expected):
     video = style_media.safe_file(pack, relative)
     if not re.fullmatch('[0-9a-f]{64}', expected or ''):
         raise ValueError('Style benchmark missing or changed')
-    if video.is_file():
+    def local_bytes(file):
+        return file.is_file() and not getattr(file.stat(), 'st_flags', 0) & getattr(stat, 'SF_DATALESS', 0x40000000)
+    if local_bytes(video):
         if studio.file_hash(video) == expected:
             return video
         with video.open('rb') as source:
@@ -27,12 +30,17 @@ def verified_benchmark(pack, locator, expected):
         return subprocess.check_output(['git', '-C', str(pack), *args], stderr=subprocess.DEVNULL, timeout=4, text=True).strip()
     try:
         top = Path(git('rev-parse', '--show-toplevel')).resolve()
-        name = 'HEAD:' + video.resolve().relative_to(top).as_posix()
+        repo_path = video.resolve().relative_to(top).as_posix()
+        name = 'HEAD:' + repo_path
         if int(git('cat-file', '-s', name)) <= 256 and 'oid sha256:' + expected in git('cat-file', '-p', name).splitlines():
             common = Path(git('rev-parse', '--path-format=absolute', '--git-common-dir'))
             stored = style_media.safe_file(common, 'lfs/objects/' + expected[:2] + '/' + expected[2:4] + '/' + expected)
-            if stored.is_file() and studio.file_hash(stored) == expected:
-                return stored
+            options = [stored]
+            if common.name == '.git':
+                options.append(style_media.safe_file(common.parent, repo_path))
+            for candidate in options:
+                if local_bytes(candidate) and studio.file_hash(candidate) == expected:
+                    return candidate
     except (OSError, ValueError, subprocess.SubprocessError):
         pass
     raise ValueError('Style benchmark missing or changed')

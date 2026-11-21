@@ -25,7 +25,9 @@ const latest = (values) => Math.max(0, ...values);
 const entries = async (p) => readdir(p,{withFileTypes:true}).catch(e => { if(e.code==='ENOENT') return []; throw e; });
 async function optionalJson(file) {
   try {
-    if ((await stat(file)).size > 8_000_000) throw Error('风格索引文件过大');
+    const info=await stat(file,{bigint:true});
+    if (info.size > 8_000_000n) throw Error('风格索引文件过大');
+    if (!(await materialized(file,info))) return null;
     return JSON.parse(await readFile(file,'utf8'));
   } catch(e) { if(e.code==='ENOENT') return null; throw e; }
 }
@@ -47,16 +49,25 @@ export async function fileSha256(file) {
   for await(const chunk of createReadStream(file)) hash.update(chunk);
   return hash.digest('hex');
 }
-async function localLfsObject(pack,relative,hash) {
+async function materialized(file,metadata) {
+  if(!file) return false;
+  const info=metadata||await stat(file,{bigint:true});
+  if(process.platform!=='darwin'||info.size===0n||info.blocks!==0n) return true;
+  const {stdout}=await execute('/usr/bin/stat',['-f','%Sf',file],{timeout:2000});
+  return !stdout.split(/[,\s]+/).includes('dataless');
+}
+async function localLfsObjects(pack,relative,hash) {
   const git=async(...args)=>(await execute('git',['-C',pack,...args],{timeout:4000,maxBuffer:2400})).stdout.trim();
   try {
     const top=await realpath(await git('rev-parse','--show-toplevel')),target=path.resolve(await realpath(pack),relative);
-    if(!contained(top,target)) return null;
-    const name='HEAD:'+path.relative(top,target).split(path.sep).join('/');
-    if(Number(await git('cat-file','-s',name))>256 || !(await git('cat-file','-p',name)).split(/\r?\n/).includes('oid sha256:'+hash)) return null;
+    if(!contained(top,target)) return [];
+    const sourcePath=path.relative(top,target),name='HEAD:'+sourcePath.split(path.sep).join('/');
+    if(Number(await git('cat-file','-s',name))>256 || !(await git('cat-file','-p',name)).split(/\r?\n/).includes('oid sha256:'+hash)) return [];
     const common=await git('rev-parse','--path-format=absolute','--git-common-dir');
-    return checkedFile(common,path.join('lfs','objects',hash.slice(0,2),hash.slice(2,4),hash));
-  } catch {return null;}
+    const stored=await checkedFile(common,path.join('lfs','objects',hash.slice(0,2),hash.slice(2,4),hash));
+    const main=path.basename(common)==='.git'?await checkedFile(path.dirname(common),sourcePath):null;
+    return [...new Set([stored,main].filter(Boolean))];
+  } catch {return [];}
 }
 function parseStyle(spec) {
   const bundle=spec.reproduction_bundle??{}, blueprint=spec.reproduction_blueprint??{};
@@ -120,7 +131,7 @@ export function createStyleLibrary(dataRoot, options={}) {
         }
       }
     }
-    return {result,bundledResources,packRoots:packRoots.reverse()};
+    return {result,bundledResources,packRoots};
   }
   function select(reg,id,version) {
     if(typeof id!=='string'||!validId.test(id)) throw Error('风格 ID 无效');
@@ -135,7 +146,7 @@ export function createStyleLibrary(dataRoot, options={}) {
     if(/^(resource|pack):/.test(ref.locator)) {
       const rel=ref.locator.slice(ref.locator.indexOf(':')+1);
       if(path.isAbsolute(rel)||rel.split(/[\\/]/).includes('..')) return {...ref,available:false};
-      for(const root of [row.pack,...roots].filter(Boolean)) locations.push([root,rel]);
+      for(const root of new Set([...roots.filter(p=>contained(packDir,p)),row.pack,...roots].filter(Boolean))) locations.push([root,rel]);
     } else if(ref.locator.startsWith('library:')) {
       const name=ref.locator.slice(8);
       if(!/^[a-f0-9]{64}\.[a-z0-9]{1,5}$/.test(name)) return {...ref,available:false};
@@ -147,9 +158,10 @@ export function createStyleLibrary(dataRoot, options={}) {
       const alias=await optionalJson(path.join(storage,'portable-objects',ref.sha256+'.json'));
       if(alias?.sha256===ref.sha256&&/^\.[a-z0-9]{1,5}$/.test(alias.extension)) locations.push([path.join(storage,'media'),ref.sha256+alias.extension]);
     }
+    const pointers=[];
     for(const [root,name] of locations) {
       const file=await checkedFile(root,name);
-      if(file) {
+      if(await materialized(file)) {
         const info=await stat(file,{bigint:true});
         const identity=[info.ino,info.size,info.mtimeNs,info.ctimeNs].join(':');
         const previous=verifiedHashes.get(file);
@@ -160,20 +172,24 @@ export function createStyleLibrary(dataRoot, options={}) {
         try {const prefix=Buffer.alloc(180);const {bytesRead}=await handle.read(prefix,0,prefix.length,0);first=prefix.subarray(0,bytesRead).toString();} finally {await handle.close();}
         if(first && !first.startsWith('version https://git-lfs.github.com/spec/v1')) continue;
       }
-      if(!ref.locator.startsWith('resource:')) continue;
-      const obj=await localLfsObject(root,name,ref.sha256);
+      if(ref.locator.startsWith('resource:')) pointers.push([root,name]);
+    }
+    for(const [root,name] of pointers) {
       const ext=path.extname(name).toLowerCase();
-      if(!obj||!/^\.[a-z0-9]{1,5}$/.test(ext)) continue;
+      if(!/^\.[a-z0-9]{1,5}$/.test(ext)) continue;
       const dir=path.join(storage,'media'),dest=path.join(dir,ref.sha256+ext);
       const cached=await checkedFile(dir,dest);
-      if(cached && await fileSha256(cached)===ref.sha256) return {...ref,path:cached,available:true,verified:true};
-      const temp=path.join(dir,'.'+randomUUID());await mkdir(dir,{recursive:true,mode:0o700});
-      try {
-        await copyFile(obj,temp,constants.COPYFILE_FICLONE);
-        if(await fileSha256(temp)!==ref.sha256) continue;
-        await rename(temp,dest);
-        return {...ref,path:dest,available:true,verified:true};
-      } finally {await rm(temp,{force:true});}
+      if(await materialized(cached) && await fileSha256(cached)===ref.sha256) return {...ref,path:cached,available:true,verified:true};
+      for(const obj of await localLfsObjects(root,name,ref.sha256)) {
+        if(!(await materialized(obj))) continue;
+        const temp=path.join(dir,'.'+randomUUID());await mkdir(dir,{recursive:true,mode:0o700});
+        try {
+          await copyFile(obj,temp,constants.COPYFILE_FICLONE);
+          if(await fileSha256(temp)!==ref.sha256) continue;
+          await rename(temp,dest);
+          return {...ref,path:dest,available:true,verified:true};
+        } finally {await rm(temp,{force:true});}
+      }
     }
     return {...ref,available:false,verified:false};
   }
