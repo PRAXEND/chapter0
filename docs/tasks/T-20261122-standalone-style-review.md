@@ -6,6 +6,7 @@
 
 - `createStyleLibrary` 读取私有风格、旧版 `reproduction_bundle`、`reproduction_blueprint` 与参考清单。按工程保存的 `id/version` 读取规则。`getReference` 校验 SHA-256；已登记旧包中的 Git LFS 占位文件可从已核验的本地对象恢复。科学与资讯两例均已测到真实基准片，旧脚本分别提供 8 张和 6 张参考拼图。
 - `compileScene` 将已观察的素材动作帧、主体位置、文字、前后承接与阅读时长转成可编辑图层。`savePreference` 从明确的用户修改派生新版本；原版继续可读。
+- `compileSceneWithSound` 在已核实原片动作帧加入独立可编辑的短音效。热点轻击与科普揭示音在本机按固定配方合成，保存实际 WAV 与指纹。可指定已导入的音效、分别调音量或关闭。原声访谈默认关闭。验收将 `role:sfx` 与用户要求的配乐分别核对。NASA 溅落实拍上两套声音的目标均为 2.000 秒，AAC 成片实测起音为 2.00019 与 2.00031 秒。
 - `capturePreference(styles,store,input)` 读取明确版本的时间线。跨时移动的镜头各取当时的位置；删除时按下一镜或上一镜找到新版接缝。将两段正常速度的片段及各自的工程、版本、帧范围和指纹一并写入新版风格。空时间线与单纯文字偏好保留真实状态。`renderTimelineWindow(project,{directory,output,fromFrame,toFrame,signal})` 可用于制作中的草稿预览，结束帧不含在内。
 - 只导入视频也可建立风格。`learn` 对用户选择的音视频在本机测量，按时间定位并保存可重看的代表帧、画幅、局部大幅画面变化和音量电平。规则附原文件指纹，未观察的叙事和主观听感继续标作未知。在 135.333 秒真实 NASA 素材中已测到开头 45 秒的画面变化，并独立核对三张代表帧的源时间及指纹。
 - 可携带工程调用 `styles.exportPortable({id,version},工程目录)`，返回工程绑定 `id/version/sha256/manifest`。原始 JSON、私有参考和指纹保存在 `style/`；发行包里已有的原件只登记指纹。`styles.restorePortable(绑定,工程目录)` 在新资料库核验全部内容之后登记风格，拒绝同编号与版本的不同规则以及被改写的参考。旧包安装时展开的本机路径可还原为同一套发行包坐标，原始 JSON 另有独立指纹。
@@ -23,7 +24,7 @@
 在 `apps/studio` 完整集成工作区下，从仓库根目录执行。下载会验证固定的 NASA 源文件指纹，脚本会将片源、出处、处理记录和可编辑工程写入指定评测目录。`review-treatments` 需要已连接的 Codex 账号。
 
 ```sh
-node --test apps/studio/test/style.test.mjs apps/studio/test/portable-style.test.mjs apps/studio/test/style-preference.test.mjs apps/studio/test/review.test.mjs apps/studio/test/blind-review.test.mjs
+node --test apps/studio/test/style.test.mjs apps/studio/test/scene-sound.test.mjs apps/studio/test/portable-style.test.mjs apps/studio/test/style-preference.test.mjs apps/studio/test/review.test.mjs apps/studio/test/blind-review.test.mjs
 python3 -m unittest discover -s tests -p 'test_style_context.py' -v
 node apps/studio/scripts/build-review-library.mjs "$EVALUATION_DIR" sources
 node apps/studio/scripts/review-treatments.mjs "$EVALUATION_DIR"

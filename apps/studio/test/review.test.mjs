@@ -51,6 +51,8 @@ test('actual decode, SRT, source to mix timing, independent missing voice and an
   assert.ok(musicReview.issues.some(i=>i.id==='music-required'&&i.severity==='major'));
   withMusic.timeline.clips.at(-1).enabled=true;withMusic.assets.at(-1).source={};musicReview=await reviewProject(withMusic,opts);
   assert.ok(musicReview.issues.some(i=>i.id==='original-music-bed'&&i.severity==='unknown'));
+  withMusic.timeline.clips.at(-1).role='sfx';musicReview=await reviewProject(withMusic,opts);
+  assert.ok(musicReview.issues.some(i=>i.id==='music-required'));
   const anchored={id:'callout',track:'graphic',templateRole:'action',actionFrame:30,anchorAssetId:'video',anchorSourceFrame:30,start:5,duration:46};
   p.timeline.clips.push(anchored);
   const mistimed=await reviewProject(p,opts);

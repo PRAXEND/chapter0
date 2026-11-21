@@ -15,7 +15,8 @@ function musicRequirement(project,findings,last) {
   if(s.musicEnabled===false||s.musicMode==='none') return [];
   const required=s.requireMusic||s.musicAssetId||['original','asset'].includes(s.musicMode)||(project.directorNotes||[]).some(musicNote);
   if(!required) return [];
-  const music=project.timeline.clips.filter(c=>c.track==='music'&&isActive(c)&&(c.gain??1)>0&&(!s.musicAssetId||c.assetId===s.musicAssetId));
+  const effects=new Set(project.assets.filter(a=>a.source?.role==='sfx').map(a=>a.id));
+  const music=project.timeline.clips.filter(c=>c.track==='music'&&c.role!=='sfx'&&!effects.has(c.assetId)&&!c.muted&&isActive(c)&&(c.gain??1)>0&&(!s.musicAssetId||c.assetId===s.musicAssetId));
   if(!music.length) {findings.push(issue('music-required','major','本期指定的配乐未出现在可听轨道上','把已选择的曲目加入音乐轨，检查音量。',0,last));return [];}
   if(s.musicMode==='original') {
     for(const id of new Set(music.map(c=>c.assetId))) {
