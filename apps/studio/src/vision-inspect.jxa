@@ -1,0 +1,37 @@
+// Native Vision/Foundation only. No Apple events, browser access, or window control.
+ObjC.import('Foundation');
+ObjC.import('Vision');
+ObjC.import('AppKit');
+
+function run(argv) {
+  const url = $.NSURL.fileURLWithPath(argv[0]);
+  const text = $.VNRecognizeTextRequest.alloc.init;
+  text.recognitionLevel = 0;
+  text.recognitionLanguages = $(['zh-Hans', 'en-US']);
+  text.usesLanguageCorrection = false;
+  const labels = $.VNClassifyImageRequest.alloc.init;
+  const handler = $.VNImageRequestHandler.alloc.initWithURLOptions(url, $.NSDictionary.dictionary);
+  const error = Ref();
+  if (!handler.performRequestsError($([text, labels]), error)) throw Error('本机 Vision 无法分析该帧。');
+  const words = [], objects = [];
+  for (let i=0; i<Math.min(10,text.results.count); i++) {
+    const observation=text.results.objectAtIndex(i);
+    const candidate=observation.topCandidates(1).firstObject;
+    if (candidate && candidate.confidence>=0.55) words.push(ObjC.unwrap(candidate.string).slice(0,100));
+  }
+  for (let i=0; i<Math.min(12,labels.results.count); i++) {
+    const observation=labels.results.objectAtIndex(i);
+    if(observation.confidence>=0.35) objects.push({label:ObjC.unwrap(observation.identifier),confidence:Number(observation.confidence.toFixed(2))});
+  }
+  const bitmap=$.NSBitmapImageRep.imageRepWithData($.NSData.dataWithContentsOfURL(url));
+  const rgb=[0,0,0], cells=[];
+  if(bitmap) {
+    for(let y=0;y<8;y++)for(let x=0;x<8;x++){
+      const c=bitmap.colorAtXY(Math.floor((x+.5)*bitmap.pixelsWide/8),Math.floor((y+.5)*bitmap.pixelsHigh/8)).colorUsingColorSpace($.NSColorSpace.sRGBColorSpace);
+      const v=[c.redComponent,c.greenComponent,c.blueComponent];
+      for(let k=0;k<3;k++)rgb[k]+=v[k]*255/64;
+      cells.push(Math.round((.2126*v[0]+.7152*v[1]+.0722*v[2])*255));
+    }
+  }
+  return JSON.stringify({words,objects,averageRGB:rgb.map(Math.round),cells});
+}
