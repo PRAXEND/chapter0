@@ -25,7 +25,7 @@ function reviewerKey(name) {
   check(typeof name==='string' && name.trim().length>=1 && name.trim().length<=80,'请填写审片人名称');
   return createHash('sha256').update(name.trim().normalize('NFKC')).digest('hex');
 }
-const details=(s)=>({id:s.id,title:s.title,kind:s.kind,count:s.samples.length,createdAt:s.createdAt});
+const details=(s)=>({id:s.id,title:s.title,kind:s.kind,purpose:s.purpose||'holdout',count:s.samples.length,createdAt:s.createdAt});
 const incomplete=(error)=>{if(error.code==='ENOENT') return null;throw error;};
 export function createBlindReview(dataRoot,{allowedRoots=[]}={}) {
   const folder=path.resolve(dataRoot,'blind-reviews');
@@ -48,25 +48,29 @@ export function createBlindReview(dataRoot,{allowedRoots=[]}={}) {
     const file=await mediaPath(input);
     return {file,hash:await fileSha256(file)};
   }
-  async function create({kind,samples,title='看片盲评',choices=[]}) {
+  async function create({kind,samples,title='看片盲评',choices=[],purpose='holdout'}) {
     check(kinds.includes(kind)&&Array.isArray(samples)&&samples.length>0&&samples.length<=100,'研究类型或样本数无效');
     check(typeof title==='string'&&title.trim().length>0&&title.length<=titleMax,'研究标题无效');
     const prepared=[];
     for(const s of samples) {
       check(modes.includes(s.mode),'样本须注明制作入口');
       const clip=await snap(s.videoPath);
-      const row={key:randomUUID(),mode:s.mode,clip};
+      if(s.assetHash) check(s.assetHash===clip.hash,'前台候选与原件登记的指纹不符');
+      const row={key:randomUUID(),mode:s.mode,clip,fps:Number.isFinite(s.fps)&&s.fps>0?s.fps:null};
       if(kind==='gate') {
         check(statuses.includes(s.systemStatus),'请冻结此候选的系统验收状态');
         row.systemStatus=s.systemStatus;
+        if(purpose==='calibration'&&statuses.includes(s.proposedStatus)) row.proposedStatus=s.proposedStatus;
         row.systemIssues=(s.systemIssues||[]).filter(i=>['major','blocker'].includes(i.severity)&&Number.isInteger(i.fromFrame)&&Number.isInteger(i.toFrame)).map(i=>({fromFrame:i.fromFrame,toFrame:i.toFrame}));
       } else if(kind==='style') {
         check(typeof s.expected==='string'&&s.expected.length>0&&s.expected.length<100&&typeof s.topicGroup==='string'&&s.topicGroup.length>0,'风格盲评需真值风格及题材分组');
         row.expected=s.expected;row.topicGroup=s.topicGroup;
       } else {
         row.other=await snap(s.comparisonPath);
+        if(s.comparisonHash) check(s.comparisonHash===row.other.hash,'前台候选与原件登记的指纹不符');
         check(s.primary==='workbench'||s.primary==='foreground','请登记两版来源');
         row.primary=s.primary;
+        if(s.conditions) row.conditions=Object.fromEntries(['model','effort','inputHash','imageHash','promptHash','notes'].map(k=>[k,String(s.conditions[k]||'').slice(0,600)]));
       }
       prepared.push(row);
     }
@@ -74,7 +78,7 @@ export function createBlindReview(dataRoot,{allowedRoots=[]}={}) {
       choices=[...new Set([...choices,...prepared.map(s=>s.expected)])].sort();
       check(choices.length>=2&&choices.length<=12,'请提供至少两项可辨认的风格');
     }
-    const study={id:randomUUID(),kind,title:title.trim(),choices,createdAt:new Date().toISOString(),samples:prepared};
+    const study={id:randomUUID(),kind,purpose:purpose==='calibration'?'calibration':'holdout',title:title.trim(),choices,createdAt:new Date().toISOString(),samples:prepared};
     await writeOnce(path.join(dir(study.id),'study.json'),study);
     return details(study);
   }
@@ -110,14 +114,22 @@ export function createBlindReview(dataRoot,{allowedRoots=[]}={}) {
     check(await fileSha256(file)===asset.hash,'候选文件在分组后已变化，请重新建立研究');
     return file;
   }
-  async function rate(id,name,{code,decision,observation,fromFrame,toFrame,dimensions}) {
+  async function rate(id,name,{code,decision,observation,fromFrame,toFrame,fromSeconds,toSeconds,dimensions}) {
     const study=await load(id),slots=await assignment(study,name),slot=slots.find(r=>r.code===code);
     check(!!slot,'样本编号无效');
     const choices=study.kind==='style'?study.choices:study.kind==='gate'?['usable','minor','redo']:['A','B','tie'];
     check(choices.includes(decision),'选择项无效');
     check(typeof observation==='string' && observation.trim().length>0&&observation.length<=3000,'请记录可见画面或实际听感的依据');
-    if(study.kind==='gate'&&decision==='redo') check(Number.isInteger(fromFrame)&&Number.isInteger(toFrame)&&fromFrame>=0&&toFrame>=fromFrame,'请记录严重问题在视频中的帧区间');
     const verifiedFile=await media(id,name,code);
+    if(study.kind==='gate'&&decision==='redo') {
+      if(Number.isFinite(fromSeconds)&&Number.isFinite(toSeconds)&&fromSeconds>=0&&toSeconds>=fromSeconds) {
+        const sample=study.samples.find(s=>s.key===slot.key);
+        const fps=sample.fps||await (await import('./media.mjs')).probeMedia(verifiedFile).then(v=>v.fps||v.frames/v.duration);
+        check(Number.isFinite(fps)&&fps>0,'无法读取帧率，请改用帧号登记');
+        fromFrame=Math.floor(fromSeconds*fps);toFrame=Math.max(fromFrame,Math.ceil(toSeconds*fps)-1);
+      }
+      check(Number.isInteger(fromFrame)&&Number.isInteger(toFrame)&&fromFrame>=0&&toFrame>=fromFrame,'请记录严重问题的位置');
+    }
     if(study.kind==='pair') await media(id,name,code,'B');
     check(!!verifiedFile,'视频未就绪');
     const vote={key:slot.key,decision,observation:observation.trim(),fromFrame,toFrame,at:new Date().toISOString()};
@@ -141,9 +153,12 @@ export function createBlindReview(dataRoot,{allowedRoots=[]}={}) {
       if(votes.length===study.samples.length) complete.push(new Map(votes.map(v=>[v.key,v])));
     }
     const result={...details(study),completeReviewers:complete.length,thresholdMet:null,disagreements:0,status:'awaiting-human-ratings'};
+    if(study.kind==='pair') result.matchedInputsRecorded=study.samples.every(s=>s.conditions?.model&&s.conditions?.effort&&s.conditions?.promptHash&&s.conditions?.imageHash);
     if(complete.length<2) return result;
     const modesSeen=new Set(study.samples.map(s=>s.mode)),groups=new Map();
+    const uniqueOutputs=new Set(study.samples.map(s=>s.clip.hash)).size===study.samples.length;
     const metrics={usable:0,severe:0,falseBlocks:0,severeLocated:0,identified:0,workbench:0,foreground:0,tie:0};
+    if(study.purpose==='calibration') metrics.reclassifiedFalseBlocks=0;
     for(const s of study.samples) {
       const votes=complete.map(v=>v.get(s.key)).filter(Boolean);
       const answers=votes.map(v=>study.kind==='gate'?v.decision==='redo'?'severe':'usable':study.kind==='pair'?v.selection:v.decision);
@@ -153,6 +168,7 @@ export function createBlindReview(dataRoot,{allowedRoots=[]}={}) {
       if(study.kind==='gate') {
         metrics[win]++;
         if(win==='usable' && ['repair','unverified'].includes(s.systemStatus)) metrics.falseBlocks++;
+        if(study.purpose==='calibration'&&win==='usable'&&['repair','unverified'].includes(s.proposedStatus)) metrics.reclassifiedFalseBlocks++;
         if(win==='severe' && s.systemStatus==='repair') {
           const severeVotes=votes.filter(v=>v.decision==='redo');
           const located=severeVotes.filter(v=>s.systemIssues.some(i=>i.fromFrame<=v.toFrame&&i.toFrame>=v.fromFrame));
@@ -164,11 +180,11 @@ export function createBlindReview(dataRoot,{allowedRoots=[]}={}) {
       } else metrics[win]++;
     }
     result.status=result.disagreements?'needs-adjudication':'scored';result.metrics=metrics;
-    if(!result.disagreements && study.kind==='gate') {
-      result.thresholdMet=study.samples.length===18&&modes.every(m=>modesSeen.has(m))&&metrics.usable===12&&metrics.severe===6&&metrics.falseBlocks<=1&&metrics.severeLocated===6;
+    if(!result.disagreements && study.kind==='gate' && study.purpose!=='calibration') {
+      result.thresholdMet=uniqueOutputs&&study.samples.length===18&&modes.every(m=>modesSeen.has(m))&&metrics.usable===12&&metrics.severe===6&&metrics.falseBlocks<=1&&metrics.severeLocated===6;
     } else if(!result.disagreements&&study.kind==='style') {
       const layout=groups.size===3&&study.choices.length===2&&[...groups.values()].every(g=>study.choices.every(id=>g.get(id)===2));
-      result.thresholdMet=layout&&study.samples.length===12&&metrics.identified>=10;
+      result.thresholdMet=uniqueOutputs&&layout&&study.samples.length===12&&metrics.identified>=10;
     }
     return result;
   }

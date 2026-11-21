@@ -1,10 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,rm} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {createHash} from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import {createStyleLibrary,fileSha256} from '../src/style.mjs';
 const profile={width:1080,height:1920,fps:30};
+
+test('verified LFS pointers can recover the pinned local object without accepting an edited file',async t=>{
+  const dir=await mkdtemp(path.join(os.tmpdir(),'style-pointer-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  const repo=path.join(dir,'packs','media-pack'), git=(...args)=>promisify(execFile)('git',['-C',repo,...args]);
+  await mkdir(path.join(repo,'media/benchmarks'),{recursive:true});await git('init','-q');
+  const bytes=Buffer.from('original benchmark video'),sha=createHash('sha256').update(bytes).digest('hex');
+  const obj=path.join(repo,'.git','lfs','objects',sha.slice(0,2),sha.slice(2,4));await mkdir(obj,{recursive:true});await writeFile(path.join(obj,sha),bytes);
+  const name='media/benchmarks/sample.mp4', file=path.join(repo,name);
+  await writeFile(file,'version https://git-lfs.github.com/spec/v1\noid sha256:'+sha+'\nsize '+bytes.length+'\n');
+  await writeFile(path.join(repo,'manifest.json'),JSON.stringify({styles:['spec.json']}));
+  await writeFile(path.join(repo,'spec.json'),JSON.stringify({id:'test-lfs',version:1,name:'参考',reproduction_bundle:{baseline:{path:'resource:'+name,sha256:sha}}}));
+  await git('add','.');await git('-c','user.name=Fixture','-c','user.email=fixture@localhost','commit','-qm','fixture');
+  const lib=createStyleLibrary(dir,{packsRoot:path.join(dir,'packs'),legacyHome:false});
+  const style=await lib.get('test-lfs');assert.ok(style.baseline.verified);assert.deepEqual(await readFile(style.baseline.path),bytes);
+  await writeFile(file,'edited benchmark data');assert.equal((await lib.get('test-lfs')).baseline.available,false);
+});
 
 test('legacy pack formats verify their own benchmark, components and renderable template',async t=>{
   const dir=await mkdtemp(path.join(os.tmpdir(),'studio-style-'));t.after(()=>rm(dir,{recursive:true,force:true}));

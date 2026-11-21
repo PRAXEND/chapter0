@@ -8,6 +8,24 @@ export {createBlindReview} from './blind-review.mjs';
 const exec=promisify(execFile);
 const outcomes={deliverable:'可交付',advisory:'可交付，有建议',unverified:'待复核',repair:'需修复'};
 const ranks={minor:1,unknown:2,major:3,blocker:4};
+const isActive=c=>c.hidden!==true&&c.enabled!==false;
+const musicNote=n=>n?.kind==='music-required'||n?.type==='required'&&['本项目要求的配乐尚未加入，请选择相应的曲目。','所选配乐尚未加入'].includes(String(n.message||'').replace(/[！!]$/,''));
+function musicRequirement(project,findings,last) {
+  const s=project.settings||{};
+  if(s.musicEnabled===false||s.musicMode==='none') return [];
+  const required=s.requireMusic||s.musicAssetId||['original','asset'].includes(s.musicMode)||(project.directorNotes||[]).some(musicNote);
+  if(!required) return [];
+  const music=project.timeline.clips.filter(c=>c.track==='music'&&isActive(c)&&(c.gain??1)>0&&(!s.musicAssetId||c.assetId===s.musicAssetId));
+  if(!music.length) {findings.push(issue('music-required','major','本期指定的配乐未出现在可听轨道上','把已选择的曲目加入音乐轨，检查音量。',0,last));return [];}
+  if(s.musicMode==='original') {
+    for(const id of new Set(music.map(c=>c.assetId))) {
+      const source=project.assets.find(a=>a.id===id)?.source||{};
+      const verified=source.kind==='generated-music'&&source.provider&&source.requestId || ['user-composed','local-composition'].includes(source.kind)&&source.rights;
+      if(!verified) findings.push(issue('original-music-'+id,'unknown','配乐已上轨，原创来源还需核实','关联本次生成的任务记录或用户原创声明。',0,last));
+    }
+  }
+  return music;
+}
 function issue(id,severity,message,fix,fromFrame=0,toFrame=fromFrame,reason=id) {
   return {id,severity,reason,message,fromFrame,toFrame,fix};
 }
@@ -70,17 +88,18 @@ export function readSrt(text) {
   });
 }
 function timelineChecks(project,findings) {
-  const clips=project.timeline.clips;
+  const clips=project.timeline.clips.filter(isActive);
   const captions=clips.filter(c=>c.track==='caption' && c.hidden!==true).sort((a,b)=>a.start-b.start);
   const visible=clips.filter(c=>c.track==='video'&&c.hidden!==true);
   const narration=clips.filter(c=>c.track==='narration'&&c.hidden!==true);
   const mode=project.settings?.voiceMode;
   const original=project.mode==='interview'&&mode==='original'&&narration.length===0;
   const dialogue=original?visible.filter(c=>(c.gain??1)>0&&project.assets.some(a=>a.id===c.assetId&&a.hasAudio)):[];
+  const last=Math.max(0,...clips.map(c=>c.start+c.duration-1));
   if(!visible.length) findings.push(issue('picture-missing','blocker','工程没有可见画面','补入可见镜头。'));
-  if(original&&!dialogue.length) findings.push(issue('dialogue-missing','blocker','访谈要求同期声，可见镜头的原声均缺失或静音','恢复人物原声音轨。'));
-  if(['system','clone','import'].includes(mode)&&!narration.length) findings.push(issue('narration-missing','blocker','本期要求的旁白没有进入时间线','恢复已选择的旁白。'));
-  if(project.settings?.requireMusic && !clips.some(c=>c.track==='music'&&c.hidden!==true)) findings.push(issue('music-missing','major','本期要求的配乐没有进入混音','恢复或选择一条配乐。'));
+  if(original&&!dialogue.length) findings.push(issue('dialogue-missing','blocker','访谈要求同期声，可见镜头的原声均缺失或静音','恢复人物原声音轨。',0,last));
+  if(['system','clone','import'].includes(mode)&&!narration.length) findings.push(issue('narration-missing','blocker','本期要求的旁白没有进入时间线','恢复已选择的旁白。',0,last));
+  const music=musicRequirement(project,findings,last);
   if(project.settings?.requireCaptions&&!captions.length) findings.push(issue('captions-missing','major','本期要求字幕，时间线缺少字幕','从实际语音重新对齐字幕。'));
   for(const cue of clips.filter(c=>c.track==='graphic' && c.templateRole==='action' && c.hidden!==true)) {
     if(!Number.isInteger(cue.actionFrame)) {
@@ -97,7 +116,7 @@ function timelineChecks(project,findings) {
     if(delta>Math.max(1,Math.round(.12*project.profile.fps))) findings.push(issue(cue.id+'-timing',delta>=project.profile.fps*.5?'major':'minor',
       '动作花字和已标注的真实动作相差 '+delta+' 帧','把花字移动到动作发生的帧。',Math.min(cue.start,actual),Math.max(cue.start,actual)));
   }
-  return {captions,narration:[...narration,...dialogue]};
+  return {captions,narration:[...narration,...dialogue],music};
 }
 const normText=txt=>String(txt).replace(/\s+/gu,' ').trim();
 function captionChecks(captions,cues,fps,findings) {
@@ -112,7 +131,7 @@ function captionChecks(captions,cues,fps,findings) {
   }
 }
 async function extractPcm(binary,file,start,duration,signal) {
-  const {stdout}=await run(binary,['-v','error','-nostdin','-ss',String(Math.max(0,start)),'-i',file,'-t',String(duration),'-vn','-ac','1','-ar','4000','-f','f32le','pipe:1'],{signal,buffer:true});
+  const {stdout}=await run(binary,['-v','error','-nostdin','-ss',String(Math.max(0,start)),'-protocol_whitelist','file','-i',file,'-t',String(duration),'-vn','-ac','1','-ar','4000','-f','f32le','pipe:1'],{signal,buffer:true});
   return new Float32Array(stdout.buffer.slice(stdout.byteOffset,stdout.byteOffset+stdout.byteLength));
 }
 function correlation(source,mix,expected) {
@@ -171,33 +190,43 @@ async function audioChecks(project,narration,{ffmpeg,videoPath,signal},findings,
       findings.push(issue('voice-source-'+clip.id,'unknown','本地旁白原件不存在或内容已变化','重新关联工程导入时的原件。',from,to));continue;
     }
     if((clip.speed??1)!==1 || clip.duration/fps<.45) {evidence.audio.push({clip:clip.id,method:'source-hash',sourceHash});continue;}
-    const results=[];
+    const results=[],dropouts=[];
     const seconds=clip.duration/fps, length=Math.min(.38,seconds*.32);
     for(const fraction of [.16,.50,.78]) {
       const cursor=Math.min(seconds-length,seconds*fraction);
       const when=from/fps+cursor;
       const windowStart=Math.max(0,when-.5);
       const [source,mix]=await Promise.all([extractPcm(ffmpeg,asset.path,(clip.sourceIn||0)/fps+cursor,length,signal),extractPcm(ffmpeg,videoPath,windowStart,when-windowStart+length+.5,signal)]);
+      const nominal=mix.subarray(Math.round((when-windowStart)*4000),Math.round((when-windowStart)*4000)+source.length);
+      let active=0,longest=0;
+      for(let i=0;i+80<=Math.min(source.length,nominal.length);i+=80) {
+        let dry=0,wet=0;
+        for(let j=i;j<i+80;j++) {dry+=source[j]*source[j];wet+=nominal[j]*nominal[j];}
+        active=dry*(clip.gain??1)**2/80>.00015&&wet/80<.0000004?active+1:0;
+        longest=Math.max(active,longest);
+      }
+      if(longest>=6) dropouts.push({at:when,until:when+length});
       const match=correlation(source,mix,when-windowStart);
       if(match) results.push({at:when,similarity:Number(match.score.toFixed(3)),offset:Number((match.offset-(when-windowStart)).toFixed(3))});
     }
-    evidence.audio.push({clip:clip.id,method:'source-and-mix-windows',sourceHash,windows:results});
+    evidence.audio.push({clip:clip.id,method:'source-and-mix-windows',sourceHash,windows:results,dropouts});
     const matched=results.filter(w=>w.similarity>=.65);
     const late=matched.filter(w=>w.offset>.18),early=matched.filter(w=>w.offset<-.18);
-    if(late.length>=2||early.length>=2) findings.push(issue('voice-drift-'+clip.id,'major','多个独立窗口确认混音旁白持续偏离时间线','重新对齐该段旁白与字幕。',from,to));
+    if(dropouts.length) findings.push(issue('voice-dropout-'+clip.id,'major','原件持续有声，对应成片混音出现连续静音','恢复该区间的原声并复查。',Math.floor(dropouts[0].at*fps),Math.ceil(dropouts.at(-1).until*fps)-1));
+    else if(late.length>=2||early.length>=2) findings.push(issue('voice-drift-'+clip.id,'major','多个独立窗口确认混音旁白持续偏离时间线','重新对齐该段旁白与字幕。',from,to));
     else if(results.length>=2&&!matched.length) findings.push(issue('mix-match-'+clip.id,'unknown','当前混音窗口未能确认旁白原件，需试听对应段','核对音量、源窗口和最终混音。',from,to));
   }
 }
 export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,resolveTool=defaultResolver}={}) {
   const problems=[...findings],evidence={audio:[],decode:false};
   for(const note of project.directorNotes||[]) {
-    if(!note?.message||!['suggestion','required'].includes(note.type)) continue;
+    if(!note?.message||!['suggestion','required'].includes(note.type)||musicNote(note)) continue;
     const start=Number.isInteger(note.frame)?note.frame:0;
     problems.push({severity:note.type==='required'?'unknown':'minor',reason:'director-observation',message:note.message,fromFrame:start,toFrame:start,fix:'查看对应素材或试听此段后确认。'});
   }
   const meta={revision:project.revision,artifactSha256:null,subtitleSha256:null,candidatePlayable:false,evidence,
     limitations:['波形与抽帧提供技术证据。音色自然度、发音、节奏偏好和未标注的动作语义需要原速观看或试听。']};
-  const {captions,narration}=timelineChecks(project,problems);
+  const {captions,narration,music}=timelineChecks(project,problems);
   try {meta.artifactSha256=await fileSha256(videoPath);}
   catch(error) {if(error.code!=='ENOENT' && error.code!=='ERR_INVALID_ARG_TYPE') throw error;problems.push(issue('output-missing','blocker','找不到最终视频文件','重新渲染。'));return classifyReview(problems,meta);}
   let ffprobe,ffmpeg;
@@ -205,16 +234,17 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
   catch {problems.push(issue('probe-unavailable','unknown','本机媒体检查工具暂不可用','恢复本地媒体工具后重新检查。'));return classifyReview(problems,meta);}
   let probe;
   try {
-    probe=JSON.parse((await run(ffprobe,['-v','error','-show_streams','-show_format','-of','json',videoPath],{signal})).stdout);
+    probe=JSON.parse((await run(ffprobe,['-v','error','-protocol_whitelist','file','-show_streams','-show_format','-of','json',videoPath],{signal})).stdout);
     const stream=probe.streams.find(s=>s.codec_type==='video');
     if(!stream) throw Error('no visible video stream');
-    await run(ffmpeg,['-nostdin','-v','error','-xerror','-i',videoPath,'-map','0:v:0','-map','0:a:0?','-f','null','-'],{signal});
+    await run(ffmpeg,['-nostdin','-v','error','-xerror','-protocol_whitelist','file','-i',videoPath,'-map','0:v:0','-map','0:a:0?','-f','null','-'],{signal});
     evidence.decode=true;meta.candidatePlayable=true;
     const frameCount=Number(stream.nb_frames),duration=Number(stream.duration||probe.format.duration);
     evidence.duration=duration;
-    const expected=Math.max(0,...project.timeline.clips.filter(c=>c.hidden!==true).map(c=>c.start+c.duration));
+    const expected=Math.max(0,...project.timeline.clips.filter(isActive).map(c=>c.start+c.duration));
     if(!Number.isFinite(duration)||Math.abs((Number.isFinite(frameCount)&&frameCount>0?frameCount:Math.round(duration*project.profile.fps))-expected)>1 ||Math.abs(duration-expected/project.profile.fps)>1.5/project.profile.fps) {
-      problems.push(issue('output-duration','major','视频时长与当前工程不符','从当前版本重新渲染。'));
+      const end=Number.isFinite(duration)?Math.max(0,Math.round(duration*project.profile.fps)-1):0;
+      problems.push(issue('output-duration','major','视频时长与当前工程不符','从当前版本重新渲染。',Math.min(end,Math.max(0,expected-1)),Math.max(end,expected-1)));
     }
     const wrongSize=preview?Math.abs(stream.width/stream.height-project.profile.width/project.profile.height)>.012:project.profile.width!==stream.width||project.profile.height!==stream.height;
     if(wrongSize) problems.push(issue('output-size','major','视频画幅与项目规格不同','按工程画幅重新渲染。'));
@@ -230,13 +260,14 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
       captionChecks(captions,readSrt(text),project.profile.fps,problems);
     } catch {problems.push(issue('srt-invalid','major','字幕文件缺失或时码格式无法读取','从当前可见字幕重新导出。'));}
   }
-  if(narration.length) {
-    if(!probe.streams.some(s=>s.codec_type==='audio')) problems.push(issue('mix-missing','blocker','成片缺少应有的混音声轨','恢复混音并重新渲染。'));
+  if(narration.length||music.length) {
+    const required=[...narration,...music],audioStart=Math.min(...required.map(c=>c.start)),audioEnd=Math.max(...required.map(c=>c.start+c.duration-1));
+    if(!probe.streams.some(s=>s.codec_type==='audio')) problems.push(issue('mix-missing','blocker','成片缺少应有的混音声轨','恢复混音并重新渲染。',audioStart,audioEnd));
     else {
       try {
-        const level=await run(ffmpeg,['-nostdin','-nostats','-hide_banner','-i',videoPath,'-vn','-af','volumedetect','-f','null','-'],{signal});
+        const level=await run(ffmpeg,['-nostdin','-nostats','-hide_banner','-protocol_whitelist','file','-i',videoPath,'-vn','-af','volumedetect','-f','null','-'],{signal});
         const peak=level.stderr.match(/max_volume:\s*([-\d.]+) dB/);
-        if(peak && Number(peak[1])<=-72) problems.push(issue('mix-silent','blocker','成片混音全长接近静音，必需旁白无法听清','恢复旁白混音。'));
+        if(peak && Number(peak[1])<=-72) problems.push(issue('mix-silent','blocker','成片混音全长接近静音，必需声轨无法听清','恢复混音。',audioStart,audioEnd));
         else await audioChecks(project,narration,{ffmpeg,videoPath,signal},problems,evidence);
       } catch(error) {
         if(signal?.aborted) throw error;
@@ -260,7 +291,7 @@ export function deterministicRepairs(project,report) {
     }
     const cue=clips.find(c=>c.track==='graphic'&&c.templateRole==='action'&&c.id+'-timing'===item.id);
     if(!cue || cue.locked || !cue.anchorAssetId || !Number.isSafeInteger(cue.anchorSourceFrame)) continue;
-    const sources=clips.filter(c=>c.track==='video'&&c.hidden!==true&&c.assetId===cue.anchorAssetId && cue.anchorSourceFrame>=(c.sourceIn||0)&&cue.anchorSourceFrame<(c.sourceIn||0)+c.duration*(c.speed||1));
+    const sources=clips.filter(c=>c.track==='video'&&isActive(c)&&c.assetId===cue.anchorAssetId && cue.anchorSourceFrame>=(c.sourceIn||0)&&cue.anchorSourceFrame<(c.sourceIn||0)+c.duration*(c.speed||1));
     if(sources.length!==1) continue;
     const shot=sources[0], anchor=shot.start+Math.round((cue.anchorSourceFrame-(shot.sourceIn||0))/(shot.speed||1));
     const duration=cue.start+cue.duration-anchor;

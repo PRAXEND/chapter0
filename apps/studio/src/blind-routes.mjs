@@ -32,10 +32,12 @@ async function movie(req,res,file) {
 }
 export function createBlindRoutes({blind,store}) {
   function candidates() {
-    return store.listJobs().filter(j=>j.status==='done'&&j.files?.video&&j.qa?.candidatePlayable&&j.kind!=='preview').map(j=>{
+    const jobs=store.listJobs().filter(j=>j.status==='done'&&j.files?.video&&j.qa?.candidatePlayable&&j.kind!=='preview').map(j=>{
       const p=store.get(j.projectId);
       return {projectId:p.id,jobId:j.id,title:p.title,mode:p.mode,revision:j.revision,createdAt:j.createdAt};
     });
+    const imported=(store.list?.()||[]).flatMap(p=>store.get(p.id).assets.filter(a=>a.kind==='video').map(a=>({projectId:p.id,assetId:a.id,title:p.title+' / '+a.name,mode:p.mode,createdAt:a.createdAt,source:'import'})));
+    return [...jobs,...imported];
   }
   function candidate(projectId,jobId) {
     if(typeof projectId!=='string'||typeof jobId!=='string') throw Error('请选择已登记成片');
@@ -43,16 +45,21 @@ export function createBlindRoutes({blind,store}) {
     if(!p||!j||j.projectId!==p.id||j.status!=='done'||!j.files?.video||!j.qa?.candidatePlayable || j.kind==='preview') throw Error('候选未登记为可播放成片');
     const rel=path.relative(store.paths(projectId).outputs,j.files.video);
     if(!rel || rel==='..'||rel.startsWith('..'+path.sep)||path.isAbsolute(rel)) throw Error('候选文件未绑定工程输出');
-    return {videoPath:j.files.video,mode:p.mode,systemStatus:j.qa.status,systemIssues:j.qa.issues||[]};
+    return {videoPath:j.files.video,mode:p.mode,fps:p.profile?.fps,systemStatus:j.qa.status,systemIssues:j.qa.issues||[]};
+  }
+  function external(projectId,assetId){
+    const p=store.get(projectId),asset=p.assets.find(a=>a.id===assetId&&a.kind==='video');
+    if(!asset) throw Error('请选择已导入工程的前台成片');
+    return {videoPath:asset.path,mode:p.mode,assetHash:asset.sha256};
   }
   async function create(data) {
     if(!Array.isArray(data.samples)||data.samples.length>100) throw Error('样本清单无效');
     const rows=data.samples.map(s=>{
-      const base=candidate(s.projectId,s.jobId);
+      const base=data.kind==='pair'&&s.primary==='foreground'&&s.assetId?external(s.projectId,s.assetId):candidate(s.projectId,s.jobId);
       if(data.kind==='pair') {
-        const other=candidate(s.comparisonProjectId,s.comparisonJobId);
-        if(s.jobId===s.comparisonJobId) throw Error('请选择两个不同的候选');
-        return {...base,comparisonPath:other.videoPath,primary:s.primary};
+        const other=s.primary==='workbench'&&s.comparisonAssetId?external(s.comparisonProjectId,s.comparisonAssetId):candidate(s.comparisonProjectId,s.comparisonJobId);
+        if(base.videoPath===other.videoPath) throw Error('请选择两个不同的候选');
+        return {...base,comparisonPath:other.videoPath,comparisonHash:other.assetHash,primary:s.primary,conditions:s.conditions};
       }
       return {...base,expected:s.expected,topicGroup:s.topicGroup};
     });

@@ -32,6 +32,17 @@ test('actual decode, SRT, source to mix timing, independent missing voice and an
   const report=await reviewProject(p,opts);
   assert.ok(report.candidatePlayable);assert.equal(report.status,'deliverable',JSON.stringify(report));assert.equal(report.evidence.audio.length,1);
   assert.ok(report.evidence.audio[0].windows.some(w=>w.similarity>.75&&Math.abs(w.offset)<.05));
+  const withMusic=structuredClone(p);
+  withMusic.settings.musicMode='original';withMusic.settings.musicAssetId='bed';
+  withMusic.directorNotes=[{type:'required',message:'本项目要求的配乐尚未加入，请选择相应的曲目。'},{type:'required',frame:11,message:'动作的因果关系需要核实'}];
+  withMusic.assets.push({id:'bed',path:voice,sha256:await fileSha256(voice),source:{kind:'generated-music',provider:'local',requestId:'receipt'}});
+  withMusic.timeline.clips.push({id:'bed-track',track:'music',assetId:'bed',start:0,duration:75,sourceIn:0,gain:.2});
+  let musicReview=await reviewProject(withMusic,opts);
+  assert.deepEqual(musicReview.issues.map(i=>i.message),['动作的因果关系需要核实']);
+  withMusic.timeline.clips.at(-1).enabled=false;musicReview=await reviewProject(withMusic,opts);
+  assert.ok(musicReview.issues.some(i=>i.id==='music-required'&&i.severity==='major'));
+  withMusic.timeline.clips.at(-1).enabled=true;withMusic.assets.at(-1).source={};musicReview=await reviewProject(withMusic,opts);
+  assert.ok(musicReview.issues.some(i=>i.id==='original-music-bed'&&i.severity==='unknown'));
   const anchored={id:'callout',track:'graphic',templateRole:'action',actionFrame:30,anchorAssetId:'video',anchorSourceFrame:30,start:5,duration:46};
   p.timeline.clips.push(anchored);
   const mistimed=await reviewProject(p,opts);

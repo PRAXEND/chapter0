@@ -7,7 +7,7 @@
 <div id="samples"></div><div class="controls"><button id="add">增加样本</button><button class="primary" id="create">冻结候选，生成盲评</button></div></section>
 <section id="identity" hidden><h2 id="study-title"></h2><label>审片人名称<input id="reviewer" maxlength="80" autocomplete="off"></label><button class="primary" id="begin">开始或继续看片</button></section>
 <section id="screen" hidden><h2 id="progress"></h2><div id="movies"></div><form id="ballot"><label>看片判断<select id="decision"></select></label><label>画面或听感依据<textarea id="observation" required maxlength="3000" rows="3"></textarea></label>
-<div id="range" hidden><label>问题起始帧<input id="from" type="number" min="0"></label><label>问题结束帧<input id="to" type="number" min="0"></label></div><div id="dimensions" hidden></div><button class="primary">提交此样本</button></form></section>
+<div id="range" hidden><label>问题起点（秒）<input id="from" type="number" min="0" step="0.001"></label><button type="button" id="mark-from">取播放位置作起点</button><label>问题终点（秒）<input id="to" type="number" min="0" step="0.001"></label><button type="button" id="mark-to">取播放位置作终点</button></div><div id="dimensions" hidden></div><button class="primary">提交此样本</button></form></section>
 <section id="report" hidden><h2>评审进度</h2><div id="report-text"></div></section>
 <div id="notice" role="status" aria-live="polite"></div>
 </main><script type="module" src="/blind/app.js"></script></body></html>

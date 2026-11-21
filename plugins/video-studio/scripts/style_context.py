@@ -2,9 +2,40 @@
 from pathlib import Path
 from fractions import Fraction
 import math
+import re
+import subprocess
 
 import studio
 import style_media
+
+
+def verified_benchmark(pack, locator, expected):
+    relative = locator.removeprefix('resource:')
+    video = style_media.safe_file(pack, relative)
+    if not re.fullmatch('[0-9a-f]{64}', expected or ''):
+        raise ValueError('Style benchmark missing or changed')
+    if video.is_file():
+        if studio.file_hash(video) == expected:
+            return video
+        with video.open('rb') as source:
+            prefix = source.read(180)
+        if prefix and not prefix.startswith(style_media.POINTER):
+            raise ValueError('Style benchmark missing or changed')
+    # LFS pointers and macOS dataless placeholders may coexist with the exact verified object.
+    # Confirm the tracked pointer for this specific pack path before reading its local object.
+    def git(*args):
+        return subprocess.check_output(['git', '-C', str(pack), *args], stderr=subprocess.DEVNULL, timeout=4, text=True).strip()
+    try:
+        top = Path(git('rev-parse', '--show-toplevel')).resolve()
+        name = 'HEAD:' + video.resolve().relative_to(top).as_posix()
+        if int(git('cat-file', '-s', name)) <= 256 and 'oid sha256:' + expected in git('cat-file', '-p', name).splitlines():
+            common = Path(git('rev-parse', '--path-format=absolute', '--git-common-dir'))
+            stored = style_media.safe_file(common, 'lfs/objects/' + expected[:2] + '/' + expected[2:4] + '/' + expected)
+            if stored.is_file() and studio.file_hash(stored) == expected:
+                return stored
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    raise ValueError('Style benchmark missing or changed')
 
 
 def reproduction_guide(spec, spec_path):
@@ -69,10 +100,8 @@ def reference_probe(run):
     if not locator.startswith('resource:'):
         raise ValueError('Unsupported benchmark locator')
     pack = style_media.locate_pack()
-    video = style_media.safe_file(pack, locator.removeprefix('resource:'))
     expected = baseline.get('sha256')
-    if not expected or studio.file_hash(video) != expected:
-        raise ValueError('Style benchmark missing or changed')
+    video = verified_benchmark(pack, locator, expected)
     directory = Path(context['guide']).parent / ('reference-' + expected[:16])
     if not directory.resolve().is_relative_to(root):
         raise ValueError('Style reference diagnostics outside run')

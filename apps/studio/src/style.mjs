@@ -1,6 +1,8 @@
 import {createHash, randomUUID} from 'node:crypto';
-import {createReadStream} from 'node:fs';
-import {copyFile, link, mkdir, readFile, readdir, realpath, rm, stat, writeFile} from 'node:fs/promises';
+import {createReadStream,constants} from 'node:fs';
+import {copyFile, link, mkdir, open, readFile, readdir, realpath, rename, rm, stat, writeFile} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import {homedir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -9,6 +11,7 @@ const builtInPacks = fileURLToPath(new URL('../../../user-packs/', import.meta.u
 const legacyHome = path.join(homedir(), 'Library/Application Support/Video Studio');
 const validId = /^[a-z][a-z0-9_-]{0,78}$/;
 const digestPattern = /^[a-f0-9]{64}$/;
+const execute=promisify(execFile);
 const templateNames = {'action-result':'动作与结果', 'step-reveal':'问题与分步揭示'};
 const fallbackSpecs = [
   {id:'neutral',name:'自然剪辑',version:1,templateIds:[],description:'跟随原片内容组织镜头、声音和字幕',rules:[]},
@@ -41,6 +44,17 @@ export async function fileSha256(file) {
   const hash=createHash('sha256');
   for await(const chunk of createReadStream(file)) hash.update(chunk);
   return hash.digest('hex');
+}
+async function localLfsObject(pack,relative,hash) {
+  const git=async(...args)=>(await execute('git',['-C',pack,...args],{timeout:4000,maxBuffer:2400})).stdout.trim();
+  try {
+    const top=await realpath(await git('rev-parse','--show-toplevel')),target=path.resolve(await realpath(pack),relative);
+    if(!contained(top,target)) return null;
+    const name='HEAD:'+path.relative(top,target).split(path.sep).join('/');
+    if(Number(await git('cat-file','-s',name))>256 || !(await git('cat-file','-p',name)).split(/\r?\n/).includes('oid sha256:'+hash)) return null;
+    const common=await git('rev-parse','--path-format=absolute','--git-common-dir');
+    return checkedFile(common,path.join('lfs','objects',hash.slice(0,2),hash.slice(2,4),hash));
+  } catch {return null;}
 }
 function parseStyle(spec) {
   const bundle=spec.reproduction_bundle??{}, blueprint=spec.reproduction_blueprint??{};
@@ -123,13 +137,31 @@ export function createStyleLibrary(dataRoot, options={}) {
     }
     for(const [root,name] of locations) {
       const file=await checkedFile(root,name);
-      if(!file) continue;
-      const info=await stat(file,{bigint:true});
-      const identity=[info.ino,info.size,info.mtimeNs,info.ctimeNs].join(':');
-      const previous=verifiedHashes.get(file);
-      const hash=previous?.identity===identity?previous.hash:await fileSha256(file);
-      verifiedHashes.set(file,{identity,hash});
-      if(hash===ref.sha256) return {...ref,path:file,available:true,verified:true};
+      if(file) {
+        const info=await stat(file,{bigint:true});
+        const identity=[info.ino,info.size,info.mtimeNs,info.ctimeNs].join(':');
+        const previous=verifiedHashes.get(file);
+        const hash=previous?.identity===identity?previous.hash:await fileSha256(file);
+        verifiedHashes.set(file,{identity,hash});
+        if(hash===ref.sha256) return {...ref,path:file,available:true,verified:true};
+        const handle=await open(file,'r');let first;
+        try {const prefix=Buffer.alloc(180);const {bytesRead}=await handle.read(prefix,0,prefix.length,0);first=prefix.subarray(0,bytesRead).toString();} finally {await handle.close();}
+        if(first && !first.startsWith('version https://git-lfs.github.com/spec/v1')) continue;
+      }
+      if(!ref.locator.startsWith('resource:')) continue;
+      const obj=await localLfsObject(root,name,ref.sha256);
+      const ext=path.extname(name).toLowerCase();
+      if(!obj||!/^\.[a-z0-9]{1,5}$/.test(ext)) continue;
+      const dir=path.join(storage,'media'),dest=path.join(dir,ref.sha256+ext);
+      const cached=await checkedFile(dir,dest);
+      if(cached && await fileSha256(cached)===ref.sha256) return {...ref,path:cached,available:true,verified:true};
+      const temp=path.join(dir,'.'+randomUUID());await mkdir(dir,{recursive:true,mode:0o700});
+      try {
+        await copyFile(obj,temp,constants.COPYFILE_FICLONE);
+        if(await fileSha256(temp)!==ref.sha256) continue;
+        await rename(temp,dest);
+        return {...ref,path:dest,available:true,verified:true};
+      } finally {await rm(temp,{force:true});}
     }
     return {...ref,available:false,verified:false};
   }
@@ -234,18 +266,23 @@ export function compileScene(scene,profile) {
   const maxChars=isNews?13:24;
   if(!title || [...title].length>maxChars || [...detail].length>30) throw Error('模板文字超出可读容量，请缩短文案');
   const short=Math.max(3,Math.round(.28*fps));
+  const textUnits=t=>[...t].reduce((total,c)=>total+(/[\x00-\x7F]/.test(c)?.56:1),0);
+  const readingFrames=t=>Math.max(short,Math.ceil(fps*textUnits(t)/(isNews?13:10)));
   function layer(role,text,from,to,color,size,pos,background) {
     const frames=to-from;
-    if(frames<short) throw Error('动作前后没有足够的可读停留时间');
+    if(frames<readingFrames(text)) throw Error('动作前后没有足够的可读停留时间');
     const enter=Math.max(1,Math.min(frames-1,Math.round((isNews?.075:.18)*fps)));
-    const fontSize=Math.round(Math.min(h*(isNews?.065:.052),w/(maxChars+2))*size);
+    const units=textUnits(text);
+    const fontSize=Math.floor(Math.min(Math.min(h*(isNews?.065:.052),w/(maxChars+2))*size,w*.84/Math.max(1,units)));
+    const halfWidth=units*fontSize/(2*w)+.045;
+    pos={...pos,x:Math.max(halfWidth,Math.min(pos.x,1-halfWidth))};
     return {id:randomUUID(),track:'graphic',start:from,duration:frames,sourceIn:0,speed:1,gain:1,text,locked:false,
       geometry:pos,style:{fontSize,color,backgroundColor:background},keyframes:[
         {frame:0,...pos,opacity:isNews?.82:.35,scale:isNews?1.13:.97},{frame:enter,...pos,opacity:1,scale:1}],
       template,templateVersion:1,templateRole:role,styleId:style.id,styleVersion:style.version,actionFrame,anchorAssetId:scene.anchorAssetId,anchorSourceFrame:scene.anchorSourceFrame,continuity:scene.continuity||''};
   }
   if(isNews) {
-    const cut=detail?Math.min(finish-short,actionFrame+Math.max(short,Math.round(.8*fps))):finish;
+    const cut=detail?Math.min(finish-readingFrames(detail),actionFrame+Math.max(readingFrames(title),Math.round(.8*fps))):finish;
     const clips=[layer('action',title,actionFrame,cut,'#FFD34E',1.12,position,'#151917CC')];
     if(detail) clips.push(layer('result',detail,cut,finish,'#FFFFFF',.88,position,'#151917D0'));
     return clips;
