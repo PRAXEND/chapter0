@@ -153,6 +153,11 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     return mutate(id,base,p=>{
       for(const k of ['title','brief','script'])if(k in changes)p[k]=text(changes[k],k==='script'?160000:10000);
       if(changes.style)p.style=copy(changes.style);
+      if(changes.publication){
+        const {title,body,tags}=changes.publication;
+        if(typeof title!=='string'||typeof body!=='string'||!Array.isArray(tags)||tags.some(t=>typeof t!=='string'))throw fault('请输入有效的发布标题、正文与话题。');
+        p.publication={title:text(title,180).trim(),body:text(body,4000).trim(),tags:[...new Set(tags.map(tag=>text(tag,48).trim().replace(/^#+/,'')))].filter(Boolean).slice(0,12)};
+      }
       if(changes.sourceAnchors){
         if(!Array.isArray(changes.sourceAnchors)||changes.sourceAnchors.some(a=>!p.assets.some(asset=>asset.id===a.assetId&&a.sourceFrame<=Math.ceil(asset.duration*p.profile.fps))||!Number.isSafeInteger(a.sourceFrame)||a.sourceFrame<0||!String(a.label||'').trim()))throw fault('动作标记必须绑定可用原片内的帧。');
         p.sourceAnchors=copy(changes.sourceAnchors);

@@ -40,6 +40,8 @@ const tool = (name, description, properties = {}, required = []) => ({
   inputSchema: object(properties, required),
 });
 const tools = [
+  tool('studio_publication','Save the audience-facing Chinese title, post text and topics when the project requests a publish package.',
+    {baseRevision:int,title:str,body:str,tags:{type:'array',items:str}},['baseRevision','title','body','tags']),
   tool(
     'studio_context',
     'Read the latest editable project, timeline revision, selection, locks, provenance, transcript and style.'
@@ -122,6 +124,7 @@ const instructions = [
   '首版用 studio_sequence 真正写入工程。每段 sourceStart/sourceEnd 和动作时间是原片秒数，时间线编辑命令使用帧。解说语言与用户需求一致。',
   '没有开启发送帧时，用 studio_observe 获得项目中素材的本机类别、颜色与可共享 OCR 结果。动作锚点只能来自实际观看、用户标记、或同帧匹配的可见文字（anchorText）；亮度差不能单独证明某一事件。可分享帧时用 studio_frame 查看原片或风格参考；提交后抽查真实合成帧。注明哪些区间未看片、未听审。',
   '处理改稿时先核对当前版本与选区，用 studio_edit 局部修改，配音改词用 studio_narrate。用户没有要求时不要重新生成整片。',
+  '本期要求发布包时，首版完成后用 studio_publication 写给观众的标题、正文和话题。正文只使用片中有依据的内容。',
   '最终用中文简述这次真实完成的编辑、需要用户判断的片段，或具体缺少的素材。',
 ].join('\n');
 
@@ -243,6 +246,7 @@ async function context(deps, project, selection) {
     revision: project.revision,
     profile: project.profile,
     selection: selection || project.selection || null,
+    publishPackage: Boolean(project.settings?.publishPackage),
     privacy: { shareTranscript: shared, shareFrames: project.settings?.shareFrames === true },
     voiceMode: project.settings?.voiceMode,
     musicMode: project.settings?.musicMode,
@@ -656,6 +660,11 @@ export function createDirector(deps) {
         });
       }
       currentRevision(current, args.baseRevision);
+      if(name==='studio_publication'){
+        if(!current.settings.publishPackage)throw new Error('本工程未启用发布包。');
+        const saved=await store.configure(id,args.baseRevision,{publication:{title:args.title,body:args.body,tags:args.tags}});
+        return toolText({revision:saved.revision});
+      }
       if (name === 'studio_sequence') {
         if (kind !== 'produce') throw new Error('局部改稿只能修改指定的已有片段。');
         const beats = (args.beats || []).map((b) => {

@@ -1,11 +1,9 @@
 import path from 'node:path';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import {makePublicationPackage} from './publication.mjs';
 import { randomUUID } from 'node:crypto';
 import { portableProject, publishDelivery } from "./library.mjs";
 import { fault } from './project.mjs';
-const exec=promisify(execFile);
 const stamp=()=>new Date().toISOString();
 const activeStates=['queued','running','pausing'];
 export function createQueue({store, director, media, reviewProject, prepare, deliveryRoot, styles}) {
@@ -36,21 +34,6 @@ export function createQueue({store, director, media, reviewProject, prepare, del
     const id=randomUUID(), j={id,projectId,kind,input,status:'queued',phase:['produce','revise'].includes(kind)?'creative':'render',
       revision:p.revision,snapshot:['preview','render'].includes(kind)?p:undefined,createdAt:stamp(),updatedAt:stamp(),events:[],repairs:0};
     store.saveJob(j);kick();return j;
-  }
-  async function publish(p,video,target,signal){
-    const ff=await media.mediaTool('ffmpeg');
-    const stem=path.join(target,'cover-frame.png');
-    const total=Math.max(...p.timeline.clips.map(c=>c.start+c.duration),1)/p.profile.fps;
-    await media.frameAt(video,Math.min(total*.25,3),stem);
-    const outputs={};
-    for(const [name,w,h] of [['cover34',900,1200],['cover43',1200,900]]){
-      const file=path.join(target,name+'.jpg');
-      await exec(ff,['-loglevel','error','-y','-i',stem,'-vf',`scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=0x20241f`,'-frames:v','1',file],{signal});
-      outputs[name]=file;
-    }
-    const copy=path.join(target,'发布文案.txt');
-    await writeFile(copy,(p.publishCopy||[p.title,p.brief||p.script?.slice(0,550),'#'+p.title.replace(/\s/g,'')].filter(Boolean).join('\n\n'))+'\n');
-    return {...outputs,copy};
   }
   async function execute(initial){
     const ctrl=new AbortController(), signal=ctrl.signal;running.set(initial.id,ctrl);
@@ -96,7 +79,7 @@ export function createQueue({store, director, media, reviewProject, prepare, del
         return;
       }
       let files={...j.files};
-      if(p.settings.publishPackage&&j.kind!=='preview')files={...files,...await publish(p,files.video,directory,signal)};
+      if(p.settings.publishPackage&&j.kind!=='preview')files={...files,...await makePublicationPackage(p,{videoPath:files.video,directory,media,signal})};
       const used=new Set(p.timeline.clips.map(c=>c.assetId));
       const sources=p.assets.filter(a=>used.has(a.id)&&a.source&&(a.source.url||a.source.license||a.source.licenseUrl||a.source.credit||a.source.rights));
       const facts=p.facts||[];
@@ -133,14 +116,16 @@ export function createQueue({store, director, media, reviewProject, prepare, del
     const ctrl=running.get(id);if(ctrl){change(id,{status:'pausing'});ctrl.abort(new Error('用户已暂停'));}
     return store.getJob(id);
   }
-  async function redirect(id,{message,selection}){
+  async function redirect(id,{message,selection,engine}){
     if(typeof message!=='string'||!message.trim()||message.length>10000)throw fault('请输入本次新的制作要求。');
     const j=store.getJob(id);
+    if(engine!==undefined&&!['local','codex'].includes(engine))throw fault('创作引擎无效。');
+    const requested=engine||(j.phase==='creative'?j.input.engine:'codex')||'codex';
     if(j.status==='queued'&&j.phase==='creative'){
-      change(id,{input:{...j.input,message:[j.input.message,message].filter(Boolean).join('\n'),selection:selection||j.input.selection}});
+      change(id,{input:{...j.input,engine:requested,message:[j.input.message,message].filter(Boolean).join('\n'),selection:selection||j.input.selection}});
       event(id,'已更新本轮制作要求');return store.getJob(id);
     }
-    if(j.status==='running'&&j.phase==='creative'&&j.input.engine!=='local'&&director.steer){
+    if(j.status==='running'&&j.phase==='creative'&&j.input.engine!=='local'&&requested==='codex'&&director.steer){
       try{await director.steer(j.projectId,{jobId:id,message});event(id,'已把新要求传入当前 Codex 回合');return store.getJob(id);}
       catch(e){if(e.status!==409)throw e;}
     }
@@ -150,7 +135,7 @@ export function createQueue({store, director, media, reviewProject, prepare, del
     while(activeStates.includes(store.getJob(id).status)&&Date.now()<until)await new Promise(r=>setTimeout(r,100));
     if(activeStates.includes(store.getJob(id).status))throw fault('正在保存当前步骤，暂停完成后可继续。',409);
     const p=store.get(j.projectId);
-    return enqueue(p.id,p.timeline.clips.some(c=>c.track==='video')?'revise':'produce',{engine:j.input.engine||'codex',message,selection,baseRevision:p.revision});
+    return enqueue(p.id,p.timeline.clips.some(c=>c.track==='video')?'revise':'produce',{engine:requested,message,selection,baseRevision:p.revision});
   }
   function recover(){
     for(const j of store.listJobs())if(['running','pausing'].includes(j.status)){

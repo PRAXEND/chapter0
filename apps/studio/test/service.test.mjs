@@ -51,3 +51,23 @@ test('the system releases an interrupted owner lock and a second instance cannot
   const app=await startStudio({root});try{await assert.rejects(startStudio({root}),/已由打开/);}finally{await app.close();}
   const restarted=await startStudio({root});await restarted.close();await rm(root,{recursive:true,force:true});
 });
+test('a spoken change during local export starts an actual creative revision on the current timeline',async t=>{
+  const root=await mkdtemp(path.join(os.tmpdir(),'vs-redirect-'));
+  const store=createStore(root);
+  const p=store.create({mode:'script',title:'途中改稿'});
+  store.apply(p.id,p.revision,[{op:'add',clip:{id:'line',track:'caption',text:'原句',start:0,duration:10}}]);
+  let rendering;
+  const ready=new Promise(resolve=>{rendering=resolve;});
+  let directing,release;
+  const received=new Promise(resolve=>{directing=resolve;});
+  const director={async run(_id,input){directing(input);await new Promise(resolve=>{release=resolve;input.signal.addEventListener('abort',resolve,{once:true});});return {};}};
+  const media={async renderProject(_p,{signal}){rendering();await new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));}};
+  const queue=createQueue({store,media,director,reviewProject(){}});
+  t.after(async()=>{release?.();await queue.close();store.close();await rm(root,{force:true,recursive:true});});
+  const job=queue.enqueue(p.id,'render',{engine:'local'});
+  await ready;
+  const newJob=await queue.redirect(job.id,{message:'保留原声，改成特写'});
+  const actual=await received;
+  assert.equal(actual.engine,'codex');assert.equal(actual.message,'保留原声，改成特写');
+  assert.equal(store.getJob(job.id).status,'paused');assert.equal(newJob.revision,2);
+});

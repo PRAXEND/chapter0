@@ -175,7 +175,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
         }
         if(action==='jobs'&&method==='GET')return json(res,store.listJobs(id).map(exposeJob));
         if(action==='jobs'&&method==='POST'){const {kind,...input}=await readJson(req);return json(res,exposeJob(queue.enqueue(id,kind,input)),202);}
-        if(action==='transcript'&&method==='POST'){const b=await readJson(req);return json(res,await director.transcribe(id,{assetId:b.assetId}));}
+        if(action==='transcript'&&method==='POST'){const b=await readJson(req);if(!(await audio.audioCapabilities()).transcription){const {prepareMedia}=await import('../scripts/prepare-media.mjs');await prepareMedia('speech',{});}return json(res,await director.transcribe(id,{assetId:b.assetId}));}
         if(action==='restore-sentence'&&method==='POST'){const b=await readJson(req);await director.restoreUtterance(id,b);return json(res,disclose(store.get(id)));}
         if(action==='learn-style'&&method==='POST'){
           const b=await readJson(req),a=p.assets.find(a=>a.id===b.assetId);
