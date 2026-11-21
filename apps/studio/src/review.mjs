@@ -119,7 +119,18 @@ function timelineChecks(project,findings) {
   return {captions,narration:[...narration,...dialogue],music};
 }
 const normText=txt=>String(txt).replace(/\s+/gu,' ').trim();
-function captionChecks(captions,cues,fps,findings) {
+function measuredSpeechEdge(project,caption,edge) {
+  if(!caption?.speechGroup||!caption.speechAssetId||!Number.isInteger(caption.speechCue)) return false;
+  const voice=project.timeline.clips.find(c=>c.track==='narration'&&c.id===caption.speechGroup&&c.assetId===caption.speechAssetId&&!c.hidden&&c.enabled!==false);
+  if(!voice) return false;
+  const hash=project.assets.find(a=>a.id===voice.assetId)?.sha256,alignment=hash&&project.speechAlignments?.[hash];
+  const cue=alignment?.cues?.[caption.speechCue];
+  if(!cue||alignment.audioHash!==hash||normText(cue.text)!==normText(caption.text)) return false;
+  const fps=project.profile.fps,t=cue[edge],projected=Math.max(0,Math.min(voice.duration,Math.round((t*fps-(voice.sourceIn||0))/(voice.speed||1))));
+  if(!Number.isFinite(t)||voice.start+projected!==(edge==='start'?caption.start:caption.start+caption.duration))return false;
+  return Math.abs(t-alignment.audible?.[edge])<=.5/fps||alignment.method==='whisper.cpp'&&alignment.segments?.some(s=>Math.abs(t-s[edge])<=.5/fps);
+}
+function captionChecks(project,captions,cues,fps,findings) {
   if(captions.length!==cues.length) {findings.push(issue('srt-count','major','SRT 条数与可见字幕不一致','从当前时间线重新导出 SRT。'));return;}
   for(let i=0;i<captions.length;i++) {
     const c=captions[i],row=cues[i],from=c.start,to=c.start+c.duration;
@@ -127,7 +138,7 @@ function captionChecks(captions,cues,fps,findings) {
       findings.push(issue('srt-'+c.id,'major','SRT 与工程中的字幕文字或时间码不一致','重新导出这段字幕。',from,to-1));
     }
     const gap=captions[i+1]?.start-to;
-    if(gap>0&&gap<=2) findings.push(issue('caption-gap-'+to,'minor','相邻字幕之间空了 '+gap+' 帧，可在原速预览核对','可选延长前一条字幕到下一句。',to,to+gap-1));
+    if(gap>0&&gap<=2&&!(measuredSpeechEdge(project,c,'end')&&measuredSpeechEdge(project,captions[i+1],'start'))) findings.push(issue('caption-gap-'+to,'minor','相邻字幕之间空了 '+gap+' 帧，可在原速预览核对','可选延长前一条字幕到下一句。',to,to+gap-1));
   }
 }
 async function extractPcm(binary,file,start,duration,signal) {
@@ -257,7 +268,7 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
     try {
       const text=await readFile(srtPath,'utf8');
       meta.subtitleSha256=createHash('sha256').update(text).digest('hex');
-      captionChecks(captions,readSrt(text),project.profile.fps,problems);
+      captionChecks(project,captions,readSrt(text),project.profile.fps,problems);
     } catch {problems.push(issue('srt-invalid','major','字幕文件缺失或时码格式无法读取','从当前可见字幕重新导出。'));}
   }
   if(narration.length||music.length) {

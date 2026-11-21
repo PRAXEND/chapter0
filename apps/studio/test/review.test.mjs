@@ -32,6 +32,14 @@ test('actual decode, SRT, source to mix timing, independent missing voice and an
   const report=await reviewProject(p,opts);
   assert.ok(report.candidatePlayable);assert.equal(report.status,'deliverable',JSON.stringify(report));assert.equal(report.evidence.audio.length,1);
   assert.ok(report.evidence.audio[0].windows.some(w=>w.similarity>.75&&Math.abs(w.offset)<.05));
+  const pause=structuredClone(p),hash=p.assets[0].sha256;
+  const gapSrt=path.join(d,'observed-pause.srt');await writeFile(gapSrt,'1\n00:00:00,000 --> 00:00:01,000\n一句话\n\n2\n00:00:01,080 --> 00:00:02,000\n下一句\n');
+  Object.assign(pause.timeline.clips[2],{speechGroup:'n',speechAssetId:'a',speechCue:0});
+  pause.timeline.clips.push({id:'c2',track:'caption',start:27,duration:23,text:'下一句',speechGroup:'n',speechAssetId:'a',speechCue:1});
+  const cues=[{text:'一句话',start:0,end:1},{text:'下一句',start:1.08,end:2}];
+  pause.speechAlignments={[hash]:{method:'whisper.cpp',audioHash:hash,cues,segments:cues}};
+  assert.equal((await reviewProject(pause,{...opts,srtPath:gapSrt})).status,'deliverable');
+  pause.speechAlignments[hash].audioHash='changed';assert.ok((await reviewProject(pause,{...opts,srtPath:gapSrt})).issues.some(i=>i.id.startsWith('caption-gap-')));
   const withMusic=structuredClone(p);
   withMusic.settings.musicMode='original';withMusic.settings.musicAssetId='bed';
   withMusic.directorNotes=[{type:'required',message:'本项目要求的配乐尚未加入，请选择相应的曲目。'},{type:'required',frame:11,message:'动作的因果关系需要核实'}];
