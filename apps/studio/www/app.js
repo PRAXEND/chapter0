@@ -291,7 +291,11 @@ async function runAction(act,id){
     const v=el('source-preview');if(!v)throw Error('请打开视频素材。');await proj('/anchor',{baseRevision:p.revision,assetId:id,sourceFrame:Math.round(v.currentTime*frameRate()),label:val('event-label')});dismiss();notice('已在原片登记动作帧');return reload();}
  case 'audition':{await runAction('settings-save');notice('正在本地生成试听');const a=await proj('/audition',{});modal('音色试听',`<audio controls autoplay src="${aid(a.id)}"></audio>`);return;}
  case 'compose-music':{const prompt=val('music-prompt'),seconds=Number(val('music-length'));if(!p.settings.cloudEnabled)throw Error('请先保存项目云配乐授权和时长预算。');await proj('/cloud-music',{requestId:crypto.randomUUID(),prompt,seconds});notice('配乐已加入项目素材');return choose(p.id,'assets');}
- case 'reconcile':return modal('核对服务商账单',`<p>请核对这笔配乐请求的服务商账单。确认结果将更新本项目的剩余时长。</p>${btn('charged','已计费','',id)} ${btn('not-charged','未计费','',id)}`);
+ case 'reconcile':{
+    const receipt=await proj('/music-receipt/'+urlPart(id));
+    if(receipt.status==='done'){notice('已按文件指纹找回这次生成的配乐。');return reload();}
+    return modal('核对服务商账单',`<p>请核对 ${esc(receipt.at)} 的 ${esc(receipt.seconds)} 秒配乐。${receipt.songId?'曲目编号 '+esc(receipt.songId)+'。':''}${receipt.providerRequestId?'服务商请求编号 '+esc(receipt.providerRequestId)+'。':''}确认后将更新本项目的剩余时长。</p>${btn('charged','已计费','',id)} ${btn('not-charged','未计费','',id)}`);
+ }
  case 'charged':case 'not-charged':await proj('/reconcile-music',{requestId:id,charged:act==='charged'});dismiss();return reload();
  case 'reveal':{const [job,key]=id.split('|');await api('/api/jobs/'+job+'/reveal/'+key,{});return;}
  case 'review-issue':case 'fix-issue':{

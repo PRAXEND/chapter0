@@ -40,12 +40,15 @@ test('portable project validates hash, re-probes inputs, restores locks and reje
   assert.equal(store.list().length,2);
 });
 test('unknown or repeated paid requests cannot silently submit a second order',async t=>{
-  const {store,p}=await fixture(t);store.configure(p.id,1,{settings:{cloudEnabled:true,cloudBudget:10}});
+  const {store,p,file}=await fixture(t);store.configure(p.id,1,{settings:{cloudEnabled:true,cloudBudget:10}});
   let count=0;const music=createMusic(store,async()=>{count++;throw Error('response lost');});music.connect('test-only');
   const input={requestId:'test-receipt',prompt:'light strings',seconds:6};
   await assert.rejects(music.compose(p.id,input),/response lost/);await assert.rejects(music.compose(p.id,input),/记录/);
   await assert.rejects(music.compose(p.id,{...input,requestId:'new-receipt'}),/待核实/);assert.equal(count,1);
   music.reconcile(p.id,{requestId:input.requestId,charged:true});await assert.rejects(music.compose(p.id,{...input,requestId:'new-receipt'}),/预算/);
+ const asset=await store.addAsset(p.id,file,{requestId:input.requestId,provider:'ElevenLabs Music'});
+ const recovered=await music.check(p.id,input.requestId);
+ assert.equal(recovered.status,'done');assert.equal(recovered.assetId,asset.id);assert.equal(count,1);
 });
 test('authorized local voice can be reused in a second project with its actual reference hash',async t=>{
   const {store,p,file}=await fixture(t);const {voiceLibrary}=await import('../src/voices.mjs');const library=voiceLibrary(store);

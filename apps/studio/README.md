@@ -32,6 +32,6 @@ Node 服务只监听环回地址。命令行启动时会显示一次性本地入
 
 ## 工程与恢复
 
-SQLite 保存当前工程、不可变编辑版本和任务。素材按 SHA-256 导入工程目录。用户与 Codex 共用带 baseRevision 的原子剪辑命令。每个任务冻结创作证据和时间线，渲染时发生的新修改属于下一版。临时输出与正式交付分开保存；审片证据关联实际 MP4/SRT 指纹。新资料库通过 OS 支持的数据库锁协调单写入服务。项目设置和密钥各自管理，ElevenLabs 密钥仅用于当前进程。
+SQLite 保存当前工程、不可变编辑版本和任务。素材按 SHA-256 导入工程目录。用户与 Codex 共用带 baseRevision 的原子剪辑命令。每个任务冻结创作证据和时间线，渲染时发生的新修改属于下一版。临时输出与正式交付分开保存；审片证据关联实际 MP4/SRT 指纹。新资料库通过 OS 支持的数据库锁协调单写入服务。项目设置和密钥各自管理，ElevenLabs 密钥仅用于当前进程。原创配乐先登记服务商回执与曲目编号，并用已有本地文件指纹恢复结果。服务商音乐生成历史尚未开放 API，无法辨认的账单需由用户核实。[ElevenLabs 历史接口](https://elevenlabs.io/docs/api-reference/history/list)
 
 媒体适配器和模型准备见 scripts/prepare-media.mjs。已授权的公开技术样片可用 scripts/media-proof.mjs 复做，scripts/open-proof-project.mjs 可将该样片导入独立工程、以真实 Codex 重写一处字幕并校验其余编辑对象。研究使用的前台配对条件见 test/foreground-comparison.md。

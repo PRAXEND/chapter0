@@ -5,6 +5,7 @@ import {pipeline} from 'node:stream/promises';
 import {Readable} from 'node:stream';
 import path from 'node:path';
 import {fault} from './project.mjs';
+import {fileHash} from './media.mjs';
 
 export function createMusic(store,fetcher=fetch){
   let apiKey=process.env.ELEVENLABS_API_KEY||'';
@@ -27,11 +28,24 @@ export function createMusic(store,fetcher=fetch){
       try{
         const response=await fetcher('https://api.elevenlabs.io/v1/music?output_format=mp3_44100_128',{method:'POST',headers:{'xi-api-key':apiKey,'Content-Type':'application/json'},body:JSON.stringify({prompt:String(prompt).slice(0,4000),music_length_ms:seconds*1000,force_instrumental:true}),signal:AbortSignal.timeout(600000)});
         if(!response.ok){const known=[400,401,403,422,429].includes(response.status);update({status:known?'rejected':'unknown'});throw fault('云作曲服务返回 '+response.status+'。',502);}
+        const providerRequestId=response.headers.get('request-id')||response.headers.get('x-request-id')||null;
+        const songId=response.headers.get('song-id')||null;
+        update({providerRequestId,songId});
         await pipeline(Readable.fromWeb(response.body),createWriteStream(file,{mode:0o600}));
-        const a=await store.addAsset(id,file,{name:'原创配乐.mp3',kind:'generated-music',provider:'ElevenLabs Music',requestId,receipt:response.headers.get('request-id')||null});
+        const a=await store.addAsset(id,file,{name:'原创配乐.mp3',kind:'generated-music',provider:'ElevenLabs Music',requestId,receipt:providerRequestId||songId,songId});
         update({status:'done',assetId:a.id});return a;
       }catch(e){if(store.get(id).musicReceipts.find(r=>r.id===requestId)?.status==='sent')update({status:'unknown'});throw e;}
       finally{busy.delete(id);await unlink(file).catch(()=>{});}
+    },
+    async check(id,requestId){
+      const p=store.get(id),list=p.musicReceipts||[],r=list.find(r=>r.id===requestId);
+      if(!r)throw fault('找不到该云端请求。',404);
+      const asset=p.assets.find(a=>a.source?.requestId===requestId&&a.source?.provider==='ElevenLabs Music');
+      if(asset&&await fileHash(asset.path).catch(()=>null)===asset.sha256){
+        const resolved={...r,status:'done',assetId:asset.id,resolvedAt:new Date().toISOString()};
+        store.setMeta(id,{musicReceipts:list.map(entry=>entry.id===r.id?resolved:entry)});return resolved;
+      }
+      return r;
     },
     reconcile(id,{requestId,charged}){
       if(typeof charged!=='boolean'||busy.has(id))throw fault('请先核实服务商回执。');

@@ -193,6 +193,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
           const clips=styles.compileScene({...b,...anchor,style},p.profile);return json(res,disclose(store.apply(id,b.baseRevision,clips.map(clip=>({op:'add',clip})),'user')));}
         if(action==='legacy'&&method==='POST'){const b=await readJson(req);const a=await legacy.item(b.projectId,b.itemId);return json(res,await store.addAsset(id,a.path,{...a.source,name:a.name,legacyProject:b.projectId,legacyItem:a.id,legacyStatus:a.status}),201);}
         if(action==='cloud-music'&&method==='POST')return json(res,await music.compose(id,await readJson(req)),201);
+        if(action==='music-receipt'&&part&&method==='GET')return json(res,await music.check(id,part));
         if(action==='reconcile-music'&&method==='POST')return json(res,disclose(music.reconcile(id,await readJson(req))));
         if(action==='assets'&&part&&['GET','HEAD'].includes(method)){
           const a=p.assets.find(a=>a.id===part);if(!a)throw fault('素材不存在。',404);return await streamFile(req,res,await contained(a.path,store.paths(id).assets));
