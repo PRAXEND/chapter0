@@ -32,7 +32,8 @@ const referenceText = '我在工作台里录了一段测试声音，用来核对
 const refFile = path.join(assetsDir, 'synthetic-reference.wav');
 await synthesize(referenceText, { mode: 'system', output: refFile });
 const referenceHash = await fileHash(refFile);
-const assets = [], clips = [];
+const assets = [{ id: 'voice-reference', name: '本机合成的测试参考录音', kind: 'audio', path: refFile,
+  sha256: referenceHash, duration: (await probeMedia(refFile)).duration, source: { type: 'system', transcript: referenceText, credit: 'macOS Tingting · 本机验证用合成参考' } }], clips = [];
 const fps = 30;
 const movie = path.join(assetsDir, 'big-buck-bunny' + path.extname(input));
 const credit = '(c) copyright 2008, Blender Foundation / www.bigbuckbunny.org';
@@ -73,7 +74,9 @@ const music = await createMusicBed(path.join(assetsDir, 'forest-score.wav'), { d
 assets.push({ id: 'score', kind: 'audio', name: '森林配乐', ...music, source: { credit: music.credit } });
 clips.push({ id: 'bed', track: 'music', assetId: 'score', start: 0, duration: 2700, sourceIn: 0, gain: 0.5 });
 clips.push({ id: 'credit', track: 'graphic', start: 2535, duration: 165, text: credit + '\nCC BY 3.0 · 剪辑、配音与配乐由 Video Studio 重新制作', style: { fontSize: 27, backgroundColor: '#102020BF' }, geometry: { x: 0.5, y: 0.12 } });
-const project = { title: '森林的节奏', brief: '从一部开放电影的六个片段观察剪辑如何引导视线。', revision: 1, mode: 'script', profile: { width: 1920, height: 1080, fps }, assets, timeline: { clips }, settings: { voiceMode: 'clone' } };
+const project = { title: '森林的节奏', brief: '从一部开放电影的六个片段观察剪辑如何引导视线。', revision: 1, mode: 'script', profile: { width: 1920, height: 1080, fps }, assets, timeline: { clips }, settings: {
+  voiceMode: 'clone', voiceReferenceAssetId: 'voice-reference', referenceHash, voiceReferenceText: referenceText, voiceConsent: true
+} };
 await save('media-project.json', project);
 const render = await timed('1080p 全片导出', () => renderProject(project, { directory: dir, output: path.join(dir, '森林的节奏.mp4') }));
 await frameAt(render.videoPath, 18, path.join(dir, '封面.jpg'));
