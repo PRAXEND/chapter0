@@ -472,7 +472,25 @@ export async function applyScenes(
     }
   }
   if (!music && (['original', 'asset'].includes(musicMode) || project.settings?.requireMusic))
-    notes.push({ type: 'required', frame: 0, message: '本项目要求的配乐尚未加入，请选择相应的曲目。' });
+    notes.push({
+      type: 'required',
+      kind: 'music-required',
+      frame: 0,
+      message: '本项目要求的配乐尚未加入，请选择相应的曲目。',
+    });
+  if (music && musicMode === 'original') {
+    const s = music.source || {};
+    const verified =
+      (s.kind === 'generated-music' && s.provider && s.requestId) ||
+      (['user-composed', 'local-composition'].includes(s.kind) && s.rights);
+    if (!verified)
+      notes.push({
+        type: 'required',
+        kind: 'music-required',
+        frame: 0,
+        message: '所选配乐已上轨，原创来源还需核实。',
+      });
+  }
   if (music) {
     const full = Math.max(1, Math.floor(music.duration * fps));
     let i = 0;

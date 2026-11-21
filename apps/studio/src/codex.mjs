@@ -275,6 +275,20 @@ export class CodexClient {
     return { turn: null, status: thread.status };
   }
 
+  async steer(threadId, expectedTurnId, message) {
+    const route = this.routes.get(threadId);
+    if (!expectedTurnId || route?.turnId !== expectedTurnId || route.signal?.aborted) {
+      throw Object.assign(new Error('这轮 Codex 已结束或尚未启动。'), { status: 409 });
+    }
+    const result = await this.request('turn/steer', {
+      threadId,
+      expectedTurnId,
+      input: [{ type: 'text', text: message }],
+    });
+    if (result.turnId !== expectedTurnId) throw Object.assign(new Error('Codex 轮次已改变。'), { status: 409 });
+    return { turnId: result.turnId };
+  }
+
   async runTurn({ threadId, existingTurnId, prompt, tool, signal, onEvent, onStart, effort }) {
     if (this.routes.has(threadId)) throw new Error('当前工程已有创作任务。');
     signal?.throwIfAborted();

@@ -176,3 +176,43 @@ test('restart reconnects to the exact live turn without submitting a second turn
   assert.equal(starts, 0);
   assert.equal(calls, 1);
 });
+
+test('steer sends expectedTurnId with the new text and never creates another model turn', async (t) => {
+  const accepted = [];
+  let starts = 0;
+  const ready = Promise.withResolvers();
+  const c = new CodexClient({
+    launch: async () =>
+      transport((m, send) => {
+        if (m.method === 'turn/start') {
+          starts++;
+          send({ id: m.id, result: { turn: { id: 'active' } } });
+          return;
+        }
+        if (m.method === 'turn/steer') {
+          accepted.push(m.params);
+          send({ id: m.id, result: { turnId: m.params.expectedTurnId } });
+          send({
+            method: 'turn/completed',
+            params: { threadId: 'project', turn: { id: 'active', status: 'completed' } },
+          });
+        }
+      }),
+  });
+  t.after(() => c.close());
+  await c.connect();
+  const running = c.runTurn({
+    threadId: 'project',
+    prompt: 'first',
+    tool: () => {},
+    onStart: (id) => ready.resolve(id),
+  });
+  const id = await ready.promise;
+  await assert.rejects(c.steer('project', 'old', 'wrong'), (e) => e.status === 409);
+  assert.deepEqual(await c.steer('project', id, 'next'), { turnId: id });
+  await running;
+  assert.equal(starts, 1);
+  assert.deepEqual(accepted, [
+    { threadId: 'project', expectedTurnId: 'active', input: [{ type: 'text', text: 'next' }] },
+  ]);
+});

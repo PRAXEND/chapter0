@@ -328,7 +328,7 @@ export function createDirector(deps) {
   const search = deps.searchSources || searchSources,
     research = deps.searchFacts || searchFacts,
     acquire = deps.importSource || importSource;
-  const busy = new Set();
+  const active = new Map();
   async function getTranscript(id, { assetId, signal } = {}) {
     const p = await store.get(id);
     const asset = p.assets.find((a) => a.id === assetId && a.kind !== 'image');
@@ -386,12 +386,30 @@ export function createDirector(deps) {
   }
 
   async function run(id, options = {}) {
-    if (busy.has(id)) throw new Error('当前工程已有创作任务。');
-    busy.add(id);
+    if (active.has(id)) throw new Error('当前工程已有创作任务。');
+    active.set(id, { jobId: options.jobId, signal: options.signal });
     try {
       return await runProject(id, options);
     } finally {
-      busy.delete(id);
+      active.delete(id);
+    }
+  }
+  async function steer(id, { jobId, message } = {}) {
+    const text = typeof message === 'string' ? message.trim() : '';
+    if (!text || text.length > 12000)
+      throw Object.assign(new Error('请输入 1 到 12000 字的改稿方向。'), { status: 422 });
+    const job = active.get(id);
+    const inactive = () =>
+      Object.assign(new Error('该任务当前没有可接收指令的 Codex 轮次，可暂停后按新要求继续。'), { status: 409 });
+    if (typeof jobId !== 'string' || !jobId || job?.jobId !== jobId || !job.turnId || job.signal?.aborted)
+      throw inactive();
+    const p = await store.get(id);
+    if (p.threadId !== job.threadId || p.directorState?.turnId !== job.turnId || p.directorState?.jobId !== jobId)
+      throw inactive();
+    try {
+      return await client.steer(job.threadId, job.turnId, text);
+    } catch (error) {
+      throw Object.assign(new Error('新指令未获原轮次确认。' + error.message), { status: 409 });
     }
   }
   async function runProject(
@@ -666,6 +684,7 @@ export function createDirector(deps) {
       onStart: async (v) => {
         turnId = v;
         await remember();
+        Object.assign(active.get(id), { threadId, turnId });
         emit('progress', existingTurnId ? '已重新连接原 Codex 轮次。' : 'Codex 已开始处理本工程。');
       },
     });
@@ -684,6 +703,7 @@ export function createDirector(deps) {
     login: () => client.login(),
     close: () => client.close(),
     run,
+    steer,
     transcribe: getTranscript,
     restoreUtterance,
   };

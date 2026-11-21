@@ -295,3 +295,44 @@ test('imported narration remains one original clip including silences; subtitles
     300
   );
 });
+
+test('a new direction goes only to the active project job after its Codex turn receipt exists', async (t) => {
+  const { p, deps } = await fixture(t);
+  const waiting = Promise.withResolvers(),
+    release = Promise.withResolvers(),
+    started = Promise.withResolvers(),
+    finish = Promise.withResolvers();
+  const received = [];
+  deps.client = {
+    account: async () => ({ connected: true }),
+    thread: async () => 'project-chat',
+    close() {},
+    steer: async (threadId, turnId, text) => {
+      received.push([threadId, turnId, text]);
+      return { turnId };
+    },
+    runTurn: async ({ onStart }) => {
+      waiting.resolve();
+      await release.promise;
+      await onStart('active-turn');
+      started.resolve();
+      await finish.promise;
+      return '结束';
+    },
+  };
+  const d = createDirector(deps);
+  const running = d.run(p.id, { kind: 'revise', jobId: 'current-job' });
+  await waiting.promise;
+  const options = { jobId: 'current-job', message: '  换成黄色  ' };
+  await assert.rejects(d.steer(p.id, options), (e) => e.status === 409);
+  release.resolve();
+  await started.promise;
+  await assert.rejects(d.steer('other-project', options), (e) => e.status === 409);
+  await assert.rejects(d.steer(p.id, { ...options, jobId: 'stale-job' }), (e) => e.status === 409);
+  await assert.rejects(d.steer(p.id, { ...options, message: '  ' }), (e) => e.status === 422);
+  assert.deepEqual(await d.steer(p.id, options), { turnId: 'active-turn' });
+  assert.deepEqual(received, [['project-chat', 'active-turn', '换成黄色']]);
+  finish.resolve();
+  await running;
+  await assert.rejects(d.steer(p.id, options), (e) => e.status === 409);
+});
