@@ -7,6 +7,7 @@ import {homedir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {measureReference} from './reference-learning.mjs';
+import {readPortableStyle,writePortableStyle,specDigest} from './style-portable.mjs';
 
 const builtInPacks = fileURLToPath(new URL('../../../user-packs/', import.meta.url));
 const legacyHome = path.join(homedir(), 'Library/Application Support/Video Studio');
@@ -83,6 +84,7 @@ export function createStyleLibrary(dataRoot, options={}) {
   const verifiedHashes=new Map();
   async function registry() {
     const result=new Map();
+    const bundledResources=new Map();
     const packRoots=[];
     function add(spec,origin,pack) {
       if (!spec || !validId.test(spec.id)||!Number.isSafeInteger(spec.version)||spec.version<1||!spec.name) return;
@@ -99,7 +101,12 @@ export function createStyleLibrary(dataRoot, options={}) {
       packRoots.push(pack);
       for(const item of manifest.styles) {
         const file=await checkedFile(pack,item);
-        if(file) add(await optionalJson(file),'pack',pack);
+        if(file) {
+          const spec=await optionalJson(file);add(spec,'pack',pack);
+          if(spec&&bundled.includes(pack)) for(const ref of parseStyle(spec).references) {
+            if(/^(resource|pack):/.test(ref.locator)&&digestPattern.test(ref.sha256)) bundledResources.set(ref.sha256,{pack,ref});
+          }
+        }
       }
     }
     for(const [root,origin] of [[oldHome&&path.join(oldHome,'styles'),'legacy'],[path.join(storage,'versions'),'personal']]) {
@@ -113,7 +120,7 @@ export function createStyleLibrary(dataRoot, options={}) {
         }
       }
     }
-    return {result,packRoots:packRoots.reverse()};
+    return {result,bundledResources,packRoots:packRoots.reverse()};
   }
   function select(reg,id,version) {
     if(typeof id!=='string'||!validId.test(id)) throw Error('风格 ID 无效');
@@ -125,8 +132,8 @@ export function createStyleLibrary(dataRoot, options={}) {
   async function verifiedReference(row,ref,roots) {
     if(!ref || !ref.locator || !digestPattern.test(ref.sha256||'')) return {...ref,available:false};
     const locations=[];
-    if(ref.locator.startsWith('resource:')) {
-      const rel=ref.locator.slice(9);
+    if(/^(resource|pack):/.test(ref.locator)) {
+      const rel=ref.locator.slice(ref.locator.indexOf(':')+1);
       if(path.isAbsolute(rel)||rel.split(/[\\/]/).includes('..')) return {...ref,available:false};
       for(const root of [row.pack,...roots].filter(Boolean)) locations.push([root,rel]);
     } else if(ref.locator.startsWith('library:')) {
@@ -135,6 +142,10 @@ export function createStyleLibrary(dataRoot, options={}) {
       locations.push([path.join(storage,'media'),name]);
     } else if(path.isAbsolute(ref.locator)) {
       for(const root of [...roots,oldHome&&path.join(oldHome,'styles'),oldHome&&path.join(oldHome,'user-packs')].filter(Boolean)) locations.push([root,ref.locator]);
+    }
+    if(!ref.locator.startsWith('library:')) {
+      const alias=await optionalJson(path.join(storage,'portable-objects',ref.sha256+'.json'));
+      if(alias?.sha256===ref.sha256&&/^\.[a-z0-9]{1,5}$/.test(alias.extension)) locations.push([path.join(storage,'media'),ref.sha256+alias.extension]);
     }
     for(const [root,name] of locations) {
       const file=await checkedFile(root,name);
@@ -169,7 +180,7 @@ export function createStyleLibrary(dataRoot, options={}) {
   async function get(id,version) {
     const reg=await registry(), row=select(reg,id,version), style=parseStyle(row.spec);
     const baseline=style.baseline && await verifiedReference(row,style.baseline,reg.packRoots);
-    return {...style,origin:row.origin,sha256:createHash('sha256').update(JSON.stringify(row.spec)).digest('hex'),baseline,
+    return {...style,origin:row.origin,sha256:specDigest(row.spec),baseline,
       references:style.references.map(ref=>ref.id===baseline?.id?baseline:{...ref,available:null})};
   }
   async function list() {
@@ -270,7 +281,53 @@ export function createStyleLibrary(dataRoot, options={}) {
     return publish({id,name:name.trim(),description,version:1,rules,references:publishedRefs,measurements,templateIds,knownExceptions,baselineId:references.find(r=>r.kind==='video')?.id,
       unknown_dimensions:dimensions.filter(d=>!rules.some(r=>r.dimension===d)),script_reference:script||undefined});
   }
-  return {list,get,getReference,savePreference,learn,captureReference,compileScene};
+  async function exportPortable(selector,directory) {
+    const reg=await registry(),row=select(reg,selector.id,selector.version),style=parseStyle(row.spec),items=[];
+    if(selector.sha256&&selector.sha256!==specDigest(row.spec)) throw Error('工程绑定的风格指纹与本机不同');
+    for(const ref of style.references.filter(r=>r.locator&&digestPattern.test(r.sha256))) {
+      const entry={id:ref.id,sha256:ref.sha256};
+      const bundle=reg.bundledResources.get(ref.sha256);
+      if(bundle?.ref.locator===ref.locator&&(await verifiedReference({pack:bundle.pack},bundle.ref,[])).verified) {
+        items.push({...entry,status:'bundled'});continue;
+      }
+      const found=await verifiedReference(row,ref,reg.packRoots);
+      if(found.verified){items.push({...entry,status:'included',source:found.path,extension:path.extname(found.path).toLowerCase()});continue;}
+      if(ref.locator.startsWith('library:')||style.baseline?.id===ref.id) throw Error('风格的必要参考缺失或指纹不同：'+ref.title);
+      items.push({...entry,status:'unavailable'});
+    }
+    return writePortableStyle(directory,row.spec,items,parseStyle,fileSha256);
+  }
+  async function restorePortable(selector,directory) {
+    if(!validId.test(selector?.id)||!Number.isSafeInteger(selector.version)||selector.version<1) throw Error('工程的风格版本无效');
+    const {spec,manifest,references}=await readPortableStyle(selector,directory,parseStyle,fileSha256);
+    const reg=await registry(),key=spec.id+'@'+spec.version,prior=reg.result.get(key);
+    if(prior&&specDigest(prior.spec)!==manifest.sha256) throw Error('本机已有同编号和版本的不同风格，请使用独立资料库打开');
+    for(const item of references.filter(r=>r.status==='bundled')) {
+      const original=reg.bundledResources.get(item.sha256);
+      if(!original||original.ref.locator!==item.ref.locator||!(await verifiedReference({pack:original.pack},original.ref,[])).verified) throw Error('本机发行包缺少该风格引用的参考：'+item.id);
+    }
+    const privateRefs=references.filter(r=>r.status==='included');
+    for(const item of privateRefs) {
+      const dir=path.join(storage,'media');await mkdir(dir,{recursive:true,mode:0o700});
+      const temp=path.join(dir,'.'+randomUUID()),dest=path.join(dir,item.sha256+item.extension);
+      try {
+        await copyFile(item.file,temp,constants.COPYFILE_FICLONE);
+        if(await fileSha256(temp)!==item.sha256) throw Error('恢复期间风格参考发生变化');
+        try{await link(temp,dest);}catch(e){if(e.code!=='EEXIST')throw e;if(await fileSha256(dest)!==item.sha256)throw Error('本机风格媒体与已登记指纹不同');}
+      } finally {await rm(temp,{force:true});}
+      if(!item.ref.locator.startsWith('library:')) {
+        const aliases=path.join(storage,'portable-objects');await mkdir(aliases,{recursive:true,mode:0o700});
+        const tmp=path.join(aliases,'.'+randomUUID());
+        try {await writeFile(tmp,JSON.stringify({sha256:item.sha256,extension:item.extension}),{flag:'wx',mode:0o600});await rename(tmp,path.join(aliases,item.sha256+'.json'));}
+        finally{await rm(tmp,{force:true});}
+      }
+    }
+    if(!prior){
+      try{await publish(spec);}catch(e){const now=(await registry()).result.get(key);if(!now||specDigest(now.spec)!==manifest.sha256)throw e;}
+    }
+    return {id:spec.id,version:spec.version,sha256:manifest.sha256};
+  }
+  return {list,get,getReference,savePreference,learn,captureReference,compileScene,exportPortable,restorePortable};
 }
 
 function oppositeSubject(subject) {
