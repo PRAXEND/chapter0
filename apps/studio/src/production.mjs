@@ -3,7 +3,7 @@ import { readFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { CodexClient } from './codex.mjs';
 import { directSources, importSource, searchSources, searchFacts, readBriefSources } from './sources.mjs';
-import { applyScenes, localScenes, transcriptFor, reviseLine } from './storyboard.mjs';
+import { applyScenes, localScenes, transcriptFor, reviseLine, sceneIdentity } from './storyboard.mjs';
 import { describeFrames } from './vision.mjs';
 
 const object = (properties = {}, required = []) => ({
@@ -168,28 +168,24 @@ function selectedStyle(s) {
           : { id: r.id, instruction: describe(r.instruction || r.text), basis: r.basis }
       ),
     preferences: (s.preferences || []).slice(-14).map((p) => describe(p.instruction)),
-    components: (s.components || [])
-      .slice(0, 30)
-      .map((c) => ({
-        id: c.id,
-        name: describe(c.name),
-        role: describe(c.role),
-        editable: (Array.isArray(c.editable) ? c.editable : Object.keys(c.editable || {}))
-          .slice(0, 20)
-          .map((e) => describe(typeof e === 'string' ? e : e?.name || e?.id)),
-      })),
-    effectRecipes: (s.effectRecipes || [])
-      .slice(0, 16)
-      .map((r) => ({
-        name: describe(r.name || r.id),
-        parameters: Object.fromEntries(
-          Object.entries(r).filter(
-            ([k, v]) =>
-              !['id', 'name'].includes(k) &&
-              (typeof v === 'number' || (Array.isArray(v) && v.length <= 8 && v.every(Number.isFinite)))
-          )
-        ),
-      })),
+    components: (s.components || []).slice(0, 30).map((c) => ({
+      id: c.id,
+      name: describe(c.name),
+      role: describe(c.role),
+      editable: (Array.isArray(c.editable) ? c.editable : Object.keys(c.editable || {}))
+        .slice(0, 20)
+        .map((e) => describe(typeof e === 'string' ? e : e?.name || e?.id)),
+    })),
+    effectRecipes: (s.effectRecipes || []).slice(0, 16).map((r) => ({
+      name: describe(r.name || r.id),
+      parameters: Object.fromEntries(
+        Object.entries(r).filter(
+          ([k, v]) =>
+            !['id', 'name'].includes(k) &&
+            (typeof v === 'number' || (Array.isArray(v) && v.length <= 8 && v.every(Number.isFinite)))
+        )
+      ),
+    })),
     knownExceptions: (s.knownExceptions || [])
       .slice(0, 12)
       .map((x) => describe(typeof x === 'string' ? x : x.instruction || x.description)),
@@ -462,20 +458,27 @@ export function createDirector(deps) {
     if (p.threadId !== threadId) await store.setMeta(id, { threadId });
     // If a process stopped after sending a turn, inspect it before dispatching the same job again.
     const old = p.directorState;
+    let existingTurnId = null;
     if (jobId && old?.jobId === jobId && old.turnId) {
-      const { thread } = await client.request('thread/read', { threadId, includeTurns: true });
-      const previous = thread.turns?.find((t) => t.id === old.turnId);
+      const { turn: previous, status: threadStatus } = await client.findTurn(threadId, old.turnId);
+      notes = p.directorNotes || [];
       if (previous?.status === 'completed' && (await store.get(id)).directorState?.edited) {
         return {
           project: await store.get(id),
           engine: 'codex',
           changed: true,
-          needsReview: false,
+          needsReview: notes.length > 0,
+          notes,
           message: '已恢复上一轮完成的工程编辑。',
         };
       }
-      if (previous?.status === 'inProgress') throw new Error('上一轮 Codex 还在处理此工程，请先等待或取消。');
-      if (old.edited)
+      if (!old.edited && old.startHash && old.startHash !== sceneIdentity(p)) {
+        throw new Error('任务中断后工程已有新编辑，已保留当前版本。可从当前时间线发起局部改稿。');
+      }
+      if (previous?.status === 'inProgress' && threadStatus?.type === 'active') {
+        existingTurnId = old.turnId;
+        changed = Boolean(old.edited);
+      } else if (old.edited)
         return {
           project: await store.get(id),
           engine: 'codex',
@@ -483,9 +486,20 @@ export function createDirector(deps) {
           needsReview: true,
           message: '已保留中断前提交的编辑，可预览后继续。',
         };
+      else if (previous?.status === 'completed') {
+        const message =
+          previous.items?.findLast((item) => item.type === 'agentMessage')?.text || '上一轮已完成，工程未改变。';
+        if (kind === 'produce') throw new Error(message);
+        return { project: p, engine: 'codex', changed: false, needsReview: false, message };
+      }
     }
-    let turnId = null;
-    let state = { jobId: jobId || null, turnId: null, edited: false };
+    let turnId = existingTurnId;
+    let state = {
+      jobId: jobId || null,
+      turnId,
+      edited: changed,
+      startHash: existingTurnId ? old.startHash : sceneIdentity(p),
+    };
     const remember = async () => {
       state = { ...state, turnId, edited: changed };
       await store.setMeta(id, { directorState: state });
@@ -643,6 +657,7 @@ export function createDirector(deps) {
       });
     const outcome = await client.runTurn({
       threadId,
+      existingTurnId,
       prompt,
       tool: dispatch,
       signal,
@@ -651,7 +666,7 @@ export function createDirector(deps) {
       onStart: async (v) => {
         turnId = v;
         await remember();
-        emit('progress', 'Codex 已开始处理本工程。');
+        emit('progress', existingTurnId ? '已重新连接原 Codex 轮次。' : 'Codex 已开始处理本工程。');
       },
     });
     if (kind === 'produce' && !changed) throw new Error('Codex 没有提交成片时间线。' + trim(outcome, 600));

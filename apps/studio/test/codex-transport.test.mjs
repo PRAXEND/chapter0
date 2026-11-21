@@ -122,3 +122,57 @@ test('an unexpected third-party connector blocks before any project data goes to
   t.after(() => c.close());
   await assert.rejects(c.thread(null, [], 'edit only', {}), /工程以外/);
 });
+
+test('restart reconnects to the exact live turn without submitting a second turn', async (t) => {
+  let starts = 0,
+    calls = 0;
+  const c = new CodexClient({
+    launch: async () =>
+      transport((m, send) => {
+        if (m.method === 'turn/start') {
+          starts++;
+          return;
+        }
+        if (m.method === 'thread/read') {
+          send({ id: m.id, result: { thread: { status: { type: 'active' } } } });
+          return;
+        }
+        if (m.method === 'thread/turns/list') {
+          send({
+            id: m.id,
+            result: { data: [{ id: 'existing', status: 'inProgress', items: [] }], nextCursor: null },
+          });
+          setImmediate(() =>
+            send({
+              method: 'item/tool/call',
+              id: 800,
+              params: { threadId: 'project', turnId: 'existing', tool: 'studio_context' },
+            })
+          );
+        }
+        if (m.id === 800) {
+          send({
+            method: 'item/completed',
+            params: { threadId: 'project', turnId: 'existing', item: { type: 'agentMessage', text: '已恢复' } },
+          });
+          send({
+            method: 'turn/completed',
+            params: { threadId: 'project', turn: { id: 'existing', status: 'completed' } },
+          });
+        }
+      }),
+  });
+  t.after(() => c.close());
+  await c.connect();
+  const message = await c.runTurn({
+    threadId: 'project',
+    existingTurnId: 'existing',
+    tool: async () => {
+      calls++;
+      return { success: true, contentItems: [] };
+    },
+  });
+  assert.equal(message, '已恢复');
+  assert.equal(starts, 0);
+  assert.equal(calls, 1);
+});

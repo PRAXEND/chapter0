@@ -257,10 +257,28 @@ export class CodexClient {
     return result.thread.id;
   }
 
-  async runTurn({ threadId, prompt, tool, signal, onEvent, onStart, effort }) {
+  async findTurn(threadId, turnId) {
+    const { thread } = await this.request('thread/read', { threadId, includeTurns: false });
+    let cursor = null;
+    do {
+      const page = await this.request('thread/turns/list', {
+        threadId,
+        cursor,
+        limit: 16,
+        sortDirection: 'desc',
+        itemsView: 'summary',
+      });
+      const turn = page.data.find((t) => t.id === turnId);
+      if (turn) return { turn, status: thread.status };
+      cursor = page.nextCursor;
+    } while (cursor);
+    return { turn: null, status: thread.status };
+  }
+
+  async runTurn({ threadId, existingTurnId, prompt, tool, signal, onEvent, onStart, effort }) {
     if (this.routes.has(threadId)) throw new Error('当前工程已有创作任务。');
     signal?.throwIfAborted();
-    let turnId,
+    let turnId = existingTurnId,
       message = '',
       settled = false,
       resolveDone,
@@ -301,27 +319,58 @@ export class CodexClient {
       if (turnId) this.request('turn/interrupt', { threadId, turnId }).catch(() => {});
       finish(signal.reason || new DOMException('已取消', 'AbortError'));
     };
-    this.routes.set(threadId, { tool, signal, turnId: null });
+    this.routes.set(threadId, { tool, signal, turnId: existingTurnId || null });
     this.events.on('notice', notice);
     this.events.on('stopped', finish);
     signal?.addEventListener('abort', abort, { once: true });
+    let poll;
     try {
-      const params = {
-        threadId,
-        input: [{ type: 'text', text: prompt }],
-        environments: [],
-        runtimeWorkspaceRoots: [],
-        approvalPolicy: 'never',
-        permissions: profile,
-      };
-      if (effort) params.effort = effort;
-      const result = await this.request('turn/start', params);
-      turnId = result.turn.id;
-      this.routes.get(threadId).turnId = turnId;
+      if (existingTurnId) {
+        let checking = false;
+        const check = async () => {
+          if (settled || checking) return;
+          checking = true;
+          try {
+            const { turn, status } = await this.findTurn(threadId, existingTurnId);
+            if (!turn) throw Error('未找到原轮次，保留现有工程。');
+            if (turn.status === 'inProgress') {
+              if (status?.type !== 'active') throw Error('原轮次已离线，保存的工程编辑可继续使用。');
+            } else {
+              const final = turn.items?.findLast((item) => item.type === 'agentMessage');
+              if (final?.text) message = final.text;
+              finish(
+                turn.status === 'completed' ? null : new Error(turn.error?.message || '上一轮 Codex 已中断。')
+              );
+            }
+          } catch (error) {
+            finish(error);
+          } finally {
+            checking = false;
+          }
+        };
+        // Subscribe before reading: a completion between snapshot and subscription must not be lost.
+        await check();
+        poll = setInterval(() => void check(), 15000);
+        poll.unref?.();
+      } else {
+        const params = {
+          threadId,
+          input: [{ type: 'text', text: prompt }],
+          environments: [],
+          runtimeWorkspaceRoots: [],
+          approvalPolicy: 'never',
+          permissions: profile,
+        };
+        if (effort) params.effort = effort;
+        const result = await this.request('turn/start', params);
+        turnId = result.turn.id;
+        this.routes.get(threadId).turnId = turnId;
+      }
       await onStart?.(turnId);
       if (signal?.aborted) abort();
       return await done;
     } finally {
+      clearInterval(poll);
       this.routes.delete(threadId);
       this.events.off('notice', notice);
       this.events.off('stopped', finish);
