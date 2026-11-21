@@ -1,11 +1,12 @@
 import {createHash, randomUUID} from 'node:crypto';
 import {createReadStream,constants} from 'node:fs';
-import {copyFile, link, mkdir, open, readFile, readdir, realpath, rename, rm, stat, writeFile} from 'node:fs/promises';
+import {copyFile, link, mkdir, mkdtemp, open, readFile, readdir, realpath, rename, rm, stat, writeFile} from 'node:fs/promises';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {homedir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {measureReference} from './reference-learning.mjs';
 
 const builtInPacks = fileURLToPath(new URL('../../../user-packs/', import.meta.url));
 const legacyHome = path.join(homedir(), 'Library/Application Support/Video Studio');
@@ -58,7 +59,7 @@ async function localLfsObject(pack,relative,hash) {
 }
 function parseStyle(spec) {
   const bundle=spec.reproduction_bundle??{}, blueprint=spec.reproduction_blueprint??{};
-  const references=(spec.references??[]).map(r=>({id:r.id,kind:r.kind,title:r.title||r.id,locator:r.locator,sha256:r.sha256,duration:r.duration_s,source:r.source_url,segments:r.analyzed_ranges||r.segments||[]}));
+  const references=(spec.references??[]).map(r=>({id:r.id,kind:r.kind,title:r.title||r.id,locator:r.locator,sha256:r.sha256,duration:r.duration_s,source:r.source_url,segments:r.analyzed_ranges||r.segments||[],derivedFrom:r.derivedFrom}));
   let baseline=null;
   if(bundle.baseline?.path) {
     const b=bundle.baseline;
@@ -72,7 +73,7 @@ function parseStyle(spec) {
   const templateIds=spec.templateIds??(spec.id==='henry-hot-news'?['action-result']:spec.id==='henry-technical-explainer'?['step-reveal']:[]);
   return {id:spec.id,name:spec.name,version:spec.version,description:spec.description||'',adaptation:spec.adaptation||'',rules:spec.rules||[],
     requirements:spec.material_requirements||[],knownExceptions:spec.knownExceptions||[],unknownDimensions:spec.unknown_dimensions||[],
-    references,baseline,components,effectRecipes:blueprint.effect_recipes||[],templates:templateIds.filter(id=>id in templateNames).map(id=>({id,name:templateNames[id]})),preferences:spec.preferences||[]};
+    references,baseline,components,measurements:spec.measurements||[],effectRecipes:blueprint.effect_recipes||[],templates:templateIds.filter(id=>id in templateNames).map(id=>({id,name:templateNames[id]})),preferences:spec.preferences||[]};
 }
 
 export function createStyleLibrary(dataRoot, options={}) {
@@ -215,7 +216,7 @@ export function createStyleLibrary(dataRoot, options={}) {
     await mkdir(dir,{recursive:true});
     const temp=path.join(dir,'.'+randomUUID());
     try {
-      await copyFile(file,temp);
+      await copyFile(file,temp,constants.COPYFILE_FICLONE);
       const sha256=await fileSha256(temp), name=sha256+ext;
       try { await link(temp,path.join(dir,name)); } catch(error) { if(error.code!=='EEXIST') throw error; }
       return {id,kind,title,locator:'library:'+name,sha256};
@@ -224,8 +225,9 @@ export function createStyleLibrary(dataRoot, options={}) {
   async function learn({id,name,script='',observations=[],references=[],description='',templateIds=[],knownExceptions=[]}) {
     if(!validId.test(id)||!name?.trim()||name.length>100) throw Error('风格名称或 ID 无效');
     if((await list()).some(s=>s.id===id)) throw Error('该名字的风格 ID 已存在');
-    if(!script.trim()&&!observations.length) throw Error('需要参考脚本或有出处的观察');
+    if(typeof script!=='string'||!Array.isArray(observations)||!Array.isArray(references)||references.length>16) throw Error('请选择有效的参考材料');
     const ruleInputs=observations.filter(r=>r?.instruction?.trim()&&r.dimension&&r.evidence);
+    if(!script.trim()&&!ruleInputs.length&&!references.length) throw Error('需要参考脚本、音视频样本或有出处的观察');
     const rules=ruleInputs.map((r,i)=>({id:'observation-'+(i+1),instruction:r.instruction,dimension:r.dimension,evidence:r.evidence,basis:r.basis||'observed'}));
     if(script.trim()) {
       const paragraphs=script.trim().split(/\n\s*\n/),sentences=script.trim().split(/[。！？!?]/u).filter(t=>t.trim());
@@ -233,15 +235,35 @@ export function createStyleLibrary(dataRoot, options={}) {
       rules.push({id:'script-rhythm',basis:'inferred',dimension:'language',instruction:'参考稿共 '+paragraphs.length+' 个段落，平均句长约 '+typical+' 字，依新内容调整长短。',evidence:'script'});
       rules.push({id:'script-order',basis:'observed',dimension:'narrative',instruction:'起句参考“'+script.trim().slice(0,60)+'”，保留叙事作用并替换本期对象。',evidence:'script'});
     }
-    const refIds=new Set();
+    const refIds=new Set(),verifiedRefs=[];
     for(const ref of references) {
       if(!validId.test(ref.id)||refIds.has(ref.id)||!ref.locator?.startsWith('library:')||!digestPattern.test(ref.sha256)) throw Error('请选用已导入且可验证的参考文件');
       const verified=await verifiedReference({},ref,[]);
       if(!verified.available) throw Error('找不到此参考原件');
       refIds.add(ref.id);
+      verifiedRefs.push(verified);
     }
+    const measurements=[],publishedRefs=[...references];
+    for(const [i,ref] of verifiedRefs.entries()) {
+      if(!['video','audio','image'].includes(ref.kind)) continue;
+      const scratch=await mkdtemp(path.join(storage,'analysis-'));
+      try {
+        const measured=await measureReference(ref,{directory:scratch,media:options.media});
+        measurements.push(measured.facts);
+        for(const [j,r] of measured.rules.entries()) rules.push({...r,id:'measured-'+(i+1)+'-'+(j+1)});
+        for(const [j,frame] of measured.frames.entries()) {
+          const stem='sample-'+(i+1)+'-frame-'+(j+1);
+          let frameId=stem;
+          while(refIds.has(frameId)) frameId+='-x';
+          const photo=await captureReference(frame.file,{id:frameId,kind:'image',title:ref.title+' · '+frame.time+' 秒'});
+          publishedRefs.push({...photo,derivedFrom:{referenceId:ref.id,sha256:ref.sha256,time:frame.time}});
+          refIds.add(frameId);
+        }
+      } finally {await rm(scratch,{recursive:true,force:true});}
+    }
+    if(!rules.length&&!measurements.length) throw Error('请补充可观察的参考内容');
     const dimensions=['narrative','language','visual','motion','audio'];
-    return publish({id,name:name.trim(),description,version:1,rules,references,templateIds,knownExceptions,baselineId:references.find(r=>r.kind==='video')?.id,
+    return publish({id,name:name.trim(),description,version:1,rules,references:publishedRefs,measurements,templateIds,knownExceptions,baselineId:references.find(r=>r.kind==='video')?.id,
       unknown_dimensions:dimensions.filter(d=>!rules.some(r=>r.dimension===d)),script_reference:script||undefined});
   }
   return {list,get,getReference,savePreference,learn,captureReference,compileScene};
