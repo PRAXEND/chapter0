@@ -30,6 +30,16 @@ const beat = object(
     anchorText: str,
     emphasis: str,
     template: str,
+    soundEnabled: {
+      type: 'boolean',
+      description:
+        'Optional. False mutes the editable sound at this observed event. Interview scenes keep original sound by default.',
+    },
+    soundAssetId: {
+      type: 'string',
+      description:
+        'Optional ID of an existing project audio asset for this event cue. Select only an asset returned by studio_context.',
+    },
     followup: str,
     continuity: str,
   },

@@ -459,3 +459,27 @@ test('timeline inspection requests the exact frame from the same versioned previ
   const director=createDirector(deps);t.after(()=>director.close());
   await director.run(p.id,{kind:'revise'});assert.equal(checked,true);
 });
+
+test('the registered storyboard accepts per-event mute or a project audio asset without requiring either', async (t) => {
+  const { p, deps } = await fixture(t);
+  const client = {
+    account: async () => ({ connected: true }),
+    thread: async (_id, tools) => {
+      const shape = tools.find((tool) => tool.name === 'studio_sequence').inputSchema.properties.beats.items;
+      assert.equal(shape.properties.soundEnabled.type, 'boolean');
+      assert.equal(shape.properties.soundAssetId.type, 'string');
+      assert.equal(shape.required.includes('soundEnabled'), false);
+      assert.equal(shape.required.includes('soundAssetId'), false);
+      assert.equal(shape.additionalProperties, false);
+      return 'test-thread';
+    },
+    runTurn: async ({ onStart }) => {
+      await onStart('test-turn');
+      return '已读取工程。';
+    },
+    close() {},
+  };
+  const director = createDirector({ ...deps, client });
+  t.after(() => director.close());
+  await director.run(p.id, { kind: 'revise', message: '查看可用的动作音效' });
+});
