@@ -1,7 +1,7 @@
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {projectSourceRegion,validRegion} from './visual-steps.mjs';
-import {shotFingerprint} from './director-visual.mjs';
+import {motionPolicy,shotFingerprint} from './director-visual.mjs';
 
 const execute=promisify(execFile);
 const live=c=>c.hidden!==true&&c.enabled!==false;
@@ -22,7 +22,7 @@ export function visualRequirements(project) {
 }
 
 function transformed(clip,profile,frame) {
-  const g=clip.geometry||{},origin={frame:0,x:g.x??.5,y:g.y??.28,scale:1,opacity:1},events=new Map([[0,origin]]);
+  const g=clip.geometry||{},origin={frame:0,x:g.x??.5,y:g.y??(clip.track==='caption'?.86:.28),scale:1,opacity:1},events=new Map([[0,origin]]);
   let current=origin;
   for(const key of [...(clip.keyframes||[])].sort((a,b)=>a.frame-b.frame)){
     current={...current,...key};events.set(key.frame,current);
@@ -31,7 +31,7 @@ function transformed(clip,profile,frame) {
   const l=points.filter(k=>k.frame<=when).at(-1)||origin,r=points.find(k=>k.frame>when)||l;
   const ratio=r.frame===l.frame?0:(when-l.frame)/(r.frame-l.frame);
   const val=k=>(l[k]??origin[k])+((r[k]??origin[k])-(l[k]??origin[k]))*ratio;
-  return {x:val('x'),y:val('y'),width:(g.width||0)*val('scale'),height:(g.height||0)*val('scale'),opacity:val('opacity'),color:clip.style?.color||'#FFFFFF',strokeWidth:clip.style?.strokeWidth||Math.max(2,Math.min(profile.width,profile.height)*.004)};
+  return {x:val('x'),y:val('y'),width:(g.width||0)*val('scale'),height:(g.height||0)*val('scale'),scale:val('scale'),opacity:val('opacity'),color:clip.style?.color||'#FFFFFF',strokeWidth:clip.style?.strokeWidth||Math.max(2,Math.min(profile.width,profile.height)*.004)};
 }
 
 const unitColor=value=>{
@@ -96,7 +96,7 @@ function makeSteps(project,shots) {
     if(labels.some(l=>l.evidenceAnchor.stepId===a.stepId&&l.start<=lastFrame(box)&&box.start<=lastFrame(l)))continue;
     for(const cue of captions.filter(c=>c.start<=lastFrame(box)&&box.start<=lastFrame(c))) {
       const at=Math.max(box.start,cue.start),to=Math.min(lastFrame(box),lastFrame(cue));
-      if(sharesSubject({...a,fromFrame:at,toFrame:to},project)===true)candidates.push({label:cue,a,annotation:'synchronized-caption'});
+      if(sharesSubject({...a,fromFrame:at,toFrame:to},project,cue.text)===true)candidates.push({label:cue,a,annotation:'synchronized-caption'});
     }
   }
   for(const {label,a,annotation} of candidates) {
@@ -108,7 +108,13 @@ function makeSteps(project,shots) {
     const mid=Math.floor((from+end)/2),shot=shots.filter(s=>covers(s.clip,mid)).at(-1);
     if(!shot?.asset||shot.asset.id!==a.assetId||shot.asset.sha256!==a.sha256||!Number.isSafeInteger(a.sourceFrame))continue;
     if(shot.asset.kind==='image'?a.sourceFrame!==0:a.sourceFrame<(shot.clip.sourceIn||0)||a.sourceFrame>=(shot.clip.sourceIn||0)+shot.clip.duration*(shot.clip.speed||1))continue;
-    if(transformed(label,profile,mid).opacity<.15||unitColor(label.style?.color||'#FFFFFF')?.alpha<.15)continue;
+    const labelPos=transformed(label,profile,mid);
+    const font=(label.style?.fontSize||Math.round((label.track==='caption'?.049:.065)*Math.min(profile.height,profile.width*1.5)))*labelPos.scale;
+    const line=text=>[...text].reduce((n,c)=>n+(c.codePointAt(0)<128?.55:1),0);
+    const lines=String(label.text).split(/\r?\n/),rect={x:labelPos.x,y:labelPos.y,width:Math.min(.98,Math.max(...lines.map(line))*font/profile.width),height:font*lines.length/profile.height};
+    if(labelPos.opacity<.15||font<5||unitColor(label.style?.color||'#FFFFFF')?.alpha<.15||!Number.isFinite(rect.x)||!Number.isFinite(rect.y))continue;
+    const extent=boxRect(rect),visible=Math.max(0,Math.min(1,extent.x+extent.width)-Math.max(0,extent.x))*Math.max(0,Math.min(1,extent.y+extent.height)-Math.max(0,extent.y));
+    if(!rect.width||!rect.height||visible<rect.width*rect.height*.78)continue;
     const view={width:shot.asset.width,height:shot.asset.height,pixelAspect:shot.asset.pixelAspect,fit:shot.clip.fit,framing:shot.clip.framing,start:shot.clip.start,duration:shot.clip.duration};
     const expected=projectSourceRegion(a.region,view,profile,mid);
     if(!expected||expected.visibleFraction<.85)continue;
@@ -154,6 +160,24 @@ function sceneChange(a,b,w,h) {
   return {change:+raw.toFixed(2),afterGlobalMotion:+best.toFixed(2)};
 }
 
+async function confirmFrozen(ffmpeg,file,seconds,duration,rate,count,signal) {
+  // Check each displayed frame of suspicious intervals, including the frames between initial samples.
+  const width=96,height=54,size=width*height;
+  const result=await execute(ffmpeg,['-v','error','-nostdin','-ss',String(Math.max(0,seconds)),'-t',String(duration),'-protocol_whitelist','file','-i',file,'-map','0:v:0','-an',
+    '-vf','fps='+rate+',scale='+width+':'+height+',format=gray','-threads','1','-frames:v',String(count),'-f','rawvideo','pipe:1'],
+    {signal,encoding:'buffer',maxBuffer:size*(count+1),timeout:30000});
+  const frames=Math.floor(result.stdout.length/size);if(frames<Math.max(2,count-1))return false;
+  const pixels=result.stdout,blocks=new Uint16Array(72);
+  for(let f=1;f<frames;f++){
+    blocks.fill(0);let sum=0;
+    for(let i=0;i<size;i++){
+      const diff=Math.abs(pixels[f*size+i]-pixels[i]);sum+=diff;
+      blocks[Math.floor((i%width)/8)+12*Math.floor(Math.floor(i/width)/9)]+=diff;
+    }
+    if(sum>size*.55||blocks.some(n=>n>72*2.2))return false;
+  }
+  return true;
+}
 async function measureMotion(project,windows,ffmpeg,signal,videoPath) {
   const records=[],fps=project.profile.fps;
   const spans=[];
@@ -175,17 +199,23 @@ async function measureMotion(project,windows,ffmpeg,signal,videoPath) {
         return {pair,result};
       };
       const source=await compare(asset.path,times),candidate=await compare(videoPath,fractions.map(u=>(from+d*u)/fps));
+      const kind=source.result==='changing-footage'?candidate.result:source.result,count=to-from+1,speed=clip.speed||1;
+      let confirmedFrozen=false;
+      if(kind==='no-detectable-change'){
+        const sourceStill=source.result==='no-detectable-change';
+        confirmedFrozen=await confirmFrozen(ffmpeg,sourceStill?asset.path:videoPath,sourceStill?at(0):from/fps,count*(sourceStill?speed:1)/fps,fps/(sourceStill?speed:1),count,signal);
+      }
       records.push({assetId:asset.id,fromFrame:from,toFrame:to,sourceTimes:times,comparisons:source.pair,candidateComparisons:candidate.pair,
-        sourceResult:source.result,candidateResult:candidate.result,result:source.result==='changing-footage'?candidate.result:source.result});
+        sourceResult:source.result,candidateResult:candidate.result,result:kind,confirmedFrozen});
     }catch(error){if(signal?.aborted)throw error;records.push({assetId:asset.id,fromFrame:from,toFrame:to,result:'unavailable'});}
   }
   return records;
 }
 
-function sharesSubject(step,project) {
+function sharesSubject(step,project,onlyText) {
   const nearby=(project.timeline.clips||[]).filter(c=>c.track==='caption'&&live(c)&&c.start<=step.toFrame&&lastFrame(c)>=step.fromFrame).map(c=>c.text);
   const facts=project.facts||[],current=facts.filter(f=>f.assetId===step.assetId&&Number.isFinite(f.start)&&f.start<=step.toFrame).sort((a,b)=>b.start-a.start)[0];
-  const material=(nearby.length?nearby:[current?.text||current?.claim]).filter(Boolean).join(' ');
+  const material=onlyText??(nearby.length?nearby:[current?.text||current?.claim]).filter(Boolean).join(' ');
   if(!material.trim())return null;
   const segmenter=new Intl.Segmenter('zh',{granularity:'word'}),ignore=new Set(['因此','这个','画面','照片','这里','边上','先看','能看到','可以','因为','位置','看到','上面','下面','有点','the','this','that','with','look','shows','image']);
   const words=t=>new Set([...segmenter.segment(t.toLowerCase())].filter(x=>x.isWordLike&&[...x.segment].length>1&&!ignore.has(x.segment)).map(x=>x.segment));
@@ -225,9 +255,12 @@ function usesScienceGrammar(project,styleSpec) {
 function videoFirstPolicy(project,spec) {
   const rule=[...(spec?.rules||[]),...(spec?.executionPlan?.sourceRules||[]),...(project.style?.rules||[])].find(r=>r.id==='video-first');
   if(!rule)return null;
-  const explicit=project.settings?.visualRequirements?.motionFootage,brief=positiveClauses(project.brief);
-  const photoOverride=brief.split('。').some(part=>(!/(?:开头|片头|结尾|片尾|这段|此段|这一镜|首个镜头)/.test(part)||/(?:全片|整片|整条|全程|所有素材)/.test(part))&&/(?:只(?:使用|用|以)|仅(?:使用|用|限)|全程(?:使用|用|只用)|全部(?:是|使用|用)|不用视频只用|只要).{0,20}(?:照片|相片|静图|静态图|原照|原图|图片)|(?:照片|原照|图片|静图|静态图|图解).{0,8}(?:为主|为主体|为唯一素材)|(?:still images|photos|photographs) only|only (?:use |using )?(?:still images|photos|photographs)/i.test(part));
-  return {ruleId:rule.id,basis:rule.basis||'style',instruction:rule.instruction,override:explicit===false?'motionFootage:false':explicit!==true&&photoOverride?'user-photo-brief':null};
+  const explicit=project.settings?.visualRequirements?.motionFootage,base=motionPolicy({rules:[rule]},project);
+  const r=project.visualDirection,receipt=r?.motion;
+  const fromMessage=receipt?.policyOverride?.source==='user-message'&&receipt.policyOverride.base===base&&r.timelineHash===shotFingerprint(project);
+  const choice=fromMessage?receipt.policy:base;
+  return {ruleId:rule.id,basis:rule.basis||'style',instruction:rule.instruction,override:choice==='images-only'||choice==='photo-led'?
+    (fromMessage?'user-message':explicit===false?'motionFootage:false':'user-photo-brief'):null};
 }
 function coverage(windows,motion) {
   const length=w=>w.to-w.from+1,frames=motion.reduce((n,m)=>n+m.toFrame-m.fromFrame+1,0);
@@ -238,7 +271,11 @@ function coverage(windows,motion) {
     if(field)measured[field]+=m.toFrame-m.fromFrame+1;
   }
   const unverifiedFrames=totalFrames-stillFrames-Object.values(measured).reduce((a,b)=>a+b,0);
-  return {totalFrames,stillFrames,...measured,unverifiedFrames,sampledVideoFrames:frames,changingRatio:totalFrames?+((measured.changingFrames/totalFrames).toFixed(4)):0};
+  const confirmedStationaryFrames=motion.filter(m=>m.confirmedFrozen).reduce((n,m)=>n+m.toFrame-m.fromFrame+1,0);
+  const videoFrames=windows.filter(w=>w.shot.asset?.kind==='video').reduce((n,w)=>n+length(w),0);
+  return {totalFrames,stillFrames,videoFrames,...measured,confirmedStationaryFrames,unverifiedFrames,sampledVideoFrames:frames,changingRatio:totalFrames?+((measured.changingFrames/totalFrames).toFixed(4)):0,
+    method:{windowMaxSeconds:4,windowLimit:36,sampleFractions:[.22,.47,.72],sampledWindows:motion.length,
+      note:'按剪辑边界分为最长约四秒的窗口。每窗在原片和成片各抽三帧，用亮度差与近似整体平移缩放比对。变化帧数指满足该条件的窗口总长，不能精确计作持续动作秒数。疑似整体移动的结果仍可能含有较小或较慢的主体动作。'}};
 }
 async function motionReview(project,windows,evidence,policy,checks,hashFile) {
   const {fps}=project.profile,c=coverage(windows,evidence.motion),r=project.visualDirection,verified=[];
@@ -278,16 +315,20 @@ async function motionReview(project,windows,evidence,policy,checks,hashFile) {
     end=Math.max(end,to);
   }
   const informative=c.informativeFrames>c.totalFrames/2,majority=c.changingFrames>c.totalFrames/2;
-  const status=policy.override?'photo-adaptation':majority?(informative?'met':'unverified'):c.changingFrames?'partial':
-    c.stillFrames===c.totalFrames?'unmet':c.unverifiedFrames+c.cameraFrames>=c.totalFrames/2?'unverified':'unmet';
+  const possible=c.totalFrames-c.stillFrames-c.confirmedStationaryFrames;
+  const status=policy.override?'photo-adaptation':majority?(informative?'met':'unverified'):possible>c.totalFrames/2?'unverified':
+    c.changingFrames?'partial':possible===0?'unmet':'unverified';
   evidence.motionCoverage=c;
   evidence.styleExecution={ruleId:policy.ruleId,basis:policy.basis,motionStatus:status,override:policy.override,informativeWindows:verified,
     assessment:status==='met'?'motion-rule-supported':status==='photo-adaptation'?'requested-photo-adaptation':status==='unverified'?'unverified':'not-reproduced'};
   if(status==='photo-adaptation'||status==='met')return null;
-  const secs=n=>(n/fps).toFixed(1),ratios='全片有画面的 '+secs(c.totalFrames)+' 秒中，'+secs(c.stillFrames)+' 秒使用照片，'+secs(c.changingFrames)+' 秒在原片与成片均测到超出整体移动的变化。';
+  const secs=n=>(n/fps).toFixed(1);
+  const ratios='有画面的 '+secs(c.totalFrames)+' 秒中，照片占 '+secs(c.stillFrames)+' 秒，视频来源占 '+secs(c.videoFrames)+' 秒。'+
+    (c.videoFrames?'按最长约四秒分窗，逐窗在原片和成片各抽三帧。测到超出整体平移缩放的变化窗口约 '+secs(c.changingFrames)+' 秒。':'')+
+    (c.confirmedStationaryFrames?'另有 '+secs(c.confirmedStationaryFrames)+' 秒录像逐帧复查静止。':'');
   const relevant=windows.filter(w=>w.shot.asset?.kind==='image'||!evidence.motion.some(m=>m.assetId===w.shot.asset?.id&&m.fromFrame>=w.from&&m.toFrame<=w.to&&m.result==='changing-footage'));
   const longest=relevant.sort((a,b)=>(b.to-b.from)-(a.to-a.from))[0]||windows[0];
-  const severity=status==='unmet'&&c.stillFrames===c.totalFrames&&evidence.requirements.styleFidelity?'major':'minor';
+  const severity=status==='unmet'&&c.stillFrames+c.confirmedStationaryFrames===c.totalFrames&&evidence.requirements.styleFidelity?'major':'minor';
   const message=status==='unmet'?'所选风格要求以有信息的运动画面为主体，本版未达到。':
     status==='partial'?'本版只有部分时段呈现有变化的视频，未达到所选风格以运动过程为主体的要求。':
     '所选风格要求以有信息的运动画面为主体，目前无法确认取到的变化确实在说明该段内容。';
@@ -317,7 +358,7 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
     if(photosOnly)findings.push(finding('required-moving-footage','major','本期明确要求运动实拍，画面全由照片组成。','加入能显示所述过程的实拍窗口，或由用户更改该素材要求。',first,last));
     else {
       evidence.motion=await measureMotion(project,windows,ffmpeg,signal,videoPath);
-      if(!evidence.motion.some(m=>m.result==='changing-footage'))findings.push(finding('required-moving-footage','unknown','抽取的原片窗口不能确认有超出整幅平移、缩放或定格的过程。','回看标出的原片，选真实运动区间或确认当前处理。',first,last));
+      if(!evidence.motion.some(m=>m.result==='changing-footage'))findings.push(finding('required-moving-footage','unknown','分窗抽样尚不能确认有超出整幅平移、缩放或定格的过程，小范围或较慢的主体动作需要回看。','回看标出的原片，选真实运动区间或确认当前处理。',first,last));
     }
   }
   if(!requirements.editableEvidence&&!requirements.styleFidelity&&!policy)return {evidence,findings};
@@ -332,7 +373,7 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
         record.sourceVerified=hashes.get(s.assetId)===s.sha256;
         record.frameMatch=matchingPaint(await decodePixels(ffmpeg,videoPath,s.frame/fps,w,h,signal),w,h,box);
         record.canvasRegion={x:box.x,y:box.y,width:box.width,height:box.height};
-        record.relatedWords=sharesSubject(s,project);
+        record.relatedWords=sharesSubject(s,project,s.annotation==='synchronized-caption'?s.shownText:undefined);
         if(record.sourceVerified&&record.frameMatch.visible&&record.relatedWords!==false)confirmed.push(s);
       } catch(error) {if(signal?.aborted)throw error;record.frameMatch={visible:null};}
     }

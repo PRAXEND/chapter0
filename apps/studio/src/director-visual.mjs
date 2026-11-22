@@ -24,14 +24,22 @@ export function motionPolicy(style, project, message = '') {
     !style?.executionPlan?.sourceRules?.some((r) => r.id === 'video-first')
   )
     return null;
-  const clauses=[project.brief,message].filter(Boolean).join('。').split(/[，。；;，\n]/u);
-  const only=clauses.some(clause=>{
-    if(/(?:不要|不得|不能|避免|别)(?:全片|全程)?(?:只|仅)|(?:don't|not|avoid)\s+(?:only|just)/i.test(clause))return false;
-    if(/(?:不使用|不要|禁用)(?:任何)?(?:动态素材|运动素材|录像|视频素材)/u.test(clause))return true;
-    if(/(?:或|和|及|加上|以及)\s*(?:现场|任务)?(?:录像|视频|动态素材)|(?:videos?|footage)\s+(?:or|and)/i.test(clause))return false;
-    return /(?:全片|全程|所有画面)(?:均|都)?(?:为|是|只用|仅用|使用)(?:[^，。；]{0,24})(?:照片|图片|原照|静图)|(?:只(?:能|许|可)?(?:用|使用|采用)|仅(?:限|用|使用|能用))(?:[^，。；]{0,26})(?:照片|图片|相片|原照|静图)|(?:use\s+only|only\s+use)\s+[^.,;]{0,30}(?:photos|photographs|images)|(?:photos|photographs|images)\s+only/i.test(clause);
-  });
-  return only ? 'images-only' : 'video-first';
+  const explicit=project.settings?.visualRequirements?.motionFootage;
+  if(explicit===true)return 'video-first';
+  for(const request of [message,project.brief]) {
+    const clauses=String(request||'').toLowerCase().split(/[，,。；;!?！？\n]/u);
+    for(const clause of clauses) {
+      const whole=/(?:全片|整片|整条|全程|所有画面|整(?:个|部)视频|entire (?:film|video)|throughout)/i.test(clause);
+      if(!whole&&/(?:开头|片头|结尾|片尾|这段|此段|这(?:一|个)镜|首个镜头|开场|opening shot|intro|outro|in this shot)/i.test(clause))continue;
+      if(/(?:不要|不得|不能|避免|禁止|不该|别|不可以).{0,7}(?:只|仅)(?:使用|用|放|靠|采用|依赖|限于)|(?:不要|避免|不能).{0,9}(?:照片|图片|原照|静图).{0,5}为主|(?:do not|don't|never|avoid) (?:only (?:use|using)|using only|use only)/i.test(clause))return explicit===false?'photo-led':'video-first';
+      const prohibited=/(?:不要|不(?:使用|用|要用)|禁止|禁用|不得使用|不允许|不用任何).{0,5}(?:运动素材|动态素材|录像|视频|实拍)|(?:no|do not use|don't use) (?:any )?(?:video|moving footage)/i.test(clause);
+      const only=/(?:只(?:使用|用|以|允许)|仅(?:使用|用|限)|全程(?:使用|用|只用)|全片(?:只)?(?:使用|用)|全部(?:是|使用|用)|只要).{0,15}(?:照片|相片|静图|静态图|原照|原图|图片)|(?:照片|原照|图片|静图|静态图).{0,8}为唯一素材|(?:still images|photos|photographs) only|(?:use only|only use|only using) (?:the )?(?:still )?(?:images|photos|photographs)/i.test(clause);
+      const mixed=/(?:照片|图片|原照|静图).{0,5}(?:和|或|与|加|搭配|以及).{0,6}(?:视频|录像|实拍)|(?:视频|录像|实拍).{0,5}(?:和|或|与|加|搭配|以及).{0,6}(?:照片|图片|原照|静图)|(?:photos|images) (?:and|or|with) (?:video|footage)/i.test(clause);
+      if(prohibited||only&&!mixed)return 'images-only';
+      if(/(?:照片|图片|静图|静态图|图解|原照|原图).{0,8}(?:为主|为主体)|(?:以|主要使用|主要用|主要采用).{0,9}(?:照片|静图|原照|图解).{0,3}(?:为主|为主体)|(?:mostly|mainly|primarily) (?:still images|photos|photographs)/i.test(clause))return 'photo-led';
+    }
+  }
+  return explicit===false?'photo-led':'video-first';
 }
 
 export function motionCoverage(p, sourceFrames, policy, queries = [], reason = '') {

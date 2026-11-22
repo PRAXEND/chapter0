@@ -8,7 +8,7 @@ import path from 'node:path';
 import {createStyleLibrary,compileScene,fileSha256} from '../src/style.mjs';
 import {projectSourceRegion} from '../src/visual-steps.mjs';
 import {reviewProject} from '../src/review.mjs';
-import {shotFingerprint} from '../src/director-visual.mjs';
+import {motionPolicy,shotFingerprint} from '../src/director-visual.mjs';
 import {reviewVisualEvidence,visualRequirements} from '../src/visual-review.mjs';
 import {nativeMediaTool} from '../../../plugins/video-studio/workbench/media.mjs';
 const execute=promisify(execFile);
@@ -89,9 +89,23 @@ test('review distinguishes an unrelated effect from a single still with visible,
     result=await reviewRule({...ordinaryPhoto,...override});assert.equal(result.evidence.styleExecution.motionStatus,'photo-adaptation');assert.deepEqual(result.findings,[]);
   }
   result=await reviewRule({...ordinaryPhoto,brief:'开头只用原照，再转到实验。'});assert.equal(result.evidence.styleExecution.motionStatus,'unmet');
+  for(const [brief,settings,expected] of [
+    ['不能只用照片，要大量现场录像。',{},'video-first'],['请避免只用照片，保证运动素材为主。',{},'video-first'],
+    ['请避免照片为主。',{},'video-first'],['不使用视频素材。',{},'images-only'],
+    ['开头只用原照，再转到实验。',{},'video-first'],['整片只使用提供的照片。',{},'images-only'],
+    ['只使用授权照片和视频。',{},'video-first'],['以照片为主，合适时加一段实拍。',{},'photo-led'],
+    ['普通讲述。',{visualRequirements:{motionFootage:false}},'photo-led']
+  ]) {
+    const p={...ordinaryPhoto,brief,settings};assert.equal(motionPolicy(videoFirstStyle,p),expected);
+    const q=await reviewRule(p);assert.equal(q.evidence.styleExecution.motionStatus==='photo-adaptation',expected!=='video-first',brief);
+  }
   const synchronized={...ordinaryPhoto,timeline:{clips:[shot,...layers.filter(l=>l.templateRole!=='evidence-label'),{id:'sub',track:'caption',text:'中部平行条带的上缘明显发亮。',start:0,duration:36}]}};
   result=await reviewRule(synchronized);assert.ok(result.evidence.steps.some(s=>s.annotation==='synchronized-caption'&&s.frameMatch.visible));
   assert.ok(!result.findings.some(f=>f.id==='required-located-visual'));
+  const offscreen={...synchronized,timeline:{clips:synchronized.timeline.clips.map(c=>c.track==='caption'?{...c,geometry:{x:.5,y:-1},keyframes:[]}:c)}};
+  result=await reviewRule(offscreen);assert.equal(result.evidence.confirmedSteps.length,0);
+  const borrowed={...offscreen,timeline:{clips:[...offscreen.timeline.clips,{track:'caption',text:'服务器部署和计费已经完成。',start:0,duration:36}]}};
+  result=await reviewRule(borrowed);assert.equal(result.evidence.confirmedSteps.length,0);
   result=await reviewRule({...synchronized,timeline:{clips:synchronized.timeline.clips.filter(c=>c.shape!=='outline')}});
   assert.ok(result.findings.some(f=>f.id==='required-located-visual'));
   const cropOnly={...generic,timeline:{clips:[{...shot,framing:{from:{x:.4,y:.4,zoom:1.3},to:{x:.6,y:.6,zoom:1.3}}}]}};
@@ -135,6 +149,10 @@ test('witnessed moving footage can carry a science sequence without annotation; 
   await execute(ffmpeg,['-v','error','-i',moving,'-loop','1','-framerate','25','-i',photoFile,'-filter_complex','[0:v]trim=end=1,setpts=PTS-STARTPTS[v0];[1:v]trim=end=2,setpts=PTS-STARTPTS[v1];[v0][v1]concat=n=2:v=1:a=0,format=yuv420p[out]','-map','[out]','-t','3','-c:v','libx264','-threads','1',mixedFilm]);
   const B=await measured(mixed,mixedFilm);assert.equal(B.evidence.styleExecution.motionStatus,'partial');assert.deepEqual([B.evidence.motionCoverage.changingFrames,B.evidence.motionCoverage.stillFrames,B.evidence.motionCoverage.totalFrames],[25,50,75]);
   assert.deepEqual(B.findings.map(f=>[f.id,f.severity]),[['style-video-first','minor']]);
+  const flatSha=await fileSha256(frozen),flatAsset={...asset,path:frozen,sha256:flatSha};
+  const noMotion={...project,assets:[flatAsset],visualDirection:null,storyboard:[]};
+  const flat=await measured(noMotion,frozen);assert.equal(flat.evidence.motionCoverage.confirmedStationaryFrames,75,JSON.stringify(flat.evidence));
+  assert.ok(flat.findings.some(f=>f.id==='style-video-first'&&f.severity==='major'));
   result=await review(frozen);assert.ok(result.findings.some(f=>f.id==='required-science-execution'),JSON.stringify(result));
   project.visualDirection.checks[1]={...checks[1],needsFix:true,observation:'字幕讲到第二个区域，成片还在第一个区域。'};
   result=await review(moving);assert.ok(result.findings.some(f=>f.id==='visual-witness-34'&&f.fromFrame===34));

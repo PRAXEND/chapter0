@@ -12,7 +12,7 @@ Atlas 技术科普 v8 基准长 91.58 秒。6–9.2 秒仍在搬运动作中，�
 
 `style.executionPlan` 提供风格包中的规则、蓝图放置、各阶段的组件角色与适用条件。`compileScene` 把每个视觉步骤的原件、源帧、指纹、观察内容和原图归一化区域编译成可编辑图层。画布上的位置随画幅、像素宽高比、近景取景与关键帧投影。局部阶段可以由指认框配同步字幕，也可以由指认框配独立标签。分步提示、标签和原照仍是可独立修改的对象。
 
-`reviewProject(project,{videoPath,srtPath,styleSpec})` 从解析后的实际风格包读取 video-first。对用户明确限定照片为主的作品，记录 photos 优先的适配结果。对 v8 默认选材，评估前景轨实际窗口，并分别抽取原片和合成帧检查变化。长片最多均匀选择 36 个窗口，未测部分保留在 unverifiedFrames。多个窗口里的统一推拉和静止画面单独计数。确认信息作用还需相同源件和当前时间线的具体观察。图层的位置、局部文字关联和最终颜色边界均有帧级记录。程序只能确认可核对的结构、指纹和像素变化，动作含义及审美仍可由人查看对应短段。
+`reviewProject(project,{videoPath,srtPath,styleSpec})` 从解析后的实际风格包读取 video-first。全片限定照片、照片为主、仅片头用照片以及禁止全片只用照片由导演与验收共用同一规则。选用照片为主仍可加入用户指定的个别现场镜头。对 v8 默认选材，评估前景轨实际窗口，并分别抽取原片和合成帧检查变化。长片最多均匀选择 36 个窗口，未测部分保留在 unverifiedFrames。每窗抽三帧，变化数值表示符合条件的窗口约有多长。真实动作的开始、结束及连续时间需要回看。疑似整体变换还可能包含较小或较慢的主体动作。疑似静止的窗口再逐帧低分辨率比对后，才会将全片确无变化的录像与照片同等对待。确认信息作用还需相同源件和当前时间线的具体观察。图层的位置、局部文字关联和最终颜色边界均有帧级记录。程序只能确认可核对的结构、指纹和像素变化，动作含义及审美仍可由人查看对应短段。
 
 `qa.evidence.visual.motionCoverage` 输出总帧、照片帧、视频变化帧、疑似整体移动帧、静止帧、未核帧与有内容观察依据的帧。分别对应 totalFrames、stillFrames、changingFrames、cameraFrames、stationaryFrames、unverifiedFrames、informativeFrames。`qa.evidence.visual.styleExecution.motionStatus` 可取 met、partial、unmet、unverified 和 photo-adaptation。met 仅表示有信息的运动画面主体这一项获得证据支持。普通静态说明可以照常交付并显示风格差距。明确要求忠实复现且全是照片的项目会提出修复。独立要求必须使用实拍、或必须给原件加局部标注的项目，会按各自的要求评估。
 

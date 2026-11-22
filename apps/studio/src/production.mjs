@@ -708,6 +708,8 @@ export function createDirector(deps) {
     if (session.initial !== shotFingerprint(current)) ({ session } = await execute('verify', 1));
     current = await store.get(id);
     const motion = motionCoverage(current, receipt.frames, policy, receipt.motionQueries, receipt.motionGap);
+    const basePolicy=motionPolicy(activeStyle,original);
+    if(motion&&policy!==basePolicy)motion.policyOverride={source:'user-message',base:basePolicy};
     const verified =
       session.initial === shotFingerprint(current) &&
       session.checks.length > 0 &&
@@ -1155,7 +1157,7 @@ export function createDirector(deps) {
         ? '\n本风格的已保存 video-first 规则要求实际现场、实验、录屏或标明为仿真的运动过程承担主要时长。sources 阶段必须以 studio_find(kind=video) 搜索与本期动作相关的具体档案；核对资料本身是否真的显示本期讲解的动作。compose 阶段检查同一录像的多个源时间窗，从两张实际原生图中找可见变化，在每个采用的运动镜头写 motionEvidence={fromSeconds,toSeconds,observation}，两帧都在最终该源窗口内。用图近看痕迹、细节后回到实际过程或结果；结尾回原照并未限制前面只能用图。不要反复同图推拉或用“宇航员走动”等无关素材滥充动作。素材实在不足，把查过的动作、为何不能采用写 motionGap，做好可播候选。'
         : visual?.policy === 'images-only'
           ? '\n用户明确规定全片只用静态图像，按此素材例外制作。'
-          : '';
+          : visual?.policy==='photo-led' ? '\n本片允许照片为主，可按照片上的实际位置解释细节；用户要求的个别现场镜头仍可正常检索。' : '';
     const outcome = await client.runTurn({
       threadId,
       existingTurnId,
