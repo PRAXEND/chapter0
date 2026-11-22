@@ -40,3 +40,11 @@ node scripts/field-trials.mjs "$HOME/Movies/Video Studio/盲评工作台/researc
 横版（1280×720）与竖版（720×1280）均含三段中文旁白、字幕、音乐及有关键帧的标题，每版 25 fps、332 帧。源镜头包括 NASA 的履带运输、夜间发射、海上溅落，以及由发射母片生成的 9:16 短片。横版另外验证了保留竖镜头后切回发射母片同一时刻，以保留底部亮光。竖版验证了把海面镜头调整为满屏。两种画幅的初剪和修改版均完整解码、可重新导入继续编辑。输入素材是 320×180 的研究代理文件，样片用于检查时序、声音和构图。
 
 输出目录下的 `interview.json`、`横版.json`、`竖版.json` 保存时长、素材来源、原句恢复及修改前后的证据。各版本另存 MP4、SRT、可携带工程和 `review.json`。完整的源时码转录保存在 `interview-transcript.json`。
+
+## 公开实拍素材
+
+`searchSources(query,{kind})` 接受 `video`、`image` 或 `any`。混合检索先给独立录像，同时保留可用于特写的照片。NASA 视频从官方媒体清单读取，Commons 视频调用 videoinfo，Openverse 提供静态图候选。文件导入后按实际媒体流复核类型，项目保存出处页、许可、署名和实际下载版本。目录描述仍需通过原片观察确认。[NASA API](https://api.nasa.gov/) · [Commons 视频清单](https://www.mediawiki.org/wiki/Extension:TimedMediaHandler/API) · [Openverse](https://openverse.org/about)
+
+若已有出版社或档案馆页面和媒体直链，可在工程的 `settings.sourceUrls` 提供 `{url,downloadUrl,kind,title,credit,license,licenseUrl,statement}`。其中 `url` 为出处页。视频可读取 MP4、MOV、WebM、OGV 和 MPEG，单个可下载版本上限 256 MiB。服务报告限流时应用保留 HTTP 状态及重试时间。
+
+2026-11-23 的在线复核使用公开资料和独立缓存。检索 “Apollo 11 bootprint” 后，工作台导入 NASA 的 116.67 秒 KSC 影像。73–79 秒能看到宇航员从梯架边向右移动，52–56 秒使用了靴印照片。另一段专门记录靴印实验的官方 16 毫米影片为 81,633,284 字节；直接导入后在 12–28 秒可见人员在旗帜右侧站定、改变姿势、移动。细部靴纹可用同期静照，形成机制须回查科学出处。另一题 “Artemis Orion splash down” 导入了 122.10 秒、1280×674 的原片，80–96 秒可见伞组移动并开始塌落。[KSC 回顾片](https://images.nasa.gov/details/ksc_080504_apollo) · [Apollo 实验与使用许可](https://www.nasa.gov/wp-content/uploads/static/history/alsj/a11/video11.html) · [Orion 溅落原片](https://images.nasa.gov/details/KSC-20221211-MH-AMD01-0001-Artemis_1_Orion_Splash_Down-3312491)
