@@ -35,3 +35,11 @@ export function audioSelection(project, channel) {
   // and leave its style exception unresolved until the user explicitly chooses it.
   return project.mode === 'interview' ? 'user' : 'style';
 }
+
+export function activeStyleMusicCredit(project) {
+  const m=project.styleAudio?.music;
+  if(!m?.credit || !m.url || !m.licenseUrl || !m.license) return null;
+  const asset=project.assets.find(a=>a.id===m.assetId && a.sha256===m.sha256);
+  if(!asset || !project.timeline.clips.some(c=>c.assetId===asset.id && c.track==='music' && c.enabled!==false && !c.muted && !c.hidden && (c.gain??1)>0))return null;
+  return {assetId:asset.id,line:[m.credit,m.license,m.url,m.licenseUrl].map(s=>String(s).replace(/[\r\n]/g,' ').slice(0,1000)).join(' · ')};
+}

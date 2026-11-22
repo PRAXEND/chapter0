@@ -1,3 +1,4 @@
+import {activeStyleMusicCredit} from './style-audio.mjs';
 import path from 'node:path';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
 import {makePublicationPackage} from './publication.mjs';
@@ -91,9 +92,11 @@ export function createQueue({store, director, media, reviewProject, prepare, del
       const used=new Set(p.timeline.clips.map(c=>c.assetId));
       const sources=p.assets.filter(a=>used.has(a.id)&&a.source&&(a.source.url||a.source.license||a.source.licenseUrl||a.source.credit||a.source.rights));
       const facts=p.facts||[];
-      if(sources.length||facts.length){
+      const musicCredit=activeStyleMusicCredit(p);
+      if(sources.length||facts.length||musicCredit){
         files.credits=path.join(directory,'素材与事实来源.txt');
-        const lines=sources.map(a=>[a.name,a.source.credit||a.source.author,a.source.license||a.source.rights,a.source.url,a.source.licenseUrl].filter(Boolean).join(' · '));
+        const lines=sources.filter(a=>a.id!==musicCredit?.assetId).map(a=>[a.name,a.source.credit||a.source.author,a.source.license||a.source.rights,a.source.url,a.source.licenseUrl].filter(Boolean).join(' · '));
+        if(musicCredit)lines.push(musicCredit.line);
         const factsText=facts.map(f=>[f.text,f.url].filter(Boolean).join(' · '));
         await writeFile(files.credits,[...lines,...factsText].join('\n')+'\n');
       }

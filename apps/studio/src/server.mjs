@@ -1,3 +1,4 @@
+import {paceNarration} from './style-audio-render.mjs';
 import http from 'node:http';
 import {DatabaseSync} from 'node:sqlite';
 import path from 'node:path';
@@ -219,24 +220,31 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
         if(action==='voices'&&method==='POST'){const b=await readJson(req);if(part==='use')return json(res,disclose(await voices.use(id,b.id,b.baseRevision)));if(part==='enroll')return json(res,await voices.enroll(id,b),201);}
         if(action==='anchor'&&method==='POST'){const b=await readJson(req);const a=p.assets.find(a=>a.id===b.assetId);if(!a||!Number.isInteger(b.sourceFrame)||b.sourceFrame<0||b.sourceFrame>Math.ceil(a.duration*p.profile.fps)||!String(b.label||'').trim())throw fault('请标记素材内的真实动作。');return json(res,disclose(store.configure(id,b.baseRevision,{sourceAnchors:[...(p.sourceAnchors||[]),{assetId:a.id,sourceFrame:b.sourceFrame,label:String(b.label).slice(0,180)}]})));}
         if(action==='audition'&&method==='POST'){
-          const b=await readJson(req),ref=p.assets.find(a=>a.id===p.settings.voiceReferenceAssetId);
-          const mode=p.settings.voiceMode;
+          const b=await readJson(req);
+          const chosen=director.prepareAudio?await director.prepareAudio(id,{voiceOnly:true}):p;
+          const ref=chosen.assets.find(a=>a.id===chosen.settings.voiceReferenceAssetId);
+          const mode=chosen.settings.voiceMode;
           if(mode==='import'||mode==='original'){
-            const recording=mode==='import'?p.assets.find(a=>a.id===p.settings.narrationAssetId):
-              p.assets.find(a=>a.id===p.timeline.clips.find(c=>c.track==='narration')?.assetId)||p.assets.find(a=>a.hasAudio);
+            const recording=mode==='import'?chosen.assets.find(a=>a.id===chosen.settings.narrationAssetId):
+              chosen.assets.find(a=>a.id===chosen.timeline.clips.find(c=>c.track==='narration')?.assetId)||chosen.assets.find(a=>a.hasAudio);
             if(!recording)throw fault('请先在工程中选择带声音的原始录音。');
             return json(res,{id:recording.id});
           }
           if(mode==='preset'&&!(await audio.audioCapabilities()).preset)throw fault('请先在本机组件中准备 Qwen 预置中文声音。');
           if(mode==='clone'){
-            if(!p.settings.voiceConsent||!ref)throw fault('请登记获授权的参考录音。');
+            if(!chosen.settings.voiceConsent||!ref)throw fault('请登记获授权的参考录音。');
             if(!(await audio.audioCapabilities()).clone){const {prepareMedia}=await import('../scripts/prepare-media.mjs');await prepareMedia('clone',{});}
           }
           const file=path.join(store.paths(id).cache,'audition-'+randomUUID()+'.wav');
+          const pace=chosen.styleAudio?.voice?.speed||1;
+          const native=pace===1?file:file+'.raw.wav';
           try{
-            await audio.synthesize(String(b.text||'神舟十九号经过酒泉。上午九点二十分，陈老师把三点一四写在屏幕上，请大家等画面变亮，再听下一句。').slice(0,400),{mode,voice:mode==='preset'?(p.settings.presetVoice||'dylan'):p.settings.systemVoice,referencePath:mode==='clone'?ref?.path:undefined,referenceText:mode==='clone'?p.settings.voiceReferenceText:undefined,output:file});
-            const a=await store.addAsset(id,file,{name:'音色试听.wav',audition:true,referenceHash:ref?.sha256});return json(res,{id:a.id});
-          }finally{await rm(file,{force:true});}
+            let generated=await audio.synthesize(String(b.text||'神舟十九号经过酒泉。上午九点二十分，陈老师把三点一四写在屏幕上，请大家等画面变亮，再听下一句。').slice(0,400),{mode,voice:mode==='preset'?(chosen.settings.presetVoice||'dylan'):chosen.settings.systemVoice,referencePath:mode==='clone'?ref?.path:undefined,referenceText:mode==='clone'?chosen.settings.voiceReferenceText:undefined,output:native});
+            if(pace!==1)generated=await paceNarration(native,file,pace,generated);
+            const a=await store.addAsset(id,file,{name:'音色试听.wav',audition:true,mode,preset:generated.preset,
+              model:generated.model,modelRevision:generated.modelRevision,modelSha256:generated.modelSha256,
+              generatedHash:generated.sha256,speechRate:generated.speechRate||1,baseDuration:generated.baseDuration,tempoMethod:generated.tempoMethod,referenceHash:mode==='clone'?ref?.sha256:null});return json(res,{id:a.id});
+          }finally{await rm(file,{force:true});if(native!==file)await rm(native,{force:true});}
         }
       }
       throw fault('找不到该操作。',404);

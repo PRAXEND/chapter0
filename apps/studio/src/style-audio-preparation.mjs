@@ -1,5 +1,6 @@
 import { audioSelection, styleAudioPolicy } from './style-audio.mjs';
 import { voiceLibrary } from './voices.mjs';
+import { fileHash } from './media.mjs';
 
 const equalName = (a,b) => a && b && a.normalize('NFKC').trim().toLowerCase() === b.normalize('NFKC').trim().toLowerCase();
 const snapshot = p => JSON.stringify([p.style,p.settings,p.timeline.clips]);
@@ -15,7 +16,10 @@ function requestedAudio(project,message) {
           Object.assign(patch,{musicSelection:'user',musicMode:'none',musicEnabled:false});
       }
       if((latest||audioSelection(project,'voice')!=='user') && !/(?:不要|不用|不使用|无须|别用|避免|不想|参考片)/.test(clause)){
-        if(/(?:保留|只用|沿用)(?:这段|人物|采访|现场|视频)?(?:同期声|原声)/.test(clause))
+        if(/(?:确认采用|就用|确认使用|选用|明确使用)(?:本机|本地|这个|这一|刚才的|刚试听的|预置|中文|男声|声音|音色|\s|Qwen)*(?:Dylan|迪兰)/i.test(clause) ||
+          (project.settings.voiceMode==='preset' && /(?:确认采用|确认使用)(?:刚才|当前|这个|刚试听)(?:的)?(?:预置)?(?:中文)?(?:男声|声音|音色)/.test(clause)))
+          Object.assign(patch,{voiceSelection:'user',voiceMode:'preset',presetVoice:'dylan'});
+        else if(/(?:保留|只用|沿用)(?:这段|人物|采访|现场|视频)?(?:同期声|原声)/.test(clause))
           Object.assign(patch,{voiceSelection:'user',voiceMode:'original'});
         else if(/(?:请用|请使用|使用|选用|就用|改用|换用|指定)(?:本机|苹果|macOS)?系统(?:中文)?(?:配音|声音|女声|男声|音色)/i.test(clause))
           Object.assign(patch,{voiceSelection:'user',voiceMode:'system'});
@@ -30,7 +34,7 @@ function requestedAudio(project,message) {
   return Object.fromEntries(Object.entries(patch).filter(([k,v])=>project.settings[k]!==v));
 }
 
-export async function resolveProductionAudio(deps, project, {signal,message}={}) {
+export async function resolveProductionAudio(deps, project, {signal,message,voiceOnly=false}={}) {
   if (!project.style?.id || !deps.styleLibrary) return project;
   const spec=await deps.styleLibrary.get(project.style.id,project.style.version);
   const policy=styleAudioPolicy(spec);
@@ -70,10 +74,10 @@ export async function resolveProductionAudio(deps, project, {signal,message}={})
       reason:status==='preview-only'?(ambiguity?'同名音色有多个，请在个人音色库指定本期使用的一个。':
         '尚未绑定本期确认的声音。当前声音供试听，选用或登记已授权的中文音色后可重新配音。'):null};
   }
-  if(policy.music){
+  if(policy.music && !voiceOnly){
     const m=policy.music,chosen=p.assets.find(a=>a.id===p.settings.musicAssetId && a.kind==='audio');
     const mode=p.settings.musicEnabled===false?'none':p.settings.musicMode || (p.mode==='interview'?'none':'library');
-    let asset=chosen,matched=false;
+    let asset=chosen,matched=false,carried=false;
     if(mode==='library' && musicIntent==='style' && m.url && deps.styleLibrary.getMusicResource) {
       const file=await deps.styleLibrary.getMusicResource(p.style.id,p.style.version,m);
       signal?.throwIfAborted();
@@ -88,15 +92,26 @@ export async function resolveProductionAudio(deps, project, {signal,message}={})
         asset=next; matched=true;p=latest;
       }
     }
+    if(!asset && mode==='library' && musicIntent==='style') {
+      const prior=p.styleAudio?.music;
+      const registered=p.assets.find(a=>a.id===prior?.assetId && a.sha256===prior.sha256 && prior.url===m.url &&
+        prior.license===m.license && prior.licenseUrl===m.licenseUrl && prior.credit);
+      const alternative=registered || p.assets.find(a=>a.kind==='audio' && a.source?.role==='music' &&
+        a.source?.bedStyle===m.bedStyle && (a.source.license || a.source.rights));
+      if(alternative && await fileHash(alternative.path).catch(()=>null)===alternative.sha256) {
+        asset=alternative; carried=Boolean(registered);
+      }
+    }
     music={status:musicIntent==='user'?'user-selected':matched?'matched':asset?'alternative':'missing',selection:musicIntent,mode,
-      title:matched?m.title:(asset?.name||null),preferredTitle:m.title,assetId:asset?.id||null,sha256:asset?.sha256||null,
+      title:matched||carried?m.title:(asset?.name||null),preferredTitle:m.title,assetId:asset?.id||null,sha256:asset?.sha256||null,
       ducking:false,targetDifferenceLU:m.targetDifferenceLU,bedStyle:m.bedStyle,
-      sourceStart:matched?m.sourceStart:0,sourceEnd:matched?m.sourceEnd:null,
-      ...(matched?{credit:m.title+' — '+m.author+'（节选并调整音量）',url:m.url,license:m.license,licenseUrl:m.licenseUrl}:{}),
+      sourceStart:matched||carried?m.sourceStart:0,sourceEnd:matched||carried?m.sourceEnd:null,
+      ...(matched||carried?{credit:m.title+' — '+m.author+'（节选并调整音量）',url:m.url,license:m.license,licenseUrl:m.licenseUrl}:{}),
       reason:!matched&&musicIntent!=='user'&&m.title?'本机未核验所选风格的原配乐；可用获授权的同类纯音乐。':null};
   }
   const current=await deps.store.get(id);
   if(snapshot(current)!==snapshot(p))throw Error('准备风格声音时工程设置已改变。请重试。');
+  if(voiceOnly && current.styleAudio?.styleId===spec.id && current.styleAudio.styleVersion===spec.version)music=current.styleAudio.music;
   const receipt={styleId:spec.id,styleVersion:spec.version,voice,music};
   // Preserve measured mix fields when resuming the same source and settings.
   const prev=current.styleAudio?.music;

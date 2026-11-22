@@ -1,3 +1,4 @@
+import {activeStyleMusicCredit} from './style-audio.mjs';
 import { stat, mkdir, writeFile, rename, link, unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -262,7 +263,8 @@ async function render(project, { directory, output, preview = false, window, sig
     const sampleAt = frame => Math.round(frame * 48000 / fps);
     const mixWindow = window ? ['-af', `atrim=start_sample=${sampleAt(fromFrame) - sampleAt(mixStart)}:end_sample=${sampleAt(toFrame) - sampleAt(mixStart)},asetpts=PTS-STARTPTS`] : [];
     onProgress(0.76);
-    await run(ffmpeg, [...ffBase, ...inputArgs(picture), ...inputArgs(mix), '-map', '0:v:0', '-map', '1:a:0', ...encoding, ...mixWindow, '-c:a', 'aac', '-ar', '48000', '-b:a', '192k', '-movflags', '+faststart', '-t', rounded(length / fps), final], { cwd: work, signal });
+    const trackCredit=activeStyleMusicCredit(project);
+    await run(ffmpeg, [...ffBase, ...inputArgs(picture), ...inputArgs(mix), '-map', '0:v:0', '-map', '1:a:0', ...encoding, ...mixWindow, ...(trackCredit?['-metadata','comment='+trackCredit.line]:[]), '-c:a', 'aac', '-ar', '48000', '-b:a', '192k', '-movflags', '+faststart', '-t', rounded(length / fps), final], { cwd: work, signal });
     const info = await probeMedia(final, { signal });
     if (!info.hasAudio || info.width !== width || info.height !== height || Math.abs(info.duration - length / fps) > 1 / fps || (info.frames && info.frames !== length)) throw new Error('导出结果与工程的帧数或规格不符');
     const sha256 = await fileHash(final);

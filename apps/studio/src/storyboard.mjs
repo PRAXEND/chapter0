@@ -137,7 +137,7 @@ async function recordedNarration(deps, project, text, signal) {
       text,
       mode,
       voiceId: mode==='preset'?(generated?.preset||settings.presetVoice||'dylan'):(mode==='clone' ? (settings.voiceId || settings.voiceLibraryId || reference?.id) : (settings.systemVoice||generated?.model||'system')),
-      ...(mode==='preset'?{preset:generated?.preset||settings.presetVoice||'dylan',modelRevision:generated?.modelRevision}:{}),
+      ...(mode==='preset'?{preset:generated?.preset||settings.presetVoice||'dylan',modelRevision:generated?.modelRevision,modelSha256:generated?.modelSha256}:{}),
       ...(project.styleAudio ? {speechRate:generated?.speechRate??1,baseDuration:generated?.baseDuration??null,baseSha256:generated?.baseSha256??null,tempoMethod:generated?.tempoMethod??null,measuredLUFS} : {}),
       referenceHash: reference?.sha256 || null,
       provider: 'local',
