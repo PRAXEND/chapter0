@@ -1,6 +1,7 @@
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {projectSourceRegion,validRegion} from './visual-steps.mjs';
+import {shotFingerprint} from './director-visual.mjs';
 
 const execute=promisify(execFile);
 const live=c=>c.hidden!==true&&c.enabled!==false;
@@ -15,7 +16,7 @@ export function visualRequirements(project) {
   const explicit=project.settings?.visualRequirements||{};
   const brief=positiveClauses(project.brief);
   const editable=/可编辑.{0,22}(?:强调|标注|指引|框|圈|箭头|兴趣区)|(?:定位|圈出|框出|指出|标出).{0,12}(?:纹路|局部|部位|区域|细节)|editable.{0,24}(?:callout|annotation|highlight)/i.test(brief);
-  const style=/((?:严格|复现|复刻|遵循|照着|接近|忠实|贴近|对齐|依照|模仿|按).{0,16}(?:henry|基准片|科普风格|科普模板)|(?:henry|基准片).{0,12}(?:科普风格|同款|效果|复现|复刻|风格))/i.test(brief);
+  const style=/(?:严格|忠实|依照|照着|复刻|贴近|对齐).{0,18}(?:所选|选中的|参考|这套|这个|本项目的).{0,10}(?:风格|样片|剪法)|faithfully (?:follow|match) (?:the )?(?:selected |reference )?style|((?:严格|复现|复刻|遵循|照着|接近|忠实|贴近|对齐|依照|模仿|按).{0,16}(?:henry|基准片|科普风格|科普模板)|(?:henry|基准片).{0,12}(?:科普风格|同款|效果|复现|复刻|风格))/i.test(brief);
   const motion=/(?:需要|必须|务必|全程|请用|请使用|请加入|只用|要求).{0,16}(?:运动实拍|运动画面|动态实拍|实拍运动|实拍动作|实验实录|操作实录|动态过程|动作视频)|real (?:moving footage|motion footage)/i.test(brief);
   return {editableEvidence:explicit.editableEvidence??editable,styleFidelity:explicit.styleFidelity??style,motionFootage:explicit.motionFootage??motion};
 }
@@ -69,10 +70,12 @@ function matchingPaint(pixels,w,h,box) {
     }
     return false;
   };
+  // A uniformly similar sky or painted wall must not count as the four edges of a visible outline.
+  const edge=(x,y,nx,ny)=>near(x,y)&&(!near(x+nx*9,y+ny*9)||!near(x-nx*9,y-ny*9));
   const sides=[0,0,0,0];
   for(let n=1;n<=12;n++){const t=(n/13)*2-1;
-    sides[0]+=near(center[0]+t*half[0],center[1]-half[1]);sides[1]+=near(center[0]+t*half[0],center[1]+half[1]);
-    sides[2]+=near(center[0]-half[0],center[1]+t*half[1]);sides[3]+=near(center[0]+half[0],center[1]+t*half[1]);
+    sides[0]+=edge(center[0]+t*half[0],center[1]-half[1],0,1);sides[1]+=edge(center[0]+t*half[0],center[1]+half[1],0,1);
+    sides[2]+=edge(center[0]-half[0],center[1]+t*half[1],1,0);sides[3]+=edge(center[0]+half[0],center[1]+t*half[1],1,0);
   }
   return {visible:sides.filter(n=>n>=7).length>=3,sideCoverage:sides.map(n=>Number((n/12).toFixed(2)))};
 }
@@ -85,9 +88,19 @@ function makeSteps(project,shots) {
   const graphics=project.timeline.clips.filter(c=>live(c)&&c.track==='graphic');
   const fps=project.profile.fps, profile=project.profile,steps=[];
   const shapeAmbiguous=graphics.some(c=>c.shape==='outline'&&c.geometry?.width>0&&c.geometry?.height>0);
-  for(const label of graphics) {
-    const a=label.evidenceAnchor;
-    if(!a||!stageNames.has(a.stage)||!validRegion(a.region)||!a.stepId||!plain(label.text)||plain(a.label)!==plain(label.text)||generic(label.text)||plain(a.observation).length<3||generic(a.observation))continue;
+  const labels=graphics.filter(c=>c.evidenceAnchor&&c.text&&plain(c.evidenceAnchor.label)===plain(c.text));
+  const candidates=labels.map(label=>({label,a:label.evidenceAnchor,annotation:'editable-label'}));
+  const captions=project.timeline.clips.filter(c=>live(c)&&c.track==='caption'&&plain(c.text)&&!generic(c.text));
+  for(const box of graphics.filter(c=>c.shape==='outline'&&c.evidenceAnchor)) {
+    const a=box.evidenceAnchor;
+    if(labels.some(l=>l.evidenceAnchor.stepId===a.stepId&&l.start<=lastFrame(box)&&box.start<=lastFrame(l)))continue;
+    for(const cue of captions.filter(c=>c.start<=lastFrame(box)&&box.start<=lastFrame(c))) {
+      const at=Math.max(box.start,cue.start),to=Math.min(lastFrame(box),lastFrame(cue));
+      if(sharesSubject({...a,fromFrame:at,toFrame:to},project)===true)candidates.push({label:cue,a,annotation:'synchronized-caption'});
+    }
+  }
+  for(const {label,a,annotation} of candidates) {
+    if(!a||!stageNames.has(a.stage)||!validRegion(a.region)||!a.stepId||!plain(a.label)||generic(a.label)||plain(a.observation).length<3||generic(a.observation))continue;
     const local=a.region.width*a.region.height<.72,outline=graphics.find(c=>c.shape==='outline'&&c.evidenceAnchor?.stepId===a.stepId&&c.evidenceAnchor?.sha256===a.sha256);
     const from=Math.max(label.start,outline?.start??label.start);
     const end=Math.min(lastFrame(label),outline?lastFrame(outline):lastFrame(label));
@@ -100,7 +113,7 @@ function makeSteps(project,shots) {
     const expected=projectSourceRegion(a.region,view,profile,mid);
     if(!expected||expected.visibleFraction<.85)continue;
     const step={stepId:a.stepId,assetId:a.assetId,sha256:a.sha256,sourceFrame:a.sourceFrame,stage:a.stage,region:a.region,label:a.label,observation:a.observation,
-      fromFrame:from,toFrame:end,frame:mid,localized:false,fullView:widestReturn(shot,profile,mid),sourceFile:shot.asset.path};
+      fromFrame:from,toFrame:end,frame:mid,annotation,shownText:label.text,localized:false,fullView:widestReturn(shot,profile,mid),sourceFile:shot.asset.path};
     if(local&&outline){
       const box=transformed(outline,profile,mid);
       if(box.opacity>.15&&overlapRatio(boxRect(box),boxRect(expected))>=.72&&box.width*profile.width>=7&&box.height*profile.height>=7) {
@@ -141,17 +154,29 @@ function sceneChange(a,b,w,h) {
   return {change:+raw.toFixed(2),afterGlobalMotion:+best.toFixed(2)};
 }
 
-async function measureMotion(project,windows,ffmpeg,signal) {
+async function measureMotion(project,windows,ffmpeg,signal,videoPath) {
   const records=[],fps=project.profile.fps;
-  for(const {from,to,shot:{clip,asset}} of windows.filter(v=>v.shot.asset?.kind==='video').slice(0,6)) {
+  const spans=[];
+  for(const window of windows.filter(v=>v.shot.asset?.kind==='video')) {
+    const length=window.to-window.from+1,parts=Math.ceil(length/(4*fps));
+    for(let i=0;i<parts;i++)spans.push({...window,from:window.from+Math.floor(length*i/parts),to:window.from+Math.floor(length*(i+1)/parts)-1});
+  }
+  const count=Math.min(36,spans.length);
+  for(let i=0;i<count;i++) {
+    const {from,to,shot:{clip,asset}}=spans[count===spans.length?i:Math.round(i*(spans.length-1)/(count-1))];
     if(!asset.path||to-from<fps*.35)continue;
     const d=to-from, at=(f)=>((clip.sourceIn||0)+(from-clip.start+f)*(clip.speed||1))/fps;
-    const times=[.22,.47,.72].map(u=>at(d*u));
+    const fractions=[.22,.47,.72],times=fractions.map(u=>at(d*u));
     try {
-      const frames=[];for(const sec of times)frames.push(await decodePixels(ffmpeg,asset.path,sec,96,60,signal));
-      const pair=[sceneChange(frames[0],frames[1],96,60),sceneChange(frames[1],frames[2],96,60)];
-      records.push({assetId:asset.id,fromFrame:from,toFrame:to,sourceTimes:times,comparisons:pair,
-        result:pair.every(p=>p.change<1.6)?'no-detectable-change':pair.every(p=>p.afterGlobalMotion<3.2)?'consistent-with-camera-movement':'changing-footage'});
+      const compare=async(file,timestamps)=>{
+        const frames=[];for(const sec of timestamps)frames.push(await decodePixels(ffmpeg,file,sec,96,60,signal));
+        const pair=[sceneChange(frames[0],frames[1],96,60),sceneChange(frames[1],frames[2],96,60)];
+        const result=pair.every(p=>p.change<1.6)?'no-detectable-change':pair.every(p=>p.afterGlobalMotion<3.2)?'consistent-with-camera-movement':'changing-footage';
+        return {pair,result};
+      };
+      const source=await compare(asset.path,times),candidate=await compare(videoPath,fractions.map(u=>(from+d*u)/fps));
+      records.push({assetId:asset.id,fromFrame:from,toFrame:to,sourceTimes:times,comparisons:source.pair,candidateComparisons:candidate.pair,
+        sourceResult:source.result,candidateResult:candidate.result,result:source.result==='changing-footage'?candidate.result:source.result});
     }catch(error){if(signal?.aborted)throw error;records.push({assetId:asset.id,fromFrame:from,toFrame:to,result:'unavailable'});}
   }
   return records;
@@ -159,8 +184,8 @@ async function measureMotion(project,windows,ffmpeg,signal) {
 
 function sharesSubject(step,project) {
   const nearby=(project.timeline.clips||[]).filter(c=>c.track==='caption'&&live(c)&&c.start<=step.toFrame&&lastFrame(c)>=step.fromFrame).map(c=>c.text);
-  const claims=(project.facts||[]).filter(f=>f.assetId===step.assetId).map(f=>f.text||f.claim);
-  const material=[...nearby,...claims].filter(Boolean).join(' ');
+  const facts=project.facts||[],current=facts.filter(f=>f.assetId===step.assetId&&Number.isFinite(f.start)&&f.start<=step.toFrame).sort((a,b)=>b.start-a.start)[0];
+  const material=(nearby.length?nearby:[current?.text||current?.claim]).filter(Boolean).join(' ');
   if(!material.trim())return null;
   const segmenter=new Intl.Segmenter('zh',{granularity:'word'}),ignore=new Set(['因此','这个','画面','照片','这里','边上','先看','能看到','可以','因为','位置','看到','上面','下面','有点','the','this','that','with','look','shows','image']);
   const words=t=>new Set([...segmenter.segment(t.toLowerCase())].filter(x=>x.isWordLike&&[...x.segment].length>1&&!ignore.has(x.segment)).map(x=>x.segment));
@@ -169,12 +194,104 @@ function sharesSubject(step,project) {
   return [...description].some(w=>vocabulary.has(w)||w.length>2&&material.includes(w));
 }
 
+export function currentVisualChecks(project) {
+  const receipt=project.visualDirection;
+  if(!receipt?.timelineHash||receipt.timelineHash!==shotFingerprint(project))return [];
+  return (receipt.checks||[]).filter(c=>stageNames.has(c.stage)&&Number.isSafeInteger(c.frame)&&plain(c.observation).length>=4&&
+    receipt.frames?.some(f=>f.source==='timeline'&&f.frame===c.frame&&f.stage===c.stage&&/^[a-f0-9]{64}$/.test(f.sha256||'')));
+}
+
+async function filmedSequence(project,windows,checks,motion,hashFile) {
+  const observed=project.visualDirection?.frames||[],verified=[],hashes=new Map();
+  for(const check of checks.filter(c=>!c.needsFix)) {
+    const window=windows.find(w=>w.from<=check.frame&&w.to>=check.frame),asset=window?.shot.asset;
+    const row=(project.storyboard||[]).find(r=>r.assetId===asset?.id&&r.start<=check.frame&&r.start+r.duration>check.frame);
+    const anchor=row?.visualSteps?.find(s=>s.stage===check.stage&&s.atFrame<=check.frame&&s.assetHash===asset?.sha256&&
+      plain(s.observation).length>=4&&observed.some(f=>f.source==='asset'&&f.assetId===asset?.id&&f.assetHash===asset?.sha256&&f.sha256===s.witnessFrameHash));
+    if(!anchor||asset.kind!=='video'||!motion.some(m=>m.assetId===asset.id&&m.fromFrame<=check.frame&&m.toFrame>=check.frame&&m.result==='changing-footage'))continue;
+    if(!hashes.has(asset.id)){try{hashes.set(asset.id,await hashFile(asset.path));}catch{hashes.set(asset.id,null);}}
+    if(hashes.get(asset.id)!==asset.sha256)continue;
+    verified.push({stage:check.stage,frame:check.frame,assetId:asset.id,sha256:asset.sha256,sourceFrame:anchor.sourceFrame??anchor.anchorSourceFrame,witnessFrameHash:anchor.witnessFrameHash});
+  }
+  return verified.sort((a,b)=>a.frame-b.frame);
+}
 function usesScienceGrammar(project,styleSpec) {
   const spec=styleSpec||project.style||{}, declared=spec.executionPlan?.template||project.visualDirection?.executionPlan?.template||project.visualDirection?.template;
   if(declared)return declared==='step-reveal';
   const templates=spec.templates||spec.templateIds;
   if(Array.isArray(templates))return templates.some(t=>(typeof t==='string'?t:t.id)==='step-reveal');
   return project.timeline.clips.some(c=>c.template==='step-reveal')||spec.id==='henry-technical-explainer';
+}
+function videoFirstPolicy(project,spec) {
+  const rule=[...(spec?.rules||[]),...(spec?.executionPlan?.sourceRules||[]),...(project.style?.rules||[])].find(r=>r.id==='video-first');
+  if(!rule)return null;
+  const explicit=project.settings?.visualRequirements?.motionFootage,brief=positiveClauses(project.brief);
+  const photoOverride=brief.split('。').some(part=>(!/(?:开头|片头|结尾|片尾|这段|此段|这一镜|首个镜头)/.test(part)||/(?:全片|整片|整条|全程|所有素材)/.test(part))&&/(?:只(?:使用|用|以)|仅(?:使用|用|限)|全程(?:使用|用|只用)|全部(?:是|使用|用)|不用视频只用|只要).{0,20}(?:照片|相片|静图|静态图|原照|原图|图片)|(?:照片|原照|图片|静图|静态图|图解).{0,8}(?:为主|为主体|为唯一素材)|(?:still images|photos|photographs) only|only (?:use |using )?(?:still images|photos|photographs)/i.test(part));
+  return {ruleId:rule.id,basis:rule.basis||'style',instruction:rule.instruction,override:explicit===false?'motionFootage:false':explicit!==true&&photoOverride?'user-photo-brief':null};
+}
+function coverage(windows,motion) {
+  const length=w=>w.to-w.from+1,frames=motion.reduce((n,m)=>n+m.toFrame-m.fromFrame+1,0);
+  const totalFrames=windows.reduce((n,w)=>n+length(w),0),stillFrames=windows.filter(w=>w.shot.asset?.kind==='image').reduce((n,w)=>n+length(w),0);
+  const measured={changingFrames:0,stationaryFrames:0,cameraFrames:0};
+  for(const m of motion) {
+    const field={'changing-footage':'changingFrames','no-detectable-change':'stationaryFrames','consistent-with-camera-movement':'cameraFrames'}[m.result];
+    if(field)measured[field]+=m.toFrame-m.fromFrame+1;
+  }
+  const unverifiedFrames=totalFrames-stillFrames-Object.values(measured).reduce((a,b)=>a+b,0);
+  return {totalFrames,stillFrames,...measured,unverifiedFrames,sampledVideoFrames:frames,changingRatio:totalFrames?+((measured.changingFrames/totalFrames).toFixed(4)):0};
+}
+async function motionReview(project,windows,evidence,policy,checks,hashFile) {
+  const {fps}=project.profile,c=coverage(windows,evidence.motion),r=project.visualDirection,verified=[];
+  if(!policy.override&&c.changingFrames) {
+    const filmed=await filmedSequence(project,windows,checks,evidence.motion,hashFile);
+    evidence.witnessedShots=filmed;
+    const known=new Set(),receipt=r?.motion,hashes=new Map();
+    if(r?.timelineHash&&r.timelineHash===shotFingerprint(project))for(const item of receipt?.windows||[]) {
+      const a=project.assets.find(a=>a.id===item.assetId&&a.kind==='video');
+      const checkHash=hash=>/^[a-f0-9]{64}$/.test(hash||'')&&r.frames?.some(f=>f.source==='asset'&&f.assetId===a?.id&&f.assetHash===a?.sha256&&f.sha256===hash);
+      if(!a||item.fromHash===item.toHash||!checkHash(item.fromHash)||!checkHash(item.toHash)||plain(item.observation).length<4)continue;
+      if(!hashes.has(a.id)){try{hashes.set(a.id,await hashFile(a.path));}catch{hashes.set(a.id,null);}}
+      if(hashes.get(a.id)!==a.sha256)continue;
+      for(const m of evidence.motion) {
+        if(m.assetId!==a.id||m.result!=='changing-footage'||!m.sourceTimes.some(s=>s>=item.sourceStart&&s<=item.sourceEnd))continue;
+        const key=a.id+'@'+m.fromFrame;
+        if(!known.has(key)){
+          const w=windows.find(w=>w.shot.asset?.id===a.id&&w.from<=m.fromFrame&&w.to>=m.toFrame),clip=w?.shot.clip;
+          if(!clip)continue;
+          const projected=t=>clip.start+(t*fps-(clip.sourceIn||0))/(clip.speed||1);
+          const from=Math.max(m.fromFrame,Math.ceil(projected(item.sourceStart))),to=Math.min(m.toFrame,Math.ceil(projected(item.sourceEnd))-1);
+          if(to<from)continue;
+          verified.push({assetId:a.id,fromFrame:from,toFrame:to,observation:item.observation});known.add(key);
+        }
+      }
+    }
+  }
+  const covered=[];
+  for(const sample of evidence.motion.filter(m=>m.result==='changing-footage')){
+    if(evidence.witnessedShots?.some(s=>s.assetId===sample.assetId&&s.frame>=sample.fromFrame&&s.frame<=sample.toFrame))covered.push([sample.fromFrame,sample.toFrame]);
+    else for(const v of verified.filter(v=>v.assetId===sample.assetId&&v.fromFrame<=sample.toFrame&&v.toFrame>=sample.fromFrame))covered.push([v.fromFrame,v.toFrame]);
+  }
+  let end=-1;
+  c.informativeFrames=0;
+  for(const [from,to] of covered.sort((a,b)=>a[0]-b[0])){
+    if(to>end)c.informativeFrames+=to-Math.max(from,end+1)+1;
+    end=Math.max(end,to);
+  }
+  const informative=c.informativeFrames>c.totalFrames/2,majority=c.changingFrames>c.totalFrames/2;
+  const status=policy.override?'photo-adaptation':majority?(informative?'met':'unverified'):c.changingFrames?'partial':
+    c.stillFrames===c.totalFrames?'unmet':c.unverifiedFrames+c.cameraFrames>=c.totalFrames/2?'unverified':'unmet';
+  evidence.motionCoverage=c;
+  evidence.styleExecution={ruleId:policy.ruleId,basis:policy.basis,motionStatus:status,override:policy.override,informativeWindows:verified,
+    assessment:status==='met'?'motion-rule-supported':status==='photo-adaptation'?'requested-photo-adaptation':status==='unverified'?'unverified':'not-reproduced'};
+  if(status==='photo-adaptation'||status==='met')return null;
+  const secs=n=>(n/fps).toFixed(1),ratios='全片有画面的 '+secs(c.totalFrames)+' 秒中，'+secs(c.stillFrames)+' 秒使用照片，'+secs(c.changingFrames)+' 秒在原片与成片均测到超出整体移动的变化。';
+  const relevant=windows.filter(w=>w.shot.asset?.kind==='image'||!evidence.motion.some(m=>m.assetId===w.shot.asset?.id&&m.fromFrame>=w.from&&m.toFrame<=w.to&&m.result==='changing-footage'));
+  const longest=relevant.sort((a,b)=>(b.to-b.from)-(a.to-a.from))[0]||windows[0];
+  const severity=status==='unmet'&&c.stillFrames===c.totalFrames&&evidence.requirements.styleFidelity?'major':'minor';
+  const message=status==='unmet'?'所选风格要求以有信息的运动画面为主体，本版未达到。':
+    status==='partial'?'本版只有部分时段呈现有变化的视频，未达到所选风格以运动过程为主体的要求。':
+    '所选风格要求以有信息的运动画面为主体，目前无法确认取到的变化确实在说明该段内容。';
+  return finding('style-video-first',severity,message+ratios,'选择能说明对应台词的实拍、实验、录屏或标明身份的仿真，保留必要的原照片段。',longest.from,longest.to);
 }
 function relevantRange(project,first,last) {
   const cue=project.timeline.clips.find(c=>live(c)&&c.track==='graphic'&&/(?:留意|看这里|看此处|注意看|请看|观察|注意到|look here|notice|watch the)/i.test(c.text||''));
@@ -183,20 +300,27 @@ function relevantRange(project,first,last) {
 
 export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,hashFile}) {
   const requirements=visualRequirements(project),findings=[];
-  const science=usesScienceGrammar(project,styleSpec);
+  const science=usesScienceGrammar(project,styleSpec),policy=videoFirstPolicy(project,styleSpec);
   const assets=new Map(project.assets.map(a=>[a.id,a])),shots=project.timeline.clips.filter(c=>c.track==='video'&&live(c)).sort((a,b)=>a.start-b.start).map(clip=>({clip,asset:assets.get(clip.assetId)}));
   const windows=visibleWindows(shots),first=windows[0]?.from??0,last=windows.at(-1)?.to??0;
   const evidence={requirements,sourceWindows:windows.map(w=>({assetId:w.shot.clip.assetId,kind:w.shot.asset?.kind||'unknown',fromFrame:w.from,toFrame:w.to})),steps:[],motion:[]};
-  if(!windows.length||!Object.values(requirements).some(Boolean)) return {evidence,findings};
+  if(!windows.length)return {evidence,findings};
+  const checks=currentVisualChecks(project);
+  if(checks.length)evidence.composedChecks=checks.map(c=>({stage:c.stage,frame:c.frame,needsFix:c.needsFix}));
+  for(const c of checks.filter(c=>c.needsFix)) {
+    const cue=project.timeline.clips.find(clip=>clip.track==='caption'&&covers(clip,c.frame));
+    findings.push(finding('visual-witness-'+c.frame,requirements.editableEvidence||requirements.styleFidelity?'unknown':'minor','合成复看记录：'+c.observation+(cue?' 同段字幕为“'+cue.text+'”。':''),'回看对应原片与这段合成画面，再调整贴合画面的说明或镜头。',cue?.start??c.frame,cue?lastFrame(cue):c.frame));
+  }
+  if(!Object.values(requirements).some(Boolean)&&!policy)return {evidence,findings};
   const photosOnly=windows.every(w=>w.shot.asset?.kind==='image');
   if(requirements.motionFootage) {
     if(photosOnly)findings.push(finding('required-moving-footage','major','本期明确要求运动实拍，画面全由照片组成。','加入能显示所述过程的实拍窗口，或由用户更改该素材要求。',first,last));
     else {
-      evidence.motion=await measureMotion(project,windows,ffmpeg,signal);
+      evidence.motion=await measureMotion(project,windows,ffmpeg,signal,videoPath);
       if(!evidence.motion.some(m=>m.result==='changing-footage'))findings.push(finding('required-moving-footage','unknown','抽取的原片窗口不能确认有超出整幅平移、缩放或定格的过程。','回看标出的原片，选真实运动区间或确认当前处理。',first,last));
     }
   }
-  if(!requirements.editableEvidence&&!requirements.styleFidelity)return {evidence,findings};
+  if(!requirements.editableEvidence&&!requirements.styleFidelity&&!policy)return {evidence,findings};
   const {steps,shapeAmbiguous}=makeSteps(project,shots),hashes=new Map(),fps=project.profile.fps;
   const w=Math.max(16,Math.min(640,project.profile.width)),h=Math.max(16,Math.round(w*project.profile.height/project.profile.width));
   const confirmed=[];
@@ -232,8 +356,27 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
       ambiguous?'已有强调或裁切，但原片位置、相关解说或实际成片中的可见指引仍待核。':'明确要求的可编辑局部强调没有出现在时间线上；字幕和普通标题无法定位原片细节。',
       '在实际原图或源帧选中要指出的部位，让可编辑标注随对应语句出现，再回看该段合成画面。',...(steps.length?[steps[0].fromFrame,steps[0].toFrame]:relevantRange(project,first,last))));
   }
+  if(hasLocal&&requirements.styleFidelity){
+    for(const off of evidence.steps.filter(s=>s.sourceVerified&&s.frameMatch?.visible&&s.relatedWords===false)){
+      findings.push(finding('visual-words-'+off.frame,'unknown','“'+off.label+'”所标部位与同段字幕或旁白稿没有可核对的共同描述。','回看此段，核对台词与所指的原片部位。',off.fromFrame,off.toFrame));
+    }
+  }
+  if(policy) {
+    if(!photosOnly&&!evidence.motion.length)evidence.motion=await measureMotion(project,windows,ffmpeg,signal,videoPath);
+    const miss=await motionReview(project,windows,evidence,policy,checks,hashFile);
+    if(miss&&!findings.some(f=>f.id==='required-moving-footage'))findings.push(miss);
+  }
   if(science&&requirements.styleFidelity) {
-    const hasProgression=distinct.length>=2||hasLocal&&returned;
+    let hasProgression=distinct.length>=2||hasLocal&&returned;
+    if(!hasProgression&&!photosOnly&&checks.length){
+      if(!evidence.motion.length)evidence.motion=await measureMotion(project,windows,ffmpeg,signal,videoPath);
+      const sequence=evidence.witnessedShots||await filmedSequence(project,windows,checks,evidence.motion,hashFile);
+      evidence.witnessedShots=sequence;
+      let stageIndex=0;
+      const order=['problem','mechanism','verification'];
+      for(const shot of sequence)if(shot.stage===order[stageIndex])stageIndex++;
+      hasProgression=stageIndex===order.length;
+    }
     if(!hasProgression&&!(requirements.editableEvidence&&!hasLocal)) {
       // A flat sequence of stills with no evidence treatment is a known missing deliverable.
       // For genuine motion or an unfamiliar treatment, an independent viewing can resolve the uncertainty.

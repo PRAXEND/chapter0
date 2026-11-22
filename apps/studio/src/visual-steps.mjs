@@ -41,7 +41,9 @@ export function scienceExecutionPlan(blueprint={},spec={}) {
   return {template:'step-reveal',stages:roles,palette:blueprint.palette||{text:'#FFFFFF',mechanism:'#48E1D1',contrast:'#F7CB52'},
     sourceRules:(spec.rules||[]).filter(r=>['video-first','material-roles','script-picture-map','payoff-and-boundary'].includes(r.id)).map(r=>({id:r.id,instruction:r.instruction})),
     prototype:(blueprint.graphic_placements||[]).map(p=>({component:p.component,frames:p.timeline_frames,region:p.rect_normalized,example:p.reference_text})),
-    adaptation:'有运动/实验过程时选能作证的原片窗口；原题是照片、图表或静物时，可依靠有位置的细节、分步对照和回到原图完成解释。每个关注区都应写清画面上具体能看见什么。'};
+    adaptation:(spec.rules||[]).some(r=>r.id==='video-first')
+      ?'此版明确要求以真实运动、实验、录屏或已标身份的仿真作为主体。静态史料可短暂用于局部指认，然后返回有信息的过程或结果。用户明确要求只用照片或照片为主时可按原照做分步图解。其他情况下，全静态或少量实拍的处理应说明与所选风格的差距。'
+      :'有运动或实验过程时选能作证的原片窗口；原题是照片、图表或静物时，可依靠有位置的细节、分步对照和回到原图完成解释。每个关注区都应写清画面上具体能看见什么。'};
 }
 
 function positionKeys(start,end,view,region,profile,labelPosition) {
@@ -96,7 +98,8 @@ export function compileVisualSteps(scene,profile) {
       if(w*width<7||h*height<7)throw Error('关注的原图细节太小，请用可见的近景或扩大可辨认的范围。');
       layers.push(graphic('evidence-region',s,{shape:'outline',text:'',geometry:{x,y,width:w,height:h},keyframes:hit.keys,style:{color:ink,strokeWidth:Math.max(2,Math.round(Math.min(width,height)*.005))}}));
     }
-    const size=Math.max(12,Math.floor(Math.min(height*.041,width*.78/(units(s.label)+2))));
+    const sizeRatio={problem:.071,detail:.061,mechanism:.066,verification:.059}[s.stage];
+    const size=Math.max(12,Math.floor(Math.min(height*sizeRatio,width*.84/(units(s.label)+1.5))));
     const halfW=Math.min(.46,(size*(units(s.label)+1.25))/(2*width)), halfH=Math.max(.029,size/height*.76);
     const place=b=>{
       const above=b.y-b.height/2-halfH-.015, below=b.y+b.height/2+halfH+.015;

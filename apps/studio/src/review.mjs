@@ -291,6 +291,11 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
   if(meta.candidatePlayable) {
     const visual=await reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,hashFile:fileSha256});
     evidence.visual=visual.evidence;
+    for(const check of project.visualDirection?.checks||[]) {
+      if(!visual.findings.some(f=>f.id==='visual-witness-'+check.frame))continue;
+      const duplicate=problems.findIndex(p=>p.reason==='director-observation'&&p.message.includes(check.observation));
+      if(duplicate>=0)problems.splice(duplicate,1);
+    }
     problems.push(...visual.findings);
   }
   const result=classifyReview(problems,meta);
