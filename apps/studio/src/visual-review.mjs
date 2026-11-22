@@ -86,11 +86,27 @@ function widestReturn(shot,profile,frame) {
   return projected&&projected.visibleFraction>=.75;
 }
 
-function makeSteps(project,shots) {
+function anchoredLabel(clip,project,checks) {
+  const a=clip.evidenceAnchor;
+  if(!a||!clip.text)return false;
+  const saved=plain(a.label),shown=plain(clip.text);
+  if(saved===shown)return true;
+  if(clip.templateRole!=='evidence-label'||saved.length<2||generic(saved)||
+    !(shown.startsWith(saved)||shown.endsWith(saved)))return false;
+  const qualifier=shown.startsWith(saved)?shown.slice(saved.length):shown.slice(0,-saved.length);
+  if(qualifier.length>10||/不|无|未|没|非|错|假|并非|not|never|without|fake|incorrect/i.test(qualifier))return false;
+  const context=[project.brief,a.observation,...(project.facts||[]).map(f=>f.text),
+    ...project.timeline.clips.filter(c=>c!==clip&&live(c)&&['caption','graphic'].includes(c.track)).map(c=>c.text)];
+  if(!context.some(t=>plain(t).includes(qualifier)))return false;
+  const step={...a,fromFrame:clip.start,toFrame:lastFrame(clip)};
+  return checks.some(c=>!c.needsFix&&c.stage===a.stage&&covers(clip,c.frame)&&sharesSubject(step,project,c.observation)===true);
+}
+
+function makeSteps(project,shots,checks) {
   const graphics=project.timeline.clips.filter(c=>live(c)&&c.track==='graphic');
   const fps=project.profile.fps, profile=project.profile,steps=[];
   const shapeAmbiguous=graphics.some(c=>c.shape==='outline'&&c.geometry?.width>0&&c.geometry?.height>0);
-  const labels=graphics.filter(c=>c.evidenceAnchor&&c.text&&plain(c.evidenceAnchor.label)===plain(c.text));
+  const labels=graphics.filter(c=>anchoredLabel(c,project,checks));
   const candidates=labels.map(label=>({label,a:label.evidenceAnchor,annotation:'editable-label'}));
   const captions=project.timeline.clips.filter(c=>live(c)&&c.track==='caption'&&plain(c.text)&&!generic(c.text));
   for(const box of graphics.filter(c=>c.shape==='outline'&&c.evidenceAnchor)) {
@@ -404,7 +420,7 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
     }
   }
   if(!requirements.editableEvidence&&!requirements.styleFidelity&&!policy&&!ending)return {evidence,findings};
-  const {steps,shapeAmbiguous}=makeSteps(project,shots),hashes=new Map(),fps=project.profile.fps;
+  const {steps,shapeAmbiguous}=makeSteps(project,shots,checks),hashes=new Map(),fps=project.profile.fps;
   const w=Math.max(16,Math.min(640,project.profile.width)),h=Math.max(16,Math.round(w*project.profile.height/project.profile.width));
   const confirmed=[];
   for(const s of steps) {

@@ -94,6 +94,18 @@ test('review distinguishes an unrelated effect from a single still with visible,
   assert.equal(result.findings[0].id,'required-science-execution');
   const ordinaryPhoto={...project,settings:{visualRequirements:{editableEvidence:true}},brief:'在原照上做局部解释并给一处可编辑强调。'};
   const reviewRule=(p,f=marked)=>reviewVisualEvidence(p,{ffmpeg,videoPath:f,styleSpec:videoFirstStyle,hashFile:fileSha256});
+  const checkQualified=async(text,checked=true)=>{
+    const group=structuredClone(layers.filter(c=>c.evidenceAnchor?.stage==='detail'));
+    const label=group.find(c=>c.templateRole==='evidence-label');label.text=text;
+    const p={...ordinaryPhoto,timeline:{clips:[shot,...group]}};
+    if(checked)p.visualDirection={timelineHash:shotFingerprint(p),frames:[{source:'timeline',stage:'detail',frame:12,sha256:'b'.repeat(64)}],
+      checks:[{stage:'detail',frame:12,needsFix:false,observation:'中部平行条带的上缘明显发亮。'}]};
+    return (await reviewRule(p)).evidence.confirmedSteps.length;
+  };
+  assert.equal(await checkQualified('中部亮脊'),1);
+  assert.equal(await checkQualified('中部亮脊',false),0);
+  assert.equal(await checkQualified('并非亮脊'),0);
+  assert.equal(await checkQualified('火星亮脊'),0);
   const A=await reviewRule(ordinaryPhoto);assert.equal(A.evidence.styleExecution.motionStatus,'unmet');
   assert.equal(A.evidence.motionCoverage.stillFrames,100);assert.deepEqual(A.findings.map(f=>[f.id,f.severity]),[['style-video-first','minor']]);
   const pinned={...ordinaryPhoto,style:{id:videoFirstStyle.id,version:8}};
