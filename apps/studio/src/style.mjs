@@ -8,6 +8,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {measureReference} from './reference-learning.mjs';
 import {readPortableStyle,writePortableStyle,specDigest} from './style-portable.mjs';
+import {compileVisualSteps,scienceExecutionPlan} from './visual-steps.mjs';
 
 const builtInPacks = fileURLToPath(new URL('../../../user-packs/', import.meta.url));
 const legacyHome = path.join(homedir(), 'Library/Application Support/Video Studio');
@@ -81,10 +82,12 @@ function parseStyle(spec) {
     const rows=references.filter(r=>r.kind==='video' && (r.locator?.startsWith('resource:media/benchmarks/') || r.id===spec.baselineId));
     if(rows.length===1) baseline=rows[0];
   }
-  const components=(blueprint.components||bundle.motion_graphics||[]).map(c=>({id:c.id,name:c.name||c.id,role:c.role||c.name,editable:c.editable||c.editableProperties||[]}));
+  const components=(blueprint.components||bundle.motion_graphics||[]).map(c=>({id:c.id,name:c.name||c.id,role:c.role||c.name,editable:c.editable||c.editableProperties||[],
+    parameters:Object.fromEntries(Object.entries(c).filter(([k,v])=>!['id','name','role','editable','editableProperties'].includes(k)&&(typeof v==='number'||Array.isArray(v)&&v.length<=8&&v.every(Number.isFinite))))}));
   const templateIds=spec.templateIds??(spec.id==='henry-hot-news'?['action-result']:spec.id==='henry-technical-explainer'?['step-reveal']:[]);
   return {id:spec.id,name:spec.name,version:spec.version,description:spec.description||'',adaptation:spec.adaptation||'',rules:spec.rules||[],
     requirements:spec.material_requirements||[],knownExceptions:spec.knownExceptions||[],unknownDimensions:spec.unknown_dimensions||[],
+    executionPlan:templateIds.includes('step-reveal')?scienceExecutionPlan(blueprint,spec):undefined,
     references,baseline,components,measurements:spec.measurements||[],effectRecipes:blueprint.effect_recipes||[],templates:templateIds.filter(id=>id in templateNames).map(id=>({id,name:templateNames[id]})),preferences:spec.preferences||[]};
 }
 
@@ -353,12 +356,14 @@ function oppositeSubject(subject) {
   return {x:x>.5?.30:.70,y:y>.5?.25:.72};
 }
 export function compileScene(scene,profile) {
-  const {style,start,duration,actionFrame}=scene;
+  const {style,start,duration}=scene;
+  const actionFrame=scene.actionFrame??scene.visualSteps?.[0]?.atFrame;
   const template=scene.template??style?.templates?.[0]?.id;
   if(!templateNames[template]||!style?.templates?.some(t=>t.id===template)) throw Error('此风格未启用所选模板');
   if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(duration)||duration<2||!Number.isSafeInteger(actionFrame)||actionFrame<start||actionFrame>=start+duration) throw Error('请标出片段内实际观察到的动作帧');
   const fps=profile?.fps, h=profile?.height,w=profile?.width;
   if(![fps,h,w].every(v=>Number.isFinite(v)&&v>0)) throw Error('工程画幅或帧率无效');
+  if(template==='step-reveal'&&scene.visualSteps?.length) return compileVisualSteps(scene,profile);
   const position=oppositeSubject(scene.subject),finish=start+duration;
   const isNews=template==='action-result';
   const title=(scene.text||'').trim(),detail=(scene.followup||'').trim();

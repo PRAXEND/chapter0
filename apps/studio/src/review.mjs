@@ -3,6 +3,7 @@ import {promisify} from 'node:util';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileSha256} from './style.mjs';
+import {reviewVisualEvidence} from './visual-review.mjs';
 export {createBlindReview} from './blind-review.mjs';
 
 const exec=promisify(execFile);
@@ -229,7 +230,7 @@ async function audioChecks(project,narration,{ffmpeg,videoPath,signal},findings,
     else if(results.length>=2&&!matched.length) findings.push(issue('mix-match-'+clip.id,'unknown','当前混音窗口未能确认旁白原件，需试听对应段','核对音量、源窗口和最终混音。',from,to));
   }
 }
-export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,resolveTool=defaultResolver}={}) {
+export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,styleSpec,resolveTool=defaultResolver}={}) {
   const problems=[...findings],evidence={audio:[],decode:false};
   for(const note of project.directorNotes||[]) {
     if(!note?.message||!['suggestion','required'].includes(note.type)||musicNote(note)) continue;
@@ -286,6 +287,11 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
         problems.push(issue('mix-evidence','unknown','混音与旁白原件的测量未完成','重新检测后试听对应段。'));
       }
     }
+  }
+  if(meta.candidatePlayable) {
+    const visual=await reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,hashFile:fileSha256});
+    evidence.visual=visual.evidence;
+    problems.push(...visual.findings);
   }
   const result=classifyReview(problems,meta);
   result.repairs=deterministicRepairs(project,result);
