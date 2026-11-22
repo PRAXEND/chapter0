@@ -24,14 +24,13 @@ export function motionPolicy(style, project, message = '') {
     !style?.executionPlan?.sourceRules?.some((r) => r.id === 'video-first')
   )
     return null;
-  const text = (project.brief + ' ' + message).replace(
-    /(?:不要|不得|不能|避免)(?:全片)?(?:只|仅)(?:用|使用|依靠|采用)(?:静态|静止)?(?:照片|图片|相片|原照|静图)/gu,
-    ''
-  );
-  const only =
-    /(?:全片|全程|全部|所有画面)(?:都|均)?(?:只|仅)?(?:能|可)?(?:使用|用|采用|依靠)?(?:这些|这两张|现有的|提供的|任务)?(?:静态|静止)?(?:照片|图片|相片|原照|静图)|(?:仅限|只用|仅用|只使用|仅使用)(?:已提供的|提供的|现有的|这[一二两三四五六\d]+张|这组|任务|原始的?)?(?:静态|静止)?(?:照片|图片|相片|原照|静图)|(?:不要|不使用|禁用)(?:任何)?(?:动态素材|运动素材|录像|视频素材)|(?:use\s+only|only\s+use)\s+(?:the\s+)?(?:still\s+)?(?:photos|photographs|images)|(?:still\s+)?(?:photos|photographs|images)\s+only/i.test(
-      text
-    );
+  const clauses=[project.brief,message].filter(Boolean).join('。').split(/[，。；;，\n]/u);
+  const only=clauses.some(clause=>{
+    if(/(?:不要|不得|不能|避免|别)(?:全片|全程)?(?:只|仅)|(?:don't|not|avoid)\s+(?:only|just)/i.test(clause))return false;
+    if(/(?:不使用|不要|禁用)(?:任何)?(?:动态素材|运动素材|录像|视频素材)/u.test(clause))return true;
+    if(/(?:或|和|及|加上|以及)\s*(?:现场|任务)?(?:录像|视频|动态素材)|(?:videos?|footage)\s+(?:or|and)/i.test(clause))return false;
+    return /(?:全片|全程|所有画面)(?:均|都)?(?:为|是|只用|仅用|使用)(?:[^，。；]{0,24})(?:照片|图片|原照|静图)|(?:只(?:能|许|可)?(?:用|使用|采用)|仅(?:限|用|使用|能用))(?:[^，。；]{0,26})(?:照片|图片|相片|原照|静图)|(?:use\s+only|only\s+use)\s+[^.,;]{0,30}(?:photos|photographs|images)|(?:photos|photographs|images)\s+only/i.test(clause);
+  });
   return only ? 'images-only' : 'video-first';
 }
 
