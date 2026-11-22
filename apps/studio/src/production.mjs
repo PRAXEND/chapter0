@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { CodexClient } from './codex.mjs';
 import { directSources, importSource, searchSources, searchFacts, readBriefSources } from './sources.mjs';
-import { applyScenes, localScenes, transcriptFor, reviseLine, sceneIdentity } from './storyboard.mjs';
+import {
+  applyScenes,
+  localScenes,
+  transcriptFor,
+  reviseLine,
+  sceneIdentity,
+  durationNotes,
+} from './storyboard.mjs';
 import { describeFrames } from './vision.mjs';
 import { draftPreviews } from './draft-preview.mjs';
 import { compileSceneWithSound } from './scene-sound.mjs';
@@ -12,6 +19,8 @@ import {
   prepareVisuals,
   readVisualFrame,
   shotFingerprint,
+  motionPolicy,
+  motionCoverage,
 } from './director-visual.mjs';
 
 const object = (properties = {}, required = []) => ({
@@ -33,8 +42,17 @@ const beat = object(
     durationSeconds: num,
     narration: str,
     claimUrl: str,
-    claimKind:{type:'string',enum:['observation','explanation']},
-    claimQuote:{type:'string',description:'For explanatory claims, a short exact passage from the verified source excerpt supporting that specific mechanism.'},
+    motionEvidence: object({ fromSeconds: num, toSeconds: num, observation: str }, [
+      'fromSeconds',
+      'toSeconds',
+      'observation',
+    ]),
+    claimKind: { type: 'string', enum: ['observation', 'explanation'] },
+    claimQuote: {
+      type: 'string',
+      description:
+        'For explanatory claims, a short exact passage from the verified source excerpt supporting that specific mechanism.',
+    },
     utteranceId: str,
     actionSourceSeconds: num,
     anchorText: str,
@@ -108,7 +126,13 @@ const tools = [
   tool(
     'studio_research',
     'Look up dated bibliographic or encyclopedic evidence for a public topic. A publication title supports only what its wording states. Distinguish archival material from a recent event.',
-    { query: str, readUrl:{type:'string',description:'Optional URL of an already registered public fact result to inspect its actual page text.'} },
+    {
+      query: str,
+      readUrl: {
+        type: 'string',
+        description: 'Optional URL of an already registered public fact result to inspect its actual page text.',
+      },
+    },
     ['query']
   ),
   tool(
@@ -133,6 +157,11 @@ const tools = [
     {
       baseRevision: int,
       beats: { type: 'array', items: beat },
+      motionGap: {
+        type: 'string',
+        description:
+          'Name any specific missing action or restricted archive window if moving footage cannot lead this edit.',
+      },
     },
     ['baseRevision', 'beats']
   ),
@@ -544,6 +573,7 @@ export function createDirector(deps) {
       signal = options.signal;
     const reusable = original.visualDirection?.jobId === jobId;
     const activeStyle = await styleLibrary.get(original.style.id, original.style.version);
+    const policy = motionPolicy(activeStyle, original, options.message);
     let receipt = reusable
       ? original.visualDirection
       : {
@@ -574,7 +604,7 @@ export function createDirector(deps) {
     };
     const execute = async (stage, attempt = 0, extra = []) => {
       let p = await store.get(id);
-      const packet = await prepareVisuals({ ...deps, drafts }, p, stage, extra, signal);
+      const packet = await prepareVisuals({ ...deps, drafts }, p, stage, extra, signal, policy);
       const frameData = packet.result.map((item) => item.frame);
       const latest = await store.get(id);
       if (sceneIdentity(latest) !== sceneIdentity(p))
@@ -587,19 +617,26 @@ export function createDirector(deps) {
         requested: [],
         gaps: packet.gaps,
         checks: [],
+        policy,
+        queries: [],
+        motionGap: '',
         initial: shotFingerprint(p),
       };
+      const phaseGaps = { ...receipt.phaseGaps, [stage]: packet.gaps };
       await save({
         status: stage,
         frames: [
           ...receipt.frames.filter((f) => f.phase !== stage),
           ...frameData.map((f) => ({ ...f, phase: stage })),
         ],
-        gaps: [...new Set([...receipt.gaps, ...packet.gaps])],
+        phaseGaps,
+        gaps: [...new Set(Object.values(phaseGaps).flat())],
       });
       const result = await runProject(id, { ...options, jobId, visual: session });
       const completed = await store.get(id);
       await save({
+        motionQueries: [...(receipt.motionQueries || []), ...session.queries].slice(-32),
+        motionGap: session.motionGap || receipt.motionGap || '',
         rounds: [
           ...receipt.rounds,
           {
@@ -630,7 +667,12 @@ export function createDirector(deps) {
         message: '已恢复完成的视觉复查。',
       };
     if (!receipt.composed) {
-      if (original.mode === 'topic' && !visualAssets(original).length) await execute('sources');
+      if (
+        original.mode === 'topic' &&
+        (!visualAssets(original).length ||
+          (policy === 'video-first' && !receipt.rounds.some((r) => r.stage === 'sources')))
+      )
+        await execute('sources');
       let { result, session } = await execute('compose');
       if (!session.sequence && session.requested.length)
         ({ result, session } = await execute('compose', 1, session.requested));
@@ -643,7 +685,12 @@ export function createDirector(deps) {
         type: 'required',
         message: '本工程关闭了图像分享。可以预览已有编排；基准风格、源画面和实际合成的视觉复查仍待确认。',
       };
-      await save({ status: 'blocked-by-privacy', timelineHash: shotFingerprint(current), checks: [] });
+      await save({
+        status: 'blocked-by-privacy',
+        timelineHash: shotFingerprint(current),
+        checks: [],
+        motion: motionCoverage(current, receipt.frames, policy, receipt.motionQueries, receipt.motionGap),
+      });
       const notes = [...(current.directorNotes || []).filter((n) => n.kind !== 'visual-evidence'), note];
       await store.setMeta(id, { directorNotes: notes });
       return {
@@ -659,20 +706,23 @@ export function createDirector(deps) {
     current = await store.get(id);
     if (session.initial !== shotFingerprint(current)) ({ session } = await execute('verify', 1));
     current = await store.get(id);
+    const motion = motionCoverage(current, receipt.frames, policy, receipt.motionQueries, receipt.motionGap);
     const verified =
       session.initial === shotFingerprint(current) &&
       session.checks.length > 0 &&
       !session.checks.some((x) => x.needsFix) &&
       receipt.frames.some((f) => f.source === 'style') &&
-      !receipt.gaps.length;
-    const notes = [...(current.directorNotes || []).filter((n) => n.kind !== 'visual-evidence')];
+      !receipt.gaps.length &&
+      !motion?.gap;
+    const notes = durationNotes(current).filter((n) => n.kind !== 'visual-evidence');
     if (!verified)
       notes.push({
         kind: 'visual-evidence',
         type: 'required',
         message:
           '候选已生成。' +
-          (receipt.gaps[0] ||
+          (motion?.gap ||
+            receipt.gaps[0] ||
             session.checks.find((x) => x.needsFix)?.observation ||
             '尚待确认本次真实合成的关键画面。'),
       });
@@ -680,6 +730,7 @@ export function createDirector(deps) {
       status: verified ? 'reviewed' : 'needs-review',
       timelineHash: shotFingerprint(current),
       checks: session.checks,
+      motion,
     });
     await store.setMeta(id, { directorNotes: notes });
     return {
@@ -951,7 +1002,18 @@ export function createDirector(deps) {
       }
       if (name === 'studio_find') {
         if (current.mode !== 'topic') throw new Error('此工程使用用户已选择的素材。');
-        const entries = await search(args.query, { signal, kind: args.kind || 'any' });
+        if (visual?.policy === 'images-only' && args.kind === 'video') throw Error('用户要求本片只用静态原图。');
+        const mediaKind =
+          args.kind ||
+          (visual?.policy === 'images-only'
+            ? 'image'
+            : visual?.stage === 'sources' && visual.policy === 'video-first'
+              ? 'video'
+              : 'any');
+        const query = { query: trim(args.query, 200), kind: mediaKind, found: 0 };
+        if (visual) visual.queries.push(query);
+        const entries = await search(args.query, { signal, kind: mediaKind });
+        query.found = entries.length;
         return toolText(
           entries.map((e) => {
             const key = randomUUID();
@@ -1033,12 +1095,36 @@ export function createDirector(deps) {
           onEvent,
           visualFrames: visual?.frames || [],
         });
-        if (visual) visual.sequence = true;
+        if (visual) {
+          visual.sequence = true;
+          visual.motionGap = trim(args.motionGap, 420);
+        }
         notes = result.notes;
+        if (visual?.policy === 'video-first') {
+          const coverage = motionCoverage(
+            await store.get(id),
+            visual.frames,
+            visual.policy,
+            visual.queries,
+            visual.motionGap
+          );
+          if (coverage.gap)
+            notes = [
+              ...notes,
+              {
+                kind: 'motion-coverage',
+                type: 'suggestion',
+                message:
+                  coverage.gap + ' 请检查已见的其他合适录像时间窗；可重新提交完整分镜，素材不符则保留缺口。',
+              },
+            ];
+        }
       } else if (name === 'studio_edit') {
         const commands = JSON.parse(args.commandsJson);
         allowedCommands(commands, current);
-        await store.apply(id, current.revision, commands, 'codex');
+        const applied = await store.apply(id, current.revision, commands, 'codex');
+        notes = durationNotes(applied);
+        await store.setMeta(id, { directorNotes: notes });
       } else if (name === 'studio_narrate') {
         await reviseLine(deps, current, args.clipId, args.text, signal);
       } else throw new Error('工具未注册。');
@@ -1063,6 +1149,12 @@ export function createDirector(deps) {
       });
     if (visual?.images.length && (await store.get(id)).settings?.shareFrames !== true)
       throw Error('当前已关闭分享，剪辑任务保留在本地。');
+    const movement =
+      visual?.policy === 'video-first'
+        ? '\n本风格的已保存 video-first 规则要求实际现场、实验、录屏或标明为仿真的运动过程承担主要时长。sources 阶段必须以 studio_find(kind=video) 搜索与本期动作相关的具体档案；核对资料本身是否真的显示本期讲解的动作。compose 阶段检查同一录像的多个源时间窗，从两张实际原生图中找可见变化，在每个采用的运动镜头写 motionEvidence={fromSeconds,toSeconds,observation}，两帧都在最终该源窗口内。用图近看痕迹、细节后回到实际过程或结果；结尾回原照并未限制前面只能用图。不要反复同图推拉或用“宇航员走动”等无关素材滥充动作。素材实在不足，把查过的动作、为何不能采用写 motionGap，做好可播候选。'
+        : visual?.policy === 'images-only'
+          ? '\n用户明确规定全片只用静态图像，按此素材例外制作。'
+          : '';
     const outcome = await client.runTurn({
       threadId,
       existingTurnId,
@@ -1080,7 +1172,8 @@ export function createDirector(deps) {
           '\n附图清单：' +
           JSON.stringify(visual.frames) +
           '\n缺少的依据：' +
-          JSON.stringify(visual.gaps)
+          JSON.stringify(visual.gaps) +
+          movement
         : prompt,
       images: visual?.images || [],
       tool: dispatch,

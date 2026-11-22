@@ -7,6 +7,24 @@ const digest = (value) => createHash('sha256').update(JSON.stringify(value)).dig
 const visual = (asset) => asset.kind === 'video' || asset.kind === 'image';
 export const sceneIdentity = (p) =>
   digest([p.brief, p.script, p.mode, p.profile, p.settings, p.style, p.timeline.clips]);
+export function durationNotes(project, notes = project.directorNotes || []) {
+  const current = notes.filter(
+    (n) => n.kind !== 'target-duration' && !/^当前成片长 [\d.]+ 秒，本期目标为/.test(n.message || '')
+  );
+  const frames = project.timeline.clips
+    .filter((c) => c.enabled !== false && !c.hidden)
+    .reduce((end, c) => Math.max(end, c.start + c.duration), 0);
+  const target = Number(project.settings?.targetDuration),
+    actual = frames / project.profile.fps;
+  if (target > 0 && Math.abs(actual - target) > Math.max(2, target * 0.1))
+    current.push({
+      type: 'suggestion',
+      kind: 'target-duration',
+      frame: Math.max(0, frames - 1),
+      message: '当前成片长 ' + actual.toFixed(1) + ' 秒，本期目标为 ' + target + ' 秒。',
+    });
+  return current;
+}
 function sentenceList(text) {
   const sentences = new Intl.Segmenter('zh', { granularity: 'sentence' });
   return String(text || '')
@@ -623,6 +641,16 @@ export async function applyScenes(
     }
     board.push({
       assetId: asset.id,
+      videoClipId: 'scene-' + i + '-video',
+      ...(asset.kind === 'video' && beat.motionEvidence
+        ? {
+            motionEvidence: {
+              fromSeconds: beat.motionEvidence.fromSeconds,
+              toSeconds: beat.motionEvidence.toSeconds,
+              observation: String(beat.motionEvidence.observation || '').slice(0, 360),
+            },
+          }
+        : {}),
       sourceStart,
       sourceEnd,
       start: cursor,
@@ -631,7 +659,9 @@ export async function applyScenes(
       ...(steps.length ? { visualSteps: steps, framing: beat.framing } : {}),
       ...(alignment ? { speechGroup, speechAssetId: voice.id, speechScriptHash: alignment.scriptHash } : {}),
       claimUrl: beat.claimUrl || asset.source?.url,
-      ...(beat.claimKind?{claimKind:beat.claimKind,claimQuote:claimQuote||undefined,visualSourceUrl:asset.source?.url}:{}),
+      ...(beat.claimKind
+        ? { claimKind: beat.claimKind, claimQuote: claimQuote || undefined, visualSourceUrl: asset.source?.url }
+        : {}),
       continuity: String(beat.continuity || '').slice(0, 240),
     });
     if (beat.claimUrl && (beat.claimUrl === asset.source?.url || verifiedFact))
@@ -717,14 +747,6 @@ export async function applyScenes(
       );
     }
   }
-  const target = Number(project.settings?.targetDuration);
-  if (target > 0 && Math.abs(cursor / fps - target) > Math.max(2, target * 0.1)) {
-    notes.push({
-      type: 'suggestion',
-      frame: Math.max(0, cursor - 1),
-      message: '当前成片长 ' + (cursor / fps).toFixed(1) + ' 秒，本期目标为 ' + target + ' 秒。',
-    });
-  }
   signal?.throwIfAborted();
   const latest = await deps.store.get(project.id);
   if (sceneIdentity(latest) !== expected)
@@ -734,6 +756,7 @@ export async function applyScenes(
     ...clips.map((clip) => ({ op: 'add', clip })),
   ];
   const updated = await deps.store.apply(project.id, latest.revision, commands, 'codex');
-  await deps.store.setMeta(project.id, { storyboard: board, facts, directorNotes: notes });
-  return { project: updated, notes };
+  const finalNotes = durationNotes(updated, notes);
+  await deps.store.setMeta(project.id, { storyboard: board, facts, directorNotes: finalNotes });
+  return { project: updated, notes: finalNotes };
 }

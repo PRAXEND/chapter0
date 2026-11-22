@@ -18,6 +18,104 @@ export const shotFingerprint = (p) =>
     .digest('hex');
 const signature = (buffer) => createHash('sha256').update(buffer).digest('hex');
 
+export function motionPolicy(style, project, message = '') {
+  if (
+    !style?.rules?.some((r) => r.id === 'video-first') &&
+    !style?.executionPlan?.sourceRules?.some((r) => r.id === 'video-first')
+  )
+    return null;
+  const text = (project.brief + ' ' + message).replace(
+    /(?:不要|不得|不能|避免)(?:全片)?(?:只|仅)(?:用|使用|依靠|采用)(?:静态|静止)?(?:照片|图片|相片|原照|静图)/gu,
+    ''
+  );
+  const only =
+    /(?:全片|全程|全部|所有画面)(?:都|均)?(?:只|仅)?(?:能|可)?(?:使用|用|采用|依靠)?(?:这些|这两张|现有的|提供的|任务)?(?:静态|静止)?(?:照片|图片|相片|原照|静图)|(?:仅限|只用|仅用|只使用|仅使用)(?:已提供的|提供的|现有的|这[一二两三四五六\d]+张|这组|任务|原始的?)?(?:静态|静止)?(?:照片|图片|相片|原照|静图)|(?:不要|不使用|禁用)(?:任何)?(?:动态素材|运动素材|录像|视频素材)|(?:use\s+only|only\s+use)\s+(?:the\s+)?(?:still\s+)?(?:photos|photographs|images)|(?:still\s+)?(?:photos|photographs|images)\s+only/i.test(
+      text
+    );
+  return only ? 'images-only' : 'video-first';
+}
+
+export function motionCoverage(p, sourceFrames, policy, queries = [], reason = '') {
+  if (!policy) return null;
+  const fps = p.profile.fps,
+    clips = p.timeline.clips.filter((c) => c.track === 'video' && c.enabled !== false && !c.hidden),
+    assets = new Map(p.assets.map((a) => [a.id, a]));
+  const windows = [],
+    proven = new Set();
+  for (const c of clips) {
+    const a = assets.get(c.assetId),
+      b = p.storyboard?.find(
+        (s, i) =>
+          s.assetId === c.assetId && ((s.videoClipId || 'scene-' + i + '-video') === c.id || s.start === c.start)
+      ),
+      e = b?.motionEvidence;
+    if (a?.kind !== 'video' || !e || typeof e.observation !== 'string' || e.observation.trim().length < 4)
+      continue;
+    const begin = (c.sourceIn || 0) / fps,
+      end = begin + (c.duration * (c.speed || 1)) / fps;
+    if (
+      !Number.isFinite(e.fromSeconds) ||
+      !Number.isFinite(e.toSeconds) ||
+      e.toSeconds - e.fromSeconds < 0.18 ||
+      e.fromSeconds < begin - 0.51 / fps ||
+      e.toSeconds >= end + 0.51 / fps
+    )
+      continue;
+    const witness = (t) =>
+      sourceFrames.find(
+        (f) =>
+          f.source === 'asset' &&
+          f.assetId === a.id &&
+          f.assetHash === a.sha256 &&
+          Math.abs(f.seconds - t) <= 0.51 / fps
+      );
+    const from = witness(e.fromSeconds),
+      to = witness(e.toSeconds);
+    if (!from || !to || from.sha256 === to.sha256) continue;
+    windows.push({
+      assetId: a.id,
+      assetHash: a.sha256,
+      clipId: c.id,
+      timelineFrom: c.start,
+      timelineFrames: c.duration,
+      sourceStart: from.seconds,
+      sourceEnd: to.seconds,
+      fromHash: from.sha256,
+      toHash: to.sha256,
+      observation: e.observation.slice(0, 360),
+    });
+    proven.add(c.id);
+  }
+  let videoFrames = 0,
+    stillFrames = 0,
+    witnessedFrames = 0;
+  const edges = [...new Set(clips.flatMap((c) => [c.start, c.start + c.duration]))].sort((a, b) => a - b);
+  for (let i = 0; i < edges.length - 1; i++) {
+    const c = clips.findLast((c) => c.start <= edges[i] && c.start + c.duration > edges[i]);
+    if (!c) continue;
+    const n = edges[i + 1] - edges[i];
+    if (assets.get(c.assetId)?.kind === 'video') videoFrames += n;
+    else stillFrames += n;
+    if (proven.has(c.id)) witnessedFrames += n;
+  }
+  const totalFrames = videoFrames + stillFrames;
+  let gap = '';
+  if (policy === 'video-first' && witnessedFrames * 2 <= totalFrames) {
+    const searched = queries.some((q) => q.kind === 'video');
+    gap =
+      '所选风格要求由实际运动画面推动讲解。目前从成对原片帧核对到动作变化的录像镜头占 ' +
+      (witnessedFrames / fps).toFixed(1) +
+      ' / ' +
+      (totalFrames / fps).toFixed(1) +
+      ' 秒。' +
+      (reason?.trim()?.slice(0, 420) ||
+        (searched
+          ? '已查询录像，仍缺能直接支持本期讲解的源窗口。'
+          : '尚缺足够的实拍、实验、录屏或标明身份的仿真窗口。'));
+  }
+  return { policy, queries, windows, videoFrames, stillFrames, witnessedFrames, totalFrames, gap };
+}
+
 export function checkVisualPlan(beats, project, frames) {
   if (!Array.isArray(beats) || !beats.length) throw Error('请提交本片的真实分镜。');
   const seen = [];
@@ -156,7 +254,51 @@ export async function readVisualFrame(deps, project, requested, signal) {
   }
 }
 
-export async function prepareVisuals(deps, p, stage, extra, signal) {
+export function currentReviewWindows(p) {
+  const active = p.timeline.clips.filter((c) => c.enabled !== false && !c.hidden);
+  const pictures = active.filter((c) => c.track === 'video'),
+    assets = new Map(p.assets.map((a) => [a.id, a]));
+  const anchors = new Map(),
+    slots = [];
+  for (const c of active.filter((c) => c.track === 'graphic' && c.evidenceAnchor)) {
+    const e = c.evidenceAnchor,
+      asset = assets.get(e.assetId);
+    if (!stages.includes(e.stage) || asset?.sha256 !== e.sha256) continue;
+    for (const pic of pictures.filter((pic) => pic.assetId === e.assetId)) {
+      const start = Math.max(pic.start, c.start),
+        end = Math.min(pic.start + pic.duration, c.start + c.duration);
+      if (start >= end) continue;
+      const key = e.stepId || c.id,
+        old = anchors.get(key);
+      if (!old || end - start > old.end - old.atFrame)
+        anchors.set(key, { stage: e.stage, atFrame: start, end, picture: pic.id });
+    }
+  }
+  slots.push(...anchors.values());
+  for (const [i, beat] of (p.storyboard || []).entries()) {
+    const pic = pictures.find(
+      (c) => c.id === (beat.videoClipId || 'scene-' + i + '-video') && c.assetId === beat.assetId
+    );
+    if (!pic) continue;
+    const a = assets.get(pic.assetId),
+      local = [];
+    for (const s of beat.visualSteps || []) {
+      if (slots.some((w) => w.stage === s.stage && w.picture === pic.id)) continue;
+      if (s.assetHash && s.assetHash !== a?.sha256) continue;
+      const at =
+        a?.kind === 'video' && Number.isFinite(s.sourceFrame)
+          ? pic.start + Math.round((s.sourceFrame - (pic.sourceIn || 0)) / (pic.speed || 1))
+          : pic.start + Math.round(((s.atFrame - beat.start) * pic.duration) / Math.max(1, beat.duration));
+      if (at >= pic.start && at < pic.start + pic.duration)
+        local.push({ stage: s.stage, atFrame: at, picture: pic.id });
+    }
+    for (const [j, s] of local.entries())
+      slots.push({ ...s, end: local[j + 1]?.atFrame ?? pic.start + pic.duration });
+  }
+  return { slots: slots.filter((w) => w.end > w.atFrame), pictures };
+}
+
+export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
   const result = [],
     gaps = [];
   if (p.settings?.shareFrames !== true)
@@ -182,16 +324,28 @@ export async function prepareVisuals(deps, p, stage, extra, signal) {
             ];
       for (const seconds of new Set(times)) requests.push({ source: 'style', id: b.id, seconds });
     } else gaps.push('基准片未登记。');
-    for (const a of p.assets
-      .filter((a) => ['video', 'image'].includes(a.kind) && a.source?.role !== 'hold')
-      .slice(0, 6)) {
-      const seconds = a.kind === 'image' ? 0 : Math.min(0.5, Math.max(0, a.duration - 1 / p.profile.fps));
-      requests.push({ source: 'asset', id: a.id, seconds });
+    const available = p.assets.filter((a) => a.source?.role !== 'hold');
+    for (const a of available.filter((a) => a.kind === 'image').slice(0, 6))
+      requests.push({ source: 'asset', id: a.id, seconds: 0 });
+    for (const a of available.filter((a) => a.kind === 'video' && policy !== 'images-only').slice(0, 3)) {
+      const fps = p.profile.fps,
+        last = Math.max(0, Math.floor(a.duration * fps) - 1);
+      const starts =
+        policy === 'video-first'
+          ? [0.06, 0.45, 0.76].map((x) => Math.floor(last * x))
+          : [Math.min(last, Math.round(0.5 * fps))];
+      for (const frame of starts) {
+        requests.push({ source: 'asset', id: a.id, seconds: frame / fps });
+        if (policy === 'video-first')
+          requests.push({
+            source: 'asset',
+            id: a.id,
+            seconds: Math.min(last, frame + Math.max(1, Math.min(fps, Math.floor(last * 0.08)))) / fps,
+          });
+      }
     }
   } else if (stage === 'verify') {
-    const all = (p.storyboard || []).flatMap((b) =>
-      (b.visualSteps || []).map((s, i, arr) => ({ ...s, end: arr[i + 1]?.atFrame ?? b.start + b.duration }))
-    );
+    const { slots: all, pictures } = currentReviewWindows(p);
     const mandatory = stages.map((stage) => all.find((s) => s.stage === stage)).filter(Boolean);
     const checks = [...new Set([...mandatory, ...all])].slice(0, 8);
     for (const s of checks)
@@ -200,12 +354,16 @@ export async function prepareVisuals(deps, p, stage, extra, signal) {
         frame: Math.min(s.end - 1, s.atFrame + Math.max(1, Math.round(p.profile.fps * 0.45))),
         stage: s.stage,
       });
-    for (const b of (p.storyboard || []).filter((b) => b.duration >= p.profile.fps * 6).slice(0, 3)) {
+    for (const b of pictures.filter((b) => b.duration >= p.profile.fps * 6).slice(0, 3)) {
       const mid = b.start + Math.floor(b.duration * 0.58),
-        step = b.visualSteps?.findLast((s) => s.atFrame <= mid);
-      requests.push({ source: 'timeline', frame: mid, stage: step?.stage || 'hold' });
+        step =
+          all.find((s) => s.picture === b.id && s.atFrame <= mid && s.end > mid) ||
+          all.find((s) => s.picture === b.id);
+      if (step) requests.push({ source: 'timeline', frame: mid, stage: step.stage });
     }
-    if (!all.length) gaps.push('当前时间线没有已绑定的阶段可回看。');
+    for (const stage of stages)
+      if (!all.some((s) => s.stage === stage))
+        gaps.push(stage + '：当前剪辑中找不到这个阶段仍在播放的绑定镜头或图层。');
   }
   const used = new Set();
   for (const r of [...requests, ...(extra || []).slice(0, 12)]) {

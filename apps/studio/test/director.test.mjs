@@ -4,8 +4,14 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { createDirector } from '../src/production.mjs';
-import { applyScenes, reviseLine } from '../src/storyboard.mjs';
-import { checkVisualPlan, usesVisualStages } from '../src/director-visual.mjs';
+import { applyScenes, reviseLine, durationNotes } from '../src/storyboard.mjs';
+import {
+  checkVisualPlan,
+  usesVisualStages,
+  motionPolicy,
+  motionCoverage,
+  currentReviewWindows,
+} from '../src/director-visual.mjs';
 import { alignScript } from '../src/speech-alignment.mjs';
 
 const picture = {
@@ -629,4 +635,100 @@ test('edits move the actual rendered geometry and preserve keyframed movement an
   const {p,deps}=await fixture(t,{timeline:{clips:[{id:'focus',track:'graphic',start:0,duration:50,text:'看这处',geometry:{x:.3,y:.7,width:.25},style:{color:'#aabbcc',fontSize:30},keyframes:[{frame:0,x:.3,y:.7},{frame:38,x:.4,y:.7}]}]}});
   deps.client={account:async()=>({connected:true}),thread:async()=> 'c',close(){},runTurn:async({tool,onStart})=>{await onStart('t');const edit=(changes)=>tool({tool:'studio_edit',arguments:{baseRevision:p.revision,commandsJson:JSON.stringify([{op:'update',id:'focus',changes}])}});await assert.rejects(edit({x:-54,y:192}),/像素/);await edit({x:.5,y:.7,fontSize:42});return '完成';}};
   const d=createDirector(deps);t.after(()=>d.close());await d.run(p.id,{kind:'revise'});const c=p.timeline.clips[0];assert.equal(c.geometry.x,.5);assert.equal(c.geometry.width,.25);assert.equal(c.x,undefined);assert.equal(c.style.fontSize,42);assert.equal(c.style.color,'#aabbcc');assert.ok(Math.abs(c.keyframes[1].x-.6)<1e-6);
+});
+
+test('video-first distinguishes returning to an image from images-only; real motion needs two source witnesses and a concrete observation', () => {
+  const style = { rules: [{ id: 'video-first' }] },
+    p = {
+      brief: '请自己找任务原照，最后回到照片。',
+      profile: { fps: 24 },
+      assets: [
+        { id: 'movie', kind: 'video', sha256: 'sha' },
+        { id: 'image', kind: 'image', sha256: 'still' },
+      ],
+      storyboard: [
+        {
+          assetId: 'movie',
+          start: 500,
+          videoClipId: 'moving',
+          motionEvidence: { fromSeconds: 2, toSeconds: 3, observation: '两只前轮离开蓝线，移动到标尺下方。' },
+        },
+      ],
+      timeline: {
+        clips: [
+          { id: 'moving', assetId: 'movie', track: 'video', start: 0, duration: 168, sourceIn: 48 },
+          { id: 'still', assetId: 'image', track: 'video', start: 168, duration: 432 },
+        ],
+      },
+    };
+  assert.equal(motionPolicy(style, p), 'video-first');
+  assert.equal(motionPolicy(style, { ...p, brief: '全片只使用提供的照片。' }), 'images-only');
+  assert.equal(motionPolicy(style, { ...p, brief: '不要只用照片。' }), 'video-first');
+  const frames = [
+    { source: 'asset', assetId: 'movie', assetHash: 'sha', seconds: 2, sha256: 'first' },
+    { source: 'asset', assetId: 'movie', assetHash: 'sha', seconds: 3, sha256: 'second' },
+  ];
+  const low = motionCoverage(
+    p,
+    frames,
+    'video-first',
+    [{ kind: 'video', query: 'model cart flag crossing', found: 2 }],
+    '缺少车轮离地后的完整窗口'
+  );
+  assert.deepEqual([low.videoFrames, low.stillFrames, low.witnessedFrames, low.totalFrames], [168, 432, 168, 600]);
+  assert.ok(low.gap.includes('7.0 / 25.0'));
+  assert.equal(low.windows[0].fromHash, 'first');
+  p.timeline.clips[0].duration = 432;
+  p.timeline.clips[1].start = 432;
+  p.timeline.clips[1].duration = 168;
+  assert.equal(motionCoverage(p, frames, 'video-first').gap, '');
+  assert.equal(
+    motionCoverage(p, [frames[0], { ...frames[1], sha256: 'first' }], 'video-first').witnessedFrames,
+    0
+  );
+  assert.equal(motionCoverage(p, [], 'images-only').gap, '');
+});
+
+test('actual cut and visible anchored layers determine present review windows after trimming; stale duration hints clear', () => {
+  const p = {
+    profile: { fps: 24 },
+    settings: { targetDuration: 25 },
+    assets: [{ id: 'a', sha256: 'h', kind: 'image' }],
+    storyboard: [
+      {
+        videoClipId: 'shot',
+        assetId: 'a',
+        start: 516,
+        duration: 162,
+        visualSteps: [{ stage: 'verification', atFrame: 654, assetHash: 'h' }],
+      },
+    ],
+    timeline: {
+      clips: [
+        { id: 'before', track: 'video', assetId: 'a', start: 0, duration: 462 },
+        { id: 'shot', track: 'video', assetId: 'a', start: 462, duration: 138 },
+        {
+          id: 'mark',
+          track: 'graphic',
+          start: 515,
+          duration: 60,
+          evidenceAnchor: { assetId: 'a', sha256: 'h', stage: 'verification', stepId: 'one' },
+        },
+      ],
+    },
+    directorNotes: [
+      { message: '当前成片长 28.3 秒，本期目标为 25 秒。' },
+      { kind: 'speech-alignment', message: '另项仍在' },
+    ],
+  };
+  assert.deepEqual(
+    currentReviewWindows(p).slots.map((s) => [s.stage, s.atFrame, s.end]),
+    [['verification', 515, 575]]
+  );
+  assert.deepEqual(durationNotes(p), [p.directorNotes[1]]);
+  p.timeline.clips[1].duration = 6;
+  assert.equal(
+    currentReviewWindows(p).slots.some((s) => s.atFrame >= 468 || s.end > 468),
+    false
+  );
 });
