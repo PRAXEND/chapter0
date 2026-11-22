@@ -42,6 +42,38 @@ test('an illustrated explanation is checked before and after the change on its a
   p.settings.shareFrames=false;
   assert.deepEqual(await frames(),[]);
 });
+test('each spoken explanation is checked when heard even if its diagram appears in another shot', async t => {
+  const {p, deps} = await fixture(t);
+  p.settings.shareFrames = true;
+  p.storyboard = [
+    {claimKind:'explanation', speechGroup:'cause'},
+    {claimKind:'explanation', speechGroup:'process'},
+    {claimKind:'observation', speechGroup:'ending'},
+    {claimKind:'explanation', speechGroup:'muted'},
+  ];
+  p.timeline.clips = [
+    {track:'video', id:'field', assetId:'picture', start:0, duration:200},
+    {track:'narration', id:'cause', start:21, duration:70},
+    {track:'graphic', id:'diagram', start:105, duration:60,
+      evidenceAnchor:{stage:'mechanism', assetId:'picture', sha256:'p', stepId:'diagram'}},
+    {track:'narration', id:'process', start:110, duration:40},
+    {track:'narration', id:'ending', start:165, duration:35},
+    {track:'narration', id:'muted', muted:true, start:0, duration:25},
+  ];
+  deps.drafts = {open:async () => ({name:'preview.mp4', fromFrame:0})};
+  deps.media.frameAt = async (_file, seconds, dest) => writeFile(dest, Buffer.from('frame ' + seconds));
+  const check = async () => (await prepareVisuals(deps, p, 'verify', [])).result.map(r => r.frame);
+  let frames = await check();
+  assert.deepEqual(frames.filter(f => f.claimOnset).map(f => f.frame).sort((a,b) => a-b), [27,116]);
+  assert.equal(frames.filter(f => f.frame === 116).length, 1);
+  p.timeline.clips[1].assetId = 'picture';
+  p.speechAlignments = {p:{audible:{start:.64, end:1.6}}};
+  frames = await check();
+  assert.ok(frames.some(f => f.claimOnset && f.frame === 43));
+  p.timeline.clips[1].enabled = false;
+  frames = await check();
+  assert.deepEqual(frames.filter(f => f.claimOnset).map(f => f.frame), [116]);
+});
 async function fixture(t, config = {}) {
   const cache = await mkdtemp(path.join(tmpdir(), 'studio-director-test-'));
   t.after(() => rm(cache, { recursive: true, force: true }));

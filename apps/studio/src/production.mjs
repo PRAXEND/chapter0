@@ -1077,6 +1077,8 @@ export function createDirector(deps) {
         )
           throw Error('需要根据当前时间线的真实合成附件复查。修订后工作台将再次抽取合成帧。');
         const actual = visual.frames.filter((f) => f.source === 'timeline');
+        const missingClaim = actual.find(f => f.claimOnset && !args.checks.some(c => c.stage === f.stage && c.frame === f.frame));
+        if (missingClaim) throw Error('请在 checks 中复看解释旁白起句的实际工程帧 ' + missingClaim.frame + '，说明画面怎样支持这一句，或标出需修的缺口。');
         if (
           !actual.length ||
           !stages.every((s) => args.checks.some((c) => c.stage === s)) ||
@@ -1209,7 +1211,7 @@ export function createDirector(deps) {
           (visual.staged && visual.stage==='compose'
             ? '\n解释原因的段落要落实为观众能看到的一次对应或状态变化。实拍确实记录了过程时，随动作指出变化。如果研究支持这个解释，但远景只交代现场，用资料能支持的原片细节前后对照，或把明确标作“原理示意”的可编辑图解与关键细节放在一起。在 studio_sequence 写入后可用 studio_edit 加入独立图层和关键帧，让状态在相应台词处变化。优先保留能作证的现场动作，别让整段只剩一个机位配术语。没有可靠依据时缩小解说范围，保留具体缺口。'
             : visual.staged && visual.stage==='verify'
-              ? '\n核对机制两种状态对应的合成图。试着遮掉字幕，指出观众能看到哪个对象或关系发生了什么变化。如果画面只呈现无关的走动或两句概念标签，趁本轮把实拍细节对照或有身份的图解实际剪进去，再回看。资料不足时记录未讲清的具体地方。'
+              ? '\n逐一回看附图中 claimOnset 为真的帧，对照该时刻首次说出的材料性质或因果关系。在 checks 中记录此刻观众能看到的依据。若先讲原因却仍是交代现场的远景，把实拍细节或标明身份的示意提前到这句话，或把这句话移到证据出现处。再核对机制变化前后的合成图，遮掉字幕说明哪个对象发生了什么变化。资料不足时指出仍未讲清的具体段落。'
               : '') +
           '\n附图清单：' +
           JSON.stringify(visual.frames) +

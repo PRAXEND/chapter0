@@ -248,6 +248,7 @@ export async function readVisualFrame(deps, project, requested, signal) {
       seconds: frame / fps,
       frame,
       stage: requested.stage,
+      ...(requested.claimOnset ? { claimOnset: true } : {}),
       revision: project.revision,
     };
   } else throw Error('未知画面来源。');
@@ -409,6 +410,31 @@ export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
           all.find((s) => s.picture === b.id && s.atFrame <= mid && s.end > mid) ||
           all.find((s) => s.picture === b.id);
       if (step) requests.push({ source: 'timeline', frame: mid, stage: step.stage });
+    }
+    const groups = new Set((p.storyboard || []).filter(b => b.claimKind === 'explanation' && b.speechGroup)
+      .map(b => b.speechGroup));
+    const voices = p.timeline.clips.filter(c => c.track === 'narration' && !c.hidden && !c.muted &&
+      c.enabled !== false && (c.gain ?? 1) > 0 && c.duration > 0 && groups.has(c.speechGroup || c.id))
+      .sort((a,b) => a.start - b.start);
+    const assets = new Map(p.assets.map(a => [a.id, a]));
+    const onsets = new Map(), fps = p.profile.fps;
+    for (const voice of voices) {
+      const group = voice.speechGroup || voice.id;
+      if (onsets.has(group)) continue;
+      const bounds = p.speechAlignments?.[assets.get(voice.assetId)?.sha256]?.audible;
+      const sourceIn = voice.sourceIn || 0, speed = voice.speed || 1;
+      const first = Math.max(0, Math.ceil(((bounds?.start ?? 0) * fps - sourceIn) / speed));
+      const end = bounds ? Math.min(voice.duration, Math.ceil((bounds.end * fps - sourceIn) / speed)) : voice.duration;
+      if (first < end) onsets.set(group, voice.start + Math.min(end - 1, first + Math.floor(fps * .25)));
+    }
+    const frames = [...onsets.values()];
+    // Spread a bounded number of picture attachments across long films.
+    const samples = frames.length <= 6 ? frames : Array.from({length:6}, (_, i) => frames[Math.round(i * (frames.length - 1) / 5)]);
+    for (const frame of samples) {
+      const existing = requests.find(r => r.source === 'timeline' && r.frame === frame);
+      if (existing) existing.claimOnset = true;
+      else requests.push({source:'timeline', frame, claimOnset:true,
+        stage:all.find(s => s.atFrame <= frame && frame < s.end)?.stage || 'mechanism'});
     }
     for (const stage of stages)
       if (!all.some((s) => s.stage === stage))
