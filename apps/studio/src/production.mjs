@@ -355,11 +355,14 @@ const projectClip = (c, shareText = true) =>
 async function context(deps, project, selection) {
   const s = project.style?.id ? await deps.styleLibrary.get(project.style.id, project.style.version) : null;
   const shared = project.settings?.shareTranscript !== false;
+  const assets = project.assets.filter((asset) => !dedicatedVoiceReference(asset));
+  const transcripts = assets
+    .filter((asset) => Array.isArray(project.transcript?.[asset.id]))
+    .map((asset) => [asset.id, project.transcript[asset.id]]);
   const rows = Object.fromEntries(
-    Object.entries(project.transcript || {}).map(([id, list]) => [
+    transcripts.map(([id, list]) => [
       id,
-      (Array.isArray(list) ? list : [])
-        .slice(0, 120)
+      list.slice(0, 120)
         .map((r) => ({ id: r.id, text: shared ? trim(r.text, 600) : undefined, start: r.start, end: r.end })),
     ])
   );
@@ -380,7 +383,7 @@ async function context(deps, project, selection) {
     styleAudio: project.styleAudio ? {voice:project.styleAudio.voice && {status:project.styleAudio.voice.status,speed:project.styleAudio.voice.speed},music:project.styleAudio.music && {status:project.styleAudio.music.status,title:project.styleAudio.music.title,ducking:project.styleAudio.music.ducking}} : undefined,
     musicMode: project.settings?.musicMode,
     targetDuration: project.settings?.targetDuration,
-    assets: project.assets.filter(a=>!dedicatedVoiceReference(a)).map((a) => ({
+    assets: assets.map((a) => ({
       id: a.id,
       name: a.name,
       kind: a.kind,
@@ -395,9 +398,7 @@ async function context(deps, project, selection) {
     })),
     timeline: { clips: project.timeline.clips.map((c) => projectClip(c, shared)) },
     transcript: rows,
-    utteranceCounts: Object.fromEntries(
-      Object.entries(project.transcript || {}).map(([id, list]) => [id, list.length])
-    ),
+    utteranceCounts: Object.fromEntries(transcripts.map(([id, list]) => [id, list.length])),
     style: selectedStyle(s),
     review: last
       ? {
@@ -969,8 +970,11 @@ export function createDirector(deps) {
       const current = await store.get(id);
       args ??= {};
       if (name === 'studio_context') return toolText(await context(deps, current, selection));
-      if (['studio_transcript','studio_observe'].includes(name) && dedicatedVoiceReference(current.assets.find(a=>a.id===args.assetId)))
-        throw Error('这是专用音色参考，不用于素材分析。');
+      if (name === 'studio_transcript' || name === 'studio_observe') {
+        const asset = current.assets.find((a) => a.id === args.assetId);
+        if (!asset) throw Error('工程中没有该素材。');
+        if (dedicatedVoiceReference(asset)) throw Error('这是专用音色参考，不用于素材分析。');
+      }
       if (name === 'studio_transcript') {
         const rows = current.transcript?.[args.assetId] || [];
         const offset = args.offset ?? 0;

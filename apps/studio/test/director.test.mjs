@@ -346,6 +346,35 @@ test('Codex tools redact local paths and disabled transcripts, reject cross-proj
   assert.equal(p.timeline.clips.length, 1);
 });
 
+test('sharing interview transcripts omits dedicated voice recordings and deleted assets from legacy projects', async (t) => {
+  const { p, deps } = await fixture(t, {
+    settings: { voiceMode: 'original', shareTranscript: true },
+    assets: [clone(picture), { id: 'speaker', kind: 'video', source: { sourceVoice: 'enrolled' } }],
+    transcript: {
+      picture: [{ id: 'line', text: '已授权的采访', start: 0, end: 1 }],
+      speaker: [{ id: 'private', text: '音色样本中的旧转录', start: 0, end: 2 }],
+      removed: [{ id: 'old', text: '已移除的采访', start: 0, end: 2 }],
+    },
+  });
+  deps.client = {
+    account: async () => ({ connected: true }), thread: async () => 'thread', close() {},
+    async runTurn({ onStart, tool }) {
+      await onStart('turn');
+      const ctx = JSON.parse((await tool({ tool: 'studio_context', arguments: {} })).contentItems[0].text);
+      assert.deepEqual(ctx.utteranceCounts, { picture: 1 });
+      assert.deepEqual(Object.keys(ctx.transcript), ['picture']);
+      assert.equal(ctx.transcript.picture[0].text, '已授权的采访');
+      assert.ok(!JSON.stringify(ctx).includes('音色样本中的旧转录'));
+      await assert.rejects(tool({ tool: 'studio_transcript', arguments: { assetId: 'speaker' } }), /专用音色参考/);
+      await assert.rejects(tool({ tool: 'studio_transcript', arguments: { assetId: 'removed' } }), /没有该素材/);
+      return '已查看采访。';
+    },
+  };
+  const director = createDirector(deps);
+  t.after(() => director.close());
+  assert.equal((await director.run(p.id, { kind: 'revise' })).changed, false);
+});
+
 test('local mode never substitutes a different voice when clone consent or reference is missing', async (t) => {
   const { p, deps, counts } = await fixture(t, { settings: { voiceMode: 'clone', musicEnabled: false } });
   await assert.rejects(applyScenes(deps, clone(p), [{ assetId: picture.id, narration: '需克隆' }]), /授权/);
