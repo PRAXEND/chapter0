@@ -237,7 +237,7 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
     const start=Number.isInteger(note.frame)?note.frame:0;
     problems.push({severity:note.type==='required'?'unknown':'minor',reason:'director-observation',message:note.message,fromFrame:start,toFrame:start,fix:'查看对应素材或试听此段后确认。'});
   }
-  const meta={revision:project.revision,artifactSha256:null,subtitleSha256:null,candidatePlayable:false,evidence,
+  const meta={revision:project.revision,frameRate:project.profile.fps,artifactSha256:null,subtitleSha256:null,candidatePlayable:false,evidence,
     limitations:['波形与抽帧提供技术证据。音色自然度、发音、节奏偏好和未标注的动作语义需要原速观看或试听。']};
   const {captions,narration,music}=timelineChecks(project,problems);
   try {meta.artifactSha256=await fileSha256(videoPath);}
