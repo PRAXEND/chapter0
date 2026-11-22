@@ -364,6 +364,14 @@ export async function applyScenes(
     const verifiedFact = project.factSources?.find((f) => f.url === beat.claimUrl);
     if (project.mode === 'topic' && (!beat.claimUrl || (beat.claimUrl !== asset.source?.url && !verifiedFact)))
       throw new Error('选题解说必须绑定已获取的事实出处。');
+    const normalized=s=>String(s||'').normalize('NFKC').replace(/\s+/gu,' ').trim().toLowerCase();
+    const claimQuote=String(beat.claimQuote||'').trim();
+    if(project.mode==='topic' && beat.visualSteps?.some(s=>s.stage==='mechanism') && !['observation','explanation'].includes(beat.claimKind))
+      throw Error('机制段须注明 claimKind：仅描述当前画面可见的现象用 observation；解释因果或材料性质用 explanation，并绑定实际出处。');
+    if(project.mode==='topic' && beat.claimKind==='explanation'){
+      if(!verifiedFact || (beat.claimUrl===asset.source?.url && normalized(verifiedFact.excerpt)===normalized(asset.source?.statement)))throw Error('原理解释需要能核对机制的研究或正文。摄影图注只支持画面上的现象。');
+      if(normalized(verifiedFact.excerpt)===normalized(verifiedFact.title)||claimQuote.length<6||claimQuote.length>360||!normalized(verifiedFact.excerpt).includes(normalized(claimQuote)))throw Error('claimQuote 需逐字来自已读取的正文或摘要，并直接支持这句原理；只有标题或找不到对应原文时，请改用可见现象。');
+    }
     let words = String(beat.narration || '').trim();
     let sourceStart = Number(beat.sourceStart ?? 0);
     let sourceEnd = Number(beat.sourceEnd ?? asset.duration);
@@ -623,6 +631,7 @@ export async function applyScenes(
       ...(steps.length ? { visualSteps: steps, framing: beat.framing } : {}),
       ...(alignment ? { speechGroup, speechAssetId: voice.id, speechScriptHash: alignment.scriptHash } : {}),
       claimUrl: beat.claimUrl || asset.source?.url,
+      ...(beat.claimKind?{claimKind:beat.claimKind,claimQuote:claimQuote||undefined,visualSourceUrl:asset.source?.url}:{}),
       continuity: String(beat.continuity || '').slice(0, 240),
     });
     if (beat.claimUrl && (beat.claimUrl === asset.source?.url || verifiedFact))
@@ -631,7 +640,8 @@ export async function applyScenes(
         url: beat.claimUrl,
         assetId: asset.id,
         start: cursor,
-        sourceExcerpt: verifiedFact?.excerpt || asset.source?.statement || '',
+        sourceExcerpt: claimQuote || verifiedFact?.excerpt || asset.source?.statement || '',
+        ...(beat.claimKind?{claimKind:beat.claimKind,sourceTitle:verifiedFact?.title,visualSourceUrl:asset.source?.url}:{}),
         visualRole: verifiedFact || beat.userScript ? 'illustration' : 'source',
       });
     cursor += duration;

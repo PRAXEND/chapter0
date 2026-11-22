@@ -33,6 +33,8 @@ const beat = object(
     durationSeconds: num,
     narration: str,
     claimUrl: str,
+    claimKind:{type:'string',enum:['observation','explanation']},
+    claimQuote:{type:'string',description:'For explanatory claims, a short exact passage from the verified source excerpt supporting that specific mechanism.'},
     utteranceId: str,
     actionSourceSeconds: num,
     anchorText: str,
@@ -106,7 +108,7 @@ const tools = [
   tool(
     'studio_research',
     'Look up dated bibliographic or encyclopedic evidence for a public topic. A publication title supports only what its wording states. Distinguish archival material from a recent event.',
-    { query: str },
+    { query: str, readUrl:{type:'string',description:'Optional URL of an already registered public fact result to inspect its actual page text.'} },
     ['query']
   ),
   tool(
@@ -127,7 +129,7 @@ const tools = [
   ),
   tool(
     'studio_sequence',
-    'Commit an initial storyboard atomically at the revision from studio_context. For interview/import, use original utteranceId. For topic, claimUrl is the exact source page of the selected asset. Emphasis requires an observed event frame. Pick a handoff between scenes.',
+    'Commit the initial storyboard at the current revision. For interview/import use original utteranceId. For topics, assetId identifies the visual source. Use its photo caption for a visible observation. A scientific explanation needs an independently verified claimUrl and short claimQuote from studio_research describing that mechanism. If sources only show appearances, narrate just those appearances, declare observation, and state what the image cannot establish. Evidence anchors use observed source frames.',
     {
       baseRevision: int,
       beats: { type: 'array', items: beat },
@@ -179,6 +181,7 @@ const instructions = [
   '没有开启发送帧时，用 studio_observe 获得项目中素材的本机类别、颜色与可共享 OCR 结果。动作锚点只能来自实际观看、用户标记、或同帧匹配的可见文字（anchorText）；亮度差不能单独证明某一事件。可分享帧时用 studio_frame 查看原片或风格参考；提交后抽查真实合成帧。注明哪些区间未看片、未听审。',
   '处理改稿时先核对当前版本与选区，用 studio_edit 局部修改，配音改词用 studio_narrate。用户没有要求时不要重新生成整片。',
   '视频 framing.from/to 的 x/y 是原素材归一化中心、zoom 为等比铺满后 1–4 倍。图形 shape=outline、text="" 可做空心框；geometry 的 x/y 是画布中心，width/height 为相对宽高。不要用无关推拉假装拍到动作。',
+  '分清摄影出处和解说论据。图中可直接看见的现象使用 claimKind=observation。解释材料性质、因果关系或未拍到的过程须用 claimKind=explanation，claimUrl 对应真实科学资料，claimQuote 从该资料实际返回的正文或摘要逐字摘录与这句话对应的一小段。书目题名不足以证明原理。找不到可查的材料就删去推论，只说画面能证明什么。',
   '本期要求发布包时，首版完成后用 studio_publication 写给观众的标题、正文和话题。正文只使用片中有依据的内容。',
   '最终用中文简述这次真实完成的编辑、需要用户判断的片段，或具体缺少的素材。',
 ].join('\n');
@@ -309,11 +312,11 @@ const clipFields = [
   'fit',
 ];
 const projectClip = (c, shareText = true) =>
-  Object.fromEntries(
-    [...clipFields, 'speechGroup', 'speechCue', 'alignmentMethod', 'cueTiming']
+  ({...Object.fromEntries(
+    [...clipFields, 'speechGroup', 'speechCue', 'alignmentMethod', 'cueTiming','templateRole','template','visualStage','role']
       .filter((k) => Object.hasOwn(c, k) && (shareText || k !== 'text'))
       .map((k) => [k, c[k]])
-  );
+  ),...(c.style?{style:Object.fromEntries(Object.entries(c.style).filter(([key])=>['fontSize','color','fontFamily','backgroundColor','borderColor','strokeWidth'].includes(key)))}:{})});
 async function context(deps, project, selection) {
   const s = project.style?.id ? await deps.styleLibrary.get(project.style.id, project.style.version) : null;
   const shared = project.settings?.shareTranscript !== false;
@@ -413,6 +416,29 @@ function allowedCommands(commands, p) {
       throw new Error('命令中的属性不属于时间线编辑。');
     const existing = p.timeline.clips.find((c) => c.id === cmd.id);
     if (existing?.locked) throw new Error('片段被用户锁定。');
+    if(!data)continue;
+    if(['graphic','caption'].includes(data.track||existing?.track)){
+      const before=existing?.geometry||{},isCaption=(data.track||existing?.track)==='caption';
+      const positioned=data.geometry||Object.hasOwn(data,'x')||Object.hasOwn(data,'y');
+      if(positioned){
+        const geometry={...before,...data.geometry};
+        for(const axis of ['x','y']){
+          if(!Object.hasOwn(data,axis))continue;
+          if(!Number.isFinite(data[axis])||data[axis]<0||data[axis]>1)throw Error('文字与标注的 x/y 使用 0 到 1 的归一化画布中心；像素坐标请先换算。');
+          if(data.geometry?.[axis]!==undefined&&geometry[axis]!==data[axis])throw Error('同一坐标混用了两个位置，请只提交 geometry。');
+          geometry[axis]=data[axis];delete data[axis];
+        }
+        if(existing?.keyframes?.length&&!data.keyframes){
+          const dx=(geometry.x??before.x??.5)-(before.x??.5),dy=(geometry.y??before.y??(isCaption?.86:.28))-(before.y??(isCaption?.86:.28));
+          if(dx||dy)data.keyframes=existing.keyframes.map(k=>({...k,...(Number.isFinite(k.x)?{x:k.x+dx}:{}),...(Number.isFinite(k.y)?{y:k.y+dy}:{})}));
+        }
+        data.geometry=geometry;
+      }
+      if(data.style||Object.hasOwn(data,'fontSize')||Object.hasOwn(data,'color')){
+        data.style={...existing?.style,...data.style};
+        for(const k of ['fontSize','color'])if(Object.hasOwn(data,k)){data.style[k]=data[k];delete data[k];}
+      }
+    }else if(Object.hasOwn(data,'x')||Object.hasOwn(data,'y'))throw Error('视频取景用 framing，文字与图形的位置用 geometry。');
   }
 }
 
@@ -768,7 +794,7 @@ export function createDirector(deps) {
     if (!status.connected) throw new Error(status.message || '请登录 Codex，或选择本地草稿。');
     // App Server registers dynamic tools on thread/start only. Migrate once for
     // a full visual production; an ordinary local revision retains its thread.
-    const upgrade = Boolean(visual && p.threadId && p.directorToolVersion !== 2);
+    const upgrade = Boolean(visual && p.threadId && p.directorToolVersion !== 3);
     if (upgrade && p.directorState?.turnId && client.findTurn) {
       const prior = await client.findTurn(p.threadId, p.directorState.turnId);
       if (prior?.turn?.status === 'inProgress' && prior.status?.type === 'active')
@@ -778,7 +804,7 @@ export function createDirector(deps) {
     if (p.threadId !== threadId)
       await store.setMeta(id, {
         threadId,
-        directorToolVersion: 2,
+        directorToolVersion: 3,
         ...(upgrade
           ? { previousDirectorThreads: [...new Set([...(p.previousDirectorThreads || []), p.threadId])] }
           : {}),
@@ -908,9 +934,18 @@ export function createDirector(deps) {
       if (name === 'studio_frame') return image(args, current);
       if (name === 'studio_research') {
         if (current.mode !== 'topic') throw new Error('公开检索限于本期选题模式。');
-        const entries = await research(args.query, { signal });
+        let entries;
+        if(args.readUrl){
+          const registered=(current.factSources||[]).find(f=>urlForModel(f.url)===args.readUrl);
+          if(!registered)throw Error('仅可读取本工程已查得的公开事实来源。');
+          const [page]=await readBriefSources({brief:'',settings:{factUrls:[registered.url]}},{signal});
+          if(!page?.excerpt)throw Error('此资料的网页正文暂不可读，请换能核对摘要或正文的来源。');
+          entries=[{...registered,excerpt:page.excerpt,excerptSource:'page'}];
+        }else entries=await research(args.query, { signal });
         const previous = (await store.get(id)).factSources || [];
-        const sources = [...new Map([...previous, ...entries].map((f) => [f.url, f])).values()].slice(-60);
+        const byUrl=new Map(previous.map(f=>[f.url,f]));
+        for(const f of entries)if(byUrl.get(f.url)?.excerptSource!=='page'||f.excerptSource==='page')byUrl.set(f.url,f);
+        const sources = [...byUrl.values()].slice(-60);
         await store.setMeta(id, { factSources: sources });
         return toolText(entries);
       }
@@ -987,7 +1022,8 @@ export function createDirector(deps) {
         if (kind !== 'produce') throw new Error('局部改稿只能修改指定的已有片段。');
         const beats = (args.beats || []).map((b) => {
           const src = current.assets.find((a) => a.id === b.assetId)?.source?.url;
-          return { ...b, claimUrl: b.claimUrl && b.claimUrl === urlForModel(src) ? src : b.claimUrl };
+          const fact=current.factSources?.find(f=>urlForModel(f.url)===b.claimUrl);
+          return { ...b, claimUrl: b.claimUrl && b.claimUrl === urlForModel(src) ? src : (fact?.url||b.claimUrl) };
         });
         if (visual) checkVisualPlan(beats, current, visual.frames);
         const result = await applyScenes(deps, current, beats, {

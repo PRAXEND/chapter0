@@ -615,3 +615,18 @@ for (const sharing of [true, false])
     if (!sharing) assert.ok(result.notes.some((n) => n.kind === 'visual-evidence'));
     if (sharing) assert.throws(() => checkVisualPlan(beats, p, []), /真实图像/);
   });
+
+test('material mechanisms bind their research excerpt while a photograph keeps its own credit',async t=>{
+  const photo={...picture,source:{url:'https://example.org/camera',statement:'A photograph of two damp fibers.'}};
+  const research={url:'https://example.org/research',title:'Fiber measurements',excerpt:'Capillary pressure draws liquid into spaces between the fibers.',type:'paper'};
+  const {p,deps}=await fixture(t,{mode:'topic',script:'',settings:{voiceMode:'original',musicMode:'none'},assets:[photo],factSources:[research]});
+  const beat={assetId:photo.id,narration:'在小间隙中，毛细压差带动液体移动。',claimKind:'explanation',claimUrl:photo.source.url,claimQuote:research.excerpt};
+  await assert.rejects(applyScenes(deps,clone(p),[beat]),/摄影图注/);await assert.rejects(applyScenes(deps,clone(p),[{...beat,claimUrl:research.url,claimQuote:'这段文字没有出现在论文中。'}]),/逐字/);
+  await applyScenes(deps,clone(p),[{...beat,claimUrl:research.url}]);assert.equal(p.facts[0].url,research.url);assert.equal(p.facts[0].sourceExcerpt,research.excerpt);assert.equal(p.facts[0].visualSourceUrl,photo.source.url);assert.equal(p.facts[0].visualRole,'illustration');
+});
+
+test('edits move the actual rendered geometry and preserve keyframed movement and existing colors',async t=>{
+  const {p,deps}=await fixture(t,{timeline:{clips:[{id:'focus',track:'graphic',start:0,duration:50,text:'看这处',geometry:{x:.3,y:.7,width:.25},style:{color:'#aabbcc',fontSize:30},keyframes:[{frame:0,x:.3,y:.7},{frame:38,x:.4,y:.7}]}]}});
+  deps.client={account:async()=>({connected:true}),thread:async()=> 'c',close(){},runTurn:async({tool,onStart})=>{await onStart('t');const edit=(changes)=>tool({tool:'studio_edit',arguments:{baseRevision:p.revision,commandsJson:JSON.stringify([{op:'update',id:'focus',changes}])}});await assert.rejects(edit({x:-54,y:192}),/像素/);await edit({x:.5,y:.7,fontSize:42});return '完成';}};
+  const d=createDirector(deps);t.after(()=>d.close());await d.run(p.id,{kind:'revise'});const c=p.timeline.clips[0];assert.equal(c.geometry.x,.5);assert.equal(c.geometry.width,.25);assert.equal(c.x,undefined);assert.equal(c.style.fontSize,42);assert.equal(c.style.color,'#aabbcc');assert.ok(Math.abs(c.keyframes[1].x-.6)<1e-6);
+});
