@@ -1,6 +1,9 @@
 // Install only into the current user's Studio cache. No system browser, Homebrew, or project media is used.
-import { chmod, mkdir, readFile, rename, stat, unlink } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, readFile, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
+import { constants } from 'node:fs';
+import os from 'node:os';
+import { presetDirectory, presetFiles, presetId, presetModelReady, presetRevision } from '../src/qwen-preset.mjs';
 import { pathToFileURL } from 'node:url';
 import { fileHash, mediaCapabilities } from '../src/media.mjs';
 import { audioCapabilities } from '../src/audio.mjs';
@@ -102,25 +105,34 @@ async function installSpeech(cache, work, log, signal) {
   if (!(await audioCapabilities()).transcription) throw new Error('转录工具或模型未就绪');
 }
 
-async function installClone(cache, work, log, signal) {
+async function installVoiceRuntime(cache, work, log, signal) {
   log('准备 Apple Silicon 本地语音依赖');
   const [major, minor] = (await run('/usr/bin/sw_vers', ['-productVersion'], { signal })).trim().split('.').map(Number);
-  if (major < 14) throw new Error('本地语音克隆需要运行 macOS 14 或更新版本的 Apple Silicon Mac');
+  if (major < 14) throw new Error('本地神经语音需要运行 macOS 14 或更新版本的 Apple Silicon Mac');
   const python = process.env.VIDEO_STUDIO_MLX_PYTHON || await pythonEnv(cache, work, signal, log);
-  if (!process.env.VIDEO_STUDIO_MLX_PYTHON) {
-    let mlx = ['mlx==0.32.4', 'mlx-metal==0.32.4'];
-    if (major === 26 && minor < 2) {
-      // The macosx_26_0 wheels are tagged 26.0 but their Mach-O deployment target is 26.2.
-      // On 26.0/26.1 the corresponding 15.0 binaries remain compatible.
-      await run(python, ['-c', 'import sys; assert sys.version_info[:2] == (3, 12), "此系统需使用工作台自带的 Python 3.12"'], { signal });
-      mlx = [
-        'https://files.pythonhosted.org/packages/6d/92/7a999dcf6460525a31e555905cdca2f835ec0d786c528e969e04cd00d158/mlx-0.32.4-cp312-cp312-macosx_15_0_arm64.whl#sha256=f0604cb3015091f285c79c7b7dbfcabcfa9948248728c7bab6e0263513c3d3fe',
-        'https://files.pythonhosted.org/packages/54/8c/9754dd6c4db485037f59cc8be6495738e14cdeb8bf19d5bddb5e96da890f/mlx_metal-0.32.4-py3-none-macosx_15_0_arm64.whl#sha256=9f0a3cc26d89724434d9684932fc6f3e4e83669d2a895d858ed2c8a55eb84e8b'
-      ];
-    }
-    await run(python, ['-m', 'pip', '--disable-pip-version-check', 'install', '--quiet', '--no-cache-dir', ...mlx, 'mlx-audio==0.6.7', 'mlx-lm==0.32.2', 'transformers==5.24.0', 'soundfile==0.14.0'], { signal });
+  const check = ['-c', 'from importlib.metadata import version; from mlx_audio.tts.models.qwen3_tts.qwen3_tts import Model; import soundfile, mlx.core; assert version("mlx-audio") == "0.6.7" and callable(Model.generate_custom_voice)'];
+  try {
+    await run(python, check, { signal });
+    return;
+  } catch (error) {
+    signal?.throwIfAborted();
+    if (process.env.VIDEO_STUDIO_MLX_PYTHON) throw error;
   }
-  await run(python, ['-c', 'from mlx_audio.tts.utils import load_model; import soundfile, mlx.core'], { signal });
+  let mlx = ['mlx==0.32.4', 'mlx-metal==0.32.4'];
+  if (major === 26 && minor < 2) {
+    // The macosx_26_0 wheels are tagged 26.0 but their Mach-O deployment target is 26.2.
+    // On 26.0/26.1 the corresponding 15.0 binaries remain compatible.
+    await run(python, ['-c', 'import sys; assert sys.version_info[:2] == (3, 12), "此系统需使用工作台自带的 Python 3.12"'], { signal });
+    mlx = [
+      'https://files.pythonhosted.org/packages/6d/92/7a999dcf6460525a31e555905cdca2f835ec0d786c528e969e04cd00d158/mlx-0.32.4-cp312-cp312-macosx_15_0_arm64.whl#sha256=f0604cb3015091f285c79c7b7dbfcabcfa9948248728c7bab6e0263513c3d3fe',
+      'https://files.pythonhosted.org/packages/54/8c/9754dd6c4db485037f59cc8be6495738e14cdeb8bf19d5bddb5e96da890f/mlx_metal-0.32.4-py3-none-macosx_15_0_arm64.whl#sha256=9f0a3cc26d89724434d9684932fc6f3e4e83669d2a895d858ed2c8a55eb84e8b'
+    ];
+  }
+  await run(python, ['-m', 'pip', '--disable-pip-version-check', 'install', '--quiet', '--no-cache-dir', ...mlx, 'mlx-audio==0.6.7', 'mlx-lm==0.32.2', 'transformers==5.24.0', 'soundfile==0.14.0'], { signal });
+  await run(python, check, { signal });
+}
+
+async function installClone(cache, work, log, signal) {
   if (!process.env.VIDEO_STUDIO_QWEN_MODEL) {
     const model = path.join(cache, 'models/qwen3-tts-0.6b-base-4bit');
     const files = ['config.json', 'generation_config.json', 'merges.txt', 'model.safetensors.index.json', 'preprocessor_config.json', 'speech_tokenizer/config.json', 'speech_tokenizer/configuration.json', 'speech_tokenizer/preprocessor_config.json', 'tokenizer_config.json', 'vocab.json', ...Object.keys(weights)];
@@ -132,9 +144,44 @@ async function installClone(cache, work, log, signal) {
   if (!(await audioCapabilities()).clone) throw new Error('克隆模型未就绪');
 }
 
+async function installPreset(cache, log, signal) {
+  const directory = presetDirectory();
+  if (await presetModelReady(directory)) return;
+  if (process.env.VIDEO_STUDIO_QWEN_PRESET_MODEL) throw new Error('所选本地预置模型的文件或固定版本校验不匹配。');
+  const hub = process.env.HF_HUB_CACHE || path.join(process.env.HF_HOME || path.join(os.homedir(), '.cache', 'huggingface'), 'hub');
+  const donors = [
+    process.env.VIDEO_STUDIO_QWEN_PRESET_SOURCE,
+    path.join(hub, 'models--' + presetId.replace('/', '--'), 'snapshots', presetRevision),
+    process.env.VIDEO_STUDIO_QWEN_MODEL || path.join(cache, 'models/qwen3-tts-0.6b-base-4bit'),
+  ].filter(Boolean);
+  for (const [name, [size, hash]] of Object.entries(presetFiles)) {
+    signal?.throwIfAborted();
+    log('校验预置音色 ' + name);
+    const target = path.join(directory, name);
+    if ((await stat(target).catch(() => null))?.size === size && await fileHash(target) === hash) continue;
+    let reused = false;
+    for (const donor of donors) {
+      const file = path.join(donor, name);
+      if ((await stat(file).catch(() => null))?.size !== size || await fileHash(file) !== hash) continue;
+      await mkdir(path.dirname(target), { recursive: true });
+      await scratch(path.dirname(target), async tmp => {
+        const staged = path.join(tmp, 'model-file');
+        await copyFile(file, staged, constants.COPYFILE_FICLONE);
+        if (await fileHash(staged) !== hash) throw new Error('复用期间预置模型文件发生变化。');
+        signal?.throwIfAborted();
+        await rename(staged, target);
+      });
+      reused = true;
+      break;
+    }
+    if (!reused) await fetchFile('https://huggingface.co/' + presetId + '/resolve/' + presetRevision + '/' + name + '?download=true', target, hash, signal);
+  }
+  if (!await presetModelReady(directory)) throw new Error('预置音色模型未通过完整校验。');
+}
+
 export async function prepareMedia(group, { signal, onProgress = () => {} } = {}) {
   if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('此媒体包面向 Apple Silicon Mac');
-  if (!['render', 'speech', 'clone', 'all'].includes(group)) throw new Error('准备项目应为 render、speech、clone 或 all');
+  if (!['render', 'speech', 'clone', 'preset', 'all'].includes(group)) throw new Error('准备项目应为 render、speech、clone、preset 或 all');
   const cache = mediaCache();
   await mkdir(cache, { recursive: true });
   const lock = path.join(cache, 'prepare.pid');
@@ -150,7 +197,9 @@ export async function prepareMedia(group, { signal, onProgress = () => {} } = {}
     await scratch(cache, async work => {
       if (group === 'render' || group === 'all') await installRender(cache, work, onProgress, signal);
       if (group === 'speech' || group === 'all') await installSpeech(cache, work, onProgress, signal);
+      if (['clone', 'preset', 'all'].includes(group)) await installVoiceRuntime(cache, work, onProgress, signal);
       if (group === 'clone' || group === 'all') await installClone(cache, work, onProgress, signal);
+      if (group === 'preset' || group === 'all') await installPreset(cache, onProgress, signal);
     });
     return { media: await mediaCapabilities(), audio: await audioCapabilities() };
   } finally {

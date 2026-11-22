@@ -12,12 +12,14 @@ const present = async file => {
   return Boolean(info?.isFile() && info.size > 0);
 };
 const pythonChecks = new Map();
-async function speechPython(candidates) {
+async function speechPython(candidates, preset = false) {
   for (const candidate of candidates) {
     if (!await executable([candidate])) continue;
-    const key = candidate + ':' + (await stat(candidate)).mtimeMs;
+    const key = candidate + ':' + (await stat(candidate)).mtimeMs + ':' + preset;
     if (!pythonChecks.has(key)) {
-      pythonChecks.set(key, run(candidate, ['-c', 'from mlx_audio.tts.utils import load_model; import soundfile, mlx.core'],
+      const probe = 'from mlx_audio.tts.utils import load_model; import soundfile, mlx.core' +
+        (preset ? '; from mlx_audio.tts.models.qwen3_tts.qwen3_tts import Model; assert callable(Model.generate_custom_voice)' : '');
+      pythonChecks.set(key, run(candidate, ['-c', probe],
         { env: { HF_HUB_OFFLINE: '1', HF_HUB_DISABLE_TELEMETRY: '1' } }).then(() => true, () => false));
     }
     if (await pythonChecks.get(key)) return candidate;
@@ -35,9 +37,12 @@ export async function audioCapabilities() {
     mediaTool('whisper-cli'), executable(['/usr/bin/say']), present(path.join(cloneModel, 'model.safetensors')),
     present(path.join(cloneModel, 'speech_tokenizer/model.safetensors')), present(whisperModel), presetModelReady(presetModel)
   ]);
-  const python = (weights && codec) || presetReady ? await speechPython(process.env.VIDEO_STUDIO_MLX_PYTHON ? [process.env.VIDEO_STUDIO_MLX_PYTHON] : [path.join(cache, 'voice-runtime/bin/python'), path.join(cache, 'venv/bin/python')]) : null;
+  const candidates = process.env.VIDEO_STUDIO_MLX_PYTHON ? [process.env.VIDEO_STUDIO_MLX_PYTHON]
+    : [path.join(cache, 'voice-runtime/bin/python'), path.join(cache, 'venv/bin/python')];
+  const presetPython = presetReady ? await speechPython(candidates, true) : null;
+  const python = presetPython || (weights && codec ? await speechPython(candidates) : null);
   return { system: Boolean(voiceTool), clone: Boolean(python && weights && codec), transcription: Boolean(whisper && asrWeights),
-    preset: Boolean(python && presetReady), presetModel, presetVoices, presetModelRevision: presetRevision,
+    preset: Boolean(presetPython), presetModel, presetVoices, presetModelRevision: presetRevision,
     voiceTool, python, cloneModel, whisper, whisperModel };
 }
 

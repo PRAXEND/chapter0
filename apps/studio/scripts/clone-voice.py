@@ -23,7 +23,8 @@ def samples(generation):
 
 def preset_segments(text):
     # Retain punctuation, prefer sentence boundaries, and bound the per-inference memory budget.
-    parts = re.findall(r"[^。！？.!?\n]+[。！？.!?]*|[。！？.!?]+", text)
+    text = re.sub(r"(?<![。！？.!?])(?:\r?\n)+", "。", text)
+    parts = re.findall(r"[^。！？.!?\r\n]+[。！？.!?]*|[。！？.!?]+", text)
     current = ""
     for part in parts:
         if current and len(current) + len(part) > 140:
