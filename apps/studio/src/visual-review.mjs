@@ -3,6 +3,7 @@ import {promisify} from 'node:util';
 import {projectSourceRegion,validRegion} from './visual-steps.mjs';
 import {motionPolicy,shotFingerprint} from './director-visual.mjs';
 import {sceneChange} from './motion-windows.mjs';
+import {reviewExplanatoryAnimations} from './diagram-review.mjs';
 import {visibleWindows} from './framing.mjs';
 
 const execute=promisify(execFile);
@@ -308,11 +309,12 @@ async function motionReview(project,windows,evidence,policy,checks,hashFile) {
   }
   const informative=c.informativeFrames>c.totalFrames/2,majority=c.changingFrames>c.totalFrames/2;
   const possible=c.totalFrames-c.stillFrames-c.confirmedStationaryFrames;
+  const diagram=evidence.explanatoryAnimation,hasDiagram=diagram?.actionFrames>0;
   const status=policy.override?'photo-adaptation':majority?(informative?'met':'unverified'):possible>c.totalFrames/2?'unverified':
-    c.changingFrames?'partial':possible===0?'unmet':'unverified';
+    c.changingFrames||hasDiagram?'partial':possible===0&&!diagram?.unverified?'unmet':'unverified';
   evidence.motionCoverage=c;
   evidence.styleExecution={ruleId:policy.ruleId,basis:policy.basis,lockedByAuthor:policy.lockedByAuthor,motionStatus:status,override:policy.override,informativeWindows:verified,
-    assessment:status==='met'?'motion-rule-supported':status==='photo-adaptation'?'requested-photo-adaptation':status==='unverified'?'unverified':'not-reproduced'};
+    assessment:status==='met'?'motion-rule-supported':status==='photo-adaptation'?'requested-photo-adaptation':status==='unverified'?'unverified':hasDiagram?'needs-style-viewing':'not-reproduced'};
   if(status==='photo-adaptation'||status==='met')return null;
   const secs=n=>(n/fps).toFixed(1);
   const ratios='有画面的 '+secs(c.totalFrames)+' 秒中，照片占 '+secs(c.stillFrames)+' 秒，视频来源占 '+secs(c.videoFrames)+' 秒。'+
@@ -320,12 +322,13 @@ async function motionReview(project,windows,evidence,policy,checks,hashFile) {
     (c.confirmedStationaryFrames?'另有 '+secs(c.confirmedStationaryFrames)+' 秒录像逐帧复查静止。':'');
   const relevant=windows.filter(w=>w.shot.asset?.kind==='image'||!evidence.motion.some(m=>m.assetId===w.shot.asset?.id&&m.fromFrame>=w.from&&m.toFrame<=w.to&&m.result==='changing-footage'));
   const longest=relevant.sort((a,b)=>(b.to-b.from)-(a.to-a.from))[0]||windows[0];
-  const completelyStatic=c.totalFrames>0&&c.stillFrames+c.confirmedStationaryFrames===c.totalFrames;
+  const completelyStatic=c.totalFrames>0&&c.stillFrames+c.confirmedStationaryFrames===c.totalFrames&&!hasDiagram;
   const severity=status==='unmet'&&completelyStatic&&(policy.lockedByAuthor||evidence.requirements.styleFidelity)?'major':'minor';
   const message=status==='unmet'?'所选风格要求以有信息的运动画面为主体，本版未达到。':
-    status==='partial'?'本版只有部分时段呈现有变化的视频，未达到所选风格以运动过程为主体的要求。':
+    status==='partial'?(hasDiagram?'成片含有身份标明的可编辑解释动画，该图解是否承担了本期主要讲解仍需看片确认。':'本版只有部分时段呈现有变化的视频，未达到所选风格以运动过程为主体的要求。'):
     '所选风格要求以有信息的运动画面为主体，目前无法确认取到的变化确实在说明该段内容。';
-  return finding('style-video-first',severity,message+ratios,'选择能说明对应台词的实拍、实验、录屏或标明身份的仿真，保留必要的原照片段。',longest.from,longest.to);
+  const fix=hasDiagram?'回看原理示意、原件与解说的对应关系，确认是否仍缺需要直接展示的现场过程。':'选择能说明对应台词的实拍、实验、录屏或标明身份的仿真，保留必要的原照片段。';
+  return finding('style-video-first',severity,message+ratios,fix,longest.from,longest.to);
 }
 function requestedEnding(project) {
   const brief=positiveClauses(project.brief);
@@ -403,6 +406,9 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
   const assets=new Map(project.assets.map(a=>[a.id,a])),shots=project.timeline.clips.filter(c=>c.track==='video'&&live(c)).sort((a,b)=>a.start-b.start).map(clip=>({clip,asset:assets.get(clip.assetId)}));
   const windows=visibleWindows(shots),first=windows[0]?.from??0,last=windows.at(-1)?.to??0;
   const evidence={requirements,sourceWindows:windows.map(w=>({assetId:w.shot.clip.assetId,kind:w.shot.asset?.kind||'unknown',fromFrame:w.from,toFrame:w.to})),steps:[],motion:[]};
+  evidence.explanatoryAnimation=await reviewExplanatoryAnimations(project,windows,{ffmpeg,signal,
+    readFrame:(frame,width,height)=>decodePixels(ffmpeg,videoPath,frame/project.profile.fps,width,height,signal),
+    pose:(clip,frame)=>transformed(clip,project.profile,frame),paint:matchingPaint,related:step=>sharesSubject(step,project)});
   if(!windows.length)return {evidence,findings};
   const checks=currentVisualChecks(project);
   if(checks.length)evidence.composedChecks=checks.map(c=>({stage:c.stage,frame:c.frame,needsFix:c.needsFix}));
@@ -413,7 +419,7 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
   if(!Object.values(requirements).some(Boolean)&&!policy&&!ending)return {evidence,findings};
   const photosOnly=windows.every(w=>w.shot.asset?.kind==='image');
   if(requirements.motionFootage) {
-    if(photosOnly)findings.push(finding('required-moving-footage','major','本期明确要求运动实拍，画面全由照片组成。','加入能显示所述过程的实拍窗口，或由用户更改该素材要求。',first,last));
+    if(photosOnly)findings.push(finding('required-moving-footage','major',evidence.explanatoryAnimation.actionFrames?'本期明确要求运动实拍，当前已核实的解释动画配在照片上，缺少所需现场录像。':'本期明确要求运动实拍，底层镜头全由照片组成。','加入能显示所述过程的实拍窗口，或由用户更改该素材要求。',first,last));
     else {
       evidence.motion=await measureMotion(project,windows,ffmpeg,signal,videoPath);
       if(!evidence.motion.some(m=>m.result==='changing-footage'))findings.push(finding('required-moving-footage','unknown','分窗抽样尚不能确认有超出整幅平移、缩放或定格的过程，小范围或较慢的主体动作需要回看。','回看标出的原片，选真实运动区间或确认当前处理。',first,last));
