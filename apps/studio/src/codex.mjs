@@ -254,7 +254,12 @@ export class CodexClient {
       }
       cursor = inventory.nextCursor;
     } while (cursor);
+    this.threadModels ??= new Map();
+    this.threadModels.set(result.thread.id, result.model || null);
     return result.thread.id;
+  }
+  modelForThread(id) {
+    return this.threadModels?.get(id) || null;
   }
 
   async findTurn(threadId, turnId) {
@@ -289,7 +294,7 @@ export class CodexClient {
     return { turnId: result.turnId };
   }
 
-  async runTurn({ threadId, existingTurnId, prompt, tool, signal, onEvent, onStart, effort }) {
+  async runTurn({ threadId, existingTurnId, prompt, images = [], tool, signal, onEvent, onStart, effort }) {
     if (this.routes.has(threadId)) throw new Error('当前工程已有创作任务。');
     signal?.throwIfAborted();
     let turnId = existingTurnId,
@@ -369,7 +374,13 @@ export class CodexClient {
       } else {
         const params = {
           threadId,
-          input: [{ type: 'text', text: prompt }],
+          input: [
+            { type: 'text', text: prompt },
+            ...images.flatMap((image) => [
+              { type: 'text', text: image.label },
+              { type: 'image', url: image.url },
+            ]),
+          ],
           environments: [],
           runtimeWorkspaceRoots: [],
           approvalPolicy: 'never',

@@ -1,12 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import { readFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
-import path from 'node:path';
 import { CodexClient } from './codex.mjs';
 import { directSources, importSource, searchSources, searchFacts, readBriefSources } from './sources.mjs';
 import { applyScenes, localScenes, transcriptFor, reviseLine, sceneIdentity } from './storyboard.mjs';
 import { describeFrames } from './vision.mjs';
 import { draftPreviews } from './draft-preview.mjs';
 import { compileSceneWithSound } from './scene-sound.mjs';
+import {
+  usesVisualStages,
+  stages,
+  checkVisualPlan,
+  prepareVisuals,
+  readVisualFrame,
+  shotFingerprint,
+} from './director-visual.mjs';
 
 const object = (properties = {}, required = []) => ({
   type: 'object',
@@ -17,6 +23,8 @@ const object = (properties = {}, required = []) => ({
 const str = { type: 'string' },
   num = { type: 'number' },
   int = { type: 'integer' };
+const focal = object({ x: num, y: num, zoom: num }, ['x', 'y', 'zoom']);
+const region = object({ x: num, y: num, width: num, height: num }, ['x', 'y', 'width', 'height']);
 const beat = object(
   {
     assetId: str,
@@ -30,6 +38,21 @@ const beat = object(
     anchorText: str,
     emphasis: str,
     template: str,
+    framing: object({ from: focal, to: focal }, ['from']),
+    visualSteps: {
+      type: 'array',
+      items: object(
+        {
+          stage: { type: 'string', enum: stages },
+          atSeconds: num,
+          sourceSeconds: num,
+          label: str,
+          observation: str,
+          region,
+        },
+        ['stage', 'atSeconds', 'label', 'observation']
+      ),
+    },
     soundEnabled: {
       type: 'boolean',
       description:
@@ -52,8 +75,12 @@ const tool = (name, description, properties = {}, required = []) => ({
   inputSchema: object(properties, required),
 });
 const tools = [
-  tool('studio_publication','Save the audience-facing Chinese title, post text and topics when the project requests a publish package.',
-    {baseRevision:int,title:str,body:str,tags:{type:'array',items:str}},['baseRevision','title','body','tags']),
+  tool(
+    'studio_publication',
+    'Save the audience-facing Chinese title, post text and topics when the project requests a publish package.',
+    { baseRevision: int, title: str, body: str, tags: { type: 'array', items: str } },
+    ['baseRevision', 'title', 'body', 'tags']
+  ),
   tool(
     'studio_context',
     'Read the latest editable project, timeline revision, selection, locks, provenance, transcript and style.'
@@ -73,7 +100,7 @@ const tools = [
   tool(
     'studio_find',
     'Search media with attributable descriptions. Use concise subject terms in Chinese or English, never send a private transcript as a search term.',
-    { query: str },
+    { query: str, kind: { type: 'string', enum: ['any', 'video', 'image'] } },
     ['query']
   ),
   tool(
@@ -108,6 +135,21 @@ const tools = [
     ['baseRevision', 'beats']
   ),
   tool(
+    'studio_visual_review',
+    'Record what is actually visible in the current composed pictures. Address every attached stage and identify a remaining issue if any.',
+    {
+      baseRevision: int,
+      checks: {
+        type: 'array',
+        items: object(
+          { stage: { type: 'string', enum: stages }, frame: int, observation: str, needsFix: { type: 'boolean' } },
+          ['stage', 'frame', 'observation', 'needsFix']
+        ),
+      },
+    },
+    ['baseRevision', 'checks']
+  ),
+  tool(
     'studio_edit',
     'Edit only unlocked clips. Send JSON array of {op:"update",id,changes}, {op:"add",clip}, or {op:"remove",id}. Numbers start/duration/sourceIn are project frames. Keep other clips unchanged.',
     {
@@ -136,6 +178,7 @@ const instructions = [
   '首版用 studio_sequence 真正写入工程。每段 sourceStart/sourceEnd 和动作时间是原片秒数，时间线编辑命令使用帧。解说语言与用户需求一致。',
   '没有开启发送帧时，用 studio_observe 获得项目中素材的本机类别、颜色与可共享 OCR 结果。动作锚点只能来自实际观看、用户标记、或同帧匹配的可见文字（anchorText）；亮度差不能单独证明某一事件。可分享帧时用 studio_frame 查看原片或风格参考；提交后抽查真实合成帧。注明哪些区间未看片、未听审。',
   '处理改稿时先核对当前版本与选区，用 studio_edit 局部修改，配音改词用 studio_narrate。用户没有要求时不要重新生成整片。',
+  '视频 framing.from/to 的 x/y 是原素材归一化中心、zoom 为等比铺满后 1–4 倍。图形 shape=outline、text="" 可做空心框；geometry 的 x/y 是画布中心，width/height 为相对宽高。不要用无关推拉假装拍到动作。',
   '本期要求发布包时，首版完成后用 studio_publication 写给观众的标题、正文和话题。正文只使用片中有依据的内容。',
   '最终用中文简述这次真实完成的编辑、需要用户判断的片段，或具体缺少的素材。',
 ].join('\n');
@@ -156,6 +199,7 @@ const trim = (s, max = 360) => (typeof s === 'string' ? s.slice(0, max) : '');
 function publicSource(source = {}) {
   source = source || {};
   return {
+    kind: trim(source.kind),
     provider: trim(source.provider),
     credit: trim(source.credit),
     url: urlForModel(source.url),
@@ -169,6 +213,19 @@ function selectedStyle(s) {
   if (!s) return null;
   const describe = (value) =>
     trim(value, 550).replace(/(?:file:\/\/)?\/(?:Users|private|Volumes)\/[^\s，。；]+/gu, '[本地参考]');
+  const safe = (v) =>
+    typeof v === 'string'
+      ? v.replace(/(?:file:\/\/)?\/(?:Users|private|Volumes)\/[^\s，。；]+/gu, '[本地参考]')
+      : Array.isArray(v)
+        ? v.map(safe)
+        : v && typeof v === 'object'
+          ? Object.fromEntries(
+              Object.entries(v)
+                .filter(([k]) => !/(?:path|locator|source_url|file_url)$/i.test(k))
+                .map(([k, x]) => [k, safe(x)])
+            )
+          : v;
+  const complete = usesVisualStages(s);
   return {
     id: s.id,
     name: s.name,
@@ -209,9 +266,25 @@ function selectedStyle(s) {
       .map((t) => (typeof t === 'string' ? t : { id: t.id, name: t.name })),
     references: (s.references || [])
       .slice(0, 20)
-      .map((r) => ({ id: r.id, kind: r.kind, title: trim(r.title), available: r.available ?? null, resolvable: r.available!==false&&Boolean(r.locator||r.path) })),
+      .map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        title: trim(r.title),
+        available: r.available ?? null,
+        resolvable: r.available !== false && Boolean(r.locator || r.path),
+      })),
     baselineAvailable: Boolean(s.baseline?.available),
     unknownDimensions: s.unknownDimensions || [],
+    ...(complete
+      ? {
+          rules: safe(s.rules || []),
+          requirements: safe(s.requirements || []),
+          components: safe(s.components || []),
+          effectRecipes: safe(s.effectRecipes || []),
+          executionPlan: safe(s.executionPlan || {}),
+          knownExceptions: safe(s.knownExceptions || []),
+        }
+      : {}),
   };
 }
 const clipFields = [
@@ -231,6 +304,9 @@ const clipFields = [
   'actionFrame',
   'anchorSourceFrame',
   'anchorAssetId',
+  'framing',
+  'shape',
+  'fit',
 ];
 const projectClip = (c, shareText = true) =>
   Object.fromEntries(
@@ -424,10 +500,170 @@ export function createDirector(deps) {
     if (active.has(id)) throw new Error('当前工程已有创作任务。');
     active.set(id, { jobId: options.jobId, signal: options.signal });
     try {
-      return await runProject(id, options);
+      const p = await store.get(id);
+      const style =
+        (options.kind || 'produce') === 'produce' && p.style?.id
+          ? await styleLibrary.get(p.style.id, p.style.version)
+          : null;
+      const usesVisual = usesVisualStages(style);
+      if (usesVisual && (options.engine || p.settings?.engine) !== 'local')
+        return await directVisual(id, options, p);
+      return await runProject(id, { ...options, usesVisual });
     } finally {
       active.delete(id);
     }
+  }
+  async function directVisual(id, options, original) {
+    const jobId = options.jobId || randomUUID(),
+      signal = options.signal;
+    const reusable = original.visualDirection?.jobId === jobId;
+    const activeStyle = await styleLibrary.get(original.style.id, original.style.version);
+    let receipt = reusable
+      ? original.visualDirection
+      : {
+          version: 1,
+          jobId,
+          template: activeStyle.executionPlan?.template || 'step-reveal',
+          styleId: original.style.id,
+          styleVersion: original.style.version,
+          styleHash: activeStyle.sha256 || original.style.sha256,
+          status: 'preparing',
+          rounds: [],
+          frames: [],
+          gaps: [],
+        };
+    if (
+      reusable &&
+      receipt.composed &&
+      ![
+        receipt.timelineHash,
+        receipt.afterCompose,
+        original.directorState?.jobId === jobId ? original.directorState.lastEditHash : null,
+      ].includes(shotFingerprint(original))
+    )
+      throw Error('中断后时间线已有其他编辑，已保留当前工程。请基于新版本重新发起局部修改。');
+    const save = async (patch) => {
+      receipt = { ...receipt, ...patch };
+      await store.setMeta(id, { visualDirection: receipt });
+    };
+    const execute = async (stage, attempt = 0, extra = []) => {
+      let p = await store.get(id);
+      const packet = await prepareVisuals({ ...deps, drafts }, p, stage, extra, signal);
+      const frameData = packet.result.map((item) => item.frame);
+      const latest = await store.get(id);
+      if (sceneIdentity(latest) !== sceneIdentity(p))
+        throw Error('准备视觉样本时工程或分享设置已更新，请基于当前版本继续。');
+      const session = {
+        stage,
+        attempt,
+        frames: frameData,
+        images: packet.result,
+        requested: [],
+        gaps: packet.gaps,
+        checks: [],
+        initial: shotFingerprint(p),
+      };
+      await save({
+        status: stage,
+        frames: [
+          ...receipt.frames.filter((f) => f.phase !== stage),
+          ...frameData.map((f) => ({ ...f, phase: stage })),
+        ],
+        gaps: [...new Set([...receipt.gaps, ...packet.gaps])],
+      });
+      const result = await runProject(id, { ...options, jobId, visual: session });
+      const completed = await store.get(id);
+      await save({
+        rounds: [
+          ...receipt.rounds,
+          {
+            stage,
+            attempt,
+            turnId: result.turnId || completed.directorState?.turnId,
+            model: client.modelForThread?.(completed.threadId) || null,
+            requestedEffort: p.settings?.reasoningEffort || null,
+            images: frameData.length,
+            revision: completed.revision,
+          },
+        ],
+        ...(stage === 'compose' && session.sequence
+          ? { composed: true, afterCompose: shotFingerprint(completed) }
+          : {}),
+      });
+      return { result, session };
+    };
+    const visualAssets = (p) =>
+      p.assets.filter((a) => ['video', 'image'].includes(a.kind) && a.source?.role !== 'hold');
+    if (reusable && receipt.status === 'reviewed' && receipt.timelineHash === shotFingerprint(original))
+      return {
+        project: original,
+        engine: 'codex',
+        changed: true,
+        needsReview: false,
+        notes: original.directorNotes || [],
+        message: '已恢复完成的视觉复查。',
+      };
+    if (!receipt.composed) {
+      if (original.mode === 'topic' && !visualAssets(original).length) await execute('sources');
+      let { result, session } = await execute('compose');
+      if (!session.sequence && session.requested.length)
+        ({ result, session } = await execute('compose', 1, session.requested));
+      if (!session.sequence) throw Error('导演还未提交经源图约束的四阶段分镜。' + trim(result.message));
+    }
+    let current = await store.get(id);
+    if (current.settings?.shareFrames !== true) {
+      const note = {
+        kind: 'visual-evidence',
+        type: 'required',
+        message: '本工程关闭了图像分享。可以预览已有编排；基准风格、源画面和实际合成的视觉复查仍待确认。',
+      };
+      await save({ status: 'blocked-by-privacy', timelineHash: shotFingerprint(current), checks: [] });
+      const notes = [...(current.directorNotes || []).filter((n) => n.kind !== 'visual-evidence'), note];
+      await store.setMeta(id, { directorNotes: notes });
+      return {
+        project: await store.get(id),
+        engine: 'codex',
+        changed: true,
+        needsReview: true,
+        notes,
+        message: note.message,
+      };
+    }
+    let { session } = await execute('verify');
+    current = await store.get(id);
+    if (session.initial !== shotFingerprint(current)) ({ session } = await execute('verify', 1));
+    current = await store.get(id);
+    const verified =
+      session.initial === shotFingerprint(current) &&
+      session.checks.length > 0 &&
+      !session.checks.some((x) => x.needsFix) &&
+      receipt.frames.some((f) => f.source === 'style') &&
+      !receipt.gaps.length;
+    const notes = [...(current.directorNotes || []).filter((n) => n.kind !== 'visual-evidence')];
+    if (!verified)
+      notes.push({
+        kind: 'visual-evidence',
+        type: 'required',
+        message:
+          '候选已生成。' +
+          (receipt.gaps[0] ||
+            session.checks.find((x) => x.needsFix)?.observation ||
+            '尚待确认本次真实合成的关键画面。'),
+      });
+    await save({
+      status: verified ? 'reviewed' : 'needs-review',
+      timelineHash: shotFingerprint(current),
+      checks: session.checks,
+    });
+    await store.setMeta(id, { directorNotes: notes });
+    return {
+      project: await store.get(id),
+      engine: 'codex',
+      changed: true,
+      needsReview: !verified || notes.length > 0,
+      notes,
+      message: verified ? '已核对风格参考、原素材以及四个阶段的实际合成。' : '候选完成，视觉证据有待复核。',
+    };
   }
   async function steer(id, { jobId, message } = {}) {
     const text = typeof message === 'string' ? message.trim() : '';
@@ -449,7 +685,7 @@ export function createDirector(deps) {
   }
   async function runProject(
     id,
-    { message = '', kind = 'produce', signal, onEvent, engine, selection, jobId } = {}
+    { message = '', kind = 'produce', signal, onEvent, engine, selection, jobId, visual, usesVisual } = {}
   ) {
     signal?.throwIfAborted();
     let p = await store.get(id);
@@ -462,7 +698,10 @@ export function createDirector(deps) {
       observedText = new Map();
     const localObservations = new Map();
     const emit = (type, message) => onEvent?.({ type, message });
-    if (kind === 'produce') {
+    if (
+      kind === 'produce' &&
+      (!visual || visual.stage === 'sources' || (visual.stage === 'compose' && !p.visualDirection?.rounds?.length))
+    ) {
       if (p.mode === 'topic' && (p.settings?.factUrls?.length || p.brief?.includes('https://'))) {
         const sources = await readBriefSources(p, { signal });
         if (sources.length) await store.setMeta(id, { factSources: sources });
@@ -494,8 +733,28 @@ export function createDirector(deps) {
         p = await store.get(id);
       }
       const beats = await localScenes(deps, p, signal);
-      const result = await applyScenes(deps, await store.get(id), beats, { signal, onEvent });
+      const result = await applyScenes(deps, await store.get(id), beats, { signal, onEvent, localDraft: true });
       notes.push(...result.notes);
+      if (usesVisual) {
+        notes.push({
+          type: 'required',
+          kind: 'visual-evidence',
+          message: '本地粗剪只编排已有素材。技术科普风格的基准看片、局部证据与成片复查需要 Codex 导演。',
+        });
+        await store.setMeta(id, {
+          directorNotes: notes,
+          visualDirection: {
+            version: 1,
+            jobId: jobId || null,
+            status: 'local-draft',
+            styleId: p.style.id,
+            styleVersion: p.style.version,
+            rounds: [],
+            frames: [],
+            checks: [],
+          },
+        });
+      }
       return {
         project: await store.get(id),
         engine: 'local',
@@ -507,15 +766,37 @@ export function createDirector(deps) {
     }
     const status = await client.account();
     if (!status.connected) throw new Error(status.message || '请登录 Codex，或选择本地草稿。');
-    const threadId = await client.thread(p.threadId || null, tools, instructions, p.settings);
-    if (p.threadId !== threadId) await store.setMeta(id, { threadId });
+    // App Server registers dynamic tools on thread/start only. Migrate once for
+    // a full visual production; an ordinary local revision retains its thread.
+    const upgrade = Boolean(visual && p.threadId && p.directorToolVersion !== 2);
+    if (upgrade && p.directorState?.turnId && client.findTurn) {
+      const prior = await client.findTurn(p.threadId, p.directorState.turnId);
+      if (prior?.turn?.status === 'inProgress' && prior.status?.type === 'active')
+        throw Error('原创作会话还有正在执行的回合；请在其完成或暂停后继续。');
+    }
+    const threadId = await client.thread(upgrade ? null : p.threadId || null, tools, instructions, p.settings);
+    if (p.threadId !== threadId)
+      await store.setMeta(id, {
+        threadId,
+        directorToolVersion: 2,
+        ...(upgrade
+          ? { previousDirectorThreads: [...new Set([...(p.previousDirectorThreads || []), p.threadId])] }
+          : {}),
+      });
     // If a process stopped after sending a turn, inspect it before dispatching the same job again.
     const old = p.directorState;
     let existingTurnId = null;
-    if (jobId && old?.jobId === jobId && old.turnId) {
+    if (
+      jobId &&
+      old?.jobId === jobId &&
+      old.turnId &&
+      (!visual || (old.visualStage === visual.stage && old.attempt === visual.attempt))
+    ) {
       const { turn: previous, status: threadStatus } = await client.findTurn(threadId, old.turnId);
       notes = p.directorNotes || [];
       if (previous?.status === 'completed' && (await store.get(id)).directorState?.edited) {
+        if (visual?.stage === 'compose' && old.sequence) visual.sequence = true;
+        if (visual?.stage === 'verify') visual.checks = old.checks || [];
         return {
           project: await store.get(id),
           engine: 'codex',
@@ -552,58 +833,36 @@ export function createDirector(deps) {
       turnId,
       edited: changed,
       startHash: existingTurnId ? old.startHash : sceneIdentity(p),
+      ...(visual ? { visualStage: visual.stage, attempt: visual.attempt } : {}),
     };
     const remember = async () => {
-      state = { ...state, turnId, edited: changed };
+      state = {
+        ...state,
+        turnId,
+        edited: changed,
+        ...(visual
+          ? {
+              sequence: !!visual.sequence,
+              checks: visual.checks,
+              ...(changed ? { lastEditHash: shotFingerprint(await store.get(id)) } : {}),
+            }
+          : {}),
+      };
       await store.setMeta(id, { directorState: state });
     };
     const image = async (args, current) => {
-      if (current.settings?.shareFrames !== true) throw new Error('本工程未开启向 Codex 发送参考帧。');
-      const seconds = Number(args.seconds);
-      if (!Number.isFinite(seconds) || seconds < 0) throw new Error('需提供有效时间。');
-      const { cache } = await store.paths(id);
-      await mkdir(cache, { recursive: true });
-      let source,sourceSeconds=seconds;
-      if (args.source === 'asset') {
-        const asset = current.assets.find((a) => a.id === args.id && a.kind !== 'audio');
-        if (!asset || (asset.kind === 'video' && seconds >= asset.duration))
-          throw new Error('素材帧不在可用范围内。');
-        source = asset.path;
-        if(asset.kind==='image')sourceSeconds=0;
-      } else if (args.source === 'style') {
-        const style = current.style?.id && (await styleLibrary.get(current.style.id, current.style.version));
-        const ref =
-          args.id && args.id !== 'baseline' ? style?.references?.find((r) => r.id === args.id) : style?.baseline;
-        if (!ref || ref.available === false) throw new Error('参考片暂不可读取。');
-        const verified = ref.available && ref.path ? ref : await styleLibrary.getReference(style.id, style.version, ref.id);
-        if (!verified?.available || !verified.path || ['audio','script'].includes(verified.kind)) throw new Error('此参考没有可分享的画面。');
-        source = verified.path;
-        if(verified.kind==='image')sourceSeconds=0;
-      } else if (args.source === 'timeline') {
-        if (!current.timeline.clips.some((c) => c.track === 'video')) throw new Error('工程还没有画面。');
-        const fps=current.profile.fps, frame=Math.floor(seconds*fps);
-        const duration=current.timeline.clips.filter(c=>!c.hidden&&c.enabled!==false).reduce((n,c)=>Math.max(n,c.start+c.duration),0);
-        if(frame>=duration)throw new Error('所选时刻超过当前成片的时长。');
-        const chunk=Math.floor(frame/(6*fps))*6*fps;
-        const result=await drafts.open(current,chunk,signal);
-        source=path.join(cache,'drafts',result.name);
-        sourceSeconds=(frame-result.fromFrame)/fps;
-      } else throw new Error('帧来源无效。');
-      const dir = await mkdtemp(path.join(cache, 'frame-'));
-      try {
-        const target = path.join(dir, 'frame.jpg');
-        await media.frameAt(source, sourceSeconds, target, { signal, maxWidth: 720 });
-        const data = await readFile(target);
-        if (data.length > 1_500_000) throw new Error('参考帧超过可发送大小。');
-        signal?.throwIfAborted();
-        if (args.source === 'asset') observed.add(args.id + ':' + Math.round(seconds * current.profile.fps));
-        return {
-          success: true,
-          contentItems: [{ type: 'inputImage', imageUrl: 'data:image/jpeg;base64,' + data.toString('base64') }],
-        };
-      } finally {
-        await rm(dir, { recursive: true, force: true });
-      }
+      const pic = await readVisualFrame({ ...deps, drafts }, current, args, signal);
+      if (args.source === 'asset')
+        observed.add(args.id + ':' + Math.round(pic.frame.seconds * current.profile.fps));
+      if (
+        visual?.stage === 'compose' &&
+        args.source === 'asset' &&
+        !visual.frames.some(
+          (f) => f.source === 'asset' && f.assetId === pic.frame.assetId && f.seconds === pic.frame.seconds
+        )
+      )
+        visual.requested.push({ source: 'asset', id: args.id, seconds: pic.frame.seconds });
+      return { success: true, contentItems: [{ type: 'inputImage', imageUrl: pic.url }] };
     };
     const dispatch = async ({ tool: name, arguments: args }) => {
       signal?.throwIfAborted();
@@ -657,7 +916,7 @@ export function createDirector(deps) {
       }
       if (name === 'studio_find') {
         if (current.mode !== 'topic') throw new Error('此工程使用用户已选择的素材。');
-        const entries = await search(args.query, { signal });
+        const entries = await search(args.query, { signal, kind: args.kind || 'any' });
         return toolText(
           entries.map((e) => {
             const key = randomUUID();
@@ -673,15 +932,56 @@ export function createDirector(deps) {
         return toolText({
           assetId: asset.id,
           name: asset.name,
+          kind: asset.kind,
+          duration: asset.duration,
+          width: asset.width,
+          height: asset.height,
           source: publicSource(asset.source),
           revision: (await store.get(id)).revision,
         });
       }
       currentRevision(current, args.baseRevision);
-      if(name==='studio_publication'){
-        if(!current.settings.publishPackage)throw new Error('本工程未启用发布包。');
-        const saved=await store.configure(id,args.baseRevision,{publication:{title:args.title,body:args.body,tags:args.tags}});
-        return toolText({revision:saved.revision});
+      if (visual?.stage === 'sources')
+        throw Error('本轮为来源核实；已导入素材后结束本轮。导演将在真正收到源图后进行编排。');
+      if (name === 'studio_visual_review') {
+        if (
+          visual?.stage !== 'verify' ||
+          !Array.isArray(args.checks) ||
+          shotFingerprint(current) !== visual.initial
+        )
+          throw Error('需要根据当前时间线的真实合成附件复查。修订后工作台将再次抽取合成帧。');
+        const actual = visual.frames.filter((f) => f.source === 'timeline');
+        if (
+          !actual.length ||
+          !stages.every((s) => args.checks.some((c) => c.stage === s)) ||
+          args.checks.some(
+            (c) =>
+              !actual.some((f) => c.stage === f.stage && c.frame === f.frame) ||
+              typeof c.needsFix !== 'boolean' ||
+              typeof c.observation !== 'string' ||
+              c.observation.trim().length < 4
+          )
+        )
+          throw Error('请逐一使用四个真实合成帧的工程帧号并写明可见事实。');
+        visual.checks = args.checks.map((c) => ({
+          stage: c.stage,
+          frame: c.frame,
+          observation: trim(c.observation, 650),
+          needsFix: c.needsFix,
+        }));
+        await remember();
+        return toolText({ checked: visual.checks.length });
+      }
+      if (visual?.stage === 'verify' && !['studio_edit', 'studio_publication'].includes(name))
+        throw Error('视觉回看只允许局部修改当前时间线。');
+      if (visual?.stage === 'compose' && !visual.sequence && ['studio_edit', 'studio_narrate'].includes(name))
+        throw Error('首版请先提交包含真实视觉证据的完整分镜。');
+      if (name === 'studio_publication') {
+        if (!current.settings.publishPackage) throw new Error('本工程未启用发布包。');
+        const saved = await store.configure(id, args.baseRevision, {
+          publication: { title: args.title, body: args.body, tags: args.tags },
+        });
+        return toolText({ revision: saved.revision });
       }
       if (name === 'studio_sequence') {
         if (kind !== 'produce') throw new Error('局部改稿只能修改指定的已有片段。');
@@ -689,7 +989,15 @@ export function createDirector(deps) {
           const src = current.assets.find((a) => a.id === b.assetId)?.source?.url;
           return { ...b, claimUrl: b.claimUrl && b.claimUrl === urlForModel(src) ? src : b.claimUrl };
         });
-        const result = await applyScenes(deps, current, beats, { signal, observed, observedText, onEvent });
+        if (visual) checkVisualPlan(beats, current, visual.frames);
+        const result = await applyScenes(deps, current, beats, {
+          signal,
+          observed,
+          observedText,
+          onEvent,
+          visualFrames: visual?.frames || [],
+        });
+        if (visual) visual.sequence = true;
         notes = result.notes;
       } else if (name === 'studio_edit') {
         const commands = JSON.parse(args.commandsJson);
@@ -717,10 +1025,28 @@ export function createDirector(deps) {
         selection: summary.selection,
         privacy: summary.privacy,
       });
+    if (visual?.images.length && (await store.get(id)).settings?.shareFrames !== true)
+      throw Error('当前已关闭分享，剪辑任务保留在本地。');
     const outcome = await client.runTurn({
       threadId,
       existingTurnId,
-      prompt,
+      prompt: visual
+        ? prompt +
+          '\n' +
+          {
+            sources:
+              '本轮只核实事实并导入可信素材，不提交剪辑。不早报任务完成。先 studio_context。根据题材用 studio_find 的 kind 选视频或档案图片；历史静照可实拍核验局部，但勿虚构动作。导入能提供不同证据的来源。',
+            compose:
+              '本轮请阅读 studio_context 中完整风格规则、原蓝图和适用条件，以及本轮原生附图。先就每张图确定实际能证明什么。实际调用 studio_sequence，每个 beat 的 visualSteps 使用 problem/detail/mechanism/verification；整片按此顺序，从可见问题进入局部，再解释机制，回原片说明能看到什么及它不能证明什么。atSeconds 是本镜头内的秒数；静图 sourceSeconds=0，视频填本轮帧标签给出的精确源秒。具体观察写 observation，局部实际所在位置用 region 左上角+宽高，必要时用 framing。不要在原图凭空制造过程。若需要其他源帧，先调用 studio_frame 并结束该轮，工作台会把它作为原生图片附上再剪。缺参考或分享关闭时明说依据。',
+            verify:
+              '按本轮标注工程帧号的真实合成图，检查遮挡、局部指向、阅读层级、结尾重新落在原片。根据看到的问题用 studio_edit 做必要的局部修正，工作台会重新给你合成图；满意时必须 studio_visual_review 提交四阶段检查，填写真实帧号、观众能看到的事实和是否还需修。若某帧欠缺请如实指出。',
+          }[visual.stage] +
+          '\n附图清单：' +
+          JSON.stringify(visual.frames) +
+          '\n缺少的依据：' +
+          JSON.stringify(visual.gaps)
+        : prompt,
+      images: visual?.images || [],
       tool: dispatch,
       signal,
       onEvent,
@@ -732,7 +1058,8 @@ export function createDirector(deps) {
         emit('progress', existingTurnId ? '已重新连接原 Codex 轮次。' : 'Codex 已开始处理本工程。');
       },
     });
-    if (kind === 'produce' && !changed) throw new Error('Codex 没有提交成片时间线。' + trim(outcome, 600));
+    if (kind === 'produce' && !changed && !visual)
+      throw new Error('Codex 没有提交成片时间线。' + trim(outcome, 600));
     return {
       project: await store.get(id),
       engine: 'codex',
@@ -740,6 +1067,7 @@ export function createDirector(deps) {
       needsReview: notes.length > 0,
       notes,
       message: outcome || '工程已更新。',
+      turnId,
     };
   }
   return {

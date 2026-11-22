@@ -57,6 +57,10 @@ test('official RPC uses a durable isolated thread and binds server tool requests
         }
         if (m.method === 'turn/start') {
           assert.deepEqual(m.params.environments, []);
+          assert.deepEqual(m.params.input.slice(1), [
+            { type: 'text', text: '源码帧 0' },
+            { type: 'image', url: 'data:image/jpeg;base64,/9j/2Q==' },
+          ]);
           send({ id: m.id, result: { turn: { id: 'current' } } });
           send({ method: 'turn/started', params: { threadId: 'project-thread', turn: { id: 'current' } } });
           send({
@@ -96,6 +100,7 @@ test('official RPC uses a durable isolated thread and binds server tool requests
   t.after(() => c.close());
   const id = await c.thread(null, [], 'edit only', {});
   const res = await c.runTurn({
+    images: [{ label: '源码帧 0', url: 'data:image/jpeg;base64,/9j/2Q==' }],
     threadId: id,
     prompt: 'test',
     tool: async (msg) => {

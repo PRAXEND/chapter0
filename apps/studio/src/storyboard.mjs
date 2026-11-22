@@ -139,9 +139,23 @@ export async function localScenes(deps, project, signal) {
   if (project.mode === 'topic') {
     const sourced = assets.filter((a) => a.source?.statement);
     if (!sourced.length) throw new Error('尚无可核对的事实描述。请补充有出处的素材或使用 Codex 检索。');
+    const supplied = sentenceList(project.script);
+    if (supplied.length)
+      return supplied.map((narration, i) => {
+        const asset = sourced[i % sourced.length];
+        return { assetId: asset.id, narration, sourceStart: 0, claimUrl: asset.source.url, userScript: true };
+      });
+    const brief = String(project.brief || ''),
+      written = project.settings?.narrationLanguage || project.settings?.language;
+    const wantsChinese = written
+      ? /^(zh|cn|Chinese|中文|普通话)/i.test(written)
+      : /中文|普通话/.test(brief) ||
+        (!/(?:用|使用|要求)(?:英语|英文)|English narration/i.test(brief) && /\p{Script=Han}/u.test(brief));
     return sourced.slice(0, 12).map((a) => {
       const sentence = sentenceList(a.source.statement)[0] || '';
       const narration = sentence.length > 240 ? a.source.title || a.name : sentence;
+      if (wantsChinese && !/[\p{Script=Han}]{2}/u.test(narration))
+        return { assetId: a.id, sourceStart: 0, sourceOnly: true, narration: '', claimUrl: a.source.url };
       return { assetId: a.id, sourceStart: 0, narration, claimUrl: a.source.url };
     });
   }
@@ -313,7 +327,7 @@ export async function applyScenes(
   deps,
   project,
   beats,
-  { signal, observed = new Set(), observedText = new Map(), onEvent } = {}
+  { signal, observed = new Set(), observedText = new Map(), onEvent, visualFrames = [], localDraft = false } = {}
 ) {
   if (!Array.isArray(beats) || beats.length === 0 || beats.length > 400) throw new Error('分镜应含 1 到 400 段。');
   if (project.timeline.clips.some((c) => c.locked)) throw new Error('工程含锁定片段，请使用局部修改。');
@@ -397,7 +411,7 @@ export async function applyScenes(
       );
       words = utterance.text;
       voice = imported;
-    } else if (mode === 'system' || mode === 'clone') {
+    } else if ((mode === 'system' || mode === 'clone') && !(localDraft && beat.sourceOnly)) {
       if (!words || words.length > 650) throw new Error('单段旁白需包含 1 到 650 字。');
       voice = await recordedNarration(deps, await deps.store.get(project.id), words, signal);
       duration = Math.max(1, Math.round(voice.duration * fps));
@@ -409,13 +423,28 @@ export async function applyScenes(
         1,
         Math.round(Math.min(suggested, asset.kind === 'video' ? sourceEnd - sourceStart : 120) * fps)
       );
+      if (localDraft && beat.sourceOnly && !notes.some((n) => n.kind === 'narration-language'))
+        notes.push({
+          type: 'required',
+          kind: 'narration-language',
+          frame: cursor,
+          message:
+            '素材的外文图注已保存为来源。此处保留画面草稿，需要中文台词，可提供脚本或交给 Codex 根据图注编写。',
+        });
     }
     if (duration > fps * 3600 || cursor + duration > fps * 21600) throw new Error('分镜时长超出六小时工程范围。');
     const sourceIn = Math.round(sourceStart * fps);
     const available = asset.kind === 'image' ? duration : Math.max(1, Math.round(sourceEnd * fps) - sourceIn);
     const visible = Math.min(duration, available);
     clips.push(
-      make('video', i, { assetId: asset.id, start: cursor, duration: visible, sourceIn, gain: voice ? 0 : 1 })
+      make('video', i, {
+        assetId: asset.id,
+        start: cursor,
+        duration: visible,
+        sourceIn,
+        gain: voice || (localDraft && beat.sourceOnly && mode !== 'original') ? 0 : 1,
+        ...(beat.framing ? { framing: beat.framing } : {}),
+      })
     );
     if (visible < duration) {
       const hold = await holdFrame(deps, project, asset, Math.max(sourceStart, sourceEnd - 1 / fps), signal);
@@ -471,7 +500,68 @@ export async function applyScenes(
     const anchorSec =
       beat.actionSourceSeconds ?? (userAnchor ? userAnchor.sourceFrame / fps : asset.source?.actionSourceSeconds);
     const emphasis = beat.emphasis || userAnchor?.label;
-    if (emphasis && style?.templates?.length) {
+    const steps = (beat.visualSteps || []).map((step) => {
+      if (!Number.isFinite(step.atSeconds) || step.atSeconds < 0 || Math.round(step.atSeconds * fps) >= visible)
+        throw Error('视觉阶段的落点超出实测镜头，请把 atSeconds 放在当前可见区间内。');
+      const sourceSeconds =
+        asset.kind === 'image' ? 0 : Number(step.sourceSeconds ?? sourceStart + step.atSeconds);
+      if (asset.kind === 'video' && (sourceSeconds < sourceStart || sourceSeconds >= sourceEnd))
+        throw Error('使用的视觉证据位于选定原片区间之外。');
+      const match = visualFrames.find(
+        (f) =>
+          f.source === 'asset' &&
+          f.assetId === asset.id &&
+          f.assetHash === asset.sha256 &&
+          Math.abs(f.seconds - sourceSeconds) <= 0.5 / fps
+      );
+      return {
+        ...step,
+        region: step.region || { x: 0, y: 0, width: 1, height: 1 },
+        atFrame: cursor + Math.round(step.atSeconds * fps),
+        sourceFrame: Math.round(sourceSeconds * fps),
+        anchorSourceFrame: Math.round(sourceSeconds * fps),
+        assetId: asset.id,
+        assetHash: asset.sha256,
+        witnessFrameHash: match?.sha256 || null,
+      };
+    });
+    if (steps.length && style?.templates?.length) {
+      const scene = {
+        style,
+        template: 'step-reveal',
+        start: cursor,
+        duration: visible,
+        actionFrame: steps[0].atFrame,
+        anchorAssetId: asset.id,
+        anchorSourceFrame: steps[0].anchorSourceFrame,
+        text: steps[0].label,
+        visualSteps: steps,
+        evidenceView: {
+          width: asset.width,
+          height: asset.height,
+          pixelAspect: asset.pixelAspect,
+          sha256: asset.sha256,
+          fit: 'contain',
+          framing: beat.framing,
+          start: cursor,
+          duration: visible,
+        },
+        soundEnabled:
+          project.settings?.sceneSound === false ? false : (beat.soundEnabled ?? project.settings?.sceneSound),
+        soundAssetId: beat.soundAssetId,
+      };
+      const shapes = deps.compileSceneWithSound
+        ? (
+            await deps.compileSceneWithSound(
+              deps.styleLibrary,
+              deps.store,
+              await deps.store.get(project.id),
+              scene
+            )
+          ).clips
+        : deps.styleLibrary.compileScene(scene, project.profile);
+      for (const [j, shape] of shapes.entries()) clips.push({ ...shape, id: 'scene-' + i + '-g' + j });
+    } else if (emphasis && style?.templates?.length) {
       const anchor = Math.round(anchorSec * fps);
       const key = asset.id + ':' + anchor;
       const anchorText = typeof beat.anchorText === 'string' ? beat.anchorText.trim() : '';
@@ -487,12 +577,32 @@ export async function applyScenes(
           userAnchor?.sourceFrame === anchor);
       if (sourceKnown) {
         const actionFrame = cursor + anchor - sourceIn;
-        const scene={style,template:beat.template,start:cursor,duration,actionFrame,
-          text:String(emphasis).slice(0,70),followup:beat.followup,subject:beat.subject,continuity:beat.continuity,
-          anchorAssetId:asset.id,anchorSourceFrame:anchor,soundEnabled:project.settings?.sceneSound===false?false:(beat.soundEnabled??project.settings?.sceneSound),soundAssetId:beat.soundAssetId};
-        const shapes=deps.compileSceneWithSound
-          ? (await deps.compileSceneWithSound(deps.styleLibrary,deps.store,await deps.store.get(project.id),scene)).clips
-          : deps.styleLibrary.compileScene(scene,project.profile);
+        const scene = {
+          style,
+          template: beat.template,
+          start: cursor,
+          duration,
+          actionFrame,
+          text: String(emphasis).slice(0, 70),
+          followup: beat.followup,
+          subject: beat.subject,
+          continuity: beat.continuity,
+          anchorAssetId: asset.id,
+          anchorSourceFrame: anchor,
+          soundEnabled:
+            project.settings?.sceneSound === false ? false : (beat.soundEnabled ?? project.settings?.sceneSound),
+          soundAssetId: beat.soundAssetId,
+        };
+        const shapes = deps.compileSceneWithSound
+          ? (
+              await deps.compileSceneWithSound(
+                deps.styleLibrary,
+                deps.store,
+                await deps.store.get(project.id),
+                scene
+              )
+            ).clips
+          : deps.styleLibrary.compileScene(scene, project.profile);
         for (const [j, shape] of shapes.entries())
           clips.push({
             ...shape,
@@ -510,18 +620,19 @@ export async function applyScenes(
       start: cursor,
       duration,
       utteranceId: utterance?.id,
+      ...(steps.length ? { visualSteps: steps, framing: beat.framing } : {}),
       ...(alignment ? { speechGroup, speechAssetId: voice.id, speechScriptHash: alignment.scriptHash } : {}),
       claimUrl: beat.claimUrl || asset.source?.url,
       continuity: String(beat.continuity || '').slice(0, 240),
     });
     if (beat.claimUrl && (beat.claimUrl === asset.source?.url || verifiedFact))
       facts.push({
-        text: words,
+        text: words || (localDraft && beat.sourceOnly ? asset.source?.statement : ''),
         url: beat.claimUrl,
         assetId: asset.id,
         start: cursor,
         sourceExcerpt: verifiedFact?.excerpt || asset.source?.statement || '',
-        visualRole: verifiedFact ? 'illustration' : 'source',
+        visualRole: verifiedFact || beat.userScript ? 'illustration' : 'source',
       });
     cursor += duration;
     onEvent?.({ type: 'progress', message: '已编排 ' + (i + 1) + ' / ' + beats.length + ' 段' });

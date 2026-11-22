@@ -5,6 +5,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { createDirector } from '../src/production.mjs';
 import { applyScenes, reviseLine } from '../src/storyboard.mjs';
+import { checkVisualPlan, usesVisualStages } from '../src/director-visual.mjs';
 import { alignScript } from '../src/speech-alignment.mjs';
 
 const picture = {
@@ -483,3 +484,134 @@ test('the registered storyboard accepts per-event mute or a project audio asset 
   t.after(() => director.close());
   await director.run(p.id, { kind: 'revise', message: '查看可用的动作音效' });
 });
+
+test('Chinese local topic drafts preserve foreign captions only as sources and honor supplied scripts', async (t) => {
+  const a = {
+    ...picture,
+    source: { url: 'https://images.nasa.gov/details/x', statement: 'Close-up of a footprint.' },
+  };
+  const { p, deps, counts } = await fixture(t, {
+    mode: 'topic',
+    script: '',
+    brief: '请用中文旁白解释这个印迹。',
+    assets: [a],
+  });
+  const director = createDirector(deps);
+  t.after(() => director.close());
+  const draft = await director.run(p.id, { engine: 'local' });
+  assert.equal(counts().syntheses, 0);
+  assert.equal(
+    p.timeline.clips.some((c) => c.track === 'caption' || c.track === 'narration'),
+    false
+  );
+  assert.equal(p.facts[0].text, a.source.statement);
+  assert.ok(draft.notes.some((x) => x.kind === 'narration-language'));
+  p.script = '这是地面留下的印迹。';
+  await director.run(p.id, { engine: 'local' });
+  assert.equal(counts().syntheses, 1);
+  assert.equal(p.timeline.clips.find((c) => c.track === 'caption').text, p.script);
+});
+
+for (const sharing of [true, false])
+  test('derived science styles submit a witnessed sequence with shareFrames=' + sharing, async (t) => {
+    const { p, deps } = await fixture(t, {
+      style: { id: 'my-science', version: 1 },
+      settings: { voiceMode: 'original', musicMode: 'none', shareFrames: sharing },
+    });
+    const stages = ['problem', 'detail', 'mechanism', 'verification'];
+    const baseline = {
+      id: 'trusted',
+      kind: 'video',
+      duration: 8,
+      available: true,
+      path: '/private/local/base.mp4',
+      sha256: 'refhash',
+    };
+    const actualStyle = {
+      ...p.style,
+      sha256: 'versionhash',
+      baseline,
+      references: [baseline],
+      templates: [{ id: 'step-reveal' }],
+      executionPlan: {
+        template: 'step-reveal',
+        stages: Object.fromEntries(stages.map((s) => [s, {}])),
+        notes: '按动作配合逐段作证',
+      },
+      rules: [
+        { id: 'proof', instruction: '观察具体部位', check: '切点后可见', evidence: '/Users/hidden/private.mov' },
+      ],
+    };
+    assert.ok(usesVisualStages(actualStyle));
+    assert.equal(usesVisualStages({ id: 'neutral', version: 8 }), false);
+    deps.styleLibrary.get = async () => actualStyle;
+    deps.media.frameAt = async (file, seconds, dest) => {
+      assert.ok(sharing);
+      await writeFile(dest, Buffer.from(file + ' ' + seconds));
+    };
+    deps.drafts = { open: async (_p, from) => ({ fromFrame: from, name: 'approved.mp4' }), close: async () => {} };
+    deps.compileSceneWithSound = async (_styles, _store, _proj, scene) => ({
+      clips: scene.visualSteps.map((s) => ({
+        track: 'graphic',
+        text: s.label,
+        start: s.atFrame,
+        duration: 5,
+        visualStage: s.stage,
+      })),
+    });
+    const beats = stages.map((stage) => ({
+      assetId: picture.id,
+      narration: '原图里看见纹路。',
+      durationSeconds: 3,
+      visualSteps: [
+        {
+          stage,
+          atSeconds: 0,
+          label: '纹路',
+          observation: '纹路中间有相间的亮暗',
+          region: { x: 0.42, y: 0.47, width: 0.18, height: 0.13 },
+        },
+      ],
+    }));
+    let turns = 0;
+    const call = (tool, name, args = {}) => tool({ tool: name, arguments: args });
+    deps.client = {
+      account: async () => ({ connected: true }),
+      thread: async () => 'project-thread',
+      close() {},
+      modelForThread: () => 'matched-model',
+      runTurn: async ({ tool, onStart, images, prompt }) => {
+        await onStart('turn-' + ++turns);
+        if (turns === 1) {
+          assert.equal(images.length, sharing ? 5 : 0);
+          const context = JSON.parse((await call(tool, 'studio_context')).contentItems[0].text);
+          assert.equal(context.style.rules[0].check, '切点后可见');
+          assert.ok(!JSON.stringify(context.style).includes('/Users/hidden'));
+          await call(tool, 'studio_sequence', { baseRevision: p.revision, beats });
+        } else {
+          assert.ok(prompt.includes('真实合成图'));
+          const fs = p.visualDirection.frames.filter((f) => f.source === 'timeline');
+          assert.deepEqual(new Set(fs.map((f) => f.stage)), new Set(stages));
+          await call(tool, 'studio_visual_review', {
+            baseRevision: p.revision,
+            checks: fs.map((f) => ({
+              stage: f.stage,
+              frame: f.frame,
+              observation: '框内保留亮暗细节',
+              needsFix: false,
+            })),
+          });
+        }
+        return '完成';
+      },
+    };
+    const director = createDirector(deps);
+    t.after(() => director.close());
+    const result = await director.run(p.id, { jobId: 'test-job' });
+    assert.equal(p.visualDirection.status, sharing ? 'reviewed' : 'blocked-by-privacy');
+    assert.equal(turns, sharing ? 2 : 1);
+    assert.equal(p.timeline.clips.filter((c) => c.track === 'graphic').length, 4);
+    assert.ok(p.storyboard.every((s) => !!s.visualSteps[0].witnessFrameHash === sharing));
+    if (!sharing) assert.ok(result.notes.some((n) => n.kind === 'visual-evidence'));
+    if (sharing) assert.throws(() => checkVisualPlan(beats, p, []), /真实图像/);
+  });
