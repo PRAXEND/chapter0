@@ -7,6 +7,7 @@ import path from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { probeMedia } from './media.mjs';
+import { publisherCatalogs, searchPublisherCatalog } from './publisher-catalogs.mjs';
 
 const agent = 'VideoStudio/1.0 (local video editor; source attribution retained)';
 const limit = 64 * 1024 * 1024;
@@ -18,6 +19,7 @@ const catalogHosts = new Set([
   'images-api.nasa.gov',
   'images-assets.nasa.gov',
   'www.nasa.gov',
+  'apollojournals.org',
   'science.nasa.gov',
   'api.crossref.org',
   'en.wikipedia.org',
@@ -273,11 +275,15 @@ export async function readBriefSources(project, { signal } = {}) {
   }
   return [...known.values()];
 }
-async function json(url, signal) {
+async function catalogBody(url, signal, accept) {
   const timeout = AbortSignal.timeout(10_000);
   const deadline = signal ? AbortSignal.any([signal, timeout]) : timeout;
   const maxBytes = 3 * 1024 * 1024;
-  const res = await publicRequest(url, deadline, 0, { accept: 'application/json', maxBytes });
+  const res = await publicRequest(url, deadline, 0, { accept, maxBytes });
+  if (accept === 'text/html' && !/^text\/html\b/i.test(res.headers['content-type'] || '')) {
+    res.destroy();
+    throw Error('目录没有返回 HTML。');
+  }
   const parts = [];
   let bytes = 0;
   for await (const part of res) {
@@ -288,7 +294,20 @@ async function json(url, signal) {
     }
     parts.push(part);
   }
-  return JSON.parse(Buffer.concat(parts).toString('utf8'));
+  return Buffer.concat(parts).toString('utf8');
+}
+async function json(url, signal) {
+  return JSON.parse(await catalogBody(url, signal, 'application/json'));
+}
+const directoryCache = new Map();
+async function publisherHtml(url, signal) {
+  signal?.throwIfAborted();
+  const cached = directoryCache.get(url);
+  if (cached && cached.until > Date.now()) return cached.html;
+  const html = await catalogBody(url, signal, 'text/html');
+  if (directoryCache.size >= 32) directoryCache.delete(directoryCache.keys().next().value);
+  directoryCache.set(url, { html, until: Date.now() + 3_600_000 });
+  return html;
 }
 function hosted(file, hostname) {
   try {
@@ -559,7 +578,9 @@ function interleave(groups) {
     }
   return { distinct: all, mirrors };
 }
-export async function searchSources(query, { signal, kind = 'any', onDiagnostic, readJson = json } = {}) {
+export async function searchSources(query, {
+  signal, kind = 'any', onDiagnostic, readJson = json, readHtml = publisherHtml, catalogs = publisherCatalogs,
+} = {}) {
   const term = String(query || '')
     .trim()
     .slice(0, 200);
@@ -568,6 +589,11 @@ export async function searchSources(query, { signal, kind = 'any', onDiagnostic,
   const space = spaceTerms.test(term) && nasaQuery(term);
   const requests = [];
   for (const type of kind === 'any' ? ['video', 'image'] : [kind]) {
+    if (type === 'video') for (const catalog of catalogs) {
+      const q = space || term;
+      if (catalog.scope.test(q)) requests.push({ name: catalog.name, type,
+        result: searchPublisherCatalog(q, catalog, { readHtml, signal, onDiagnostic }) });
+    }
     if (space) requests.push({ name: 'NASA', type, result: nasa(space, type, readJson, signal) });
     requests.push({ name: 'Wikimedia Commons', type, result: commons(term, type, readJson, signal) });
     if (type === 'image') requests.push({ name: 'Openverse', type, result: openverse(term, readJson, signal) });

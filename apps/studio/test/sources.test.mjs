@@ -83,7 +83,7 @@ test('an existing GIF direct link leaves static versus timed content to the stre
 
 test('catalogs return attributable native videos and the official manifest rendition, never its cover', async () => {
   const calls = [],
-    rows = await searchSources('月面靴印', { kind: 'video', readJson: catalog(calls) });
+    rows = await searchSources('月面靴印', { kind: 'video', readJson: catalog(calls), readHtml: async () => '' });
   assert.deepEqual(
     rows.map((r) => r.kind),
     ['video', 'video']
@@ -202,4 +202,52 @@ test('direct public film and its source page survive download, retries and incor
     /429/
   );
   assert.equal(attempts.length, 1);
+});
+
+test('publisher discovery ranks adjacent licensed captions, isolates collection numbers and preserves credit on import', async () => {
+  const directory = 'https://field.example/movies/index.html';
+  const catalogs = [{
+    name: 'Field Study Archive', directory, scope: /expedition/i,
+    collectionLabel: /^Expedition \d+ films$/i, collectionIdentifier: /Expedition \d+/i,
+    licenseText: /our films are CC0/i, license: 'CC0', credit: 'Field Study Archive',
+  }];
+  const index = '<a href="one.html">Expedition 1 films</a><a href="two.html">Expedition 2 films</a>' +
+    '<a href="https://other.example/no.html">Expedition 2 films</a>';
+  const pages = [];
+  const catalogRows = '<h2>Bee pollen everywhere on this page</h2>' +
+    '<p><a href="unrelated.mov">video</a><blockquote>Crickets rest in a meadow.</blockquote>' +
+    '<p><a href="previous.mp4">Without a caption</a><p>text only<blockquote>Bee pollen.</blockquote>' +
+    '<p><a href="private.mp4">video</a> with permission<blockquote>Bee pollen.</blockquote>' +
+    '<figure><a href="https://other.example/stolen.mp4">clip</a><figcaption>Bee pollen.</figcaption></figure>' +
+    '<figure><a href="two.mp4">clip</a><figcaption>A bee carries pollen from a flower.</figcaption></figure>' +
+    '<p><a href="journal.html#22">22:00</a><a href="one.mp4">video</a> by <font>A. Lens</font>' +
+    '<blockquote>Beetles run on bark.</blockquote>';
+  const search = (q, rights = 'Our films are CC0') => searchSources(q, {
+    kind: 'video', catalogs, readJson: async () => ({ query: { pages: [] } }),
+    readHtml: async url => { pages.push(url); return url === directory ? index : '<header>' + rights + '</header>' + catalogRows; },
+  });
+  const found = await search('Expedition 2 bee pollen');
+  assert.deepEqual(pages, [directory, 'https://field.example/movies/two.html']);
+  assert.deepEqual(found.map(a => a.downloadUrl), ['https://field.example/movies/two.mp4']);
+  assert.equal(found[0].licenseUrl, pages[1]);
+  assert.equal(found[0].statement, 'A bee carries pollen from a flower.');
+  assert.equal(found[0].evidenceLevel, 'catalog-description');
+  assert.deepEqual(await search('Expedition 2 bee pollen', 'Copyright; permission required'), []);
+  const [beetles] = await search('Expedition 2 beetle');
+  assert.equal(beetles.url, 'https://field.example/movies/journal.html#22');
+  assert.equal(beetles.credit, 'Field Study Archive / A. Lens');
+});
+
+test('publisher section failures do not remove independently found results', async () => {
+  const errors = [], records = await searchSources('lunar flower', {
+    kind:'video', readJson: async () => ({ query:{ pages:[] } }), onDiagnostic: e => errors.push(e),
+    readHtml: async url => {
+      if (url.endsWith('/alsj-video.html')) return '<a href="first.html">Apollo 11 Clips</a><a href="second.html">Apollo 12 Clips</a>';
+      if (url.endsWith('second.html')) throw Error('HTTP 503');
+      return '<header>The video clips are in the public domain.</header><p><a href="x.mpg">clip</a><blockquote>A flower drawing.</blockquote>';
+    },
+  });
+  assert.equal(records.length, 1);
+  assert.equal(errors.length, 1);
+  assert.match(errors[0].message, /second\.html HTTP 503/);
 });
