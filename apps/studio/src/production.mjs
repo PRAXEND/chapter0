@@ -11,6 +11,7 @@ import {
 } from './storyboard.mjs';
 import { describeFrames } from './vision.mjs';
 import { resolveProductionAudio } from './style-audio-preparation.mjs';
+import { dedicatedVoiceReference } from './style-audio.mjs';
 import { draftPreviews } from './draft-preview.mjs';
 import { compileSceneWithSound } from './scene-sound.mjs';
 import {
@@ -379,7 +380,7 @@ async function context(deps, project, selection) {
     styleAudio: project.styleAudio ? {voice:project.styleAudio.voice && {status:project.styleAudio.voice.status,speed:project.styleAudio.voice.speed},music:project.styleAudio.music && {status:project.styleAudio.music.status,title:project.styleAudio.music.title,ducking:project.styleAudio.music.ducking}} : undefined,
     musicMode: project.settings?.musicMode,
     targetDuration: project.settings?.targetDuration,
-    assets: project.assets.map((a) => ({
+    assets: project.assets.filter(a=>!dedicatedVoiceReference(a)).map((a) => ({
       id: a.id,
       name: a.name,
       kind: a.kind,
@@ -669,7 +670,7 @@ export function createDirector(deps) {
       return { result, session };
     };
     const visualAssets = (p) =>
-      p.assets.filter((a) => ['video', 'image'].includes(a.kind) && a.source?.role !== 'hold');
+      p.assets.filter((a) => ['video', 'image'].includes(a.kind) && a.source?.role !== 'hold' && !dedicatedVoiceReference(a));
     if (reusable && receipt.status === 'reviewed' && receipt.timelineHash === shotFingerprint(original))
       return {
         project: original,
@@ -811,7 +812,7 @@ export function createDirector(deps) {
       }
       p = await store.get(id);
       if (p.mode === 'interview') {
-        for (const asset of p.assets.filter((a) => a.kind === 'video' && a.hasAudio !== false))
+        for (const asset of p.assets.filter((a) => !dedicatedVoiceReference(a) && a.kind === 'video' && a.hasAudio !== false))
           await transcriptFor(deps, await store.get(id), asset, signal);
       } else if (p.settings?.voiceMode === 'import' && p.settings.narrationAssetId)
         await getTranscript(id, { assetId: p.settings.narrationAssetId, signal });
@@ -819,7 +820,7 @@ export function createDirector(deps) {
     p = await store.get(id);
     if (local) {
       if (kind === 'revise') throw new Error('本地模式支持时间线直接改稿。自然语言改稿需连接 Codex。');
-      if (p.mode === 'topic' && !p.assets.some((a) => a.kind === 'video' || a.kind === 'image')) {
+      if (p.mode === 'topic' && !p.assets.some((a) => !dedicatedVoiceReference(a) && (a.kind === 'video' || a.kind === 'image'))) {
         const found = await search(p.brief || p.title, { signal });
         for (const candidate of found.slice(0, 3)) {
           try {
@@ -968,6 +969,8 @@ export function createDirector(deps) {
       const current = await store.get(id);
       args ??= {};
       if (name === 'studio_context') return toolText(await context(deps, current, selection));
+      if (['studio_transcript','studio_observe'].includes(name) && dedicatedVoiceReference(current.assets.find(a=>a.id===args.assetId)))
+        throw Error('这是专用音色参考，不用于素材分析。');
       if (name === 'studio_transcript') {
         const rows = current.transcript?.[args.assetId] || [];
         const offset = args.offset ?? 0;

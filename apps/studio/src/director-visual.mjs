@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { scanMotionWindows } from './motion-windows.mjs';
+import { dedicatedVoiceReference } from './style-audio.mjs';
 
 export const stages = ['problem', 'detail', 'mechanism', 'verification'];
 export function usesVisualStages(style) {
@@ -207,6 +208,7 @@ export async function readVisualFrame(deps, project, requested, signal) {
   await mkdir(cache, { recursive: true });
   if (requested.source === 'asset') {
     const asset = project.assets.find((a) => a.id === requested.id);
+    if (dedicatedVoiceReference(asset)) throw Error('这是专用音色参考，不能作为本片原画面发送。');
     if (
       !asset ||
       !['image', 'video'].includes(asset.kind) ||
@@ -356,7 +358,7 @@ export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
             ];
       for (const seconds of new Set(times)) requests.push({ source: 'style', id: b.id, seconds });
     } else if (usesVisualStages(s)) gaps.push('基准片未登记。');
-    const available = p.assets.filter((a) => a.source?.role !== 'hold');
+    const available = p.assets.filter((a) => a.source?.role !== 'hold' && !dedicatedVoiceReference(a));
     for (const a of available.filter((a) => a.kind === 'image').slice(0, 6))
       requests.push({ source: 'asset', id: a.id, seconds: 0 });
     for (const a of available.filter((a) => a.kind === 'video' && policy !== 'images-only').slice(0, 3)) {

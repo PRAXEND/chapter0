@@ -2,11 +2,12 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { visibleWindows } from './framing.mjs';
+import { dedicatedVoiceReference } from './style-audio.mjs';
 import { paceNarration,measureLoudness } from './style-audio-render.mjs';
 import { alignmentNote, captionCues, narrationAlignment } from './speech-alignment.mjs';
 
 const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-const visual = (asset) => asset.kind === 'video' || asset.kind === 'image';
+const visual = (asset) => !dedicatedVoiceReference(asset) && (asset.kind === 'video' || asset.kind === 'image');
 export const sceneIdentity = (p) =>
   digest([p.brief, p.script, p.mode, p.profile, p.settings, p.style, p.timeline.clips]);
 const holdMessage = '原镜头短于旁白，结尾使用来源相同的定格，可替换特写。';

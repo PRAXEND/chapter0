@@ -1,3 +1,4 @@
+import {dedicatedVoiceReference} from './style-audio.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID, createHash } from 'node:crypto';
 import { createReadStream, mkdirSync, writeFileSync, renameSync, rmSync } from 'node:fs';
@@ -171,6 +172,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
         if(cmd.op==='update'&&(cmd.changes?.id!==undefined||cmd.changes?.locked!==undefined))throw fault('编号和锁定状态须单独修改。');
         const candidate=cmd.op==='add'?{...copy(cmd.clip),locked:false}:{...before,...copy(cmd.changes)};
         validateClip(candidate,p);
+        if(actor!=='user' && candidate.assetId!==before?.assetId && dedicatedVoiceReference(p.assets.find(a=>a.id===candidate.assetId)))throw fault('专用音色参考不能被自动加入本片剪辑。',409);
         if(actor!=='user'&&clips.some(c=>c.locked&&c.track===candidate.track&&spans(c,candidate)))throw fault('本次修改会覆盖已锁定的轨道区间。',409);
         if(cmd.op==='add')clips.push(candidate);else clips[found]=candidate;
       }

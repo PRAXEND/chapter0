@@ -7,6 +7,7 @@ import {createStore} from '../src/project.mjs';
 import {createDirector} from '../src/production.mjs';
 import {resolveProductionAudio} from '../src/style-audio-preparation.mjs';
 import {voiceLibrary} from '../src/voices.mjs';
+import {readVisualFrame,prepareVisuals} from '../src/director-visual.mjs';
 import {fileHash,probeMedia} from '../src/media.mjs';
 import {mediaTool} from '../src/media-runtime.mjs';
 
@@ -22,7 +23,7 @@ async function wav(file,{seconds=8,frequency=700,level=.3}={}) {
 }
 async function fixture(t,real=false){
   const home=await mkdtemp(path.join(os.tmpdir(),'style-audio-production-'));t.after(()=>rm(home,{recursive:true,force:true}));
-  const store=createStore(home,{probeMedia:real?probeMedia:async file=>({kind:path.extname(file)==='.ppm'?'image':'audio',duration:8,hasAudio:path.extname(file)!=='.ppm'})});
+  const store=createStore(home,{probeMedia:real?probeMedia:async file=>({kind:path.extname(file)==='.ppm'?'image':path.extname(file)==='.mp4'?'video':'audio',duration:8,hasAudio:path.extname(file)!=='.ppm'})});
   t.after(()=>store.close());
   const music=path.join(home,'soundtrack.wav');await wav(music);
   const sha256=await fileHash(music);
@@ -85,4 +86,18 @@ test('local production applies one pitch-preserving speed change, aligns final s
   assert.equal(ready.styleAudio.music.sha256,sha256);assert.equal(ready.styleAudio.music.mixMethod,'measured-fixed');
   assert.ok(Math.abs(ready.styleAudio.music.voiceLUFS-ready.styleAudio.music.sourceLUFS-20*Math.log10(c.gain)-14)<.06);
   const candidate=ready.assets.find(a=>a.id===c.assetId);assert.equal(candidate.source.license,'CC BY 4.0');assert.equal(candidate.source.author,'Studio');
+});
+
+test('an automatically imported voice reference video is excluded from editorial frames and agent-inserted clips',async t=>{
+  const {home,store,styles}=await fixture(t);
+  const p=store.create({mode:'script',style:{id:wish.id,version:2},settings:{shareFrames:true}});
+  const src=path.join(home,'voice-sample.mp4');await writeFile(src,'dedicated voice reference fixture');
+  const a=await store.addAsset(p.id,src,{role:'voice-reference',sourceVoice:'enrolled-sample',consent:true});
+  const project=store.get(p.id), deps={store,styleLibrary:styles,media:{frameAt(){throw Error('unexpected frame request');}}};
+  await assert.rejects(readVisualFrame(deps,project,{source:'asset',id:a.id,seconds:0}),/专用音色参考/);
+  const batch=await prepareVisuals(deps,project,'compose',[],undefined,'video-first');
+  assert.equal(batch.result.length,0);assert.equal(batch.motionScans.length,0);
+  const add={op:'add',clip:{id:'voice-test-shot',track:'video',assetId:a.id,start:0,duration:24}};
+  assert.throws(()=>store.apply(p.id,project.revision,[add],'codex'),/专用音色参考/);
+  assert.equal(store.apply(p.id,project.revision,[add],'user').timeline.clips.length,1);
 });

@@ -43,3 +43,5 @@ export function activeStyleMusicCredit(project) {
   if(!asset || !project.timeline.clips.some(c=>c.assetId===asset.id && c.track==='music' && c.enabled!==false && !c.muted && !c.hidden && (c.gain??1)>0))return null;
   return {assetId:asset.id,line:[m.credit,m.license,m.url,m.licenseUrl].map(s=>String(s).replace(/[\r\n]/g,' ').slice(0,1000)).join(' · ')};
 }
+
+export const dedicatedVoiceReference = asset => Boolean(asset?.source?.sourceVoice || asset?.source?.role === 'voice-reference');

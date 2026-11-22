@@ -31,7 +31,7 @@ export function voiceLibrary(store){
     const initial=store.get(projectId);if(initial.revision!==baseRevision)throw fault('工程版本已改变。',409);
     const v=JSON.parse(await readFile(path.join(home,id+'.json')));const src=await contained(path.join(home,v.source),home);
     if(!v.consent||await fileHash(src)!==v.sha256)throw fault('音色参考文件需要重新核验。');
-    const a=await store.addAsset(projectId,src,{name:v.name+' · 参考录音',consent:true,sourceVoice:id});
+    const a=await store.addAsset(projectId,src,{name:v.name+' · 参考录音',role:'voice-reference',consent:true,sourceVoice:id});
     const p=store.get(projectId),changed=!initial.assets.some(old=>old.id===a.id);
     if(p.revision!==baseRevision+Number(changed))throw fault('导入期间工程已改变，请重新选择音色。',409);
     return store.configure(projectId,p.revision,{settings:{voiceMode:'clone',voiceSelection:selection,voiceId:undefined,voiceLibraryId:id,voiceReferenceAssetId:a.id,voiceReferenceText:v.referenceText,referenceHash:v.sha256,voiceConsent:true}});
