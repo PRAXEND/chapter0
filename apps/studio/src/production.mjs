@@ -21,6 +21,7 @@ import {
   shotFingerprint,
   motionPolicy,
   motionCoverage,
+  motionPlanFeedback,
 } from './director-visual.mjs';
 
 const object = (properties = {}, required = []) => ({
@@ -562,7 +563,7 @@ export function createDirector(deps) {
           ? await styleLibrary.get(p.style.id, p.style.version)
           : null;
       const usesVisual = usesVisualStages(style);
-      if (usesVisual && (options.engine || p.settings?.engine) !== 'local')
+      if ((usesVisual || motionPolicy(style, p, options.message) === 'video-first') && (options.engine || p.settings?.engine) !== 'local')
         return await directVisual(id, options, p);
       return await runProject(id, { ...options, usesVisual });
     } finally {
@@ -575,12 +576,13 @@ export function createDirector(deps) {
     const reusable = original.visualDirection?.jobId === jobId;
     const activeStyle = await styleLibrary.get(original.style.id, original.style.version);
     const policy = motionPolicy(activeStyle, original, options.message);
+    const staged = usesVisualStages(activeStyle);
     let receipt = reusable
       ? original.visualDirection
       : {
           version: 1,
           jobId,
-          template: activeStyle.executionPlan?.template || 'step-reveal',
+          template: activeStyle.executionPlan?.template || (staged ? 'step-reveal' : activeStyle.templates?.[0]?.id),
           styleId: original.style.id,
           styleVersion: original.style.version,
           styleHash: activeStyle.sha256 || original.style.sha256,
@@ -613,6 +615,9 @@ export function createDirector(deps) {
       const session = {
         stage,
         attempt,
+        staged,
+        motionScans: packet.motionScans,
+        motionFeedback: receipt.motionFeedback,
         frames: frameData,
         images: packet.result,
         requested: [],
@@ -626,6 +631,7 @@ export function createDirector(deps) {
       const phaseGaps = { ...receipt.phaseGaps, [stage]: packet.gaps };
       await save({
         status: stage,
+        ...(stage === 'compose' ? { motionScans: packet.motionScans } : {}),
         frames: [
           ...receipt.frames.filter((f) => f.phase !== stage),
           ...frameData.map((f) => ({ ...f, phase: stage })),
@@ -636,6 +642,7 @@ export function createDirector(deps) {
       const result = await runProject(id, { ...options, jobId, visual: session });
       const completed = await store.get(id);
       await save({
+        ...(session.motionFeedback ? { motionFeedback: session.motionFeedback } : {}),
         motionQueries: [...(receipt.motionQueries || []), ...session.queries].slice(-32),
         motionGap: session.motionGap || receipt.motionGap || '',
         rounds: [
@@ -677,7 +684,7 @@ export function createDirector(deps) {
       let { result, session } = await execute('compose');
       if (!session.sequence && session.requested.length)
         ({ result, session } = await execute('compose', 1, session.requested));
-      if (!session.sequence) throw Error('导演还未提交经源图约束的四阶段分镜。' + trim(result.message));
+      if (!session.sequence) throw Error('导演还未提交本片的完整分镜。' + trim(result.message));
     }
     let current = await store.get(id);
     if (current.settings?.shareFrames !== true) {
@@ -702,6 +709,13 @@ export function createDirector(deps) {
         notes,
         message: note.message,
       };
+    }
+    if (!staged) {
+      const motion = motionCoverage(current, receipt.frames, policy, receipt.motionQueries, receipt.motionGap);
+      await save({ status: 'motion-planned', timelineHash: shotFingerprint(current), motion });
+      const notes = durationNotes(current);
+      return { project: await store.get(id), engine: 'codex', changed: true, needsReview: Boolean(motion?.gap || notes.length),
+        notes, message: motion?.gap || '首版分镜已根据本期素材编排。' };
     }
     let { session } = await execute('verify');
     current = await store.get(id);
@@ -1090,7 +1104,15 @@ export function createDirector(deps) {
           const fact=current.factSources?.find(f=>urlForModel(f.url)===b.claimUrl);
           return { ...b, claimUrl: b.claimUrl && b.claimUrl === urlForModel(src) ? src : (fact?.url||b.claimUrl) };
         });
-        if (visual) checkVisualPlan(beats, current, visual.frames);
+        if (visual?.staged) checkVisualPlan(beats, current, visual.frames);
+        if (visual?.policy === 'video-first' && !visual.motionFeedback && !args.motionGap?.trim()) {
+          const feedback = motionPlanFeedback(beats, current, visual.motionScans);
+          if (feedback) {
+            visual.motionFeedback = feedback;
+            await store.setMeta(id, { visualDirection: { ...current.visualDirection, motionFeedback: feedback } });
+            throw Error(feedback + ' 请先看附件并判断主体和动作是否与讲解吻合，再提交分镜。刻意停留或其他窗口不合题时，写进 motionGap 即可继续。');
+          }
+        }
         const result = await applyScenes(deps, current, beats, {
           signal,
           observed,
@@ -1167,7 +1189,7 @@ export function createDirector(deps) {
           {
             sources:
               '本轮只核实事实并导入可信素材，不提交剪辑。不早报任务完成。先 studio_context。根据题材用 studio_find 的 kind 选视频或档案图片；历史静照可实拍核验局部，但勿虚构动作。导入能提供不同证据的来源。',
-            compose:
+            compose: !visual.staged ? '请按风格规则先检查原素材与候选区间，把实际可观察到的动作编入叙述，保留用户给定的脚本和原句。用 studio_sequence 写入本片分镜。' :
               '本轮请阅读 studio_context 中完整风格规则、原蓝图和适用条件，以及本轮原生附图。先就每张图确定实际能证明什么。实际调用 studio_sequence，每个 beat 的 visualSteps 使用 problem/detail/mechanism/verification；整片按此顺序，从可见问题进入局部，再解释机制，回原片说明能看到什么及它不能证明什么。atSeconds 是本镜头内的秒数；静图 sourceSeconds=0，视频填本轮帧标签给出的精确源秒。具体观察写 observation，局部实际所在位置用 region 左上角+宽高，必要时用 framing。不要在原图凭空制造过程。若需要其他源帧，先调用 studio_frame 并结束该轮，工作台会把它作为原生图片附上再剪。缺参考或分享关闭时明说依据。',
             verify:
               '按本轮标注工程帧号的真实合成图，检查遮挡、局部指向、阅读层级、结尾重新落在原片。根据看到的问题用 studio_edit 做必要的局部修正，工作台会重新给你合成图；满意时必须 studio_visual_review 提交四阶段检查，填写真实帧号、观众能看到的事实和是否还需修。若某帧欠缺请如实指出。',
@@ -1176,6 +1198,11 @@ export function createDirector(deps) {
           JSON.stringify(visual.frames) +
           '\n缺少的依据：' +
           JSON.stringify(visual.gaps) +
+          (visual.motionScans.length ? '\n本地低分辨率运动线索（源秒，影片较长时只检测列明的区间；静帧、切镜、整幅平移／推拉不作为持续动作）。每个候选附有 fromSeconds 与 toSeconds 两张真实原生图。先决定画面中谁、什么部位、具体怎样变化，再围绕可用动作写旁白。像素变化不能证明人物身份、实验机制或表面粒子运动。不合题时保留 motionGap。\n' +
+            JSON.stringify(visual.motionScans.map(({ assetId, candidates, quiet, regionsScanned, note }) => ({
+              assetId, regionsScanned, candidates: candidates.map(({ fromHash, toHash, ...w }) => w),
+              longestQuietRanges: quiet.slice().sort((a,b) => (b[1]-b[0])-(a[1]-a[0])).slice(0,6), note,
+            }))) : '') +
           movement
         : prompt,
       images: visual?.images || [],

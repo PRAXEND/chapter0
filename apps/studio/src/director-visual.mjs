@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { scanMotionWindows } from './motion-windows.mjs';
 
 export const stages = ['problem', 'detail', 'mechanism', 'verification'];
 export function usesVisualStages(style) {
@@ -305,11 +306,35 @@ export function currentReviewWindows(p) {
   return { slots: slots.filter((w) => w.end > w.atFrame), pictures };
 }
 
+// Only prompts a second look where the source was actually sampled. The director can decline
+// a numerically active window when the pictures show the wrong subject, or a static cutaway is intentional.
+export function motionPlanFeedback(beats, project, scans) {
+  const withEvidence = scans.filter(s => s.candidates?.length && project.assets.some(a => a.id === s.assetId && a.sha256 === s.assetHash));
+  if (!withEvidence.length || project.mode === 'interview') return '';
+  const moving = beats.filter(b => project.assets.some(a => a.id === b.assetId && a.kind === 'video'));
+  if (!moving.length) return '分镜全部用了静图，已有录像的原生图对和持续变化候选可核对。';
+  for (const beat of moving) {
+    if (beat.utteranceId) continue;
+    const scan = withEvidence.find(s => s.assetId === beat.assetId);
+    if (!scan) continue;
+    const start = Number(beat.sourceStart ?? 0);
+    const end = Number(beat.sourceEnd ?? (start + Number(beat.durationSeconds)));
+    const witness = beat.motionEvidence;
+    const overlapsQuietly = (from, to) => Number.isFinite(from) && Number.isFinite(to) && to > from &&
+      scan.quiet.some(([a, b]) => Math.max(0, Math.min(b, to) - Math.max(a, from)) / (to - from) > .75);
+    if (overlapsQuietly(start, end) && (witness || moving.length === 1) ||
+      witness && overlapsQuietly(Number(witness.fromSeconds), Number(witness.toSeconds)))
+      return '素材 ' + scan.assetId + ' 的所选源区间 ' + start + '–' + end +
+        ' 秒主要落在本地连续低变化或整幅运镜区间。请比对同一原片的其他候选 ' +
+        scan.candidates.map(c => c.sourceStart + '–' + c.sourceEnd + ' 秒').join('、') + '。';
+  }
+  return '';
+}
+
 export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
-  const result = [],
-    gaps = [];
+  const result = [], gaps = [], motionScans = [];
   if (p.settings?.shareFrames !== true)
-    return { result, gaps: ['本工程关闭图像分享；未向 Codex 提供参考、原片或合成帧。'] };
+    return { result, motionScans, gaps: ['本工程关闭图像分享；未向 Codex 提供参考、原片或合成帧。'] };
   const requests = [];
   if (stage === 'compose') {
     const s = await deps.styleLibrary.get(p.style.id, p.style.version);
@@ -330,26 +355,34 @@ export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
               Math.max(0, duration * 0.93),
             ];
       for (const seconds of new Set(times)) requests.push({ source: 'style', id: b.id, seconds });
-    } else gaps.push('基准片未登记。');
+    } else if (usesVisualStages(s)) gaps.push('基准片未登记。');
     const available = p.assets.filter((a) => a.source?.role !== 'hold');
     for (const a of available.filter((a) => a.kind === 'image').slice(0, 6))
       requests.push({ source: 'asset', id: a.id, seconds: 0 });
     for (const a of available.filter((a) => a.kind === 'video' && policy !== 'images-only').slice(0, 3)) {
-      const fps = p.profile.fps,
-        last = Math.max(0, Math.floor(a.duration * fps) - 1);
-      const starts =
-        policy === 'video-first'
-          ? [0.06, 0.45, 0.76].map((x) => Math.floor(last * x))
-          : [Math.min(last, Math.round(0.5 * fps))];
-      for (const frame of starts) {
-        requests.push({ source: 'asset', id: a.id, seconds: frame / fps });
-        if (policy === 'video-first')
-          requests.push({
-            source: 'asset',
-            id: a.id,
-            seconds: Math.min(last, frame + Math.max(1, Math.min(fps, Math.floor(last * 0.08)))) / fps,
-          });
+      const fps = p.profile.fps, last = Math.max(0, Math.floor(a.duration * fps) - 1);
+      if (policy === 'video-first') {
+        let scan;
+        try {
+          const { cache } = await deps.store.paths(p.id);
+          scan = await (deps.scanMotionWindows || scanMotionWindows)(a, { cache, signal });
+        } catch {
+          signal?.throwIfAborted();
+        }
+        const onFrame = t => Math.min(last, Math.max(0, Math.round(t * fps))) / fps;
+        const candidates = (scan?.candidates || []).map(w => ({
+          sourceStart: onFrame(w.sourceStart), sourceEnd: Math.min(a.duration, Math.round(w.sourceEnd * fps) / fps),
+          fromSeconds: onFrame(w.fromSeconds), toSeconds: onFrame(w.toSeconds), activeFraction: w.activeFraction,
+        }));
+        motionScans.push({ assetId: a.id, assetHash: a.sha256, duration: a.duration, sampledFrames: scan?.decoded || 0,
+          regionsScanned: scan?.plan || [], counts: scan?.counts || {}, candidates, quiet: scan?.quiet || [],
+          ...(!scan ? { note: '本地解码未能给出运动线索，可申请具体源帧。' }
+            : !candidates.length ? { note: '已采样区间中未检出持续的局部变化，附一张内容概览。' } : {}) });
+        for (const window of candidates) for (const seconds of [window.fromSeconds, window.toSeconds])
+          requests.push({ source: 'asset', id: a.id, seconds });
+        if (candidates.length) continue;
       }
+      requests.push({ source: 'asset', id: a.id, seconds: Math.min(last, Math.round(.5 * fps)) / fps });
     }
   } else if (stage === 'verify') {
     const { slots: all, pictures } = currentReviewWindows(p);
@@ -391,5 +424,15 @@ export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
       );
     }
   }
-  return { result, gaps };
+  for (const scan of motionScans) {
+    const pictures = result.map(item => item.frame).filter(f => f.source === 'asset' && f.assetId === scan.assetId && f.assetHash === scan.assetHash);
+    scan.candidates = scan.candidates.filter(w => {
+      const from = pictures.find(f => f.seconds === w.fromSeconds), to = pictures.find(f => f.seconds === w.toSeconds);
+      if (!from || !to || from.sha256 === to.sha256) return false;
+      w.fromHash = from.sha256; w.toHash = to.sha256;
+      return true;
+    });
+    if (!scan.candidates.length && !scan.note) scan.note = '当前没有可对照的不同原生帧，需申请其他源时刻。';
+  }
+  return { result, gaps, motionScans };
 }

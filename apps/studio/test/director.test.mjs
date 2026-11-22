@@ -732,3 +732,42 @@ test('actual cut and visible anchored layers determine present review windows af
     false
   );
 });
+
+for (const sharing of [true, false])
+  test('video-first without a science template sees actual paired windows before writing, shareFrames=' + sharing, async t => {
+    const film = { ...picture, id: 'lab', kind: 'video', duration: 52, sha256: 'hash-of-lab' };
+    const { p, deps } = await fixture(t, { style: { id: 'field-films', version: 3 }, assets: [film],
+      settings: { voiceMode: 'original', musicMode: 'none', shareFrames: sharing } });
+    deps.styleLibrary.get = async () => ({ ...p.style, rules: [{ id: 'video-first' }], templates: [], references: [] });
+    let scans = 0;
+    deps.scanMotionWindows = async () => {
+      scans++;
+      return { decoded: 104, plan: [{ start: 0, duration: 52 }], counts: { still: 57 }, quiet: [[0, 20]],
+        candidates: [{ sourceStart: 23, sourceEnd: 29, fromSeconds: 23, toSeconds: 25, activeFraction: 1 },
+          { sourceStart: 34, sourceEnd: 40, fromSeconds: 34, toSeconds: 36, activeFraction: .8 }] };
+    };
+    deps.media.frameAt = async (file, sec, dest) => writeFile(dest, Buffer.from('pixel-frame:' + sec));
+    deps.client = { account: async () => ({ connected: true }), thread: async () => 'motion-project', close() {},
+      runTurn: async ({ prompt, tool, images, onStart }) => {
+        await onStart('motion-first-turn');
+        assert.equal(images.length, sharing ? 4 : 0);
+        assert.equal(prompt.includes('本地低分辨率运动线索'), sharing);
+        assert.ok(!prompt.includes('/private/fixture'));
+        const submit = beat => tool({ tool: 'studio_sequence', arguments: { baseRevision: p.revision, beats: [beat] } });
+        const at = (start, end) => ({ assetId: film.id, narration: '留意屏幕右侧装置的位置。', sourceStart: start, sourceEnd: end,
+          durationSeconds: 5, motionEvidence: { fromSeconds: start, toSeconds: start + 2, observation: '装置从右侧移向标线。' } });
+        if (sharing) {
+          await assert.rejects(submit(at(5, 9)), /所选源区间.*其他候选/);
+          assert.equal(p.storyboard, undefined);
+          assert.equal(p.timeline.clips.length, 0);
+          assert.equal(p.visualDirection.motionScans[0].candidates[0].fromHash.length, 64);
+        }
+        await submit(at(23, 29));
+        return { message: '初版' };
+      } };
+    const d = createDirector(deps); t.after(() => d.close());
+    await d.run(p.id, { kind: 'produce', jobId: 'motion-job' });
+    assert.equal(scans, sharing ? 1 : 0);
+    assert.equal(p.timeline.clips.find(c => c.track === 'video').sourceIn, 575);
+    assert.equal(p.visualDirection.status, sharing ? 'motion-planned' : 'blocked-by-privacy');
+  });
