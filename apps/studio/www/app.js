@@ -195,11 +195,16 @@ function pictureEvidence(qa){
  const policy={met:'运动画面承担了主要讲解。',partial:'已用部分运动镜头，风格要求的运动画面占比仍有差距。',unmet:'所选风格要求用运动画面讲解，此版没有核实到相应镜头。',unverified:'运动镜头的作用仍待核实。','photo-adaptation':'按本期要求以照片讲解。'};
  return '<div class="entry"><div><strong>实际画面构成</strong><p>'+esc(rows.join(' · '))+'</p><small>'+esc(measured+(policy[visual.styleExecution?.motionStatus]||''))+'</small></div></div>';
 }
+function issuePlayback(q,job,index,rate){
+ const key=job+'|'+index;
+ if(q.locations?.length)return q.locations.map(({frame},i)=>btn('review-issue','播放 '+(frame/rate).toFixed(2)+' 秒','',key+'|'+i)).join(' ');
+ return '<small>'+clock((q.fromFrame||0)/rate)+'</small> '+btn('review-issue','播放该段','',key);
+}
 function drawDeliver(){
  const cards=s.jobs.filter(j=>j.files?.includes('video')).map(j=>{const qa=j.qa||{};return `<section class="card"><div class="hrow space"><h2>${esc(cutLabel(j))} · v${j.revision}</h2><span class="pill ${qa.status==='repair'?'bad':qa.status==='unverified'?'warn':''}">${esc(qa.label||'验收中')}</span></div>
  <video class="wide-video" data-review="${esc(j.id)}" controls preload="metadata" src="/api/jobs/${j.id}/file/video"></video>${pictureEvidence(qa)}
  <div class="actions">${(j.files||[]).filter(k=>['video','subtitle','project','cover34','cover43','copy','credits','review'].includes(k)).map(k=>btn('reveal',({video:'MP4',subtitle:'SRT',project:'可编辑工程',cover34:'3:4 封面',cover43:'4:3 封面',copy:'发布文案',credits:'素材与事实来源',review:'验收记录'})[k],'',j.id+'|'+k)).join('')}</div>
- ${(qa.issues||[]).map((q,i)=>`<div class="feedback"><strong>${esc(q.message||q.reason)}</strong> <small>${clock((q.fromFrame||0)/frameRate())}</small> ${btn('review-issue','播放该段','',j.id+'|'+i)} ${btn('fix-issue','按意见修改','',j.id+'|'+i)}<br><small>${esc(q.fix||'')}</small></div>`).join('')}<p class="help">${esc((qa.limitations||[]).join('　'))}</p></section>`;}).join('');
+ ${(qa.issues||[]).map((q,i)=>`<div class="feedback"><strong>${esc(q.message||q.reason)}</strong> ${issuePlayback(q,j.id,i,qa.frameRate||frameRate())} ${btn('fix-issue','按意见修改','',j.id+'|'+i)}<br><small>${esc(q.fix||'')}</small></div>`).join('')}<p class="help">${esc((qa.limitations||[]).join('　'))}</p></section>`;}).join('');
  el('view').innerHTML=`<section class="page"><h1>交付记录</h1>${cards||'<div class="card empty-panel">完成渲染后，可在这里播放成片并打开本地交付目录。</div>'}</section>`;
 }
 function drawSettings(){
@@ -326,9 +331,13 @@ async function runAction(act,id){
  case 'charged':case 'not-charged':await proj('/reconcile-music',{requestId:id,charged:act==='charged'});dismiss();return reload();
  case 'reveal':{const [job,key]=id.split('|');await api('/api/jobs/'+job+'/reveal/'+key,{});return;}
  case 'review-issue':case 'fix-issue':{
-  const [job,n]=id.split('|'),j=s.jobs.find(j=>j.id===job),q=j.qa.issues[Number(n)];
-  if(act==='fix-issue'){s.tab='edit';draw();el('instruction').value='修改 '+clock((q.fromFrame||0)/frameRate())+' 附近：'+q.message+' '+(q.fix||'');el('instruction').focus();return;}
-  const v=document.querySelector(`video[data-review="${CSS.escape(job)}"]`);const f=frameRate();v.currentTime=Math.max(0,(q.fromFrame||0)/f-.8);v.ontimeupdate=()=>{if(v.currentTime>(q.toFrame||q.fromFrame||0)/f+1){v.pause();v.ontimeupdate=null;}};return v.play();}
+  const [job,n,at]=id.split('|'),j=s.jobs.find(j=>j.id===job),q=j.qa.issues[Number(n)];
+  const f=j.qa.frameRate||frameRate(),location=at===undefined?undefined:q.locations?.[Number(at)]?.frame,from=location??q.fromFrame??0,to=location??q.toFrame??from;
+  if(act==='fix-issue'){
+    const times=q.locations?.length?q.locations.map(p=>(p.frame/f).toFixed(2)+' 秒').join('、'):clock(from/f);
+    s.tab='edit';draw();el('instruction').value='修改 '+times+' 附近：'+q.message+' '+(q.fix||'');el('instruction').focus();return;
+  }
+  const v=document.querySelector(`video[data-review="${CSS.escape(job)}"]`);v.currentTime=Math.max(0,from/f-.8);v.ontimeupdate=()=>{if(v.currentTime>to/f+1){v.pause();v.ontimeupdate=null;}};return v.play();}
  case 'legacy':return openLegacy();
  case 'legacy-editor':return api('/api/legacy-editor/'+id,{});
  case 'migrate':{const [old,item]=id.split('|');const h=s.legacy.find(h=>h.id===old);let pid=p?.id;if(!pid)pid=(await api('/api/projects',{mode:'script',title:h.title+' · 新剪辑'})).id;await api('/api/projects/'+pid+'/legacy',{projectId:old,itemId:item});dismiss();notice('已核对指纹并导入');return choose(pid,'assets');}

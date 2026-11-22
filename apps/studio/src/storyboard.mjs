@@ -1,14 +1,34 @@
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { visibleWindows } from './framing.mjs';
 import { alignmentNote, captionCues, narrationAlignment } from './speech-alignment.mjs';
 
 const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const visual = (asset) => asset.kind === 'video' || asset.kind === 'image';
 export const sceneIdentity = (p) =>
   digest([p.brief, p.script, p.mode, p.profile, p.settings, p.style, p.timeline.clips]);
+const holdMessage = '原镜头短于旁白，结尾使用来源相同的定格，可替换特写。';
+
+export function currentCutNotes(project, notes = project.directorNotes || []) {
+  const isHoldNote = n => n.kind === 'source-hold' || n.message === holdMessage;
+  const previous = notes.filter(isHoldNote);
+  if (!previous.length) return notes;
+  const assets = new Map(project.assets.map(a => [a.id, a]));
+  const shots = project.timeline.clips.filter(c => c.track === 'video' && !c.hidden && c.enabled !== false)
+    .sort((a, b) => a.start - b.start).map(clip => ({clip, asset: assets.get(clip.assetId)}));
+  const current = notes.filter(n => !isHoldNote(n));
+  for (const {shot, from, to} of visibleWindows(shots)) {
+    if (shot.asset?.source?.role !== 'hold') continue;
+    const matches = previous.some(n => n.assetId ? n.assetId === shot.clip.assetId :
+      (n.frame >= shot.clip.start && n.frame < shot.clip.start + shot.clip.duration) || /^scene-\d+-hold-video$/.test(shot.clip.id));
+    if (matches) current.push({type: 'suggestion', kind: 'source-hold', assetId: shot.clip.assetId,
+      clipId: shot.clip.id, frame: from, toFrame: to, message: holdMessage});
+  }
+  return current;
+}
 export function durationNotes(project, notes = project.directorNotes || []) {
-  const current = notes.filter(
+  const current = currentCutNotes(project, notes).filter(
     (n) => n.kind !== 'target-duration' && !/^当前成片长 [\d.]+ 秒，本期目标为/.test(n.message || '')
   );
   const frames = project.timeline.clips
@@ -483,9 +503,9 @@ export async function applyScenes(
         })
       );
       notes.push({
-        type: 'suggestion',
+        type: 'suggestion', kind: 'source-hold', assetId: hold.id,
         frame: cursor + visible,
-        message: '原镜头短于旁白，结尾使用来源相同的定格，可替换特写。',
+        message: holdMessage,
       });
     }
     const speechGroup = 'scene-' + i + '-narration';

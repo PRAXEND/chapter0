@@ -4,6 +4,8 @@ import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileSha256} from './style.mjs';
 import {reviewVisualEvidence} from './visual-review.mjs';
+import {currentCutNotes} from './storyboard.mjs';
+import {withinSegmentMessage} from './speech-alignment.mjs';
 export {createBlindReview} from './blind-review.mjs';
 
 const exec=promisify(execFile);
@@ -42,6 +44,10 @@ export function classifyReview(findings=[],meta={}) {
     const end=Number.isFinite(to)?Math.max(start,Math.floor(to)):start;
     const id=String(row.id||createHash('sha256').update([message,start,end].join('/')).digest('hex').slice(0,16));
     const normalized=issue(id,severity,message,row.fix||row.suggested_fix||'',start,end,row.reason||row.check||id);
+    if(Array.isArray(row.locations)) {
+      const frames=[...new Set(row.locations.map(p=>p?.frame).filter(f=>Number.isSafeInteger(f)&&f>=0))].sort((a,b)=>a-b);
+      if(frames.length)normalized.locations=frames.map(frame=>({frame}));
+    }
     if(!issues.has(id)||ranks[severity]>ranks[issues.get(id).severity]) issues.set(id,normalized);
   }
   const items=[...issues.values()].sort((a,b)=>ranks[b.severity]-ranks[a.severity]||a.fromFrame-b.fromFrame);
@@ -230,13 +236,28 @@ async function audioChecks(project,narration,{ffmpeg,videoPath,signal},findings,
     else if(results.length>=2&&!matched.length) findings.push(issue('mix-match-'+clip.id,'unknown','当前混音窗口未能确认旁白原件，需试听对应段','核对音量、源窗口和最终混音。',from,to));
   }
 }
-export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,styleSpec,resolveTool=defaultResolver}={}) {
-  const problems=[...findings],evidence={audio:[],decode:false};
-  for(const note of project.directorNotes||[]) {
+function currentDirectorFindings(project) {
+  const problems=[],estimated=new Set();
+  const captions=project.timeline.clips.filter(c=>c.track==='caption'&&isActive(c)).sort((a,b)=>a.start-b.start);
+  for(const note of currentCutNotes(project)) {
     if(!note?.message||!['suggestion','required'].includes(note.type)||musicNote(note)) continue;
     const start=Number.isInteger(note.frame)?note.frame:0;
-    problems.push({severity:note.type==='required'?'unknown':'minor',reason:'director-observation',message:note.message,fromFrame:start,toFrame:start,fix:'查看对应素材或试听此段后确认。'});
+    if(note.kind==='speech-alignment'&&note.message===withinSegmentMessage&&note.speechGroup) {
+      const group=captions.filter(c=>c.speechGroup===note.speechGroup);
+      for(let i=1;i<group.length;i++) {
+        if(group[i].cueTiming==='within-segment'&&group[i-1].cueTiming==='within-segment')estimated.add(group[i].start);
+      }
+      if(group.length&&group.every(c=>!c.cueTiming))estimated.add(group[0].start);
+      continue;
+    }
+    problems.push({severity:note.type==='required'?'unknown':'minor',reason:'director-observation',message:note.message,fromFrame:start,toFrame:note.toFrame??start,fix:'查看对应素材或试听此段后确认。'});
   }
+  const locations=[...estimated].sort((a,b)=>a-b).map(frame=>({frame}));
+  if(locations.length)problems.push({...issue('estimated-caption-switches','minor',withinSegmentMessage,'播放标记的换字位置，按听感微调字幕。',locations[0].frame,locations[0].frame),locations});
+  return problems;
+}
+export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,styleSpec,resolveTool=defaultResolver}={}) {
+  const problems=[...findings,...currentDirectorFindings(project)],evidence={audio:[],decode:false};
   const meta={revision:project.revision,frameRate:project.profile.fps,artifactSha256:null,subtitleSha256:null,candidatePlayable:false,evidence,
     limitations:['波形与抽帧提供技术证据。音色自然度、发音、节奏偏好和未标注的动作语义需要原速观看或试听。']};
   const {captions,narration,music}=timelineChecks(project,problems);

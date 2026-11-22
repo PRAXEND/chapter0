@@ -8,6 +8,8 @@ import os from 'node:os';
 import {nativeMediaTool} from '../../../plugins/video-studio/workbench/media.mjs';
 import {reviewProject,classifyLegacyReview,classifyReview,deterministicRepairs} from '../src/review.mjs';
 import {fileSha256} from '../src/style.mjs';
+import {currentCutNotes} from '../src/storyboard.mjs';
+import {withinSegmentMessage} from '../src/speech-alignment.mjs';
 const exec=promisify(execFile), profile={width:192,height:128,fps:25};
 test('severity grades distinguish major, uncertain evidence and repeated minor observations',()=>{
   const minor={id:'flash',severity:'minor',symptom:'字幕闪空',from_frame:4,to_frame:5};
@@ -16,6 +18,26 @@ test('severity grades distinguish major, uncertain evidence and repeated minor o
   assert.equal(advice.issues.length,1);assert.equal(advice.status,'advisory');assert.equal(advice.deliverable,true);
   assert.equal(classifyLegacyReview({preflight:true,checks:{music_fit:{status:'fail',issues:['缺少生成任务记录']}}}).status,'unverified');
   assert.equal(classifyReview([minor,{...minor,severity:'major'},{id:'fixed',status:'resolved'}]).status,'repair');
+});
+test('old hold warnings follow the visible cut and one caption suggestion retains each actual switch',async t=>{
+  const dir=await mkdtemp(path.join(os.tmpdir(),'studio-note-review-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  const hold={type:'suggestion',frame:8,message:'原镜头短于旁白，结尾使用来源相同的定格，可替换特写。'};
+  const estimate=g=>({type:'suggestion',kind:'speech-alignment',speechGroup:g,message:withinSegmentMessage});
+  const cue=(start,g,timing)=>({id:g+start,track:'caption',start,duration:6,text:'字幕',speechGroup:g,cueTiming:timing});
+  const still={id:'scene-0-hold-video',track:'video',assetId:'hold',start:8,duration:4};
+  const cover={id:'cover',track:'video',assetId:'film',start:8,duration:4};
+  const p={profile,revision:1,settings:{},assets:[{id:'hold',source:{role:'hold'}},{id:'film'}],
+    directorNotes:[hold,estimate('a'),estimate('b'),estimate('c')],timeline:{clips:[still,cover,
+      cue(0,'a','within-segment'),cue(6,'a','within-segment'),cue(12,'b','asr-segments'),cue(18,'b','asr-segments'),
+      cue(30,'c','within-segment'),cue(36,'c','within-segment')]}};
+  assert.ok(!currentCutNotes(p).some(n=>n.kind==='source-hold'));
+  const inspection=await reviewProject(p,{videoPath:path.join(dir,'no-export.mp4')});
+  assert.deepEqual(inspection.issues.find(n=>n.id==='estimated-caption-switches')?.locations,[{frame:6},{frame:36}]);
+  assert.ok(!inspection.issues.some(n=>n.message===hold.message));
+  cover.hidden=true;
+  assert.deepEqual(currentCutNotes(p).filter(n=>n.kind==='source-hold').map(n=>[n.frame,n.toFrame]),[[8,11]]);
+  still.enabled=false;
+  assert.ok(!currentCutNotes(p).some(n=>n.kind==='source-hold'));
 });
 test('actual decode, SRT, source to mix timing, independent missing voice and anchored event',async t=>{
   const ffmpeg=await nativeMediaTool('ffmpeg'),ffprobe=await nativeMediaTool('ffprobe');

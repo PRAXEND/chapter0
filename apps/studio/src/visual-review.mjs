@@ -3,6 +3,7 @@ import {promisify} from 'node:util';
 import {projectSourceRegion,validRegion} from './visual-steps.mjs';
 import {motionPolicy,shotFingerprint} from './director-visual.mjs';
 import {sceneChange} from './motion-windows.mjs';
+import {visibleWindows} from './framing.mjs';
 
 const execute=promisify(execFile);
 const live=c=>c.hidden!==true&&c.enabled!==false;
@@ -130,18 +131,6 @@ function makeSteps(project,shots) {
     steps.push(step);
   }
   return {steps:steps.sort((a,b)=>a.frame-b.frame),shapeAmbiguous};
-}
-
-function visibleWindows(shots) {
-  const edges=[...new Set(shots.flatMap(s=>[s.clip.start,s.clip.start+s.clip.duration]))].sort((a,b)=>a-b),windows=[];
-  for(let i=0;i+1<edges.length;i++) {
-    const from=edges[i],to=edges[i+1]-1,s=shots.filter(s=>covers(s.clip,from)).at(-1);
-    if(!s)continue;
-    const previous=windows.at(-1);
-    if(previous?.shot===s&&previous.to+1===from)previous.to=to;
-    else windows.push({from,to,shot:s});
-  }
-  return windows;
 }
 
 async function confirmFrozen(ffmpeg,file,seconds,duration,rate,count,signal) {

@@ -40,3 +40,18 @@ export function framingFilter(clip, asset, profile, first) {
     `crop=w=${cropW}:h=${cropH}:x='clip(${coord('x','n')}*iw-ow/2,0,iw-ow)':y='clip(${coord('y','n')}*ih-oh/2,0,ih-oh)':exact=1,` +
     `zoompan=z='${coord('zoom','on')}':x='${inside('x',cropW/squareWidth,'iw')}':y='${inside('y',cropH/sourceHeight,'ih')}':d=1:s=${width}x${height}:fps=${fps}`;
 }
+
+// Shots use the same start order as the renderer. The last active shot covers earlier ones.
+export function visibleWindows(shots) {
+  const edges = [...new Set(shots.flatMap(({clip}) => [clip.start, clip.start + clip.duration]))].sort((a,b) => a-b);
+  const windows = [];
+  for (let i = 0; i + 1 < edges.length; i++) {
+    const from = edges[i], to = edges[i+1] - 1;
+    const shot = shots.findLast(({clip}) => clip.start <= from && clip.start + clip.duration > from);
+    if (!shot) continue;
+    const previous = windows.at(-1);
+    if (previous?.shot === shot && previous.to + 1 === from) previous.to = to;
+    else windows.push({from, to, shot});
+  }
+  return windows;
+}

@@ -286,12 +286,13 @@ export function captionCues(alignment, { id, group, assetId, start, duration, fp
   return timed.map((x) => x.clip);
 }
 
+export const withinSegmentMessage = '语音段的起止已用本地转录核对；长句内部分换字幕时刻按段内字数估算。';
 export function alignmentNote(alignment, group, frame) {
   const estimated = alignment.cues.some((c) => c.timing === 'within-segment');
   if (alignment.method === 'whisper.cpp' && !estimated) return null;
   const message =
     alignment.method === 'whisper.cpp'
-      ? '语音段的起止已用本地转录核对；长句内部分换字幕时刻按段内字数估算。'
+      ? withinSegmentMessage
       : alignment.method === 'whisper-unmatched'
         ? '转录和原稿的文字无法可靠匹配，已采用语音段边界；请试听段内字幕。'
         : alignment.method === 'waveform-only'
