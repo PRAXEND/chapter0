@@ -74,7 +74,8 @@ function pictureSpans(clips, length, fromFrame, toFrame) {
   const cuts = new Set([0, length]);
   for (const c of video) {
     cuts.add(c.start); cuts.add(c.start + c.duration);
-    if (['fade', 'crossfade', 'dissolve'].includes(c.transition?.type) && Number.isInteger(c.transition.duration) && c.transition.duration > 0) cuts.add(c.start + Math.min(c.transition.duration, c.duration));
+    const transitionFrames = transitionEnvelope(c).duration;
+    if (transitionFrames) cuts.add(c.start + transitionFrames);
   }
   const positions = [...cuts].sort((a, b) => a - b);
   return positions.slice(0, -1).flatMap((origin, i) => {
@@ -121,7 +122,8 @@ async function renderSpan(span, media, profile, ffmpeg, target, signal) {
     args = [...args, ...lower.args];
     // The timeline determines opacity even when another cut divides this transition.
     const weight = `min(1,(N+${elapsed+fade.offset})/${fade.total})`;
-    filter += `;${lower.chain};[v0][v1]blend=all_expr='A*(${weight})+B*(1-${weight})':shortest=1[composed]`;
+    const blendExpression = top.transition.type === 'wipe-right' ? `if(lt(X,W*(${weight})),A,B)` : `A*(${weight})+B*(1-${weight})`;
+    filter += `;${lower.chain};[v0][v1]blend=all_expr='${blendExpression}':shortest=1[composed]`;
     outputLabel = 'composed';
   }
   return run(ffmpeg, [...ffBase, ...args, '-filter_complex', filter, '-map', `[${outputLabel}]`, ...out], { signal });

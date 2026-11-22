@@ -9,7 +9,7 @@ export function validFraming(framing) {
 
 export function transitionEnvelope(clip) {
   const t=clip.transition;
-  const duration=['fade','crossfade','dissolve'].includes(t?.type) ? Math.max(0,Math.min(clip.duration,Math.floor(t.duration||0))) : 0;
+  const duration=['fade','crossfade','dissolve','wipe-right'].includes(t?.type) ? Math.max(0,Math.min(clip.duration,Math.floor(t.duration||0))) : 0;
   const offset=Number.isSafeInteger(t?.offsetFrames) ? Math.max(0,t.offsetFrames) : 0;
   const total=Math.max(offset+duration,Number.isSafeInteger(t?.totalFrames)?t.totalFrames:0);
   return {duration,offset,total};

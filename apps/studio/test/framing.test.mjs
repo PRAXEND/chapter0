@@ -15,6 +15,31 @@ test('source focus rejects out-of-range coordinates and zoom',()=>{
   assert.equal(validFraming({from:{x:.5,y:.5,zoom:2},to:{x:2,y:.5,zoom:2}}),false);
 });
 
+test('registered before and after plates can be compared at the same wipe position in a preview',async t=>{
+  const {ffmpeg,ready}=await mediaCapabilities();
+  if(!ready)return t.skip('ffmpeg and ffprobe required');
+  const dir=await mkdtemp(path.join(os.tmpdir(),'studio-compare-'));
+  t.after(()=>rm(dir,{recursive:true,force:true}));
+  const profile={width:96,height:64,fps:12};
+  const assets=[];
+  for(const color of ['red','blue']){
+    const file=path.join(dir,color+'.png');
+    await exec(ffmpeg,['-loglevel','error','-f','lavfi','-i','color='+color+':s=96x64','-frames:v','1',file]);
+    assets.push({id:color,path:file});
+  }
+  const clips=[{id:'before',track:'video',assetId:'red',start:0,duration:14},
+    {id:'after',track:'video',assetId:'blue',start:2,duration:12,transition:{type:'wipe-right',duration:10}}];
+  const project={profile,assets,revision:1,timeline:{clips}};
+  for(const preview of [false,true]){
+    const out=path.join(dir,preview?'excerpt.mp4':'full.mp4');
+    await renderProject(project,{directory:dir,output:out,...(preview&&{window:{fromFrame:6,toFrame:9}})});
+    const {stdout}=await exec(ffmpeg,['-loglevel','error','-ss',String((preview?0:6)/12),'-i',out,'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','pipe:1'],{encoding:'buffer'});
+    const pixel=x=>stdout.subarray(3*(32*96+x),3*(32*96+x)+3);
+    assert.ok(pixel(15)[2]>200 && pixel(15)[0]<40,'changed side shows blue');
+    assert.ok(pixel(80)[0]>200 && pixel(80)[2]<40,'original side stays red');
+  }
+});
+
 test('an offset source detail stays behind a hollow evidence marker in full and excerpt renders',async t=>{
   const {ffmpeg,ready}=await mediaCapabilities();
   if(!ready)return t.skip('ffmpeg and ffprobe required');

@@ -73,7 +73,7 @@ function draw(){
   if(s.tab==='edit')drawEdit();else if(s.tab==='assets')drawAssets();else if(s.tab==='style')loadStyle().catch(e=>notice(e.message));else if(s.tab==='deliver')drawDeliver();else drawSettings();
 }
 function lastVideo(){return s.jobs.find(j=>j.files?.includes('video'));}
-function clipTitle(c){return c.text||(c.shape==='outline'?'证据指示框':'')||assetName(c.assetId)||tracks[c.track];}
+function clipTitle(c){return c.text||(c.shape==='outline'?'证据指示框':c.shape==='polygon'?'矢量轮廓':'')||assetName(c.assetId)||tracks[c.track];}
 function cutLabel(job) {
   const engine=job?.creativeEngine;
   const mode=engine==='local'?'本地粗剪':engine==='codex'?'Codex 剪辑':'';
@@ -115,8 +115,9 @@ function inspector(c){
   const fps=frameRate();return `<section class="card inspector"><div class="hrow space"><h3>${esc(clipTitle(c))}</h3>${btn('lock',c.locked?'解锁片段':'锁定片段','',c.id)}</div>
   <div class="three">${[['起点（秒）','at',c.start/fps],['长度（秒）','len',c.duration/fps],['原片入点（秒）','in',(c.sourceIn||0)/fps],['速率','speed',c.speed??1],['音量','gain',c.gain??1]].map(([label,id,v])=>field(label,input('clip-'+id,Number(v.toFixed(4)),'number','step="any" min="0"'))).join('')}</div>
   ${['caption','graphic'].includes(c.track)?field('文字',area('clip-text',c.text,2)):''}
+  ${c.shape==='polygon'?field('轮廓顶点（图层内 x、y，范围 0–1）',area('clip-points',JSON.stringify(c.geometry.points),3)):''}
   ${['caption','graphic'].includes(c.track)?`<details><summary>图层位置与关键帧</summary><div class="three">${field('水平位置 0–1',input('clip-x',c.geometry?.x??.5,'number','step=".01"'))}${field('垂直位置 0–1',input('clip-y',c.geometry?.y??.5,'number','step=".01"'))}${field('字号（像素）',input('clip-font',c.style?.fontSize||48,'number','min="1"'))}</div>${field('关键帧（帧、位置、缩放和透明度）',area('clip-keys',JSON.stringify(c.keyframes||[]),2))}</details>`:''}
-  ${c.track==='video'?`${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场叠化（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>`:''}<div class="actions">${c.track==='video'?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
+  ${c.track==='video'?`${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照']],c.transition?.type==='wipe-right'?'wipe-right':'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>`:''}<div class="actions">${c.track==='video'?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
 }
 async function edit(commands){
   const previous=s.p, result=await proj('/edits',{baseRevision:previous.revision,commands});
@@ -264,13 +265,14 @@ async function runAction(act,id){
   const changes={start:Math.round(Number(val('clip-at'))*f),sourceIn:Math.round(Number(val('clip-in'))*f),duration:Math.round(Number(val('clip-len'))*f),speed:Number(val('clip-speed')),gain:Number(val('clip-gain'))};
   if(['caption','graphic'].includes(c.track)){
     changes.text=val('clip-text');changes.geometry={...c.geometry,x:Number(val('clip-x')),y:Number(val('clip-y'))};
+    if(c.shape==='polygon')changes.geometry.points=JSON.parse(val('clip-points'));
     changes.style={...c.style,fontSize:Number(val('clip-font'))};changes.keyframes=JSON.parse(val('clip-keys')||'[]');
   }
   if(c.track==='video'){
     const point=key=>Object.fromEntries(['x','y','zoom'].map(k=>[k,Number(val('view-'+key+'-'+k))]));
     if(el('clip-framing').checked)changes.framing={from:point('from'),to:point('to')};
     else if(c.framing)changes.framing=null;
-    changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));if(n!==(c.transition?.duration||0))changes.transition=n?{type:'fade',duration:n}:null;}
+    changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));const type=val('clip-transition');if(n!==(c.transition?.duration||0)||(n&&type!==(c.transition?.type==='wipe-right'?'wipe-right':'fade')))changes.transition=n?{type,duration:n}:null;}
   return edit([{op:'update',id,changes}]);}
  case 'fact-source':await proj('/facts/'+Number(id)+'/open',{});return;
  case 'fact-shot':{

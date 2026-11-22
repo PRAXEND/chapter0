@@ -1,3 +1,4 @@
+import {polygonPath} from './polygon.mjs';
 const number = (value, fallback) => Number.isFinite(value) ? value : fallback;
 const bound = (val, min, max) => Math.max(min, Math.min(val, max));
 const pad = (value, n = 2) => String(value).padStart(n, '0');
@@ -73,7 +74,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       const opening = Math.max(4, Math.ceil(shortest / 2));
       const edge = Math.max(1, Math.min(Math.round(number(style.strokeWidth, height / 240)), Math.floor((shortest - opening) / 2)));
       const hole = clip.shape === 'outline' ? ` m ${edge} ${edge} l ${edge} ${h-edge} ${w-edge} ${h-edge} ${w-edge} ${edge}` : '';
-      drawing = `{\\p1}m 0 0 l ${w} 0 ${w} ${h} 0 ${h}${hole}{\\p0}`;
+      const path = clip.shape === 'polygon' ? polygonPath(clip.geometry.points, w, h) : `m 0 0 l ${w} 0 ${w} ${h} 0 ${h}${hole}`;
+      drawing = `{\\p1}${path}{\\p0}`;
     }
     const initial = { frame: 0, x: number(clip.geometry?.x, 0.5), y: number(clip.geometry?.y, isCaption ? 0.86 : 0.28), scale: 1, opacity: 1 };
     const points = new Map([[0, initial]]);

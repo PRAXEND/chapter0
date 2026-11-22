@@ -6,6 +6,7 @@ import { constants } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {validFraming,transitionEnvelope} from './framing.mjs';
+import {polygonPath} from './polygon.mjs';
 
 export const defaultRoot = () => process.env.STUDIO_DATA_ROOT || path.join(os.homedir(),'Library','Application Support','Video Studio','standalone');
 export const tracks = ['video','narration','music','caption','graphic'];
@@ -43,6 +44,10 @@ export function validateClip(clip,p) {
   if(clip.geometry)for(const key of ['x','y','width','height'])if(clip.geometry[key]!=null&&!Number.isFinite(clip.geometry[key]))throw fault('图层坐标无效。');
   if(clip.framing!=null && (clip.track!=='video' || !validFraming(clip.framing)))throw fault('画面取景中心须在原素材内，放大倍率须为 1–4。');
   if(clip.shape==='outline' && (clip.track!=='graphic' || clip.text || !['width','height'].every(k=>clip.geometry?.[k]>0 && clip.geometry[k]<=2)))throw fault('指示框需要空文字与有效尺寸。');
+  if(clip.shape==='polygon'){
+    if(clip.track!=='graphic'||clip.text||!['width','height'].every(k=>clip.geometry?.[k]>0&&clip.geometry[k]<=2))throw fault('矢量轮廓需要空文字与有效宽高。');
+    try{polygonPath(clip.geometry.points,p.profile.width,p.profile.height);}catch(error){throw fault(error.message);}
+  }
   if(clip.keyframes && (!Array.isArray(clip.keyframes)||clip.keyframes.some(k=>!Number.isInteger(k.frame)||k.frame<0||k.frame>clip.duration)))throw fault('关键帧须位于图层范围内。');
 }
 function newSettings(mode, supplied={}) {
