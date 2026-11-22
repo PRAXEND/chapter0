@@ -157,7 +157,7 @@ function tempo(rate) {
 
 async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, signal) {
   const audioClips = clips.filter(c => ['video', 'narration', 'music'].includes(c.track) && media.get(c.assetId)?.hasAudio && (c.gain ?? 1) > 0 && !c.muted);
-  const buses = { voice: [], music: [] };
+  const buses = { voice: [], music: [], fixed: [] };
   const sampleAt = frame => Math.round(frame * 48000 / fps);
   for (const [index, c] of audioClips.entries()) {
     const first = Math.max(c.start, mixStart), end = Math.min(c.start + c.duration, mixEnd);
@@ -173,7 +173,8 @@ async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, sign
     const out = path.join(work, `sound-${index}.wav`);
     const filter = [`atrim=duration=${rounded(duration)}`, 'asetpts=PTS-STARTPTS', 'aresample=48000', ...tempo(rate), `volume=${rounded(c.gain ?? 1)}`, 'apad', `atrim=start_sample=${skip - seek}:end_sample=${skip - seek + count}`, 'asetpts=PTS-STARTPTS'].join(',');
     await run(ffmpeg, [...ffBase, '-ss', rounded(source), ...inputArgs(asset.path), '-map', '0:a:0', '-vn', '-af', filter, '-ar', '48000', '-ac', '2', '-c:a', 'pcm_f32le', out], { signal });
-    buses[c.track === 'music' ? 'music' : 'voice'].push({ file: out, offset: sampleAt(first) - sampleAt(mixStart) });
+    const bus = c.track === 'music' ? (c.ducking === false ? 'fixed' : 'music') : 'voice';
+    buses[bus].push({ file: out, offset: sampleAt(first) - sampleAt(mixStart) });
   }
   const samples = sampleAt(mixEnd) - sampleAt(mixStart);
   async function mixBus(items, name) {
@@ -191,11 +192,19 @@ async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, sign
   }
   const voice = await mixBus(buses.voice, 'voice');
   const music = await mixBus(buses.music, 'music');
+  const fixed = await mixBus(buses.fixed, 'fixed');
   const mix = path.join(work, 'mix.wav');
-  if (voice && music) {
-    await run(ffmpeg, [...ffBase, ...inputArgs(voice), ...inputArgs(music), '-filter_complex', '[0:a]asplit[v][key];[1:a][key]sidechaincompress=threshold=0.025:ratio=8:attack=12:release=320[bed];[v][bed]amix=inputs=2:normalize=0,alimiter=limit=0.96:latency=1[out]', '-map', '[out]', '-c:a', 'pcm_s24le', mix], { signal });
-  } else if (voice || music) {
-    await run(ffmpeg, [...ffBase, ...inputArgs(voice || music), '-af', 'alimiter=limit=0.96:latency=1', '-c:a', 'pcm_s24le', mix], { signal });
+  const inputs = [voice,music,fixed].filter(Boolean);
+  if (inputs.length) {
+    const filters=[], streams=inputs.map((_,i)=>'['+i+':a]');
+    if (voice && music) {
+      filters.push('[0:a]asplit[v][key]','[1:a][key]sidechaincompress=threshold=0.025:ratio=8:attack=12:release=320[bed]');
+      streams.splice(0,2,'[v]','[bed]');
+    }
+    const merge=streams.length>1?'amix=inputs='+streams.length+':normalize=0,':'';
+    filters.push(streams.join('')+merge+'alimiter=limit=0.96:latency=1[out]');
+    await run(ffmpeg,[...ffBase,...inputs.flatMap(file=>inputArgs(file)),'-filter_complex',filters.join(';'),
+      '-map','[out]','-c:a','pcm_s24le',mix],{signal});
   } else {
     await run(ffmpeg, [...ffBase, '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo', '-af', `atrim=end_sample=${samples}`, '-c:a', 'pcm_s24le', mix], { signal });
   }

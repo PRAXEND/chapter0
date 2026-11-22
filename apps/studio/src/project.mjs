@@ -52,7 +52,9 @@ export function validateClip(clip,p) {
 }
 function newSettings(mode, supplied={}) {
   const s={voiceMode:mode==='interview'?'original':'system',shareFrames:false,shareTranscript:true,cloudEnabled:false,cloudBudget:0,publishPackage:false,...supplied};
-  if(!['system','clone','original','import'].includes(s.voiceMode))throw fault('声音方式无效。');
+  if(!['system','clone','preset','original','import'].includes(s.voiceMode))throw fault('声音方式无效。');
+  if(s.voiceMode==='preset'&&s.presetVoice!=null&&!/^[a-z0-9_-]{1,45}$/.test(s.presetVoice))throw fault('本地预置声音名称无效。');
+  for(const key of ['voiceSelection','musicSelection'])if(s[key]!=null&&!['style','user','preview'].includes(s[key]))throw fault('声音偏好来源无效。');
   if(typeof s.shareFrames!=='boolean'||typeof s.shareTranscript!=='boolean'||typeof s.cloudEnabled!=='boolean'||!Number.isFinite(s.cloudBudget)||s.cloudBudget<0)throw fault('隐私或费用设置无效。');
   for(const field of ['voiceReferenceAssetId','narrationAssetId','musicAssetId'])if(s[field])checkId(s[field]);
   return s;

@@ -197,6 +197,23 @@ export function createStyleLibrary(dataRoot, options={}) {
     }
     return {...ref,available:false,verified:false};
   }
+  // A reference copy is allowed to become a soundtrack only when its credit and licence
+  // agree with both the pinned blueprint and the pack's manifest for that exact file.
+  async function getMusicResource(id,version,music) {
+    if (!music?.url || !music.title || !music.author || !music.license || !music.licenseUrl) return null;
+    const reg=await registry(), row=select(reg,id,version);
+    for (const pack of new Set([row.pack,...reg.packRoots].filter(Boolean))) {
+      const list=await optionalJson(path.join(pack,'resources.json'));
+      const match=list?.files?.find(f=>f.source_url===music.url && f.author===music.author &&
+        f.license===music.license && f.license_url===music.licenseUrl && digestPattern.test(f.sha256) &&
+        typeof f.path==='string' && path.basename(f.path,path.extname(f.path)).toLowerCase()===music.title.toLowerCase());
+      if (!match) continue;
+      const file=await verifiedReference({...row,pack},{id:'licensed-music',kind:'audio',title:music.title,
+        locator:'resource:'+match.path,sha256:match.sha256},reg.packRoots);
+      if (file.available) return file;
+    }
+    return null;
+  }
   async function get(id,version) {
     const reg=await registry(), row=select(reg,id,version), style=parseStyle(row.spec);
     const baseline=style.baseline && await verifiedReference(row,style.baseline,reg.packRoots);
@@ -347,7 +364,7 @@ export function createStyleLibrary(dataRoot, options={}) {
     }
     return {id:spec.id,version:spec.version,sha256:manifest.sha256};
   }
-  return {list,get,getReference,savePreference,learn,captureReference,compileScene,exportPortable,restorePortable};
+  return {list,get,getReference,getMusicResource,savePreference,learn,captureReference,compileScene,exportPortable,restorePortable};
 }
 
 function oppositeSubject(subject) {

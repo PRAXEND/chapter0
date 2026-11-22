@@ -58,10 +58,12 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   const deliveryRoot=process.env.STUDIO_DELIVERY_ROOT||(standardLibrary?path.join(movies,'交付'):path.join(root,'deliveries'));
   const blindRoot=process.env.STUDIO_REVIEW_ROOT||(standardLibrary?path.join(movies,'盲评工作台'):root);
   const queue=createQueue({store,director,deliveryRoot,styles,media:dependencies.media||media,reviewProject:dependencies.reviewProject||reviewProject,
-    async prepare(project,{signal,onProgress}){
+    async prepare(project,{signal,onProgress,kind,message}){
+      if(kind==='produce'&&director.prepareAudio)project=await director.prepareAudio(project.id,{signal,message});
       const caps=await audio.audioCapabilities();
+      if(project.settings.voiceMode==='preset'&&!caps.preset)throw fault('本机尚未准备 Qwen 预置中文声音。请在工作台设置中点击“准备本地预置男声”，完成后继续本工程。',409);
       const features=[];
-      if((project.mode==='interview'||['import','system','clone'].includes(project.settings.voiceMode))&&!caps.transcription)features.push('speech');
+      if((project.mode==='interview'||['import','system','clone','preset'].includes(project.settings.voiceMode))&&!caps.transcription)features.push('speech');
       if(project.settings.voiceMode==='clone'&&!caps.clone)features.push('clone');
       if(features.length){const {prepareMedia}=await import('../scripts/prepare-media.mjs');for(const f of features){onProgress('首次准备本机组件 · '+f);await prepareMedia(f,{signal,onProgress});}}
     }});
@@ -98,7 +100,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       const [,kind,id,action,part,leaf]=parts;
       if(kind==='status'&&method==='GET')return json(res,{media:await media.mediaCapabilities(),audio:await audio.audioCapabilities(),install,cloudMusic:music.connected()});
       if(kind==='prepare'&&method==='POST'){
-        const b=await readJson(req);if(!['render','speech','clone'].includes(b.feature))throw fault('未知安装项。');
+        const b=await readJson(req);if(!['render','speech','clone','preset'].includes(b.feature))throw fault('未知安装项。');
         if(install?.state==='running')throw fault('已有组件正在准备。',409);
         install={feature:b.feature,state:'running',message:'正在准备本机依赖'};
         installChild=spawn(process.execPath,[path.resolve(here,'../scripts/prepare-media.mjs'),b.feature],{stdio:['ignore','pipe','pipe']});
@@ -225,13 +227,14 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
             if(!recording)throw fault('请先在工程中选择带声音的原始录音。');
             return json(res,{id:recording.id});
           }
+          if(mode==='preset'&&!(await audio.audioCapabilities()).preset)throw fault('请先在本机组件中准备 Qwen 预置中文声音。');
           if(mode==='clone'){
             if(!p.settings.voiceConsent||!ref)throw fault('请登记获授权的参考录音。');
             if(!(await audio.audioCapabilities()).clone){const {prepareMedia}=await import('../scripts/prepare-media.mjs');await prepareMedia('clone',{});}
           }
           const file=path.join(store.paths(id).cache,'audition-'+randomUUID()+'.wav');
           try{
-            await audio.synthesize(String(b.text||'神舟十九号经过酒泉。上午九点二十分，陈老师把三点一四写在屏幕上，请大家等画面变亮，再听下一句。').slice(0,400),{mode,voice:p.settings.systemVoice,referencePath:ref?.path,referenceText:p.settings.voiceReferenceText,output:file});
+            await audio.synthesize(String(b.text||'神舟十九号经过酒泉。上午九点二十分，陈老师把三点一四写在屏幕上，请大家等画面变亮，再听下一句。').slice(0,400),{mode,voice:mode==='preset'?(p.settings.presetVoice||'dylan'):p.settings.systemVoice,referencePath:mode==='clone'?ref?.path:undefined,referenceText:mode==='clone'?p.settings.voiceReferenceText:undefined,output:file});
             const a=await store.addAsset(id,file,{name:'音色试听.wav',audition:true,referenceHash:ref?.sha256});return json(res,{id:a.id});
           }finally{await rm(file,{force:true});}
         }

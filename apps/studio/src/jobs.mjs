@@ -47,7 +47,7 @@ export function createQueue({store, director, media, reviewProject, prepare, del
     try{
       let j=store.getJob(id);
       if(j.phase==='creative'){
-        if(prepare)await prepare(store.get(projectId),{signal,onProgress:note});
+        if(prepare)await prepare(store.get(projectId),{signal,onProgress:note,kind:j.kind,message:j.input?.message});
         note('正在组织素材和剪辑');
         const outcome=await director.run(projectId,{...j.input,jobId:id,kind:j.kind,signal,onEvent:note});
         if(signal.aborted)throw signal.reason;

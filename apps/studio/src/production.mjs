@@ -10,6 +10,7 @@ import {
   durationNotes,
 } from './storyboard.mjs';
 import { describeFrames } from './vision.mjs';
+import { resolveProductionAudio } from './style-audio-preparation.mjs';
 import { draftPreviews } from './draft-preview.mjs';
 import { compileSceneWithSound } from './scene-sound.mjs';
 import {
@@ -375,6 +376,7 @@ async function context(deps, project, selection) {
     publishPackage: Boolean(project.settings?.publishPackage),
     privacy: { shareTranscript: shared, shareFrames: project.settings?.shareFrames === true },
     voiceMode: project.settings?.voiceMode,
+    styleAudio: project.styleAudio ? {voice:project.styleAudio.voice && {status:project.styleAudio.voice.status,speed:project.styleAudio.voice.speed},music:project.styleAudio.music && {status:project.styleAudio.music.status,title:project.styleAudio.music.title,ducking:project.styleAudio.music.ducking}} : undefined,
     musicMode: project.settings?.musicMode,
     targetDuration: project.settings?.targetDuration,
     assets: project.assets.map((a) => ({
@@ -559,7 +561,8 @@ export function createDirector(deps) {
     if (active.has(id)) throw new Error('当前工程已有创作任务。');
     active.set(id, { jobId: options.jobId, signal: options.signal });
     try {
-      const p = await store.get(id);
+      const original = await store.get(id);
+      const p = (options.kind || 'produce') === 'produce' ? await resolveProductionAudio(deps,original,{signal:options.signal,message:options.message}) : original;
       const style =
         (options.kind || 'produce') === 'produce' && p.style?.id
           ? await styleLibrary.get(p.style.id, p.style.version)
@@ -1241,6 +1244,7 @@ export function createDirector(deps) {
     login: () => client.login(),
     close: async () => {await client.close();if(!deps.drafts)await drafts.close();},
     run,
+    prepareAudio:async (id,options)=>resolveProductionAudio(deps,await store.get(id),options),
     steer,
     transcribe: getTranscript,
     restoreUtterance,

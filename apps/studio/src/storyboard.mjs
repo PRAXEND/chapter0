@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { visibleWindows } from './framing.mjs';
+import { paceNarration,measureLoudness } from './style-audio-render.mjs';
 import { alignmentNote, captionCues, narrationAlignment } from './speech-alignment.mjs';
 
 const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -89,7 +90,9 @@ const narrationInput = (p, key) => p.assets.find((a) => a.id === p.settings?.[ke
 async function recordedNarration(deps, project, text, signal) {
   const mode = voiceMode(project);
   const settings = project.settings || {};
-  const reference = narrationInput(project, 'voiceReferenceAssetId');
+  const reference = mode==='clone' ? narrationInput(project, 'voiceReferenceAssetId') : null;
+  const speechRate = project.styleAudio?.voice?.speed || 1;
+  const stylePaced = speechRate !== 1;
   if (
     mode === 'clone' &&
     (!reference?.path || (!settings.voiceConsent && !settings.voiceConsented && !reference.source?.consent))
@@ -100,8 +103,10 @@ async function recordedNarration(deps, project, text, signal) {
     mode,
     settings.voiceId,
     settings.systemVoice,
+    ...(mode==='preset'? [settings.presetVoice||'dylan'] : []),
     reference?.sha256,
-    settings.voiceReferenceText,
+    mode==='clone' ? settings.voiceReferenceText : undefined,
+    ...(stylePaced ? [speechRate] : []),
     text,
   ]);
   const previous = project.assets.find((a) => a.source?.narrationKey === key);
@@ -111,23 +116,29 @@ async function recordedNarration(deps, project, text, signal) {
   const scratch = await mkdtemp(path.join(cache, 'narration-'));
   try {
     const output = path.join(scratch, 'narration.wav');
-    const generated = await deps.audio.synthesize(text, {
+    const unpaced=stylePaced?path.join(scratch,'native.wav'):output;
+    let generated = await deps.audio.synthesize(text, {
       mode,
-      voice: settings.systemVoice,
+      voice: mode==='preset'?(settings.presetVoice||'dylan'):settings.systemVoice,
       voiceId: settings.voiceId,
       referencePath: reference?.path,
-      referenceText: settings.voiceReferenceText || '',
+      referenceText: mode==='clone' ? settings.voiceReferenceText||'' : '',
       consent: mode === 'clone',
-      output,
+      output:unpaced,
       signal,
     });
     signal?.throwIfAborted();
+    if(stylePaced)generated=await (deps.paceNarration||paceNarration)(unpaced,output,speechRate,generated,{signal});
+    const measuredLUFS = project.styleAudio ?
+      await (deps.measureLoudness||measureLoudness)(output,{signal,duration:generated?.duration||30}).catch(e=>{signal?.throwIfAborted();return null;}) : null;
     return await deps.store.addAsset(project.id, output, {
       role: 'narration',
       narrationKey: key,
       text,
       mode,
-      voiceId: settings.voiceId || (reference?.id ?? settings.systemVoice ?? 'system'),
+      voiceId: mode==='preset'?(generated?.preset||settings.presetVoice||'dylan'):(mode==='clone' ? (settings.voiceId || settings.voiceLibraryId || reference?.id) : (settings.systemVoice||generated?.model||'system')),
+      ...(mode==='preset'?{preset:generated?.preset||settings.presetVoice||'dylan',modelRevision:generated?.modelRevision}:{}),
+      ...(project.styleAudio ? {speechRate:generated?.speechRate??1,baseDuration:generated?.baseDuration??null,baseSha256:generated?.baseSha256??null,tempoMethod:generated?.tempoMethod??null,measuredLUFS} : {}),
       referenceHash: reference?.sha256 || null,
       provider: 'local',
       model: generated?.model,
@@ -230,7 +241,7 @@ export async function reviseLine(deps, project, clipId, text, signal) {
   const target = project.timeline.clips.find((c) => c.id === clipId && ['caption', 'narration'].includes(c.track));
   const words = String(text || '').trim();
   if (!target || !words || words.length > 650) throw new Error('选择一个字幕或旁白片段，并输入 1 到 650 字。');
-  if (!['clone', 'system'].includes(voiceMode(project)))
+  if (!['clone', 'system', 'preset'].includes(voiceMode(project)))
     throw new Error('同期声或外部录音请从原句裁切；替换台词需选择可合成的声音。');
   const clips = project.timeline.clips;
   const voices =
@@ -457,7 +468,7 @@ export async function applyScenes(
       );
       words = utterance.text;
       voice = imported;
-    } else if ((mode === 'system' || mode === 'clone') && !(localDraft && beat.sourceOnly)) {
+    } else if ((['system','clone','preset'].includes(mode)) && !(localDraft && beat.sourceOnly)) {
       if (!words || words.length > 650) throw new Error('单段旁白需包含 1 到 650 字。');
       voice = await recordedNarration(deps, await deps.store.get(project.id), words, signal);
       duration = Math.max(1, Math.round(voice.duration * fps));
@@ -516,6 +527,7 @@ export async function applyScenes(
           start: cursor,
           duration,
           sourceIn: 0,
+          ...(Number.isFinite(voice.source?.measuredLUFS) ? {gain: Math.min(4, Math.max(.25, 10**((-16-voice.source.measuredLUFS)/20)))} : {}),
           speechGroup,
         })
       );
@@ -709,9 +721,11 @@ export async function applyScenes(
     project.settings?.musicEnabled === false
       ? 'none'
       : project.settings?.musicMode || (project.mode === 'interview' ? 'none' : 'library');
-  let music = musicMode === 'none' ? null : narrationInput(project, 'musicAssetId');
+  const musicRecipe = project.styleAudio?.music;
+  let mixReceipt = musicRecipe;
+  let music = musicMode === 'none' ? null : project.assets.find(a=>a.id===musicRecipe?.assetId && a.kind==='audio') || narrationInput(project, 'musicAssetId');
   if (!music && musicMode === 'library' && deps.audio.createMusicBed) {
-    const style = project.style?.id?.includes('news') ? 'pulse' : 'calm';
+    const style = musicRecipe?.bedStyle || (project.style?.id?.includes('news') ? 'pulse' : 'calm');
     music = (await deps.store.get(project.id)).assets.find((a) => a.source?.bedStyle === style);
     if (!music) {
       const cache = (await deps.store.paths(project.id)).cache;
@@ -727,6 +741,7 @@ export async function applyScenes(
         signal?.throwIfAborted();
         music = await deps.store.addAsset(project.id, file, {
           role: 'music',
+          kind: 'local-composition', rights:'Video Studio original instrumental',
           name: '工作台曲库 · ' + (style === 'pulse' ? '律动' : '平缓'),
           provider: 'Video Studio',
           license: 'Studio original composition',
@@ -758,13 +773,40 @@ export async function applyScenes(
       });
   }
   if (music) {
-    const full = Math.max(1, Math.floor(music.duration * fps));
+    const sourceIn = Math.max(0, Math.round((musicRecipe?.sourceStart || 0)*fps));
+    const sourceEnd = Math.min(Math.floor(music.duration*fps), musicRecipe?.sourceEnd ? Math.round(musicRecipe.sourceEnd*fps) : Infinity);
+    const full = sourceEnd - sourceIn;
+    if (full < 1) throw Error('指定配乐的源选段不在本地原件内。');
+    let gain = .22;
+    if (musicRecipe) {
+      const placed = clips.filter(c=>c.track==='narration' && !c.muted && (c.gain??1)>0);
+      const all=(await deps.store.get(project.id)).assets;
+      const measure = async (asset,start,duration) => {
+        if(!asset)return null;
+        try{return await (deps.measureLoudness||measureLoudness)(asset.path,{start,duration,signal});}
+        catch{signal?.throwIfAborted();return null;}
+      };
+      const levels=[];
+      const selected=placed.length>5?Array.from({length:5},(_,i)=>placed[Math.round(i*(placed.length-1)/4)]):placed;
+      for(const clip of selected) {
+        const asset=all.find(a=>a.id===clip.assetId);
+        const level=asset?.source?.measuredLUFS ?? await measure(asset,(clip.sourceIn||0)/fps,clip.duration/fps);
+        if(Number.isFinite(level)) levels.push(level+20*Math.log10(clip.gain??1));
+      }
+      levels.sort((a,b)=>a-b);
+      const voiceLUFS=levels.length?levels[Math.floor(levels.length/2)]:null;
+      const windowSeconds=Math.min(90,full/fps,cursor/fps);
+      const sourceLUFS=await measure(music,sourceIn/fps,windowSeconds);
+      if(Number.isFinite(sourceLUFS)) gain=Math.min(4,Math.max(.003,10**(((voiceLUFS??-16)-14-sourceLUFS)/20)));
+      mixReceipt={...musicRecipe,assetId:music.id,sha256:music.sha256,title:musicRecipe.title||music.name,
+        status:musicRecipe.status==='missing'?'alternative':musicRecipe.status,ducking:false,gain,
+        sourceLUFS,voiceLUFS,measuredSourceSeconds:windowSeconds,mixMethod:Number.isFinite(sourceLUFS)&&Number.isFinite(voiceLUFS)?'measured-fixed':'estimated-fixed'};
+    }
     let i = 0;
     for (let start = 0; start < cursor; start += full) {
       if (i > 2000) throw new Error('配乐片段太短，请导入较长曲目。');
-      clips.push(
-        make('music', i++, { assetId: music.id, start, duration: Math.min(full, cursor - start), gain: 0.22 })
-      );
+      clips.push(make('music',i++,{assetId:music.id,start,duration:Math.min(full,cursor-start),sourceIn,gain,
+        ...(musicRecipe?{ducking:false,role:'music-bed'}:{})}));
     }
   }
   signal?.throwIfAborted();
@@ -777,6 +819,7 @@ export async function applyScenes(
   ];
   const updated = await deps.store.apply(project.id, latest.revision, commands, 'codex');
   const finalNotes = durationNotes(updated, notes);
-  await deps.store.setMeta(project.id, { storyboard: board, facts, directorNotes: finalNotes });
+  await deps.store.setMeta(project.id, { storyboard: board, facts, directorNotes: finalNotes,
+    ...(project.styleAudio ? { styleAudio:{...project.styleAudio,music:mixReceipt} } : {}) });
   return { project: updated, notes: finalNotes };
 }

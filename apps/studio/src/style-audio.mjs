@@ -29,7 +29,7 @@ export function audioSelection(project, channel) {
   const s = project.settings || {};
   const marked = s[channel + 'Selection'];
   if (['user', 'style', 'preview'].includes(marked)) return marked;
-  if (channel === 'voice') return project.mode === 'interview' || ['import', 'original', 'clone'].includes(s.voiceMode) && s.voiceConsent !== false ? 'user' : 'style';
+  if (channel === 'voice') return project.mode === 'interview' || ['import', 'original', 'clone'].includes(s.voiceMode) ? 'user' : 'style';
   if (s.musicMode === 'asset' || s.musicMode === 'original' || s.musicAssetId) return 'user';
   // A historical "none" might be an unconfirmed production default. Preserve the muted timeline
   // and leave its style exception unresolved until the user explicitly chooses it.
