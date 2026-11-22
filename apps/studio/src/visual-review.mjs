@@ -248,16 +248,16 @@ async function motionReview(project,windows,evidence,policy,checks,hashFile) {
     const known=new Set(),receipt=r?.motion,hashes=new Map();
     if(r?.timelineHash&&r.timelineHash===shotFingerprint(project))for(const item of receipt?.windows||[]) {
       const a=project.assets.find(a=>a.id===item.assetId&&a.kind==='video');
-      const checkHash=hash=>/^[a-f0-9]{64}$/.test(hash||'')&&r.frames?.some(f=>f.source==='asset'&&f.assetId===a?.id&&f.assetHash===a?.sha256&&f.sha256===hash);
-      if(!a||item.fromHash===item.toHash||!checkHash(item.fromHash)||!checkHash(item.toHash)||plain(item.observation).length<4)continue;
+      const checkHash=(hash,sec)=>/^[a-f0-9]{64}$/.test(hash||'')&&r.frames?.some(f=>f.source==='asset'&&f.assetId===a?.id&&f.assetHash===a?.sha256&&f.sha256===hash&&Math.abs(f.seconds-sec)<=.5/fps);
+      if(!a||item.assetHash!==a.sha256||item.fromHash===item.toHash||!checkHash(item.fromHash,item.sourceStart)||!checkHash(item.toHash,item.sourceEnd)||plain(item.observation).length<4)continue;
       if(!hashes.has(a.id)){try{hashes.set(a.id,await hashFile(a.path));}catch{hashes.set(a.id,null);}}
       if(hashes.get(a.id)!==a.sha256)continue;
       for(const m of evidence.motion) {
         if(m.assetId!==a.id||m.result!=='changing-footage'||!m.sourceTimes.some(s=>s>=item.sourceStart&&s<=item.sourceEnd))continue;
-        const key=a.id+'@'+m.fromFrame;
+        const key=[a.id,m.fromFrame,item.sourceStart,item.sourceEnd].join('@');
         if(!known.has(key)){
           const w=windows.find(w=>w.shot.asset?.id===a.id&&w.from<=m.fromFrame&&w.to>=m.toFrame),clip=w?.shot.clip;
-          if(!clip)continue;
+          if(!clip||clip.id!==item.clipId||clip.start!==item.timelineFrom||clip.duration!==item.timelineFrames)continue;
           const projected=t=>clip.start+(t*fps-(clip.sourceIn||0))/(clip.speed||1);
           const from=Math.max(m.fromFrame,Math.ceil(projected(item.sourceStart))),to=Math.min(m.toFrame,Math.ceil(projected(item.sourceEnd))-1);
           if(to<from)continue;

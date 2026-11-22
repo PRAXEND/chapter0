@@ -291,6 +291,15 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
   if(meta.candidatePlayable) {
     const visual=await reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,hashFile:fileSha256});
     evidence.visual=visual.evidence;
+    const director=project.visualDirection;
+    if(visual.evidence.styleExecution&&director?.motion?.gap){
+      const duplicate=problems.findIndex(p=>p.reason==='director-observation'&&p.message.includes(director.motion.gap));
+      if(duplicate>=0){
+        const otherGap=director.gaps?.find(g=>typeof g==='string'&&g.trim()&&g!==director.motion.gap);
+        if(otherGap)problems[duplicate]={...problems[duplicate],message:'候选已生成。'+otherGap};
+        else problems.splice(duplicate,1);
+      }
+    }
     for(const check of project.visualDirection?.checks||[]) {
       if(!visual.findings.some(f=>f.id==='visual-witness-'+check.frame))continue;
       const duplicate=problems.findIndex(p=>p.reason==='director-observation'&&p.message.includes(check.observation));

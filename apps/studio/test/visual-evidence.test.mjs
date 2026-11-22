@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createStyleLibrary,compileScene,fileSha256} from '../src/style.mjs';
 import {projectSourceRegion} from '../src/visual-steps.mjs';
+import {reviewProject} from '../src/review.mjs';
 import {shotFingerprint} from '../src/director-visual.mjs';
 import {reviewVisualEvidence,visualRequirements} from '../src/visual-review.mjs';
 import {nativeMediaTool} from '../../../plugins/video-studio/workbench/media.mjs';
@@ -75,6 +76,14 @@ test('review distinguishes an unrelated effect from a single still with visible,
   const reviewRule=(p,f=marked)=>reviewVisualEvidence(p,{ffmpeg,videoPath:f,styleSpec:videoFirstStyle,hashFile:fileSha256});
   const A=await reviewRule(ordinaryPhoto);assert.equal(A.evidence.styleExecution.motionStatus,'unmet');
   assert.equal(A.evidence.motionCoverage.stillFrames,100);assert.deepEqual(A.findings.map(f=>[f.id,f.severity]),[['style-video-first','minor']]);
+  const gap='本次缺少能交代过程的运动源窗口。',srtPath=path.join(dir,'empty.srt');await writeFile(srtPath,'');
+  const directed={...ordinaryPhoto,revision:1,directorNotes:[{kind:'visual-evidence',type:'required',message:'候选已生成。'+gap}],visualDirection:{timelineHash:shotFingerprint(ordinaryPhoto),motion:{gap},gaps:[]}};
+  let full=await reviewProject(directed,{videoPath:marked,srtPath,styleSpec:videoFirstStyle});
+  assert.ok(full.issues.some(i=>i.id==='style-video-first'&&i.severity==='minor'));
+  assert.ok(!full.issues.some(i=>i.reason==='director-observation'));
+  directed.visualDirection.gaps=['有一张基准参考仍缺失。'];
+  full=await reviewProject(directed,{videoPath:marked,srtPath,styleSpec:videoFirstStyle});
+  assert.ok(full.issues.some(i=>i.reason==='director-observation'&&i.message.includes('基准参考')&&i.severity==='unknown'));
   result=await reviewRule({...ordinaryPhoto,brief:'本片必须忠实复刻 Henry 科普风格。'});assert.ok(result.findings.some(f=>f.id==='style-video-first'&&f.severity==='major'));
   for(const override of [{brief:'全片只用原照片，加入可编辑强调。'}, {settings:{visualRequirements:{motionFootage:false,styleFidelity:true}}}]){
     result=await reviewRule({...ordinaryPhoto,...override});assert.equal(result.evidence.styleExecution.motionStatus,'photo-adaptation');assert.deepEqual(result.findings,[]);
