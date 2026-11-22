@@ -35,7 +35,7 @@ export function scienceExecutionPlan(blueprint={},spec={}) {
   const roles={
     problem:{components:['impact-title'],aim:'从可见任务提出具体矛盾，保留能说明问题的原画面。'},
     detail:{components:['staggered-explanation'],aim:'逐处指出能实际辨认的部位、痕迹或条件，把观察标签放到相应位置。'},
-    mechanism:{components:['process-rail','comparison-guide'],aim:'让分步指引随解说推进；并置不同的资料时，标明各自的身份。'},
+    mechanism:{components:['process-rail','comparison-guide'],aim:'让观众看见原因与结果怎样对应。原片能看见过程时，跟随真实动作。原片只能交代现场时，用实际细节作前后对照，或在原照旁放标有“原理示意”的可编辑图解，让状态随相应的解说变化。把论文依据和画面能直接证明的部分分别标清。'},
     verification:{components:['impact-title','source-label'],aim:'回到原片或实验结果回答开头，区分可见证据和推断。'}
   };
   return {template:'step-reveal',stages:roles,palette:blueprint.palette||{text:'#FFFFFF',mechanism:'#48E1D1',contrast:'#F7CB52'},

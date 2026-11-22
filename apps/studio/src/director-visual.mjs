@@ -394,6 +394,13 @@ export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
         frame: Math.min(s.end - 1, s.atFrame + Math.max(1, Math.round(p.profile.fps * 0.45))),
         stage: s.stage,
       });
+    const explanations=(p.facts||[]).filter(f=>f.claimKind==='explanation'&&f.visualRole==='illustration');
+    for (const step of checks.filter(s=>s.stage==='mechanism').slice(0,2)) {
+      const picture=pictures.find(c=>c.id===step.picture);
+      if(!picture||step.end-step.atFrame<p.profile.fps||!explanations.some(f=>f.start>=picture.start&&f.start<picture.start+picture.duration))continue;
+      const after=step.end-1-Math.min(Math.round(p.profile.fps*.25),Math.floor((step.end-step.atFrame)/4));
+      requests.push({source:'timeline',frame:after,stage:step.stage});
+    }
     for (const b of pictures.filter((b) => b.duration >= p.profile.fps * 6).slice(0, 3)) {
       const mid = b.start + Math.floor(b.duration * 0.58),
         step =

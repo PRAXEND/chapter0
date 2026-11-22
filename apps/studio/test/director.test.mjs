@@ -11,6 +11,7 @@ import {
   motionPolicy,
   motionCoverage,
   currentReviewWindows,
+  prepareVisuals,
 } from '../src/director-visual.mjs';
 import { alignScript } from '../src/speech-alignment.mjs';
 
@@ -24,6 +25,23 @@ const picture = {
   source: {},
 };
 const clone = (v) => structuredClone(v);
+test('an illustrated explanation is checked before and after the change on its actual shot',async t=>{
+  const {p,deps}=await fixture(t);
+  p.settings.shareFrames=true;
+  p.timeline.clips=[
+    {track:'video',id:'test-shot',assetId:'picture',start:0,duration:75},
+    {track:'graphic',id:'test-anchor',start:0,duration:75,evidenceAnchor:{stage:'mechanism',assetId:'picture',sha256:'p',stepId:'phase'}}
+  ];
+  deps.drafts={open:async()=>({name:'draft.mp4',fromFrame:0})};
+  deps.media.frameAt=async(_file,seconds,dest)=>writeFile(dest,Buffer.from('frame '+seconds));
+  p.facts=[{claimKind:'explanation',visualRole:'illustration',start:0}];
+  const frames=async()=>(await prepareVisuals(deps,p,'verify',[],undefined,'video-first')).result.map(x=>x.frame.frame);
+  assert.deepEqual(await frames(),[11,68]);
+  p.facts[0].claimKind='observation';
+  assert.deepEqual(await frames(),[11]);
+  p.settings.shareFrames=false;
+  assert.deepEqual(await frames(),[]);
+});
 async function fixture(t, config = {}) {
   const cache = await mkdtemp(path.join(tmpdir(), 'studio-director-test-'));
   t.after(() => rm(cache, { recursive: true, force: true }));
