@@ -74,6 +74,13 @@ function catalog(calls) {
   };
 }
 
+test('an existing GIF direct link leaves static versus timed content to the stream probe', () => {
+  const [item] = directSources({brief:'https://archive.example/animation.gif'});
+  assert.equal(item.downloadUrl, 'https://archive.example/animation.gif');
+  assert.equal(item.kind, undefined);
+  assert.equal(directSources({settings:{sourceUrls:[{url:item.url,kind:'video'}]}})[0].kind, 'video');
+});
+
 test('catalogs return attributable native videos and the official manifest rendition, never its cover', async () => {
   const calls = [],
     rows = await searchSources('月面靴印', { kind: 'video', readJson: catalog(calls) });

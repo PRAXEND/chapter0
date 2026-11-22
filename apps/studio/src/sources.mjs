@@ -598,6 +598,12 @@ export async function searchSources(query, { signal, kind = 'any', onDiagnostic,
   ].slice(0, 12);
 }
 
+function expectedKind(entry) {
+  if (['video', 'image', 'audio'].includes(entry.kind)) return entry.kind;
+  const file = entry.downloadUrl || entry.url;
+  // A GIF may carry a timed animation. Let the actual stream determine its kind.
+  return /\.gif$/i.test(new URL(file).pathname) ? undefined : suffixKind(file);
+}
 export function directSources(project) {
   const list = Array.isArray(project.settings?.sourceUrls) ? project.settings.sourceUrls : [];
   return [...list, ...briefUrls(project).filter(isMediaUrl)]
@@ -609,9 +615,7 @@ export function directSources(project) {
       title: clean(entry.title || new URL(entry.url).pathname.split('/').pop() || '素材'),
       url: entry.url,
       downloadUrl: entry.downloadUrl || entry.url,
-      kind: ['video', 'image', 'audio'].includes(entry.kind)
-        ? entry.kind
-        : suffixKind(entry.downloadUrl || entry.url),
+      kind: expectedKind(entry),
       credit: clean(entry.credit || '用户提供'),
       license: clean(entry.license || '使用范围待核'),
       licenseUrl: clean(entry.licenseUrl || ''),
