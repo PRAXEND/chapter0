@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileSha256} from './style.mjs';
 import {reviewVisualEvidence} from './visual-review.mjs';
+import {reviewStyleAudio} from './style-audio-review.mjs';
 import {currentCutNotes} from './storyboard.mjs';
 import {withinSegmentMessage} from './speech-alignment.mjs';
 export {createBlindReview} from './blind-review.mjs';
@@ -101,11 +102,11 @@ function timelineChecks(project,findings) {
   const visible=clips.filter(c=>c.track==='video'&&c.hidden!==true);
   const narration=clips.filter(c=>c.track==='narration'&&c.hidden!==true);
   const mode=project.settings?.voiceMode;
-  const original=project.mode==='interview'&&mode==='original'&&narration.length===0;
-  const dialogue=original?visible.filter(c=>(c.gain??1)>0&&project.assets.some(a=>a.id===c.assetId&&a.hasAudio)):[];
+  const original=mode==='original'&&narration.length===0;
+  const dialogue=original?visible.filter(c=>!c.muted&&(c.gain??1)>0&&project.assets.some(a=>a.id===c.assetId&&a.hasAudio)):[];
   const last=Math.max(0,...clips.map(c=>c.start+c.duration-1));
   if(!visible.length) findings.push(issue('picture-missing','blocker','工程没有可见画面','补入可见镜头。'));
-  if(original&&!dialogue.length) findings.push(issue('dialogue-missing','blocker','访谈要求同期声，可见镜头的原声均缺失或静音','恢复人物原声音轨。',0,last));
+  if(original&&!dialogue.length) findings.push(issue('dialogue-missing','blocker','本期要求保留同期声，可见镜头的原声均缺失或静音','恢复人物原声音轨。',0,last));
   if(['system','clone','import'].includes(mode)&&!narration.length) findings.push(issue('narration-missing','blocker','本期要求的旁白没有进入时间线','恢复已选择的旁白。',0,last));
   const music=musicRequirement(project,findings,last);
   if(project.settings?.requireCaptions&&!captions.length) findings.push(issue('captions-missing','major','本期要求字幕，时间线缺少字幕','从实际语音重新对齐字幕。'));
@@ -194,7 +195,7 @@ async function audioChecks(project,narration,{ffmpeg,videoPath,signal},findings,
   for(const clip of narration) {
     const asset=assets.get(clip.assetId);
     const from=clip.start,to=from+clip.duration-1;
-    if(!asset?.path || !(clip.gain??1)) {
+    if(!asset?.path || clip.muted || !(clip.gain??1)) {
       findings.push(issue('muted-'+clip.id,'major','时间线旁白缺少音频或已静音','恢复旁白并复核混音。',from,to));continue;
     }
     if(mode==='clone') {
@@ -310,6 +311,17 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
     }
   }
   if(meta.candidatePlayable) {
+    const styleAudio=await reviewStyleAudio(project,styleSpec,{videoPath,signal,hasMix:probe.streams.some(s=>s.codec_type==='audio'),
+      voiceWindows:evidence.audio,hashFile:fileSha256,readPcm:(file,t,d)=>extractPcm(ffmpeg,file,t,d,signal)});
+    if(styleAudio){
+      evidence.styleAudio=styleAudio.evidence;
+      for(const item of styleAudio.findings){
+        // Existing technical checks already identify a completely absent track.
+        const sameMissing=item.id==='style-audio-music'?'music-required':'narration-missing';
+        if(item.severity==='major'&&problems.some(p=>p.id===sameMissing))continue;
+        problems.push(item);
+      }
+    }
     const visual=await reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,hashFile:fileSha256});
     evidence.visual=visual.evidence;
     const director=project.visualDirection;
