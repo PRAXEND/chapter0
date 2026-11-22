@@ -14,7 +14,7 @@ import {nativeMediaTool} from '../../../plugins/video-studio/workbench/media.mjs
 const execute=promisify(execFile);
 const profile={width:320,height:180,fps:25};
 const style={id:'henry-technical-explainer',version:8,templates:[{id:'step-reveal'}]};
-const videoFirstStyle={id:'renamed-field-style',templates:[{id:'step-reveal'}],rules:[{id:'video-first',basis:'user_direction',instruction:'以有信息的运动画面为主体，必要原图可短暂出现。'}]};
+const videoFirstStyle={id:'renamed-field-style',version:8,templates:[{id:'step-reveal'}],rules:[{id:'video-first',basis:'user_direction',instruction:'以有信息的运动画面为主体，必要原图可短暂出现。'}]};
 const example=(hash)=>({style,start:0,duration:100,anchorAssetId:'photo',anchorSourceFrame:0,
   evidenceView:{width:320,height:180,sha256:hash,start:0,duration:100},
   visualSteps:[{stage:'detail',atFrame:0,label:'亮脊',observation:'中部平行条带的上缘明显发亮。',region:{x:.22,y:.55,width:.22,height:.22}},
@@ -76,6 +76,17 @@ test('review distinguishes an unrelated effect from a single still with visible,
   const reviewRule=(p,f=marked)=>reviewVisualEvidence(p,{ffmpeg,videoPath:f,styleSpec:videoFirstStyle,hashFile:fileSha256});
   const A=await reviewRule(ordinaryPhoto);assert.equal(A.evidence.styleExecution.motionStatus,'unmet');
   assert.equal(A.evidence.motionCoverage.stillFrames,100);assert.deepEqual(A.findings.map(f=>[f.id,f.severity]),[['style-video-first','minor']]);
+  const pinned={...ordinaryPhoto,style:{id:videoFirstStyle.id,version:8}};
+  const pinnedA=await reviewRule(pinned);
+  assert.equal(pinnedA.evidence.styleExecution.lockedByAuthor,true);
+  assert.deepEqual(pinnedA.findings.map(f=>[f.id,f.severity]),[['style-video-first','major']]);
+  for(const spec of [{...videoFirstStyle,rules:[{...videoFirstStyle.rules[0],basis:'reference_observation'}]},{...videoFirstStyle,version:7}]) {
+    const suggestion=await reviewVisualEvidence(pinned,{ffmpeg,videoPath:marked,styleSpec:spec,hashFile:fileSha256});
+    assert.equal(suggestion.evidence.styleExecution.lockedByAuthor,false);assert.equal(suggestion.findings.find(f=>f.id==='style-video-first').severity,'minor');
+  }
+  const neutral=await reviewRule({...pinned,style:{id:'neutral',version:1}});
+  assert.ok(!neutral.findings.some(f=>f.severity==='major'));
+  const photoFirst=await reviewRule({...pinned,brief:'只用原照作局部演示。'});assert.deepEqual(photoFirst.findings,[]);
   const gap='本次缺少能交代过程的运动源窗口。',srtPath=path.join(dir,'empty.srt');await writeFile(srtPath,'');
   const directed={...ordinaryPhoto,revision:1,directorNotes:[{kind:'visual-evidence',type:'required',message:'候选已生成。'+gap}],visualDirection:{timelineHash:shotFingerprint(ordinaryPhoto),motion:{gap},gaps:[]}};
   let full=await reviewProject(directed,{videoPath:marked,srtPath,styleSpec:videoFirstStyle});
@@ -143,14 +154,14 @@ test('witnessed moving footage can carry a science sequence without annotation; 
   const raw=await measured({...project,visualDirection:null,storyboard:[]},moving);
   assert.equal(raw.evidence.styleExecution.motionStatus,'unverified');
   const photoFile=path.join(dir,'problem.jpg'),photo={id:'still',kind:'image',path:photoFile,sha256:await fileSha256(photoFile),width:160,height:90};
-  const mixed={...project,brief:'从现场转到原照。',settings:{},assets:[asset,photo],timeline:{clips:[clips[0],{id:'photo',track:'video',assetId:photo.id,start:25,duration:50,sourceIn:0}]}};
+  const mixed={...project,style:{id:videoFirstStyle.id,version:8},brief:'从现场转到原照。',settings:{},assets:[asset,photo],timeline:{clips:[clips[0],{id:'photo',track:'video',assetId:photo.id,start:25,duration:50,sourceIn:0}]}};
   mixed.visualDirection={frames,checks:[checks[0]],timelineHash:shotFingerprint(mixed)};
   const mixedFilm=path.join(dir,'mixed.mp4');
   await execute(ffmpeg,['-v','error','-i',moving,'-loop','1','-framerate','25','-i',photoFile,'-filter_complex','[0:v]trim=end=1,setpts=PTS-STARTPTS[v0];[1:v]trim=end=2,setpts=PTS-STARTPTS[v1];[v0][v1]concat=n=2:v=1:a=0,format=yuv420p[out]','-map','[out]','-t','3','-c:v','libx264','-threads','1',mixedFilm]);
   const B=await measured(mixed,mixedFilm);assert.equal(B.evidence.styleExecution.motionStatus,'partial');assert.deepEqual([B.evidence.motionCoverage.changingFrames,B.evidence.motionCoverage.stillFrames,B.evidence.motionCoverage.totalFrames],[25,50,75]);
   assert.deepEqual(B.findings.map(f=>[f.id,f.severity]),[['style-video-first','minor']]);
   const flatSha=await fileSha256(frozen),flatAsset={...asset,path:frozen,sha256:flatSha};
-  const noMotion={...project,assets:[flatAsset],visualDirection:null,storyboard:[]};
+  const noMotion={...project,style:{id:videoFirstStyle.id,version:8},settings:{},brief:'解释这个过程。',assets:[flatAsset],visualDirection:null,storyboard:[]};
   const flat=await measured(noMotion,frozen);assert.equal(flat.evidence.motionCoverage.confirmedStationaryFrames,75,JSON.stringify(flat.evidence));
   assert.ok(flat.findings.some(f=>f.id==='style-video-first'&&f.severity==='major'));
   result=await review(frozen);assert.ok(result.findings.some(f=>f.id==='required-science-execution'),JSON.stringify(result));

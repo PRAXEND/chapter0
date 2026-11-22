@@ -2,6 +2,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {projectSourceRegion,validRegion} from './visual-steps.mjs';
 import {motionPolicy,shotFingerprint} from './director-visual.mjs';
+import {sceneChange} from './motion-windows.mjs';
 
 const execute=promisify(execFile);
 const live=c=>c.hidden!==true&&c.enabled!==false;
@@ -143,23 +144,6 @@ function visibleWindows(shots) {
   return windows;
 }
 
-function sceneChange(a,b,w,h) {
-  const lum=(buf,x,y)=>{const n=(y*w+x)*3;return .25*buf[n]+.52*buf[n+1]+.23*buf[n+2];};
-  let best=Infinity,raw;
-  for(const zoom of [1,.92,.96,1.04,1.08])for(const dx of [0,-6,-3,3,6])for(const dy of [0,-4,-2,2,4]) {
-    let sum=0,count=0;
-    for(let y=6;y<h-6;y+=2)for(let x=9;x<w-9;x+=2){
-      const tx=Math.round((x-w/2)/zoom+w/2+dx),ty=Math.round((y-h/2)/zoom+h/2+dy);
-      if(tx<0||ty<0||tx>=w||ty>=h)continue;
-      sum+=Math.min(50,Math.abs(lum(a,x,y)-lum(b,tx,ty)));count++;
-    }
-    const error=sum/Math.max(1,count);
-    if(zoom===1&&dx===0&&dy===0)raw=error;
-    best=Math.min(best,error);
-  }
-  return {change:+raw.toFixed(2),afterGlobalMotion:+best.toFixed(2)};
-}
-
 async function confirmFrozen(ffmpeg,file,seconds,duration,rate,count,signal) {
   // Check each displayed frame of suspicious intervals, including the frames between initial samples.
   const width=96,height=54,size=width*height;
@@ -259,7 +243,10 @@ function videoFirstPolicy(project,spec) {
   const r=project.visualDirection,receipt=r?.motion;
   const fromMessage=receipt?.policyOverride?.source==='user-message'&&receipt.policyOverride.base===base&&r.timelineHash===shotFingerprint(project);
   const choice=fromMessage?receipt.policy:base;
-  return {ruleId:rule.id,basis:rule.basis||'style',instruction:rule.instruction,override:choice==='images-only'||choice==='photo-led'?
+  const selected=project.style,current=spec||selected;
+  const lockedByAuthor=rule.basis==='user_direction'&&!!selected?.id&&selected.id!=='neutral'&&Number.isInteger(Number(selected.version))&&Number(selected.version)>0&&
+    current?.id===selected.id&&Number(current.version)===Number(selected.version)&&(!selected.sha256||!current.sha256||selected.sha256===current.sha256);
+  return {ruleId:rule.id,basis:rule.basis||'style',lockedByAuthor,instruction:rule.instruction,override:choice==='images-only'||choice==='photo-led'?
     (fromMessage?'user-message':explicit===false?'motionFootage:false':'user-photo-brief'):null};
 }
 function coverage(windows,motion) {
@@ -319,7 +306,7 @@ async function motionReview(project,windows,evidence,policy,checks,hashFile) {
   const status=policy.override?'photo-adaptation':majority?(informative?'met':'unverified'):possible>c.totalFrames/2?'unverified':
     c.changingFrames?'partial':possible===0?'unmet':'unverified';
   evidence.motionCoverage=c;
-  evidence.styleExecution={ruleId:policy.ruleId,basis:policy.basis,motionStatus:status,override:policy.override,informativeWindows:verified,
+  evidence.styleExecution={ruleId:policy.ruleId,basis:policy.basis,lockedByAuthor:policy.lockedByAuthor,motionStatus:status,override:policy.override,informativeWindows:verified,
     assessment:status==='met'?'motion-rule-supported':status==='photo-adaptation'?'requested-photo-adaptation':status==='unverified'?'unverified':'not-reproduced'};
   if(status==='photo-adaptation'||status==='met')return null;
   const secs=n=>(n/fps).toFixed(1);
@@ -328,7 +315,8 @@ async function motionReview(project,windows,evidence,policy,checks,hashFile) {
     (c.confirmedStationaryFrames?'另有 '+secs(c.confirmedStationaryFrames)+' 秒录像逐帧复查静止。':'');
   const relevant=windows.filter(w=>w.shot.asset?.kind==='image'||!evidence.motion.some(m=>m.assetId===w.shot.asset?.id&&m.fromFrame>=w.from&&m.toFrame<=w.to&&m.result==='changing-footage'));
   const longest=relevant.sort((a,b)=>(b.to-b.from)-(a.to-a.from))[0]||windows[0];
-  const severity=status==='unmet'&&c.stillFrames+c.confirmedStationaryFrames===c.totalFrames&&evidence.requirements.styleFidelity?'major':'minor';
+  const completelyStatic=c.totalFrames>0&&c.stillFrames+c.confirmedStationaryFrames===c.totalFrames;
+  const severity=status==='unmet'&&completelyStatic&&(policy.lockedByAuthor||evidence.requirements.styleFidelity)?'major':'minor';
   const message=status==='unmet'?'所选风格要求以有信息的运动画面为主体，本版未达到。':
     status==='partial'?'本版只有部分时段呈现有变化的视频，未达到所选风格以运动过程为主体的要求。':
     '所选风格要求以有信息的运动画面为主体，目前无法确认取到的变化确实在说明该段内容。';
