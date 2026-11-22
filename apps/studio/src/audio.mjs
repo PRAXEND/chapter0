@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { executable, mediaCache, mediaSlot, mediaTool, requiredTool, run, scratch, ffBase, inputArgs } from './media-runtime.mjs';
 import { fileHash, probeMedia } from './media.mjs';
+import { presetDirectory, presetFiles, presetId, presetModelReady, presetRevision, presetVoices } from './qwen-preset.mjs';
 export { createMusicBed } from './music-library.mjs';
 
 const worker = fileURLToPath(new URL('../scripts/clone-voice.py', import.meta.url));
@@ -29,19 +30,23 @@ export async function audioCapabilities() {
   const cache = mediaCache();
   const cloneModel = process.env.VIDEO_STUDIO_QWEN_MODEL || path.join(cache, 'models/qwen3-tts-0.6b-base-4bit');
   const whisperModel = process.env.VIDEO_STUDIO_WHISPER_MODEL || path.join(cache, 'models/whisper/ggml-base.bin');
-  const [whisper, voiceTool, weights, codec, asrWeights] = await Promise.all([
+  const presetModel = presetDirectory();
+  const [whisper, voiceTool, weights, codec, asrWeights, presetReady] = await Promise.all([
     mediaTool('whisper-cli'), executable(['/usr/bin/say']), present(path.join(cloneModel, 'model.safetensors')),
-    present(path.join(cloneModel, 'speech_tokenizer/model.safetensors')), present(whisperModel)
+    present(path.join(cloneModel, 'speech_tokenizer/model.safetensors')), present(whisperModel), presetModelReady(presetModel)
   ]);
-  const python = weights && codec ? await speechPython(process.env.VIDEO_STUDIO_MLX_PYTHON ? [process.env.VIDEO_STUDIO_MLX_PYTHON] : [path.join(cache, 'voice-runtime/bin/python'), path.join(cache, 'venv/bin/python')]) : null;
+  const python = (weights && codec) || presetReady ? await speechPython(process.env.VIDEO_STUDIO_MLX_PYTHON ? [process.env.VIDEO_STUDIO_MLX_PYTHON] : [path.join(cache, 'voice-runtime/bin/python'), path.join(cache, 'venv/bin/python')]) : null;
   return { system: Boolean(voiceTool), clone: Boolean(python && weights && codec), transcription: Boolean(whisper && asrWeights),
+    preset: Boolean(python && presetReady), presetModel, presetVoices, presetModelRevision: presetRevision,
     voiceTool, python, cloneModel, whisper, whisperModel };
 }
 
-export async function synthesize(text, { mode = 'system', referencePath, referenceText, output, signal, voice = 'Tingting', language = 'Chinese' }) {
+export async function synthesize(text, { mode = 'system', referencePath, referenceText, output, signal, voice = mode === 'preset' ? 'dylan' : 'Tingting', language = 'Chinese' }) {
   if (typeof text !== 'string' || !text.trim() || text.length > 12000) throw new Error('请提供长度适合单段生成的配音稿');
   if (!path.isAbsolute(output) || path.extname(output).toLowerCase() !== '.wav') throw new Error('配音目标须为 WAV 的绝对路径');
+  if (mode === 'preset' && !presetVoices.includes(voice)) throw new Error('未识别的工作台预置音色。');
   const caps = await audioCapabilities();
+  if (mode === 'preset' && !caps.preset) throw new Error('请先在设置中准备本地 Qwen 预置音色。');
   const ffmpeg = await requiredTool('ffmpeg');
   return scratch(path.dirname(output), async tmp => {
     const rendered = path.join(tmp, 'result.wav');
@@ -53,16 +58,20 @@ export async function synthesize(text, { mode = 'system', referencePath, referen
       await writeFile(input, text, { mode: 0o600 });
       await run(caps.voiceTool, ['-v', voice, '-f', input, '-o', aiff], { signal });
       await run(ffmpeg, [...ffBase, ...inputArgs(aiff), '-map', '0:a:0', '-ac', '1', '-ar', '48000', '-c:a', 'pcm_s16le', rendered], { signal });
-    } else if (mode === 'clone') {
-      if (!caps.clone) throw new Error('需先准备本地 Qwen3-TTS Base 模型与 MLX 运行时');
-      if (!referencePath || !referenceText?.trim()) throw new Error('克隆音色需要已授权的参考录音和对应原文');
-      const reference = path.join(tmp, 'reference.wav');
-      await run(ffmpeg, [...ffBase, ...inputArgs(path.resolve(referencePath)), '-vn', '-ac', '1', '-ar', '24000', '-c:a', 'pcm_s16le', reference], { signal });
-      const meta = await probeMedia(reference, { signal });
-      if (meta.duration < 2 || meta.duration > 30) throw new Error('请截取 2–30 秒清晰的人声作为音色参考');
-      referenceHash = await fileHash(referencePath);
+    } else if (mode === 'clone' || mode === 'preset') {
       const request = path.join(tmp, 'request.json');
-      await writeFile(request, JSON.stringify({ model: caps.cloneModel, reference, referenceText, text, language, output: rendered }), { mode: 0o600 });
+      let args = { mode, model: caps.presetModel, speaker: voice, text, language, output: rendered };
+      if (mode === 'clone') {
+        if (!caps.clone) throw new Error('需先准备本地 Qwen3-TTS Base 模型与 MLX 运行时');
+        if (!referencePath || !referenceText?.trim()) throw new Error('克隆音色需要已授权的参考录音和对应原文');
+        const reference = path.join(tmp, 'reference.wav');
+        await run(ffmpeg, [...ffBase, ...inputArgs(path.resolve(referencePath)), '-vn', '-ac', '1', '-ar', '24000', '-c:a', 'pcm_s16le', reference], { signal });
+        const meta = await probeMedia(reference, { signal });
+        if (meta.duration < 2 || meta.duration > 30) throw new Error('请截取 2–30 秒清晰的人声作为音色参考');
+        referenceHash = await fileHash(referencePath);
+        args = { mode, model: caps.cloneModel, reference, referenceText, text, language, output: rendered };
+      }
+      await writeFile(request, JSON.stringify(args), { mode: 0o600 });
       const log = await mediaSlot(() => run(caps.python, [worker, request], { signal, env: { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', HF_HUB_DISABLE_TELEMETRY: '1', TOKENIZERS_PARALLELISM: 'false' } }), signal);
       peakModelBytes = JSON.parse(log.trim().split('\n').at(-1)).peakModelBytes;
     } else {
@@ -73,7 +82,10 @@ export async function synthesize(text, { mode = 'system', referencePath, referen
     const sha256 = await fileHash(rendered);
     signal?.throwIfAborted();
     await rename(rendered, output);
-    return { path: output, audioPath: output, duration: info.duration, sha256, mode, referenceHash, model: mode === 'clone' ? path.basename(caps.cloneModel) : voice, peakModelBytes };
+    const source = mode === 'preset'
+      ? { preset: voice, model: presetId, modelRevision: presetRevision, modelSha256: presetFiles['model.safetensors'][1] }
+      : { referenceHash, model: mode === 'clone' ? path.basename(caps.cloneModel) : voice };
+    return { path: output, audioPath: output, duration: info.duration, sha256, mode, ...source, peakModelBytes };
   });
 }
 
