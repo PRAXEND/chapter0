@@ -55,6 +55,12 @@ test('unbound style uses a named local audition; matching consent and explicit p
   assert.equal(user.settings.voiceMode,'system');assert.equal(user.styleAudio.voice.status,'user-selected');
   assert.equal(user.settings.musicMode,'none');assert.equal(user.styleAudio.music.status,'user-selected');
   assert.equal(user.settings.cloudEnabled,false);assert.equal(user.settings.cloudBudget,0);
+  const scoped=store.create({mode:'script',style:p.style,brief:'开头不要配乐，第二段继续用原曲。这一句保留同期声。'});
+  const musical=await resolveProductionAudio(deps,scoped);
+  assert.equal(musical.styleAudio.music.status,'matched');assert.equal(musical.settings.voiceMode,'clone');
+  const all=await resolveProductionAudio(deps,musical,{message:'全片不要配乐。'});
+  assert.equal(all.settings.musicMode,'none');assert.equal(all.settings.musicSelection,'user');
+
 });
 
 test('local production applies one pitch-preserving speed change, aligns final speech, and measures a fixed licensed bed',async t=>{

@@ -9,8 +9,12 @@ function requestedAudio(project,message) {
   const patch={};
   for(const [text,latest] of [[project.brief,false],[message,true]]) {
     const unquoted=String(text||'').replace(/“[^”]*”|「[^」]*」|『[^』]*』|\x22[^\x22]*\x22/gu,' ');
-    for(const clause of unquoted.split(/[，,。；;!?！？\n]/u)){
-      if(/(?:如果|假如|是否|可以考虑|参考片|示例|if |whether )/i.test(clause))continue;
+    const clauses=unquoted.split(/[，,。；;!?！？\n]/u);
+    const local=/(?:开场|开头|片头|片尾|结尾|首段|末段|前奏|第[一二三四五六七八九十百\d]+(?:段|句|镜)|[这该本上下一两]一?(?:句|段|镜头)|[前后末]\s*[一二三四五六七八九十\d]+(?:秒|帧)|\d+(?:[.:]\d+)?\s*[-–—至到]\s*\d+\s*(?:秒|帧)|opening|ending|this (?:line|shot|segment))/i;
+    const scoped=clauses.some(c=>local.test(c));
+    for(const clause of clauses){
+      const whole=/(?:全片|整片|全程|从头到尾|整(?:个|条|部)视频|本期|本片|这次|throughout|entire (?:video|film))/i.test(clause);
+      if((local.test(clause) || scoped&&!whole) || /(?:如果|假如|是否|可以考虑|参考片|示例|if |whether )/i.test(clause))continue;
       if(latest||audioSelection(project,'music')!=='user'){
         if(/(?:不要|不用|无需|不要加|不需要|不使用|去掉|去除|取消|关闭|不放|不加)(?:任何)?(?:背景)?(?:配乐|音乐)|(?:no |without )(?:background )?music/i.test(clause))
           Object.assign(patch,{musicSelection:'user',musicMode:'none',musicEnabled:false});
