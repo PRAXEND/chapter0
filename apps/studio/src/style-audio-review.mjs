@@ -36,16 +36,20 @@ async function assessVoice(project,policy,receipt,selection,options) {
       settings.voiceMode==='preset'&&(s.mode==='preset'||s.voiceMode==='preset')||settings.voiceMode==='clone'&&clone);
     const matched=Boolean(clone&&receipt?.voice?.status==='matched'&&receipt.voice.referenceHash===expectedReference);
     const preset=s.mode==='preset'||s.voiceMode==='preset'||s.preset;
-    const rate=Number(s.speechRate),base=Number(s.baseDuration),produced=Number(s.measuredSeconds),duration=Number(asset?.duration);
+    const rate=Number(s.speechRate),raw=s.baseSha256&&project.assets.find(a=>a.sha256===s.baseSha256);
+    const rawVerified=raw&&await options.verifiedHash(raw),base=raw?rawVerified&&await options.actualDuration(raw):Number(s.baseDuration);
+    const measured=Number(s.measuredSeconds),duration=actual&&Number.isFinite(rate)?await options.actualDuration(asset):null;
+    const produced=measured>0?measured:rawVerified?duration:null;
     const effectiveRate=Number.isFinite(rate)?rate*(clip.speed??1):null;
     const renderedRatio=base>0&&produced>0?base/produced:null;
-    const speedVerified=effectiveRate!=null&&Math.abs(effectiveRate-policy.speed)<=.035&&
-      renderedRatio!=null&&Math.abs(renderedRatio-rate)<=Math.max(.075,rate*.06)&&Number.isFinite(duration)&&
-      Math.abs(produced-duration)<=Math.max(.1,.027*duration)&&Boolean(s.tempoMethod);
+    const paceMeasured=effectiveRate!=null&&renderedRatio!=null&&Math.abs(renderedRatio-rate)<=Math.max(.075,rate*.06)&&
+      Number.isFinite(duration)&&Math.abs(produced-duration)<=Math.max(.1,.027*duration)&&Boolean(s.tempoMethod);
+    const speedVerified=paceMeasured&&Math.abs(effectiveRate-policy.speed)<=.035;
     summary.sources.push({clipId:clip.id,assetId:clip.assetId,fromFrame:clip.start,toFrame:endOf(clip),sha256:actual||null,
       mode:s.mode||s.voiceMode||(original?'original':settings.voiceMode),voiceId:s.voiceId||s.speaker||s.preset||null,referenceHash:s.referenceHash||null,model:s.model||null,
       identity:own?'user-selected':matched?'matched':s.mode==='system'?'system-default':preset?'preset-preview':'unverified',sourceInMix:inMix,
-      matchedWindows:windows.length,effectiveRate,renderedRatio,speedVerified});
+      matchedWindows:windows.length,effectiveRate,renderedRatio,paceMeasured,speedVerified,
+      paceEvidence:paceMeasured?(rawVerified?'baseline-and-final-files':'generation-duration-and-final-file'):'unverified'});
   }
   const rows=summary.sources;
   if(selection==='user'&&settings.voiceMode==='import'&&settings.narrationAssetId&&!clips.some(c=>c.assetId===settings.narrationAssetId)){
@@ -61,7 +65,11 @@ async function assessVoice(project,policy,receipt,selection,options) {
     summary.status||='unverified';summary.reasons.push('部分旁白未能从可核对的原件匹配到成片混音。');
   }
   if(selection!=='user'&&rows.some(r=>!r.speedVerified)) {
-    summary.status||='unverified';summary.reasons.push('未能从原始时长、变速记录和最终音频核实有效语速。');
+    summary.status||='unverified';
+    const verifiedRates=[...new Set(rows.filter(r=>!r.speedVerified).map(r=>Math.round(r.effectiveRate*100)/100))];
+    summary.reasons.push(rows.filter(r=>!r.speedVerified).every(r=>r.paceMeasured)
+      ?'文件时长与变速记录支持本版 '+verifiedRates.join(' / ')+' 倍试听，风格基准为 '+policy.speed+' 倍。'
+      :'未能从原始时长、变速记录和最终音频核实有效语速。');
   }
   summary.status||=selection==='user'?'user-selected':'verified';
   return {summary,severity:summary.reasons.length?'unknown':null};
@@ -168,6 +176,13 @@ export async function reviewStyleAudio(project,style,options) {
   const saved=project.styleAudio,receipt=saved?.styleId===style.id&&Number(saved.styleVersion)===Number(style.version)?saved:null;
   const end=Math.max(0,...project.timeline.clips.filter(c=>c.enabled!==false&&!c.hidden).map(endOf));
   const evidence={styleId:style.id,styleVersion:style.version},findings=[],hashes=new Map();
+  const durations=new Map();
+  async function actualDuration(asset){
+    if(!durations.has(asset.path))durations.set(asset.path,options.probeDuration(asset.path).catch(error=>{
+      if(options.signal?.aborted)throw error;return null;
+    }));
+    return durations.get(asset.path);
+  }
   async function verifiedHash(asset) {
     if(!asset?.path||!asset.sha256)return null;
     if(!hashes.has(asset.path))hashes.set(asset.path,options.hashFile(asset.path).catch(()=>null));
@@ -179,7 +194,7 @@ export async function reviewStyleAudio(project,style,options) {
   ]) {
     if(!policy[key])continue;
     const selection=audioSelection(project,key);
-    const {summary,severity,fromFrame=0,toFrame=end}=await assess(project,policy[key],receipt,selection,{...options,verifiedHash});
+    const {summary,severity,fromFrame=0,toFrame=end}=await assess(project,policy[key],receipt,selection,{...options,verifiedHash,actualDuration});
     evidence[key]=summary;
     if(severity)findings.push(finding(key,severity,summary.reasons.join(' '),fix,fromFrame,toFrame));
   }

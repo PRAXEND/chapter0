@@ -110,6 +110,13 @@ test('style audit compares the music stem in the actual mix, verifies the chosen
   assert.equal(result.evidence.styleAudio.music.sources[0].excerpt.matched,false);
   result=await reviewProject(p,{videoPath:mixed,styleSpec:style});
   assert.equal(result.evidence.styleAudio.music.sources[0].identity,'unverified');
+  const audition=structuredClone(p),baseline=path.join(dir,'raw-voice.wav');
+  await exec(ffmpeg,['-v','error','-i',voice,'-af','atempo=0.862069','-c:a','pcm_s16le',baseline]);
+  const baseHash=await fileSha256(baseline);audition.assets.push({id:'raw',path:baseline,sha256:baseHash,kind:'audio'});
+  audition.settings.voiceSelection='preview';audition.assets[1].source={mode:'preset',preset:'dylan',baseSha256:baseHash,speechRate:1.16,tempoMethod:'ffmpeg-atempo-once'};
+  result=await check(audition);const pace=result.evidence.styleAudio.voice.sources[0];
+  assert.equal(pace.paceEvidence,'baseline-and-final-files');assert.equal(pace.paceMeasured,true);assert.equal(pace.speedVerified,false);
+  assert.ok(result.evidence.styleAudio.voice.reasons.some(reason=>reason.includes('1.16 倍试听')));
   const wrongReference=structuredClone(p);
   await writeFile(ref,'reference changed');
   assert.equal((await check(wrongReference)).evidence.styleAudio.voice.status,'unverified');

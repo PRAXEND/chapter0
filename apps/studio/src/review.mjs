@@ -108,7 +108,7 @@ function timelineChecks(project,findings) {
   const last=Math.max(0,...clips.map(c=>c.start+c.duration-1));
   if(!visible.length) findings.push(issue('picture-missing','blocker','工程没有可见画面','补入可见镜头。'));
   if(original&&!dialogue.length) findings.push(issue('dialogue-missing','blocker','本期要求保留同期声，可见镜头的原声均缺失或静音','恢复人物原声音轨。',0,last));
-  if(['system','clone','import'].includes(mode)&&!narration.length) findings.push(issue('narration-missing','blocker','本期要求的旁白没有进入时间线','恢复已选择的旁白。',0,last));
+  if(['system','preset','clone','import'].includes(mode)&&!narration.length) findings.push(issue('narration-missing','blocker','本期要求的旁白没有进入时间线','恢复已选择的旁白。',0,last));
   const music=musicRequirement(project,findings,last);
   if(project.settings?.requireCaptions&&!captions.length) findings.push(issue('captions-missing','major','本期要求字幕，时间线缺少字幕','从实际语音重新对齐字幕。'));
   for(const cue of clips.filter(c=>c.track==='graphic' && c.templateRole==='action' && c.hidden!==true)) {
@@ -313,7 +313,10 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
   }
   if(meta.candidatePlayable) {
     const styleAudio=await reviewStyleAudio(project,styleSpec,{videoPath,signal,styleMusicResource,hasMix:probe.streams.some(s=>s.codec_type==='audio'),
-      voiceWindows:evidence.audio,hashFile:fileSha256,readPcm:(file,t,d)=>extractPcm(ffmpeg,file,t,d,signal)});
+      voiceWindows:evidence.audio,hashFile:fileSha256,probeDuration:async file=>{
+        const {stdout}=await run(ffprobe,['-v','error','-protocol_whitelist','file','-show_entries','format=duration','-of','csv=p=0',file],{signal});
+        return Number(stdout.trim());
+      },readPcm:(file,t,d)=>extractPcm(ffmpeg,file,t,d,signal)});
     if(styleAudio){
       evidence.styleAudio=styleAudio.evidence;
       for(const item of styleAudio.findings){
