@@ -68,7 +68,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     if (shape) {
       const w = Math.round(width * bound(clip.geometry.width, 0, 2));
       const h = Math.round(height * bound(clip.geometry.height, 0, 2));
-      drawing = `{\\p1}m 0 0 l ${w} 0 ${w} ${h} 0 ${h}{\\p0}`;
+      const edge = Math.max(1, Math.min(Math.round(number(style.strokeWidth, height / 240)), Math.floor(Math.min(w, h) / 2)));
+      const hole = clip.shape === 'outline' ? ` m ${edge} ${edge} l ${edge} ${h-edge} ${w-edge} ${h-edge} ${w-edge} ${edge}` : '';
+      drawing = `{\\p1}m 0 0 l ${w} 0 ${w} ${h} 0 ${h}${hole}{\\p0}`;
     }
     const initial = { frame: 0, x: number(clip.geometry?.x, 0.5), y: number(clip.geometry?.y, isCaption ? 0.86 : 0.28), scale: 1, opacity: 1 };
     const points = new Map([[0, initial]]);

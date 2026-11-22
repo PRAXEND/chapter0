@@ -73,7 +73,19 @@ function draw(){
   if(s.tab==='edit')drawEdit();else if(s.tab==='assets')drawAssets();else if(s.tab==='style')loadStyle().catch(e=>notice(e.message));else if(s.tab==='deliver')drawDeliver();else drawSettings();
 }
 function lastVideo(){return s.jobs.find(j=>j.files?.includes('video'));}
-function clipTitle(c){return c.text||assetName(c.assetId)||tracks[c.track];}
+function clipTitle(c){return c.text||(c.shape==='outline'?'证据指示框':'')||assetName(c.assetId)||tracks[c.track];}
+function cutLabel(job) {
+  const engine=job?.creativeEngine;
+  const mode=engine==='local'?'本地粗剪':engine==='codex'?'Codex 剪辑':'';
+  return [mode,job?.kind==='preview'?'预览':job?.kind==='render'?'导出':''].filter(Boolean).join(' · ')||'工程成片';
+}
+function framingFields(c) {
+  const point=(key,label)=>{
+    const v=c.framing?.[key]||c.framing?.from||{x:.5,y:.5,zoom:1};
+    return '<p>'+label+'</p><div class="three">'+[['x','水平中心',0,1],['y','垂直中心',0,1],['zoom','放大倍率',1,4]].map(([k,name,min,max])=>field(name,input('view-'+key+'-'+k,v[k],'number','min="'+min+'" max="'+max+'" step=".01"'))).join('')+'</div>';
+  };
+  return '<details><summary>原素材取景</summary>'+check('clip-framing','按原图位置取景',Boolean(c.framing))+point('from','首帧')+point('to','末帧')+'</details>';
+}
 function drawEdit(){
   const p=s.p, clips=p.timeline.clips, latest=lastVideo(), first=p.assets.find(a=>a.kind==='video'||a.kind==='image');
   const source=latest?'/api/jobs/'+latest.id+'/file/video':first?aid(first.id):null;
@@ -81,19 +93,20 @@ function drawEdit(){
   const active=s.jobs.find(j=>['running','queued','pausing'].includes(j.status));
   const chosen=clips.find(c=>c.id===s.clip);
   el('view').innerHTML=`<div class="edit-layout"><div class="stack"><div class="monitor"><div class="screen">${source?(latest||first.kind==='video'?`<video id="player" controls playsinline preload="metadata" src="${source}"></video>`:`<img src="${source}" alt="素材预览">`):`<div class="empty"><p>预览画面</p>${btn('tab','添加素材','','assets')}</div>`}</div>
-  <div class="monitor-foot">${btn('draft','查看当前草稿')}<span>${latest?'工程预览 · v'+latest.revision+(latest.revision===p.revision?'':' · 有新改动'):first?'素材预览':'工程预览'}</span><span class="mono">${p.profile.width} × ${p.profile.height} · ${fps} fps</span></div></div>
+  <div class="monitor-foot">${btn('draft','查看当前草稿')}<span>${latest?cutLabel(latest)+' · v'+latest.revision+(latest.revision===p.revision?'':' · 有新改动'):first?'素材预览':'工程预览'}</span><span class="mono">${p.profile.width} × ${p.profile.height} · ${fps} fps</span></div></div>
   <section class="card timeline"><div class="timeline-header"><h2>时间线</h2><span class="mono">${clock(total/fps)} · v${p.revision}</span></div><div class="ruler"><span></span><div>${[0,.25,.5,.75,1].map(x=>'<span>'+clock(total*x/fps)+'</span>').join('')}</div></div>
   ${Object.entries(tracks).map(([k,v])=>`<div class="lane"><span>${v}</span><div class="lane-body" data-frames="${total}">${clips.filter(c=>c.track===k).map(c=>`<button class="clip ${k} ${s.clip===c.id?'focus':''} ${c.locked?'lock':''}" data-clip="${esc(c.id)}" title="${esc(clipTitle(c))}" style="left:${100*c.start/total}%;width:${100*c.duration/total}%">${c.locked?'⌑ ':''}${esc(clipTitle(c))}</button>`).join('')}</div></div>`).join('')}
   </section><div id="inspect">${inspector(chosen)}</div></div>
-  <aside class="card director"><div class="hrow space"><h2>剪辑对话</h2><span class="pill">Codex</span></div>
+  <aside class="card director"><div class="hrow space"><h2>剪辑对话</h2></div>
   <div class="compose">${field('本次要求',area('instruction','',4,'例如，把选中镜头换成操作特写，旁白保留。'))}</div>
-  <div class="actions">${btn('direct',active?'调整制作方向':clips.length?'按要求改稿':'自动制作','primary')}${btn('local',clips.length?'本地草稿':'本地粗剪')}</div>
+  <div class="actions">${btn('direct',active?'告诉 Codex 新的方向':clips.length?'用 Codex 改稿':'用 Codex 剪辑','primary')}</div>
+  ${active?'':'<details><summary>本地粗剪</summary><p class="help">按素材与脚本生成草稿。需要按风格选镜、设计强调或检查画面时，请用 Codex 剪辑。</p>'+btn('local','生成本地草稿')+'</details>'}
   <div id="activity">${activity(active||s.jobs[0])}</div></aside></div>`;
 }
 function activity(j){
   if(!j)return '<p class="help">可以在这里查看制作进度、暂停任务并继续改稿。</p>';
   const text=(j.events||[]).slice(-8).map(e=>'<li>'+esc(e.message)+'</li>').join('');
-  return `<div class="hrow space"><strong>任务进度</strong><span class="pill">${statusLabels[j.status]||j.status}</span></div>
+  return `<div class="hrow space"><strong>${esc(['produce','revise'].includes(j.kind)?(j.creativeEngine==='local'?'本地粗剪进度':'Codex 剪辑进度'):j.kind==='preview'?'预览进度':'导出进度')}</strong><span class="pill">${statusLabels[j.status]||j.status}</span></div>
   ${j.status==='running'?'<progress></progress>':''}<ul class="log">${text}</ul>${j.error?'<p class="feedback">'+esc(j.error)+'</p>':''}
   ${['running','queued'].includes(j.status)?btn('pause','暂停','',j.id):['paused','failed'].includes(j.status)?btn('resume','检查后续作','',j.id):''}`;
 }
@@ -103,7 +116,7 @@ function inspector(c){
   <div class="three">${[['起点（秒）','at',c.start/fps],['长度（秒）','len',c.duration/fps],['原片入点（秒）','in',(c.sourceIn||0)/fps],['速率','speed',c.speed??1],['音量','gain',c.gain??1]].map(([label,id,v])=>field(label,input('clip-'+id,Number(v.toFixed(4)),'number','step="any" min="0"'))).join('')}</div>
   ${['caption','graphic'].includes(c.track)?field('文字',area('clip-text',c.text,2)):''}
   ${['caption','graphic'].includes(c.track)?`<details><summary>图层位置与关键帧</summary><div class="three">${field('水平位置 0–1',input('clip-x',c.geometry?.x??.5,'number','step=".01"'))}${field('垂直位置 0–1',input('clip-y',c.geometry?.y??.5,'number','step=".01"'))}${field('字号（像素）',input('clip-font',c.style?.fontSize||48,'number','min="1"'))}</div>${field('关键帧（帧、位置、缩放和透明度）',area('clip-keys',JSON.stringify(c.keyframes||[]),2))}</details>`:''}
-  ${c.track==='video'?`<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场叠化（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>`:''}<div class="actions">${c.track==='video'?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
+  ${c.track==='video'?`${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场叠化（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>`:''}<div class="actions">${c.track==='video'?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
 }
 async function edit(commands){
   const previous=s.p, result=await proj('/edits',{baseRevision:previous.revision,commands});
@@ -172,7 +185,7 @@ async function loadStyle(selector=s.p.style){
  <section class="card"><h2>保存个人风格</h2>${field('以后也这样剪',area('preference','',3,'记录这次调整，例如，结果出现后多停留半秒。'))}${btn('preference','保存为新版')}<hr><h3>从参考学习</h3>${field('风格名称',input('learn-name'))}${field('参考脚本',area('learn-script','',4))}${field('本机参考视频或录音',select('learn-media',[['','仅脚本'],...s.p.assets.filter(a=>['audio','video'].includes(a.kind)).map(a=>[a.id,a.name])],''))}${field('希望保留的视听特征（可选）',area('learn-observation','',2))}<details><summary>适用的模板与反例</summary>${field('可选场景模板',select('learn-template',[['','不指定'],['action-result','动作、反应与结果'],['step-reveal','分步揭示与实拍验证']]))}${field('这种风格应避开的做法',area('learn-exception','',2))}</details>${btn('learn','保存新风格')}</section></div></section>`;
 }
 function drawDeliver(){
- const cards=s.jobs.filter(j=>j.files?.includes('video')).map(j=>{const qa=j.qa||{};return `<section class="card"><div class="hrow space"><h2>${j.kind==='preview'?'预览':'成片'} · v${j.revision}</h2><span class="pill ${qa.status==='repair'?'bad':qa.status==='unverified'?'warn':''}">${esc(qa.label||'验收中')}</span></div>
+ const cards=s.jobs.filter(j=>j.files?.includes('video')).map(j=>{const qa=j.qa||{};return `<section class="card"><div class="hrow space"><h2>${esc(cutLabel(j))} · v${j.revision}</h2><span class="pill ${qa.status==='repair'?'bad':qa.status==='unverified'?'warn':''}">${esc(qa.label||'验收中')}</span></div>
  <video class="wide-video" data-review="${esc(j.id)}" controls preload="metadata" src="/api/jobs/${j.id}/file/video"></video>
  <div class="actions">${(j.files||[]).filter(k=>['video','subtitle','project','cover34','cover43','copy','credits','review'].includes(k)).map(k=>btn('reveal',({video:'MP4',subtitle:'SRT',project:'可编辑工程',cover34:'3:4 封面',cover43:'4:3 封面',copy:'发布文案',credits:'素材与事实来源',review:'验收记录'})[k],'',j.id+'|'+k)).join('')}</div>
  ${(qa.issues||[]).map((q,i)=>`<div class="feedback"><strong>${esc(q.message||q.reason)}</strong> <small>${clock((q.fromFrame||0)/frameRate())}</small> ${btn('review-issue','播放该段','',j.id+'|'+i)} ${btn('fix-issue','按意见修改','',j.id+'|'+i)}<br><small>${esc(q.fix||'')}</small></div>`).join('')}<p class="help">${esc((qa.limitations||[]).join('　'))}</p></section>`;}).join('');
@@ -227,8 +240,10 @@ async function runAction(act,id){
  case 'split-clip':{
   const c=p.timeline.clips.find(c=>c.id===id), at=Math.round((el('player')?.currentTime||0)*frameRate());
   if(!lastVideo()||at<=c.start||at>=c.start+c.duration)throw Error('先生成工程预览，将播放头放到片段中间。');
-  const head=at-c.start,newId=crypto.randomUUID();return edit([{op:'update',id,changes:{duration:head}},
-    {op:'add',clip:{...c,id:newId,start:at,duration:c.duration-head,sourceIn:(c.sourceIn||0)+Math.round(head*(c.speed||1)),transition:null}}]);}
+  const head=at-c.start,newId=crypto.randomUUID(),camera=c.framing;
+  const pointAt=frame=>Object.fromEntries(['x','y','zoom'].map(k=>[k,camera.from[k]+((camera.to||camera.from)[k]-camera.from[k])*frame/(c.duration-1)]));
+  return edit([{op:'update',id,changes:{duration:head,...(camera&&{framing:{from:camera.from,to:pointAt(head-1)}})}},
+    {op:'add',clip:{...c,id:newId,start:at,duration:c.duration-head,sourceIn:(c.sourceIn||0)+Math.round(head*(c.speed||1)),transition:null,...(camera&&{framing:{from:pointAt(head),to:camera.to||camera.from}})}}]);}
  case 'save-clip':{
   const c=p.timeline.clips.find(c=>c.id===id),f=frameRate();
   const changes={start:Math.round(Number(val('clip-at'))*f),sourceIn:Math.round(Number(val('clip-in'))*f),duration:Math.round(Number(val('clip-len'))*f),speed:Number(val('clip-speed')),gain:Number(val('clip-gain'))};
@@ -236,7 +251,11 @@ async function runAction(act,id){
     changes.text=val('clip-text');changes.geometry={...c.geometry,x:Number(val('clip-x')),y:Number(val('clip-y'))};
     changes.style={...c.style,fontSize:Number(val('clip-font'))};changes.keyframes=JSON.parse(val('clip-keys')||'[]');
   }
-  if(c.track==='video'){changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));changes.transition=n?{type:'fade',duration:n}:null;}
+  if(c.track==='video'){
+    const point=key=>Object.fromEntries(['x','y','zoom'].map(k=>[k,Number(val('view-'+key+'-'+k))]));
+    if(el('clip-framing').checked)changes.framing={from:point('from'),to:point('to')};
+    else if(c.framing)changes.framing=null;
+    changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));changes.transition=n?{type:'fade',duration:n}:null;}
   return edit([{op:'update',id,changes}]);}
  case 'fact-source':await proj('/facts/'+Number(id)+'/open',{});return;
  case 'fact-shot':{

@@ -51,6 +51,27 @@ test('the system releases an interrupted owner lock and a second instance cannot
   const app=await startStudio({root});try{await assert.rejects(startStudio({root}),/已由打开/);}finally{await app.close();}
   const restarted=await startStudio({root});await restarted.close();await rm(root,{recursive:true,force:true});
 });
+test('the local assembly remains a playable draft and records its engine in the portable project', async t=>{
+  const root=await mkdtemp(path.join(os.tmpdir(),'vs-local-draft-'));
+  const store=createStore(root,{probeMedia:async()=>({kind:'image',duration:0,width:160,height:90})});
+  const p=store.create({mode:'topic',title:'验证草稿'});
+  const source=path.join(root,'source.png');await writeFile(source,'fixture');
+  const asset=await store.addAsset(p.id,source);
+  const director={async run(id){
+    store.apply(id,store.get(id).revision,[{op:'add',clip:{id:'photo',track:'video',assetId:asset.id,start:0,duration:24}}],'codex');
+    return {engine:'local',message:'素材顺排'};
+  }};
+  const queue=createQueue({store,director,deliveryRoot:path.join(root,'deliveries'),
+    media:{async renderProject(_p,{output}){await writeFile(output,'video');await writeFile(output+'.srt','');return {videoPath:output,srtPath:output+'.srt'};}},
+    reviewProject:async()=>({deliverable:true,label:'可交付',issues:[]})});
+  t.after(async()=>{await queue.close();store.close();await rm(root,{recursive:true,force:true});});
+  const done=await awaitJob(store,queue.enqueue(p.id,'produce',{engine:'local'}).id,'done');
+  assert.ok(done.files.video);
+  assert.equal(done.published,undefined);
+  assert.equal(done.snapshot.lastDirection.engine,'local');
+  const explicit=await awaitJob(store,queue.enqueue(p.id,'render',{engine:'local'}).id,'done');
+  assert.ok(explicit.published.video);
+});
 test('a spoken change during local export starts an actual creative revision on the current timeline',async t=>{
   const root=await mkdtemp(path.join(os.tmpdir(),'vs-redirect-'));
   const store=createStore(root);

@@ -1,0 +1,34 @@
+// Coordinates refer to the displayed source before any cut, including its display rotation.
+export function validFraming(framing) {
+  function validPoint(point) {
+    return point && [point.x, point.y].every(n => Number.isFinite(n) && n >= 0 && n <= 1) &&
+      Number.isFinite(point.zoom) && point.zoom >= 1 && point.zoom <= 4;
+  }
+  return Boolean(validPoint(framing?.from) && (framing.to == null || validPoint(framing.to)));
+}
+
+export function framingFilter(clip, asset, profile, first) {
+  if (!validFraming(clip.framing)) throw new Error('取景中心须在原图内，放大倍率须为 1–4。');
+  const {from, to = from} = clip.framing;
+  const {width, height, fps} = profile;
+  const squareWidth = Math.max(2, 2 * Math.round(asset.width * (asset.pixelAspect || 1) / 2));
+  const sourceHeight = Math.max(2, 2 * Math.floor(asset.height / 2));
+  const cropW = Math.min(squareWidth, Math.max(2, 2 * Math.floor(sourceHeight * width / height / 2)));
+  const cropH = Math.min(sourceHeight, Math.max(2, 2 * Math.floor(squareWidth * height / width / 2)));
+  const num = n => String(Number(n.toFixed(8)));
+  function coord(key, counter) {
+    if (!to || from[key] === to[key] || clip.duration === 1) return num(from[key]);
+    return `(${num(from[key])}+${num(to[key] - from[key])}*(${counter}+${first - clip.start})/${clip.duration - 1})`;
+  }
+  // First extract the largest source window with the output aspect. It follows the focus
+  // so edge details remain reachable. Zoom within that window, retaining original pixels.
+  const inside = (key, fraction, size) => {
+    const pos = coord(key, 'on'), span = num(fraction);
+    return `clip(((${pos}-clip(${pos}-${span}/2,0,1-${span}))/${span}-0.5/zoom)*${size},0,${size}*(1-1/zoom))`;
+  };
+  const squarePixels = squareWidth !== asset.width || (asset.pixelAspect && asset.pixelAspect !== 1)
+    ? `scale=${squareWidth}:${sourceHeight},setsar=1,` : '';
+  return squarePixels +
+    `crop=w=${cropW}:h=${cropH}:x='clip(${coord('x','n')}*iw-ow/2,0,iw-ow)':y='clip(${coord('y','n')}*ih-oh/2,0,ih-oh)':exact=1,` +
+    `zoompan=z='${coord('zoom','on')}':x='${inside('x',cropW/squareWidth,'iw')}':y='${inside('y',cropH/sourceHeight,'ih')}':d=1:s=${width}x${height}:fps=${fps}`;
+}

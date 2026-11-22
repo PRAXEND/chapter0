@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { createAss, createSrt } from './text-tracks.mjs';
+import { framingFilter } from './framing.mjs';
 import { ffBase, inputArgs, mediaSlot, mediaTool, requiredTool, run, scratch } from './media-runtime.mjs';
 
 export { mediaTool };
@@ -25,9 +26,11 @@ export async function probeMedia(file, { signal } = {}) {
   const rotation = Math.abs(Number(video?.side_data_list?.find(s => s.rotation != null)?.rotation ?? video?.tags?.rotate ?? 0)) % 180;
   const width = video ? Number(rotation === 90 ? video.height : video.width) : 0;
   const height = video ? Number(rotation === 90 ? video.width : video.height) : 0;
+  const [sarX, sarY] = (video?.sample_aspect_ratio ?? '').split(':').map(Number);
+  const pixelAspect = sarX > 0 && sarY > 0 ? (rotation === 90 ? sarY/sarX : sarX/sarY) : 1;
   const [numerator, denominator] = (video?.avg_frame_rate ?? '').split('/').map(Number);
   const frameRate = video?.r_frame_rate === video?.avg_frame_rate && denominator > 0 ? numerator / denominator : undefined;
-  return { kind: image ? 'image' : video ? 'video' : 'audio', duration, width, height, hasAudio: Boolean(audio), videoCodec: video?.codec_name, audioCodec: audio?.codec_name, frames: Number(video?.nb_frames) || undefined, sampleRate: Number(audio?.sample_rate) || undefined, frameRate };
+  return { kind: image ? 'image' : video ? 'video' : 'audio', duration, width, height, ...(pixelAspect !== 1 && {pixelAspect}), hasAudio: Boolean(audio), videoCodec: video?.codec_name, audioCodec: audio?.codec_name, frames: Number(video?.nb_frames) || undefined, sampleRate: Number(audio?.sample_rate) || undefined, frameRate };
 }
 
 export async function fileHash(file) {
@@ -95,7 +98,8 @@ function buildVisualInput(clip, span, asset, profile, index) {
   const args = asset.kind === 'image' ? ['-loop', '1', '-framerate', String(fps), ...inputArgs(asset.path)] : ['-ss', rounded(source), ...inputArgs(asset.path)];
   const cover = clip.fit === 'cover';
   const size = cover ? `scale=${width}:${height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${width}:${height}` : `scale=${width}:${height}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black`;
-  const chain = `[${index}:v:0]setpts=(PTS-STARTPTS)/${rounded(rate)},fps=${fps},tpad=stop_mode=clone:stop=-1,trim=start_frame=${skip}:end_frame=${skip + span.duration},setpts=N/(${fps}*TB),${size},setsar=1,format=yuv420p[v${index}]`;
+  const view = clip.framing ? framingFilter(clip, asset, profile, span.start) : size;
+  const chain = `[${index}:v:0]setpts=(PTS-STARTPTS)/${rounded(rate)},fps=${fps},tpad=stop_mode=clone:stop=-1,trim=start_frame=${skip}:end_frame=${skip + span.duration},setpts=N/(${fps}*TB),${view},setsar=1,format=yuv420p[v${index}]`;
   return { args, chain };
 }
 

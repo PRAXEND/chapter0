@@ -34,7 +34,7 @@ async function readJson(req){
 }
 const equal=(a,b)=>typeof a==='string'&&typeof b==='string'&&Buffer.byteLength(a)===Buffer.byteLength(b)&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 function disclose(p){return {...p,assets:p.assets.map(({path,...a})=>a)};}
-function exposeJob(j){const {snapshot,priorCandidates,published,...safe}=j;return {...safe,publishedFolder:published?.video?path.dirname(published.video):undefined,files:j.files?Object.keys(j.files):[]};}
+function exposeJob(j){const {snapshot,priorCandidates,published,...safe}=j;return {...safe,creativeEngine:j.creativeResult?.engine||(['produce','revise'].includes(j.kind)?j.input?.engine:snapshot?.lastDirection?.engine),publishedFolder:published?.video?path.dirname(published.video):undefined,files:j.files?Object.keys(j.files):[]};}
 function openWithMac(file,reveal=false){
   if(process.platform!=='darwin')throw fault('系统打开操作需要 macOS。');
   const child=spawn('/usr/bin/open',reveal?['-R',file]:[file],{stdio:'ignore',detached:true});child.unref();

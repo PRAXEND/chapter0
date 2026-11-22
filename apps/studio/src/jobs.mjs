@@ -46,8 +46,7 @@ export function createQueue({store, director, media, reviewProject, prepare, del
         note('正在组织素材和剪辑');
         const outcome=await director.run(projectId,{...j.input,jobId:id,kind:j.kind,signal,onEvent:note});
         if(signal.aborted)throw signal.reason;
-        const p=store.get(projectId);
-        store.setMeta(projectId,{lastDirection:{message:String(outcome?.message||''),engine:outcome?.engine,needsReview:outcome?.needsReview||null}});
+        const p=store.setMeta(projectId,{lastDirection:{message:String(outcome?.message||''),engine:outcome?.engine,needsReview:outcome?.needsReview||null}});
         change(id,{phase:'render',revision:p.revision,snapshot:p,creativeResult:{message:outcome?.message,engine:outcome?.engine,needsReview:outcome?.needsReview||false}});
         if(!p.timeline.clips.some(c=>c.track==='video'))throw fault(outcome?.message||'草稿缺少可用画面，请导入素材。');
       }
@@ -95,7 +94,8 @@ export function createQueue({store, director, media, reviewProject, prepare, del
       const latest=store.get(projectId);
       if(latest.revision===p.revision)store.snapshot(latest);
       let published,publicationWarning;
-      if(qa.deliverable&&j.kind!=='preview'&&deliveryRoot){
+      const localDraft=j.creativeResult?.engine==='local' && ['produce','revise'].includes(j.kind);
+      if(qa.deliverable&&j.kind!=='preview'&&!localDraft&&deliveryRoot){
         try{published=await publishDelivery(deliveryRoot,p,j.id,files,styles);}catch(e){publicationWarning='成片已保存到工程交付目录。另存到影片目录时遇到问题：'+e.message;}
       }
       change(id,{status:'done',phase:'done',progress:1,files,qa,published,publicationWarning,stale:latest.revision!==p.revision});
