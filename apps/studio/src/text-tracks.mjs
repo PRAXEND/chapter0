@@ -66,6 +66,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     const shape = !clip.text && clip.geometry?.width && clip.geometry?.height;
     if (!shape && !cleanText(clip.text).trim()) continue;
     let drawing = assText(clip.text);
+    let anchorWidth = 0, anchorHeight = 0;
     if (shape) {
       const minimum = clip.shape === 'outline' ? 6 : 0;
       const w = Math.max(minimum, Math.round(width * bound(clip.geometry.width, 0, 2)));
@@ -74,6 +75,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       const opening = Math.max(4, Math.ceil(shortest / 2));
       const edge = Math.max(1, Math.min(Math.round(number(style.strokeWidth, height / 240)), Math.floor((shortest - opening) / 2)));
       const hole = clip.shape === 'outline' ? ` m ${edge} ${edge} l ${edge} ${h-edge} ${w-edge} ${h-edge} ${w-edge} ${edge}` : '';
+      // libass aligns a drawing to its ink bounds. A polygon's points use the entire editable box,
+      // including empty margins. Anchor its top-left corner as the box moves or scales.
+      if (clip.shape === 'polygon') { anchorWidth = w; anchorHeight = h; }
       const path = clip.shape === 'polygon' ? polygonPath(clip.geometry.points, w, h) : `m 0 0 l ${w} 0 ${w} ${h} 0 ${h}${hole}`;
       drawing = `{\\p1}${path}{\\p0}`;
     }
@@ -89,12 +93,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     const keys = [...points.values()];
     for (let i = 0; i < keys.length - 1; i++) {
       const a = keys[i], b = keys[i + 1];
-      const x = p => Math.round(width * p.x), y = p => Math.round(height * p.y);
+      const scalePercent = p => Math.round(100 * p.scale);
+      const x = p => Math.round(width * p.x - anchorWidth * scalePercent(p) / 200);
+      const y = p => Math.round(height * p.y - anchorHeight * scalePercent(p) / 200);
       const duration = Math.max(1, Math.round(1000 * (b.frame - a.frame) / fps));
       const pos = (x(a) === x(b) && y(a) === y(b)) ? `\\pos(${x(a)},${y(a)})` : `\\move(${x(a)},${y(a)},${x(b)},${y(b)},0,${duration})`;
-      const transform = p => `\\fscx${Math.round(100 * p.scale)}\\fscy${Math.round(100 * p.scale)}\\1a${alpha(p.opacity * fg.opacity)}\\3a${alpha(p.opacity * bg.opacity)}`;
+      const transform = p => `\\fscx${scalePercent(p)}\\fscy${scalePercent(p)}\\1a${alpha(p.opacity * fg.opacity)}\\3a${alpha(p.opacity * bg.opacity)}`;
       const motion = (a.scale !== b.scale || a.opacity !== b.opacity) ? `\\t(0,${duration},${transform(b)})` : '';
-      const tags = `{\\an5${pos}\\fs${font}\\1c${fg.rgb}\\3c${bg.rgb}\\bord${shape ? 0 : outline.toFixed(2)}${transform(a)}${motion}}`;
+      const tags = `{\\an${anchorWidth ? 7 : 5}${pos}\\fs${font}\\1c${fg.rgb}\\3c${bg.rgb}\\bord${shape ? 0 : outline.toFixed(2)}${transform(a)}${motion}}`;
       lines.push(`Dialogue: ${isCaption ? 2 : 1},${clock(clip.start + a.frame, fps, true)},${clock(clip.start + b.frame, fps, true)},${boxed ? 'Box' : 'Caption'},,0,0,0,,${tags}${drawing}`);
     }
   }

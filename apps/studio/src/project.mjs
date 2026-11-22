@@ -46,7 +46,7 @@ export function validateClip(clip,p) {
   if(clip.shape==='outline' && (clip.track!=='graphic' || clip.text || !['width','height'].every(k=>clip.geometry?.[k]>0 && clip.geometry[k]<=2)))throw fault('指示框需要空文字与有效尺寸。');
   if(clip.shape==='polygon'){
     if(clip.track!=='graphic'||clip.text||!['width','height'].every(k=>clip.geometry?.[k]>0&&clip.geometry[k]<=2))throw fault('矢量轮廓需要空文字与有效宽高。');
-    try{polygonPath(clip.geometry.points,p.profile.width,p.profile.height);}catch(error){throw fault(error.message);}
+    try{polygonPath(clip.geometry.points,Math.round(p.profile.width*clip.geometry.width),Math.round(p.profile.height*clip.geometry.height));}catch(error){throw fault(error.message);}
   }
   if(clip.keyframes && (!Array.isArray(clip.keyframes)||clip.keyframes.some(k=>!Number.isInteger(k.frame)||k.frame<0||k.frame>clip.duration)))throw fault('关键帧须位于图层范围内。');
 }
