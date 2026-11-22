@@ -105,12 +105,15 @@ async function installSpeech(cache, work, log, signal) {
   if (!(await audioCapabilities()).transcription) throw new Error('转录工具或模型未就绪');
 }
 
-async function installVoiceRuntime(cache, work, log, signal) {
+async function installVoiceRuntime(cache, work, log, signal, needsPreset) {
   log('准备 Apple Silicon 本地语音依赖');
   const [major, minor] = (await run('/usr/bin/sw_vers', ['-productVersion'], { signal })).trim().split('.').map(Number);
   if (major < 14) throw new Error('本地神经语音需要运行 macOS 14 或更新版本的 Apple Silicon Mac');
   const python = process.env.VIDEO_STUDIO_MLX_PYTHON || await pythonEnv(cache, work, signal, log);
-  const check = ['-c', 'from importlib.metadata import version; from mlx_audio.tts.models.qwen3_tts.qwen3_tts import Model; import soundfile, mlx.core; assert version("mlx-audio") == "0.6.7" and callable(Model.generate_custom_voice)'];
+  const imports = 'from mlx_audio.tts.utils import load_model; import soundfile, mlx.core';
+  const check = ['-c', imports +
+    (needsPreset ? '; from mlx_audio.tts.models.qwen3_tts.qwen3_tts import Model; assert callable(Model.generate_custom_voice)' : '') +
+    (process.env.VIDEO_STUDIO_MLX_PYTHON ? '' : '; from importlib.metadata import version; assert version("mlx-audio") == "0.6.7"')];
   try {
     await run(python, check, { signal });
     return;
@@ -197,7 +200,7 @@ export async function prepareMedia(group, { signal, onProgress = () => {} } = {}
     await scratch(cache, async work => {
       if (group === 'render' || group === 'all') await installRender(cache, work, onProgress, signal);
       if (group === 'speech' || group === 'all') await installSpeech(cache, work, onProgress, signal);
-      if (['clone', 'preset', 'all'].includes(group)) await installVoiceRuntime(cache, work, onProgress, signal);
+      if (['clone', 'preset', 'all'].includes(group)) await installVoiceRuntime(cache, work, onProgress, signal, group !== 'clone');
       if (group === 'clone' || group === 'all') await installClone(cache, work, onProgress, signal);
       if (group === 'preset' || group === 'all') await installPreset(cache, onProgress, signal);
     });

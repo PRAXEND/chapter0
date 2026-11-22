@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { audioCapabilities, synthesize } from '../src/audio.mjs';
 import { presetFiles, presetModelReady } from '../src/qwen-preset.mjs';
+import { prepareMedia } from '../scripts/prepare-media.mjs';
 
 test('a system voice or an installed clone does not masquerade as the publisher preset', async t => {
   const cache = await mkdtemp(path.join(os.tmpdir(), 'studio-preset-missing-'));
@@ -18,7 +19,7 @@ test('a system voice or an installed clone does not masquerade as the publisher 
   await mkdir(path.join(base, 'speech_tokenizer'), { recursive:true });
   await writeFile(path.join(base,'model.safetensors'), 'base');
   await writeFile(path.join(base,'speech_tokenizer/model.safetensors'), 'codec');
-  await writeFile(python, '#!/bin/sh\nexit 0\n', { mode:0o700 });
+  await writeFile(python, '#!/bin/sh\ncase "$2" in *generate_custom_voice*) exit 1;; esac\nexit 0\n', { mode:0o700 });
   Object.assign(process.env, {VIDEO_STUDIO_MEDIA_HOME:cache, VIDEO_STUDIO_QWEN_MODEL:base,
     VIDEO_STUDIO_QWEN_PRESET_MODEL:preset, VIDEO_STUDIO_MLX_PYTHON:python});
   const caps = await audioCapabilities();
@@ -28,6 +29,10 @@ test('a system voice or an installed clone does not masquerade as the publisher 
   await assert.rejects(synthesize('这是预置试听。', {mode:'preset', output}), /准备本地 Qwen 预置音色/);
   await assert.rejects(synthesize('这是预置试听。', {mode:'preset', voice:'unknown', output}), /未识别/);
   assert.ok(!(await readdir(cache)).includes('candidate.wav'));
+  if (process.platform === 'darwin' && process.arch === 'arm64') {
+    assert.equal((await prepareMedia('clone')).audio.clone, true);
+    await assert.rejects(prepareMedia('preset'));
+  }
 });
 
 test('a truncated or same-size unverified preset installation cannot report ready', async t => {
