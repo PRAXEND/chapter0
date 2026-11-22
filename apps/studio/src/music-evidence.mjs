@@ -128,3 +128,35 @@ export async function measureMusicMix(project,beds,{readPcm,verifiedHash,videoPa
     :!missing.length&&present.length>=Math.min(2,evidence.windows.length)&&present.length>0&&present.length>=evidence.windows.length*.67?'present':'unverified';
   return evidence;
 }
+
+export function isMusicBed(clip,asset) {
+  const effects=['sfx','effect','action-sound','reveal-sound'];
+  return clip.track==='music'&&![clip.role,clip.templateRole,asset?.source?.role,asset?.source?.kind].some(value=>effects.includes(value));
+}
+
+// A WAV excerpt may have a different container, level and edge fades from its licensed master.
+// Verify the declared edit against the master, independently of the final-mix comparison.
+export async function verifyMusicExcerpt(asset,parent,range,{readPcm,signal}) {
+  if(!Array.isArray(range)||range.length!==2||!range.every(Number.isFinite)||range[0]<0||range[1]<=range[0]||
+    !Number.isFinite(parent.duration)||range[1]>parent.duration+.08||
+    !Number.isFinite(asset.duration)||Math.abs((range[1]-range[0])-asset.duration)>.12)return null;
+  const duration=asset.duration,length=Math.min(.64,duration*.16);
+  if(length<.25)return null;
+  const windows=[];
+  for(const fraction of [.19,.5,.81]) {
+    const t=fraction*duration-length/2;
+    try{
+      const [original,edited]=await Promise.all([readPcm(parent.path,range[0]+t,length),readPcm(asset.path,t,length)]);
+      const n=Math.min(original.length,edited.length)-64;
+      if(n<400)return null;
+      let best=-1;
+      const y=edited.subarray(32,32+n);
+      for(let lag=-24;lag<=24;lag++) {
+        const x=original.subarray(32+lag,32+lag+n),xy=power(x,y),xx=power(x),yy=power(y);
+        if(xx/n>1e-8&&yy/n>1e-8)best=Math.max(best,xy/Math.sqrt(xx*yy));
+      }
+      windows.push({at:t,originalAt:range[0]+t,seconds:length,similarity:round(best)});
+    }catch(error){if(signal?.aborted)throw error;return null;}
+  }
+  return {parentAssetId:parent.id,parentSha256:parent.sha256,range,windows,matched:windows.every(w=>w.similarity>=.94)};
+}

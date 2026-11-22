@@ -41,7 +41,7 @@ test('style audit compares the music stem in the actual mix, verifies the chosen
     {id:'ref',path:ref,sha256:refHash,duration:1,source:{consent:true,sourceVoice:'narrator'}}],
     timeline:{clips:[{id:'image',track:'video',assetId:'v',start:0,duration:frames},{id:'n-clip',track:'narration',assetId:'n',start:0,duration:frames},
       {id:'m-clip',track:'music',assetId:'m',start:0,duration:frames,gain:.2,ducking:false}]}};
-  const check=(project,videoPath=mixed,styleSpec=style)=>reviewProject(project,{videoPath,styleSpec});
+  const check=(project,videoPath=mixed,styleSpec=style)=>reviewProject(project,{videoPath,styleSpec,styleMusicResource:{verified:true,available:true,sha256:bedHash}});
   let result=await check(p),audio=result.evidence.styleAudio;
   assert.equal(result.status,'deliverable',JSON.stringify(result.issues));
   assert.equal(audio.voice.status,'verified');assert.equal(audio.music.status,'verified');
@@ -71,6 +71,9 @@ test('style audit compares the music stem in the actual mix, verifies the chosen
   assert.equal(result.evidence.styleAudio.voice.status,'user-selected');
   generic.settings.voiceMode='import';generic.settings.narrationAssetId='n';generic.assets[1].source={kind:'user-recording'};
   generic.settings.musicMode='none';generic.settings.musicEnabled=false;
+  const wrongSong=structuredClone(p);Object.assign(wrongSong.settings,{musicSelection:'user',musicAssetId:'n'});
+  result=await check(wrongSong);assert.equal(result.status,'repair');assert.equal(result.evidence.styleAudio.music.status,'wrong-selection');
+  assert.equal(result.evidence.styleAudio.music.sources[0].identity,'different-selection');
   const shouldBeSilent=structuredClone(generic);shouldBeSilent.timeline.clips.at(-1).muted=true;
   result=await check(shouldBeSilent,mixed);assert.equal(result.evidence.styleAudio.music.status,'unexpected');assert.equal(result.status,'repair');
   assert.equal((await check(shouldBeSilent,dry)).evidence.styleAudio.music.status,'user-off');
@@ -92,6 +95,21 @@ test('style audit compares the music stem in the actual mix, verifies the chosen
   const original=structuredClone(generic);original.settings.voiceMode='original';original.timeline.clips=[{id:'original-source',track:'video',assetId:'n',start:0,duration:frames}];
   original.assets[1].kind='video';original.assets[1].hasAudio=true;
   assert.equal((await check(original,dry)).evidence.styleAudio.voice.status,'user-selected');
+  const excerpt=path.join(dir,'excerpt.wav');
+  await exec(ffmpeg,['-v','error','-i',bed,'-af','volume=0.7,afade=t=in:st=0:d=0.04,afade=t=out:st=3.9:d=0.1','-c:a','pcm_s24le',excerpt]);
+  const derivative=structuredClone(p);
+  derivative.assets.push({...derivative.assets[2],id:'full-music'});
+  derivative.assets[2]={...derivative.assets[2],path:excerpt,sha256:await fileSha256(excerpt),
+    source:{title:'Licensed bed',artist:'Test',originalSha256:bedHash,parentAssetId:'full-music',originalRangeSeconds:[0,4]}};
+  result=await check(derivative);const verified=result.evidence.styleAudio.music.sources[0];
+  assert.equal(verified.identity,'matched');assert.equal(verified.excerpt.parentSha256,bedHash);
+  assert.equal(verified.excerpt.windows.length,3);assert.ok(verified.excerpt.windows.every(w=>w.similarity>=.94));
+  assert.equal(result.evidence.styleAudio.music.status,'verified');
+  derivative.assets[2].path=voice;derivative.assets[2].sha256=voiceHash;
+  result=await check(derivative);assert.equal(result.evidence.styleAudio.music.sources[0].identity,'unverified');
+  assert.equal(result.evidence.styleAudio.music.sources[0].excerpt.matched,false);
+  result=await reviewProject(p,{videoPath:mixed,styleSpec:style});
+  assert.equal(result.evidence.styleAudio.music.sources[0].identity,'unverified');
   const wrongReference=structuredClone(p);
   await writeFile(ref,'reference changed');
   assert.equal((await check(wrongReference)).evidence.styleAudio.voice.status,'unverified');

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
 import {makePublicationPackage} from './publication.mjs';
+import {styleAudioPolicy} from './style-audio.mjs';
 import { randomUUID } from 'node:crypto';
 import { portableProject, publishDelivery } from "./library.mjs";
 import { fault } from './project.mjs';
@@ -70,7 +71,9 @@ export function createQueue({store, director, media, reviewProject, prepare, del
       }
       j=store.getJob(id);note('正在核对实际导出文件');
       const styleSpec=styles?.get && p.style ? await styles.get(p.style.id,p.style.version) : undefined;
-      const qa=await reviewProject(p,{videoPath:j.files.video,srtPath:j.files.subtitle,signal,preview:j.kind==='preview',findings:p.findings||[],styleSpec});
+      const musicPolicy=styleAudioPolicy(styleSpec)?.music;
+      const styleMusicResource=musicPolicy&&styles?.getMusicResource?await styles.getMusicResource(p.style.id,p.style.version,musicPolicy):null;
+      const qa=await reviewProject(p,{videoPath:j.files.video,srtPath:j.files.subtitle,signal,preview:j.kind==='preview',findings:p.findings||[],styleSpec,styleMusicResource});
       signal.throwIfAborted();
       const remedy=qa.repairs?.[0];
       if(remedy && !qa.deliverable && j.repairs<2 && store.get(projectId).revision===p.revision){

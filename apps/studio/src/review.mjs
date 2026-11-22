@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {fileSha256} from './style.mjs';
 import {reviewVisualEvidence} from './visual-review.mjs';
 import {reviewStyleAudio} from './style-audio-review.mjs';
+import {isMusicBed} from './music-evidence.mjs';
 import {currentCutNotes} from './storyboard.mjs';
 import {withinSegmentMessage} from './speech-alignment.mjs';
 export {createBlindReview} from './blind-review.mjs';
@@ -19,8 +20,8 @@ function musicRequirement(project,findings,last) {
   if(s.musicEnabled===false||s.musicMode==='none') return [];
   const required=s.requireMusic||s.musicAssetId||['original','asset'].includes(s.musicMode)||(project.directorNotes||[]).some(musicNote);
   if(!required) return [];
-  const effects=new Set(project.assets.filter(a=>a.source?.role==='sfx').map(a=>a.id));
-  const music=project.timeline.clips.filter(c=>c.track==='music'&&c.role!=='sfx'&&!effects.has(c.assetId)&&!c.muted&&isActive(c)&&(c.gain??1)>0&&(!s.musicAssetId||c.assetId===s.musicAssetId));
+  const assets=new Map(project.assets.map(a=>[a.id,a]));
+  const music=project.timeline.clips.filter(c=>isMusicBed(c,assets.get(c.assetId))&&!c.muted&&isActive(c)&&(c.gain??1)>0&&(!s.musicAssetId||c.assetId===s.musicAssetId));
   if(!music.length) {findings.push(issue('music-required','major','本期指定的配乐未出现在可听轨道上','把已选择的曲目加入音乐轨，检查音量。',0,last));return [];}
   if(s.musicMode==='original') {
     for(const id of new Set(music.map(c=>c.assetId))) {
@@ -257,7 +258,7 @@ function currentDirectorFindings(project) {
   if(locations.length)problems.push({...issue('estimated-caption-switches','minor',withinSegmentMessage,'播放标记的换字位置，按听感微调字幕。',locations[0].frame,locations[0].frame),locations});
   return problems;
 }
-export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,styleSpec,resolveTool=defaultResolver}={}) {
+export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,styleSpec,styleMusicResource,resolveTool=defaultResolver}={}) {
   const problems=[...findings,...currentDirectorFindings(project)],evidence={audio:[],decode:false};
   const meta={revision:project.revision,frameRate:project.profile.fps,artifactSha256:null,subtitleSha256:null,candidatePlayable:false,evidence,
     limitations:['波形与抽帧提供技术证据。音色自然度、发音、节奏偏好和未标注的动作语义需要原速观看或试听。']};
@@ -311,7 +312,7 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
     }
   }
   if(meta.candidatePlayable) {
-    const styleAudio=await reviewStyleAudio(project,styleSpec,{videoPath,signal,hasMix:probe.streams.some(s=>s.codec_type==='audio'),
+    const styleAudio=await reviewStyleAudio(project,styleSpec,{videoPath,signal,styleMusicResource,hasMix:probe.streams.some(s=>s.codec_type==='audio'),
       voiceWindows:evidence.audio,hashFile:fileSha256,readPcm:(file,t,d)=>extractPcm(ffmpeg,file,t,d,signal)});
     if(styleAudio){
       evidence.styleAudio=styleAudio.evidence;

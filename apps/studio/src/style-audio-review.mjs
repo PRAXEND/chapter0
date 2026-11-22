@@ -1,5 +1,5 @@
 import {styleAudioPolicy,audioSelection} from './style-audio.mjs';
-import {measureMusicMix} from './music-evidence.mjs';
+import {measureMusicMix,isMusicBed,verifyMusicExcerpt} from './music-evidence.mjs';
 
 const audible=c=>c.enabled!==false&&!c.hidden&&!c.muted&&(c.gain??1)>0;
 const endOf=c=>c.start+c.duration;
@@ -7,8 +7,9 @@ function finding(component,severity,message,fix,fromFrame,toFrame) {
   return {id:'style-audio-'+component,reason:'style-audio-'+component,severity,message,fix,fromFrame,toFrame:Math.max(fromFrame,toFrame-1)};
 }
 function sameIdentity(policy,source,actualHash) {
-  if(!actualHash||!policy.title||source.kind!=='style-music'||source.styleResourceHash!==actualHash)return false;
-  return ['title','author','url','license'].every(key=>!policy[key]||source[key]===policy[key]);
+  if(!actualHash||!policy.title||!['style-music','music'].includes(source.kind)||
+    (source.styleResourceHash||source.originalSha256)!==actualHash||actualHash!==policy.sha256)return false;
+  return ['title','author','url','license'].every(key=>!policy[key]||(key==='author'?source.author||source.artist:source[key])===policy[key]);
 }
 async function assessVoice(project,policy,receipt,selection,options) {
   const settings=project.settings||{},assets=new Map(project.assets.map(a=>[a.id,a]));
@@ -31,8 +32,10 @@ async function assessVoice(project,policy,receipt,selection,options) {
       reference?.source?.consent===true&&(!settings.referenceHash||settings.referenceHash===expectedReference)&&
       (!settings.voiceLibraryId||reference.source.sourceVoice===settings.voiceLibraryId)&&(!s.generatedHash||s.generatedHash===actual);
     const own=selection==='user'&&(settings.voiceMode==='import'&&(!settings.narrationAssetId||settings.narrationAssetId===asset?.id)||
-      original&&clip.track==='video'||settings.voiceMode==='system'&&s.mode==='system'||settings.voiceMode==='clone'&&clone);
+      original&&(clip.track==='video'||!s.mode)||settings.voiceMode==='system'&&s.mode==='system'||
+      settings.voiceMode==='preset'&&(s.mode==='preset'||s.voiceMode==='preset')||settings.voiceMode==='clone'&&clone);
     const matched=Boolean(clone&&receipt?.voice?.status==='matched'&&receipt.voice.referenceHash===expectedReference);
+    const preset=s.mode==='preset'||s.voiceMode==='preset'||s.preset;
     const rate=Number(s.speechRate),base=Number(s.baseDuration),produced=Number(s.measuredSeconds),duration=Number(asset?.duration);
     const effectiveRate=Number.isFinite(rate)?rate*(clip.speed??1):null;
     const renderedRatio=base>0&&produced>0?base/produced:null;
@@ -40,12 +43,16 @@ async function assessVoice(project,policy,receipt,selection,options) {
       renderedRatio!=null&&Math.abs(renderedRatio-rate)<=Math.max(.075,rate*.06)&&Number.isFinite(duration)&&
       Math.abs(produced-duration)<=Math.max(.1,.027*duration)&&Boolean(s.tempoMethod);
     summary.sources.push({clipId:clip.id,assetId:clip.assetId,fromFrame:clip.start,toFrame:endOf(clip),sha256:actual||null,
-      mode:s.mode||(original?'original':settings.voiceMode),voiceId:s.voiceId||null,referenceHash:s.referenceHash||null,model:s.model||null,
-      identity:own?'user-selected':matched?'matched':s.mode==='system'?'system-default':'unverified',sourceInMix:inMix,
+      mode:s.mode||s.voiceMode||(original?'original':settings.voiceMode),voiceId:s.voiceId||s.speaker||s.preset||null,referenceHash:s.referenceHash||null,model:s.model||null,
+      identity:own?'user-selected':matched?'matched':s.mode==='system'?'system-default':preset?'preset-preview':'unverified',sourceInMix:inMix,
       matchedWindows:windows.length,effectiveRate,renderedRatio,speedVerified});
   }
   const rows=summary.sources;
-  if(rows.some(r=>r.identity==='system-default')||selection==='preview'){
+  if(selection==='user'&&settings.voiceMode==='import'&&settings.narrationAssetId&&!clips.some(c=>c.assetId===settings.narrationAssetId)){
+    summary.status='wrong-selection';summary.reasons.push('成片在用的旁白与本期明确选中的录音不同。');
+    return {summary,severity:'major'};
+  }
+  if(rows.some(r=>['system-default','preset-preview'].includes(r.identity))||selection==='preview'){
     summary.status='preview-only';summary.reasons.push('候选用了系统或试听占位音色，尚未关联本期确认的解说音色。');
   } else if(rows.some(r=>!['matched','user-selected'].includes(r.identity))) {
     summary.status='unverified';summary.reasons.push('所选风格要求使用本期确认的音色，当前参考录音、生成原件和有效轨道的身份未能完整对应。');
@@ -65,7 +72,7 @@ async function assessMusic(project,policy,receipt,selection,options) {
   const end=Math.max(0,...project.timeline.clips.filter(c=>c.enabled!==false&&!c.hidden).map(endOf));
   const summary={required:true,selection,preferredTitle:policy.title,reasons:[],ducking:{expected:policy.ducking},sources:[]};
   const off=settings.musicEnabled===false||settings.musicMode==='none';
-  const bedTracks=project.timeline.clips.filter(c=>c.track==='music'&&c.role!=='sfx'&&assets.get(c.assetId)?.source?.role!=='sfx');
+  const bedTracks=project.timeline.clips.filter(c=>isMusicBed(c,assets.get(c.assetId)));
   const beds=bedTracks.filter(audible);
   if(off&&selection==='user'){
     Object.assign(summary,{status:'user-off',mixStatus:'not-requested',coverageFrames:0,windows:[]});
@@ -88,15 +95,23 @@ async function assessMusic(project,policy,receipt,selection,options) {
     return {summary,severity:off?'unknown':'major',fromFrame:0,toFrame:end};
   }
   const {music:receiptMusic}=receipt||{};
+  const differentSelection=selection==='user'&&settings.musicAssetId&&!beds.some(c=>c.assetId===settings.musicAssetId);
   for(const assetId of new Set(beds.map(c=>c.assetId))) {
     const a=assets.get(assetId),s=a?.source||{},hash=a&&await options.verifiedHash(a);
     const linked=Boolean(hash&&receiptMusic?.assetId===assetId&&receiptMusic.sha256===hash);
-    let identity='unverified';
-    if(hash&&selection==='user'&&(!settings.musicAssetId||settings.musicAssetId===assetId))identity='user-selected';
-    else if(sameIdentity(policy,s,hash))identity='matched';
+    let identity='unverified',excerpt=null;
+    if(hash&&s.parentAssetId&&s.parentAssetId!==assetId) {
+      const parent=assets.get(s.parentAssetId),parentHash=parent&&await options.verifiedHash(parent);
+      if(parentHash&&s.originalSha256===parentHash&&sameIdentity(policy,parent.source||{},parentHash)){
+        excerpt=await verifyMusicExcerpt(a,parent,s.originalRangeSeconds,options);
+      }
+    }
+    if(differentSelection)identity='different-selection';
+    else if(hash&&selection==='user'&&(!settings.musicAssetId||settings.musicAssetId===assetId))identity='user-selected';
+    else if(sameIdentity(policy,s,hash)||excerpt?.matched)identity='matched';
     else if(hash&&linked&&receiptMusic.status==='alternative'&&(s.license||s.rights)&&!s.bedStyle&&Number.isFinite(receiptMusic.sourceLUFS)&&Number.isFinite(receiptMusic.voiceLUFS))identity='licensed-alternative';
     else if(s.bedStyle||selection==='preview')identity='preview-only';
-    summary.sources.push({assetId,title:s.title||s.name||a?.name||null,author:s.author||null,license:s.license||s.rights||null,sha256:hash||null,identity});
+    summary.sources.push({assetId,title:s.title||s.name||a?.name||null,author:s.author||s.artist||null,license:s.license||s.rights||null,sha256:hash||null,identity,...(excerpt&&{excerpt})});
   }
   const result=await measureMusicMix(project,beds,options);
   Object.assign(summary,result);
@@ -134,6 +149,10 @@ async function assessMusic(project,policy,receipt,selection,options) {
   if(policy.ducking===false&&selection!=='user'&&summary.ducking.observed==='variation-in-samples'){
     summary.status||='unverified';severity||='unknown';summary.reasons.push('原曲在多个成片窗口的有效增益有明显变化，需试听确认固定混音的效果。');
   }
+  if(differentSelection){
+    summary.status='wrong-selection';severity='major';
+    summary.reasons.unshift('可听音乐轨实际使用的曲目与本期明确选择的曲目不同。');
+  }
   summary.status||=selection==='user'?'user-selected':'verified';
   return {summary,severity,fromFrame,toFrame};
 }
@@ -141,6 +160,11 @@ async function assessMusic(project,policy,receipt,selection,options) {
 export async function reviewStyleAudio(project,style,options) {
   const policy=styleAudioPolicy(style);
   if(!policy||project.style&&(style.id!==project.style.id||Number(style.version)!==Number(project.style.version)))return null;
+  if(policy.music){
+    const resource=options.styleMusicResource;
+    const declared=style.audioBlueprint?.music?.sha256||style.reproduction_blueprint?.audio?.music?.sha256;
+    policy.music.sha256=resource?.verified===true&&resource.available===true?resource.sha256:declared||null;
+  }
   const saved=project.styleAudio,receipt=saved?.styleId===style.id&&Number(saved.styleVersion)===Number(style.version)?saved:null;
   const end=Math.max(0,...project.timeline.clips.filter(c=>c.enabled!==false&&!c.hidden).map(endOf));
   const evidence={styleId:style.id,styleVersion:style.version},findings=[],hashes=new Map();
