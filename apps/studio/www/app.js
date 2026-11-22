@@ -189,11 +189,13 @@ function pictureEvidence(qa){
  if(!coverage?.totalFrames)return '';
  const seconds=n=>((n||0)/(qa.frameRate||frameRate())).toFixed(1)+' 秒';
  const videoFrames=coverage.videoFrames??(visual.sourceWindows||[]).filter(w=>w.kind==='video').reduce((n,w)=>n+w.toFrame-w.fromFrame+1,0);
- const rows=['画面总长 '+seconds(coverage.totalFrames),'源录像 '+seconds(videoFrames),'静照 '+seconds(coverage.stillFrames)];
+ const rows=['画面总长 '+seconds(coverage.totalFrames),'源录像 '+seconds(videoFrames),'照片底图 '+seconds(coverage.stillFrames)];
  const measured=videoFrames?'按最长 4 秒分段抽帧，源片和成片均检出局部变化的区间约 '+seconds(coverage.changingFrames)+'。':'';
  if(coverage.unverifiedFrames)rows.push('未核实 '+seconds(coverage.unverifiedFrames));
+ const diagram=visual.explanatoryAnimation;
+ const explained=diagram?.diagramFrames?'已核实图解 '+seconds(diagram.diagramFrames)+'，其中关键帧动作 '+seconds(diagram.actionFrames)+'。':'';
  const policy={met:'运动画面承担了主要讲解。',partial:'已用部分运动镜头，风格要求的运动画面占比仍有差距。',unmet:'所选风格要求用运动画面讲解，此版没有核实到相应镜头。',unverified:'运动镜头的作用仍待核实。','photo-adaptation':'按本期要求以照片讲解。'};
- return '<div class="entry"><div><strong>实际画面构成</strong><p>'+esc(rows.join(' · '))+'</p><small>'+esc(measured+(policy[visual.styleExecution?.motionStatus]||''))+'</small></div></div>';
+ return '<div class="entry"><div><strong>实际画面构成</strong><p>'+esc(rows.join(' · '))+'</p><small>'+esc(measured+explained+(policy[visual.styleExecution?.motionStatus]||''))+'</small></div></div>';
 }
 function issuePlayback(q,job,index,rate){
  const key=job+'|'+index;

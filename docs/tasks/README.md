@@ -1,5 +1,6 @@
 # 任务记录
 
+- [技术科普 v8 与月面成片的实际剪辑质量](T-20261123-v8-edit-quality.md)
 - [独立 Mac 自动剪辑工作台](T-20261122-standalone-mac.md)
 
 web.39（2026-11-16）汇总以下三项累计修复及后台唤起改进，基线为已发布 web.38 `c057229`。发行范围与升级以 [RELEASE_SCOPE](../../RELEASE_SCOPE.md)、[VALIDATION](../../VALIDATION.md)、[UPGRADE](../../UPGRADE.md) 为准；固定标签 `v0.3.0-web.39`。任务正文保留历史阶段的当时状态。
