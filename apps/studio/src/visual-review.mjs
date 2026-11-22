@@ -53,7 +53,7 @@ function similarEvidence(a,b) {
 }
 
 async function decodePixels(ffmpeg,file,sec,width,height,signal) {
-  const result=await execute(ffmpeg,['-nostdin','-v','error','-ss',String(Math.max(0,sec)),'-protocol_whitelist','file','-i',file,
+  const result=await execute(ffmpeg,['-nostdin','-v','error',...(sec==null?[]:['-ss',String(Math.max(0,sec))]),'-protocol_whitelist','file','-i',file,
     '-map','0:v:0','-frames:v','1','-an','-vf','scale='+width+':'+height,'-pix_fmt','rgb24','-threads','1','-f','rawvideo','pipe:1'],
     {signal,encoding:'buffer',maxBuffer:width*height*3+65536,timeout:30000});
   if(result.stdout.length!==width*height*3)throw Error('缺少合成画面');
@@ -311,6 +311,71 @@ async function motionReview(project,windows,evidence,policy,checks,hashFile) {
     '所选风格要求以有信息的运动画面为主体，目前无法确认取到的变化确实在说明该段内容。';
   return finding('style-video-first',severity,message+ratios,'选择能说明对应台词的实拍、实验、录屏或标明身份的仿真，保留必要的原照片段。',longest.from,longest.to);
 }
+function requestedEnding(project) {
+  const brief=positiveClauses(project.brief);
+  const end=[...brief.matchAll(/(?:最后|结尾|片尾|收尾)[^。]{0,10}(?:再看|回到|回看|切回|回放)[^。]{0,30}?(?:照片|原照|原图|原片|实拍|录像)/giu)].at(-1)?.[0];
+  if(!end)return null;
+  if(/开头|最初|首次|片头|第一张/.test(end))return 'opening-photo';
+  if(/同一张|原先那张|先前那张|刚才那张|之前那张|标注过|已标注|刚才标注|(?:标注|圈出|框出|强调|指认).{0,5}(?:的那张|的照片|的原照|的那幅)/.test(end))return 'same-annotated-photo';
+  return /照片|原照|原图/.test(end)?'photo':/实拍|录像/.test(end)?'video':'source';
+}
+
+async function closingFrameMatch(ffmpeg,videoPath,shot,profile,frame,signal) {
+  const {asset,clip}=shot,view={...asset,fit:clip.fit,framing:clip.framing,start:clip.start,duration:clip.duration};
+  const full=projectSourceRegion({x:0,y:0,width:1,height:1},view,profile,frame);
+  if(!full)return {frame,matched:null};
+  const size=88,w=96,h=Math.max(20,Math.round(w*profile.height/profile.width));
+  const sourceSeconds=asset.kind==='image'?0:((clip.sourceIn||0)+(frame-clip.start)*(clip.speed||1))/profile.fps;
+  const src=await decodePixels(ffmpeg,asset.path,asset.kind==='image'?null:sourceSeconds,size,size,signal),out=await decodePixels(ffmpeg,videoPath,frame/profile.fps,w,h,signal);
+  const origin=boxRect(full),pairs=[];
+  for(let y=2;y<h-2;y+=2)for(let x=2;x<w-2;x+=2){
+    const u=((x+.5)/w-origin.x)/origin.width,v=((y+.5)/h-origin.y)/origin.height;
+    if(u<.02||u>.98||v<.02||v>.98)continue;
+    const i=3*(Math.min(size-1,Math.floor(v*size))*size+Math.min(size-1,Math.floor(u*size))),j=3*(y*w+x);
+    const err=(Math.abs(src[i]-out[j])+Math.abs(src[i+1]-out[j+1])+Math.abs(src[i+2]-out[j+2]))/3;
+    pairs.push([err,(src[i]+2*src[i+1]+src[i+2])/4,(out[j]+2*out[j+1]+out[j+2])/4]);
+  }
+  if(pairs.length<40)return {frame,matched:null};
+  pairs.sort((a,b)=>a[0]-b[0]);
+  const near=pairs.filter(v=>v[0]<=32).length/pairs.length,n=Math.floor(pairs.length*.8);
+  let a=0,b=0,aa=0,bb=0,ab=0;
+  for(const [,x,y] of pairs.slice(0,n)){a+=x;b+=y;aa+=x*x;bb+=y*y;ab+=x*y;}
+  const varianceX=aa/n-(a/n)**2,varianceY=bb/n-(b/n)**2,corr=(ab/n-a*b/(n*n))/(Math.sqrt(Math.max(0,varianceX*varianceY))||1);
+  return {frame,sourceSeconds,matched:varianceX>=70&&near>=.66&&corr>=.86,matchingFraction:+near.toFixed(3),structureCorrelation:+corr.toFixed(3)};
+}
+
+async function closingSource(project,windows,confirmed,request,{ffmpeg,videoPath,hashFile,signal},hashes) {
+  const {from,to,shot}=windows.at(-1),asset=shot.asset;
+  if(!asset)return {request,status:'unverified',fromFrame:from,toFrame:to};
+  const board=(project.storyboard||[]).find(r=>r.assetId===asset.id&&r.start<=to&&r.start+r.duration>from);
+  const earlier=confirmed.filter(s=>s.stage!=='verification');
+  const previous=earlier.filter(s=>s.toFrame<from).at(-1)||earlier.filter(s=>s.toFrame<to-project.profile.fps*.45).at(-1);
+  const viewChanged=windows.slice(0,-1).some(w=>w.shot.asset?.sha256!==asset.sha256||w.shot.clip.fit!==shot.clip.fit||JSON.stringify(w.shot.clip.framing)!==JSON.stringify(shot.clip.framing));
+  const closingStage=s=>s?.stage==='verification'&&(s.assetHash||s.sha256)===asset.sha256;
+  const likelyReturn=viewChanged||board?.visualSteps?.some(closingStage)||project.timeline.clips.some(c=>live(c)&&c.track==='graphic'&&lastFrame(c)>=from&&c.start<=to&&closingStage(c.evidenceAnchor));
+  const sourceUrl=asset.source?.url||asset.source?.pageUrl;
+  const asProof=!!(board?.claimUrl&&board.claimUrl===sourceUrl||board?.visualSteps?.some(closingStage)||
+    project.facts?.some(f=>f.assetId===asset.id)||windows.slice(0,-1).some(w=>w.shot.asset?.sha256===asset.sha256)||previous?.sha256===asset.sha256||asset.source?.kind==='user-file');
+  const result={request,assetId:asset.id,sha256:asset.sha256,kind:asset.kind,name:asset.name,sourceUrl:sourceUrl||board?.claimUrl,
+    fromFrame:from,toFrame:to,sameAsAnnotatedSource:previous?asset.sha256===previous.sha256:null,annotatedAssetId:previous?.assetId||null,annotatedSourceSha256:previous?.sha256||null,frames:[],status:'unverified'};
+  try {
+    if(!hashes.has(asset.id))hashes.set(asset.id,await hashFile(asset.path));
+    result.sourceHashVerified=hashes.get(asset.id)===asset.sha256;
+    if(result.sourceHashVerified)for(const f of new Set([Math.floor((from+to)/2),Math.max(from,to-Math.round(project.profile.fps*.18))]))result.frames.push(await closingFrameMatch(ffmpeg,videoPath,shot,project.profile,f,signal));
+  }catch(error){if(signal?.aborted)throw error;}
+  result.trailingFramesWithoutSource=Math.max(0,...project.timeline.clips.filter(live).map(c=>lastFrame(c)-to));
+  if(!result.frames.some(f=>f.matched)||result.trailingFramesWithoutSource>project.profile.fps*.6)return result;
+  result.returnsToTaskSource=asProof&&!!likelyReturn;
+  if(!request){result.status='not-requested';return result;}
+  const wantsPhoto=['photo','same-annotated-photo','opening-photo'].includes(request);
+  if((wantsPhoto&&asset.kind!=='image')||(request==='video'&&asset.kind!=='video')){result.status='unmet';return result;}
+  const target=request==='same-annotated-photo'?previous?.sha256:request==='opening-photo'?windows.slice(0,-1).find(w=>w.shot.asset?.kind==='image')?.shot.asset.sha256:null;
+  if(target)result.requestedSourceSha256=target;
+  if(request==='opening-photo'||request==='same-annotated-photo')result.status=target?(target!==asset.sha256?'unmet':likelyReturn?'met':'unverified'):'unverified';
+  else if(result.returnsToTaskSource)result.status='met';
+  return result;
+}
+
 function relevantRange(project,first,last) {
   const cue=project.timeline.clips.find(c=>live(c)&&c.track==='graphic'&&/(?:留意|看这里|看此处|注意看|请看|观察|注意到|look here|notice|watch the)/i.test(c.text||''));
   return cue?[cue.start,lastFrame(cue)]:[first,last];
@@ -318,7 +383,7 @@ function relevantRange(project,first,last) {
 
 export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,hashFile}) {
   const requirements=visualRequirements(project),findings=[];
-  const science=usesScienceGrammar(project,styleSpec),policy=videoFirstPolicy(project,styleSpec);
+  const science=usesScienceGrammar(project,styleSpec),policy=videoFirstPolicy(project,styleSpec),ending=requestedEnding(project);
   const assets=new Map(project.assets.map(a=>[a.id,a])),shots=project.timeline.clips.filter(c=>c.track==='video'&&live(c)).sort((a,b)=>a.start-b.start).map(clip=>({clip,asset:assets.get(clip.assetId)}));
   const windows=visibleWindows(shots),first=windows[0]?.from??0,last=windows.at(-1)?.to??0;
   const evidence={requirements,sourceWindows:windows.map(w=>({assetId:w.shot.clip.assetId,kind:w.shot.asset?.kind||'unknown',fromFrame:w.from,toFrame:w.to})),steps:[],motion:[]};
@@ -329,7 +394,7 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
     const cue=project.timeline.clips.find(clip=>clip.track==='caption'&&covers(clip,c.frame));
     findings.push(finding('visual-witness-'+c.frame,requirements.editableEvidence||requirements.styleFidelity?'unknown':'minor','合成复看记录：'+c.observation+(cue?' 同段字幕为“'+cue.text+'”。':''),'回看对应原片与这段合成画面，再调整贴合画面的说明或镜头。',cue?.start??c.frame,cue?lastFrame(cue):c.frame));
   }
-  if(!Object.values(requirements).some(Boolean)&&!policy)return {evidence,findings};
+  if(!Object.values(requirements).some(Boolean)&&!policy&&!ending)return {evidence,findings};
   const photosOnly=windows.every(w=>w.shot.asset?.kind==='image');
   if(requirements.motionFootage) {
     if(photosOnly)findings.push(finding('required-moving-footage','major','本期明确要求运动实拍，画面全由照片组成。','加入能显示所述过程的实拍窗口，或由用户更改该素材要求。',first,last));
@@ -338,7 +403,7 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
       if(!evidence.motion.some(m=>m.result==='changing-footage'))findings.push(finding('required-moving-footage','unknown','分窗抽样尚不能确认有超出整幅平移、缩放或定格的过程，小范围或较慢的主体动作需要回看。','回看标出的原片，选真实运动区间或确认当前处理。',first,last));
     }
   }
-  if(!requirements.editableEvidence&&!requirements.styleFidelity&&!policy)return {evidence,findings};
+  if(!requirements.editableEvidence&&!requirements.styleFidelity&&!policy&&!ending)return {evidence,findings};
   const {steps,shapeAmbiguous}=makeSteps(project,shots),hashes=new Map(),fps=project.profile.fps;
   const w=Math.max(16,Math.min(640,project.profile.width)),h=Math.max(16,Math.round(w*project.profile.height/project.profile.width));
   const confirmed=[];
@@ -368,6 +433,14 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
   );
   const distinct=confirmed.filter((step,i)=>!confirmed.slice(0,i).some(old=>similarEvidence(old,step)));
   evidence.confirmedSteps=confirmed.map(s=>s.stepId);evidence.distinctFocusedRegions=distinct.length;evidence.returnToOriginal=!!returned;
+  if(ending||checks.some(c=>c.stage==='verification')) {
+    const end=await closingSource(project,windows,confirmed,ending,{ffmpeg,videoPath,hashFile,signal},hashes);
+    evidence.endingSource=end;
+    if(end.status==='unmet'||end.status==='unverified'&&['opening-photo','same-annotated-photo'].includes(ending))
+      findings.push(finding('required-closing-source',end.status==='unmet'?'major':'unknown',
+        end.status==='unmet'?'已从合成帧核实末镜，素材与本期明确指定的结尾原件或类型不同。':'尚未核实末镜展示的是本期指定的原件。',
+        '回看末段与指定原件，必要时换回对应照片或原片。',end.fromFrame,end.toFrame));
+  }
   if(requirements.editableEvidence&&!hasLocal) {
     const ambiguous=candidate||shapeAmbiguous||windows.some(w=>w.shot.clip.framing);
     findings.push(finding('required-located-visual',ambiguous?'unknown':'major',
@@ -385,7 +458,7 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
     if(miss&&!findings.some(f=>f.id==='required-moving-footage'))findings.push(miss);
   }
   if(science&&requirements.styleFidelity) {
-    let hasProgression=distinct.length>=2||hasLocal&&returned;
+    let hasProgression=distinct.length>=2||hasLocal&&(returned||evidence.endingSource?.returnsToTaskSource===true&&evidence.endingSource?.status==='met');
     if(!hasProgression&&!photosOnly&&checks.length){
       if(!evidence.motion.length)evidence.motion=await measureMotion(project,windows,ffmpeg,signal,videoPath);
       const sequence=evidence.witnessedShots||await filmedSequence(project,windows,checks,evidence.motion,hashFile);

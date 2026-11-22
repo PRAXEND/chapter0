@@ -63,6 +63,26 @@ test('review distinguishes an unrelated effect from a single still with visible,
   result=await review(generic,plain);assert.deepEqual(result.findings.map(f=>[f.id,f.severity]),[['required-located-visual','major']]);
   result=await review({...generic,brief:'展示原图，允许简单处理。',settings:{}},plain);assert.equal(result.findings.length,0);
   result=await review({...project,settings:{visualRequirements:{motionFootage:true}}},marked);assert.ok(result.findings.some(f=>f.id==='required-moving-footage'&&f.severity==='major'));
+  const second=path.join(dir,'another-task-source.ppm'),other=Buffer.alloc(values.length);
+  for(let j=0;j<180;j++)for(let i=0;i<320;i++){const v=(Math.floor(i/28)+Math.floor(j/19))%2?200:40;other.fill(v,(j*320+i)*3,(j*320+i)*3+3);}
+  await writeFile(second,Buffer.concat([Buffer.from('P6\n320 180\n255\n'),other]));
+  const secondAsset={...asset,id:'task-photo-2',sha256:await fileSha256(second),path:second,source:{url:'https://example.test/task-photo'}};
+  const finalShot={...shot,id:'ending',assetId:secondAsset.id,start:100,duration:50};
+  const cut={...project,assets:[asset,secondAsset],storyboard:[{start:100,duration:50,assetId:secondAsset.id,claimUrl:'https://example.test/task-photo'}],
+    timeline:{clips:[shot,...layers.filter(c=>c.evidenceAnchor.stage!=='verification'),finalShot]}};
+  const twoPhotos=path.join(dir,'two-originals.mp4');
+  await execute(ffmpeg,['-v','error','-i',marked,'-loop','1','-framerate','25','-i',second,'-filter_complex','[1:v]trim=end=2,setpts=PTS-STARTPTS[v];[0:v][v]concat=n=2:v=1:a=0,format=yuv420p[out]','-map','[out]','-t','6','-c:v','libx264','-threads','1',twoPhotos]);
+  result=await review(cut,twoPhotos);
+  assert.equal(result.evidence.returnToOriginal,false);assert.equal(result.evidence.endingSource.status,'met');
+  assert.equal(result.evidence.endingSource.sameAsAnnotatedSource,false);assert.equal(result.evidence.endingSource.returnsToTaskSource,true);
+  assert.equal(result.evidence.endingSource.sha256,secondAsset.sha256);assert.ok(result.evidence.endingSource.frames.every(f=>f.matched));
+  const strict='最后回到刚才标注的同一张照片。';
+  result=await review({...cut,brief:strict},twoPhotos);assert.equal(result.evidence.endingSource.status,'unmet');
+  assert.equal(result.findings.find(f=>f.id==='required-closing-source').fromFrame,100);
+  result=await review({...project,brief:strict},marked);assert.equal(result.evidence.endingSource.status,'met');assert.equal(result.evidence.endingSource.sameAsAnnotatedSource,true);
+  const swapped={...cut,assets:[asset,{...secondAsset,path:photo,sha256:hash}]};
+  result=await review({...swapped,brief:strict},twoPhotos);assert.equal(result.evidence.endingSource.status,'unverified');
+  assert.ok(!result.evidence.endingSource.frames.some(f=>f.matched));
   const mismatched={...project,timeline:{clips:[...project.timeline.clips,{track:'caption',id:'wrong-cue',start:36,duration:36,text:'工厂正在向订单系统写入价格数据。'}]}};
   result=await review(mismatched,marked);
   assert.equal(result.findings.find(f=>f.id.startsWith('visual-words-'))?.fromFrame,36);
