@@ -86,6 +86,7 @@ function parseStyle(spec) {
     parameters:Object.fromEntries(Object.entries(c).filter(([k,v])=>!['id','name','role','editable','editableProperties'].includes(k)&&(typeof v==='number'||Array.isArray(v)&&v.length<=8&&v.every(Number.isFinite))))}));
   const templateIds=spec.templateIds??(spec.id==='henry-hot-news'?['action-result']:spec.id==='henry-technical-explainer'?['step-reveal']:[]);
   return {id:spec.id,name:spec.name,version:spec.version,description:spec.description||'',adaptation:spec.adaptation||'',rules:spec.rules||[],
+    audioBlueprint:blueprint.audio||undefined,
     requirements:spec.material_requirements||[],knownExceptions:spec.knownExceptions||[],unknownDimensions:spec.unknown_dimensions||[],
     executionPlan:templateIds.includes('step-reveal')?scienceExecutionPlan(blueprint,spec):undefined,
     references,baseline,components,measurements:spec.measurements||[],effectRecipes:blueprint.effect_recipes||[],templates:templateIds.filter(id=>id in templateNames).map(id=>({id,name:templateNames[id]})),preferences:spec.preferences||[]};
