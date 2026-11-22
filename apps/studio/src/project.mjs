@@ -5,7 +5,7 @@ import { copyFile, link, mkdir, realpath, stat, unlink } from 'node:fs/promises'
 import { constants } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {validFraming} from './framing.mjs';
+import {validFraming,transitionEnvelope} from './framing.mjs';
 
 export const defaultRoot = () => process.env.STUDIO_DATA_ROOT || path.join(os.homedir(),'Library','Application Support','Video Studio','standalone');
 export const tracks = ['video','narration','music','caption','graphic'];
@@ -51,6 +51,30 @@ function newSettings(mode, supplied={}) {
   if(typeof s.shareFrames!=='boolean'||typeof s.shareTranscript!=='boolean'||typeof s.cloudEnabled!=='boolean'||!Number.isFinite(s.cloudBudget)||s.cloudBudget<0)throw fault('隐私或费用设置无效。');
   for(const field of ['voiceReferenceAssetId','narrationAssetId','musicAssetId'])if(s[field])checkId(s[field]);
   return s;
+}
+function* expandSplits(commands,project) {
+  for(const cmd of commands){
+    if(cmd.op!=='split'){yield cmd;continue;}
+    const clip=project.timeline.clips.find(c=>c.id===cmd.id);
+    const head=cmd.atFrame-clip?.start;
+    if(clip?.track!=='video'||!Number.isSafeInteger(head)||head<1||head>=clip.duration)throw fault('请选择画面片段内的分割帧。');
+    checkId(cmd.newId);
+    const left={duration:head},right={...clip,id:cmd.newId,start:cmd.atFrame,duration:clip.duration-head,transition:null};
+    if(project.assets.find(a=>a.id===clip.assetId)?.kind!=='image')right.sourceIn=(clip.sourceIn||0)+Math.round(head*(clip.speed||1));
+    const camera=clip.framing;
+    if(camera){
+      const target=camera.to||camera.from;
+      const pointAt=frame=>Object.fromEntries(['x','y','zoom'].map(k=>[k,camera.from[k]+(target[k]-camera.from[k])*frame/(clip.duration-1)]));
+      left.framing={from:camera.from,to:pointAt(head-1)};right.framing={from:pointAt(head),to:target};
+    }
+    const fade=transitionEnvelope(clip);
+    if(head<fade.duration){
+      left.transition={...clip.transition,duration:head,totalFrames:fade.total,offsetFrames:fade.offset};
+      right.transition={...clip.transition,duration:fade.duration-head,totalFrames:fade.total,offsetFrames:fade.offset+head};
+    }
+    yield {op:'update',id:clip.id,changes:left};
+    yield {op:'add',clip:right};
+  }
 }
 export function createStore(root=defaultRoot(),{probeMedia}={}) {
   root=path.resolve(root);
@@ -125,7 +149,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     if(!Number.isInteger(baseRevision)||!Array.isArray(commands)||!commands.length||commands.length>10000)throw fault('请提供起始版本和剪辑指令。');
     return mutate(id,baseRevision,p=>{
       const clips=p.timeline.clips;
-      for(const cmd of commands){
+      for(const cmd of expandSplits(commands,p)){
         const found=clips.findIndex(c=>c.id===(cmd.id??cmd.clip?.id));
         const before=clips[found];
         if(cmd.op==='lock'){

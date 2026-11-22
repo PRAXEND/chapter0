@@ -28,7 +28,8 @@ test('an offset source detail stays behind a hollow evidence marker in full and 
   const focus={from:{x:.18,y:.5,zoom:1.5},to:{x:.75,y:.5,zoom:2.5}};
   const project={profile,revision:1,assets:[{id:'source',path:source}],timeline:{clips:[
     {track:'video',id:'detail',start:0,duration:10,assetId:'source',framing:focus},
-    {track:'graphic',id:'look',start:0,duration:10,text:'',shape:'outline',geometry:{x:.5,y:.5,width:.5,height:.5},style:{color:'#ffffff',strokeWidth:4}}
+    {track:'graphic',id:'look',start:0,duration:10,text:'',shape:'outline',geometry:{x:.5,y:.5,width:.5,height:.5},style:{color:'#ffffff',strokeWidth:4}},
+    {track:'graphic',id:'tiny',start:8,duration:2,text:'',shape:'outline',geometry:{x:.5,y:.5,width:.1,height:.1},style:{color:'#ffffff',strokeWidth:32}}
   ]}};
   const full=await renderProject(project,{directory:dir,output:path.join(dir,'full.mp4')});
   const part=await renderProject(project,{directory:dir,output:path.join(dir,'part.mp4'),window:{fromFrame:5,toFrame:10}});

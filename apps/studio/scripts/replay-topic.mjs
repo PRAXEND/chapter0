@@ -1,4 +1,7 @@
-import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import {access,mkdir,readFile,writeFile} from 'node:fs/promises';
+import {constants} from 'node:fs';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {startStudio} from '../src/server.mjs';
@@ -8,6 +11,17 @@ import {startStudio} from '../src/server.mjs';
 const [snapshot,destination]=process.argv.slice(2);
 if(!snapshot||!destination)throw Error('用法：node replay-topic.mjs <原工程 JSON> <新的验证目录>');
 const original=JSON.parse(await readFile(snapshot,'utf8'));
+const resources=process.env.VIDEO_STUDIO_RESOURCE_DIR;
+if(resources && !process.env.VIDEO_STUDIO_CODEX){
+  const relative=(await readFile(path.join(resources,'codex-executable.txt'),'utf8')).trim();
+  process.env.VIDEO_STUDIO_CODEX=path.resolve(resources,'codex-runtime',relative);
+}
+let cliVersion;
+if(process.env.VIDEO_STUDIO_CODEX){
+  await access(process.env.VIDEO_STUDIO_CODEX,constants.X_OK);
+  const version=await promisify(execFile)(process.env.VIDEO_STUDIO_CODEX,['--version']);
+  cliVersion=version.stdout.trim();
+}
 if(original.mode!=='topic')throw Error('此验证从空素材库重做选题工程。');
 if(!['system',undefined].includes(original.settings?.voiceMode)||original.settings?.musicMode==='asset')
   throw Error('请用无需预先导入声音文件的选题工程执行此对照。');
@@ -37,7 +51,7 @@ try {
     if(event?.at!==last){last=event?.at;if(event)console.log(event.at,event.message);}
     if(['done','failed','paused'].includes(j.status)) {
       const final=service.store.getJob(j.id);
-      const summary={projectId:p.id,jobId:j.id,threadId:service.store.get(p.id).threadId,status:j.status,error:j.error,
+      const summary={projectId:p.id,jobId:j.id,threadId:service.store.get(p.id).threadId,cliVersion,status:j.status,error:j.error,
         revision:j.revision,creativeEngine:j.creativeEngine,qa:j.qa?.status,issues:j.qa?.issues?.map(q=>q.message||q.reason),
         published:final.published,files:final.files};
       await writeFile(path.join(root,'outcome.json'),JSON.stringify(summary,null,2)+'\n');

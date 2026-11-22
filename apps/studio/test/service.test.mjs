@@ -54,7 +54,7 @@ test('the system releases an interrupted owner lock and a second instance cannot
 test('the local assembly remains a playable draft and records its engine in the portable project', async t=>{
   const root=await mkdtemp(path.join(os.tmpdir(),'vs-local-draft-'));
   const store=createStore(root,{probeMedia:async()=>({kind:'image',duration:0,width:160,height:90})});
-  const p=store.create({mode:'topic',title:'验证草稿'});
+  const p=store.create({mode:'topic',title:'验证草稿',settings:{engine:'local'}});
   const source=path.join(root,'source.png');await writeFile(source,'fixture');
   const asset=await store.addAsset(p.id,source);
   const director={async run(id){
@@ -65,7 +65,9 @@ test('the local assembly remains a playable draft and records its engine in the 
     media:{async renderProject(_p,{output}){await writeFile(output,'video');await writeFile(output+'.srt','');return {videoPath:output,srtPath:output+'.srt'};}},
     reviewProject:async()=>({deliverable:true,label:'可交付',issues:[]})});
   t.after(async()=>{await queue.close();store.close();await rm(root,{recursive:true,force:true});});
-  const done=await awaitJob(store,queue.enqueue(p.id,'produce',{engine:'local'}).id,'done');
+  const queued=queue.enqueue(p.id,'produce');
+  assert.equal(queued.input.engine,'local');
+  const done=await awaitJob(store,queued.id,'done');
   assert.ok(done.files.video);
   assert.equal(done.published,undefined);
   assert.equal(done.snapshot.lastDirection.engine,'local');

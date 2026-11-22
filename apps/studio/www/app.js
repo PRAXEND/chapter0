@@ -46,7 +46,7 @@ function newPage(fresh=true){
   ${s.mode==='topic'?field('出处网页（每行一个，可选）',area('new-facts',f.factUrls,2))+field('可用的媒体文件直链（可选）',area('new-urls',f.sourceUrls,2)):''}
   <div class="form-grid">${field('画幅',select('ratio',[['16:9','16:9 横屏'],['9:16','9:16 竖屏'],['1:1','1:1 方形']],f.ratio||'16:9'))}${field('风格',select('new-style',styleOptions(),f.style|| (s.mode==='interview'?'original-dialogue@1':'neutral@1')))}</div>
   ${s.voices.length?field('本期音色',select('new-voice',[['','随入口默认'],...s.voices.map(v=>[v.id,v.name])],f.voice||'')):''}<div class="outline">${field(s.mode==='interview'?'原片':'本地素材',fileInput('new-files'))}<small id="selected-files">${s.newFiles.length?esc(s.newFiles.map(f=>f.name).join('、')):'支持视频、音频和图片，可在工程中继续添加。'}</small></div>
-  <fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格及剪辑预览帧',f.shareFrames===true)}</fieldset>
+  <fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格及剪辑预览帧',f.shareFrames===true)}<small>按参考片剪辑时，开启画面分享可让 Codex 对照原素材和实际合成画面。</small></fieldset>
   <div class="actions">${btn('create','仅创建工程')}${btn('create-run','创建并开始制作','primary')}</div></div>
   <input type="file" id="folder-picker" webkitdirectory multiple hidden></section>`;
 }
@@ -106,7 +106,7 @@ function drawEdit(){
 function activity(j){
   if(!j)return '<p class="help">可以在这里查看制作进度、暂停任务并继续改稿。</p>';
   const text=(j.events||[]).slice(-8).map(e=>'<li>'+esc(e.message)+'</li>').join('');
-  return `<div class="hrow space"><strong>${esc(['produce','revise'].includes(j.kind)?(j.creativeEngine==='local'?'本地粗剪进度':'Codex 剪辑进度'):j.kind==='preview'?'预览进度':'导出进度')}</strong><span class="pill">${statusLabels[j.status]||j.status}</span></div>
+  return `<div class="hrow space"><strong>${esc(['produce','revise'].includes(j.kind)?(j.creativeEngine==='local'?'本地粗剪进度':j.creativeEngine==='codex'?'Codex 剪辑进度':'剪辑进度'):j.kind==='preview'?'预览进度':'导出进度')}</strong><span class="pill">${statusLabels[j.status]||j.status}</span></div>
   ${j.status==='running'?'<progress></progress>':''}<ul class="log">${text}</ul>${j.error?'<p class="feedback">'+esc(j.error)+'</p>':''}
   ${['running','queued'].includes(j.status)?btn('pause','暂停','',j.id):['paused','failed'].includes(j.status)?btn('resume','检查后续作','',j.id):''}`;
 }
@@ -184,9 +184,18 @@ async function loadStyle(selector=s.p.style){
  <div class="form-grid">${field('事件落点（秒）',input('scene-action','1','number','min="0" step=".1"'))}${field('场景时长（秒）',input('scene-duration','4','number','min=".3" step=".1"'))}</div>${field('强调文字',input('scene-text','','text','placeholder="例如，灯芯亮起"'))}${check('scene-sound','在已标记的动作帧上加入音效',s.p.settings.sceneSound??(s.p.mode!=='interview'))}${field('落点音效来源',select('scene-sound-asset',[['','模板自带'],...s.p.assets.filter(a=>a.kind==='audio').map(a=>[a.id,a.name])],''))}${btn('add-scene','在选区加入可编辑模板')}</section>
  <section class="card"><h2>保存个人风格</h2>${field('以后也这样剪',area('preference','',3,'记录这次调整，例如，结果出现后多停留半秒。'))}${btn('preference','保存为新版')}<hr><h3>从参考学习</h3>${field('风格名称',input('learn-name'))}${field('参考脚本',area('learn-script','',4))}${field('本机参考视频或录音',select('learn-media',[['','仅脚本'],...s.p.assets.filter(a=>['audio','video'].includes(a.kind)).map(a=>[a.id,a.name])],''))}${field('希望保留的视听特征（可选）',area('learn-observation','',2))}<details><summary>适用的模板与反例</summary>${field('可选场景模板',select('learn-template',[['','不指定'],['action-result','动作、反应与结果'],['step-reveal','分步揭示与实拍验证']]))}${field('这种风格应避开的做法',area('learn-exception','',2))}</details>${btn('learn','保存新风格')}</section></div></section>`;
 }
+function pictureEvidence(qa){
+ const visual=qa.evidence?.visual,coverage=visual?.motionCoverage;
+ if(!coverage?.totalFrames)return '';
+ const seconds=n=>((n||0)/frameRate()).toFixed(1)+' 秒';
+ const rows=['全片 '+seconds(coverage.totalFrames),'录像中确认有变化 '+seconds(coverage.changingFrames),'静照 '+seconds(coverage.stillFrames)];
+ if(coverage.unverifiedFrames)rows.push('画面变化待核 '+seconds(coverage.unverifiedFrames));
+ const policy={met:'运动画面承担了主要讲解。',partial:'已用部分运动镜头，风格要求的运动画面占比仍有差距。',unmet:'所选风格要求用运动画面讲解，此版没有核实到相应镜头。',unverified:'运动镜头的作用仍待核实。','photo-adaptation':'按本期要求以照片讲解。'};
+ return '<div class="entry"><div><strong>实际画面构成</strong><p>'+esc(rows.join(' · '))+'</p><small>'+esc(policy[visual.styleExecution?.motionStatus]||'')+'</small></div></div>';
+}
 function drawDeliver(){
  const cards=s.jobs.filter(j=>j.files?.includes('video')).map(j=>{const qa=j.qa||{};return `<section class="card"><div class="hrow space"><h2>${esc(cutLabel(j))} · v${j.revision}</h2><span class="pill ${qa.status==='repair'?'bad':qa.status==='unverified'?'warn':''}">${esc(qa.label||'验收中')}</span></div>
- <video class="wide-video" data-review="${esc(j.id)}" controls preload="metadata" src="/api/jobs/${j.id}/file/video"></video>
+ <video class="wide-video" data-review="${esc(j.id)}" controls preload="metadata" src="/api/jobs/${j.id}/file/video"></video>${pictureEvidence(qa)}
  <div class="actions">${(j.files||[]).filter(k=>['video','subtitle','project','cover34','cover43','copy','credits','review'].includes(k)).map(k=>btn('reveal',({video:'MP4',subtitle:'SRT',project:'可编辑工程',cover34:'3:4 封面',cover43:'4:3 封面',copy:'发布文案',credits:'素材与事实来源',review:'验收记录'})[k],'',j.id+'|'+k)).join('')}</div>
  ${(qa.issues||[]).map((q,i)=>`<div class="feedback"><strong>${esc(q.message||q.reason)}</strong> <small>${clock((q.fromFrame||0)/frameRate())}</small> ${btn('review-issue','播放该段','',j.id+'|'+i)} ${btn('fix-issue','按意见修改','',j.id+'|'+i)}<br><small>${esc(q.fix||'')}</small></div>`).join('')}<p class="help">${esc((qa.limitations||[]).join('　'))}</p></section>`;}).join('');
  el('view').innerHTML=`<section class="page"><h1>交付记录</h1>${cards||'<div class="card empty-panel">完成渲染后，可在这里播放成片并打开本地交付目录。</div>'}</section>`;
@@ -240,10 +249,7 @@ async function runAction(act,id){
  case 'split-clip':{
   const c=p.timeline.clips.find(c=>c.id===id), at=Math.round((el('player')?.currentTime||0)*frameRate());
   if(!lastVideo()||at<=c.start||at>=c.start+c.duration)throw Error('先生成工程预览，将播放头放到片段中间。');
-  const head=at-c.start,newId=crypto.randomUUID(),camera=c.framing;
-  const pointAt=frame=>Object.fromEntries(['x','y','zoom'].map(k=>[k,camera.from[k]+((camera.to||camera.from)[k]-camera.from[k])*frame/(c.duration-1)]));
-  return edit([{op:'update',id,changes:{duration:head,...(camera&&{framing:{from:camera.from,to:pointAt(head-1)}})}},
-    {op:'add',clip:{...c,id:newId,start:at,duration:c.duration-head,sourceIn:(c.sourceIn||0)+Math.round(head*(c.speed||1)),transition:null,...(camera&&{framing:{from:pointAt(head),to:camera.to||camera.from}})}}]);}
+  return edit([{op:'split',id,newId:crypto.randomUUID(),atFrame:at}]);}
  case 'save-clip':{
   const c=p.timeline.clips.find(c=>c.id===id),f=frameRate();
   const changes={start:Math.round(Number(val('clip-at'))*f),sourceIn:Math.round(Number(val('clip-in'))*f),duration:Math.round(Number(val('clip-len'))*f),speed:Number(val('clip-speed')),gain:Number(val('clip-gain'))};
@@ -255,7 +261,7 @@ async function runAction(act,id){
     const point=key=>Object.fromEntries(['x','y','zoom'].map(k=>[k,Number(val('view-'+key+'-'+k))]));
     if(el('clip-framing').checked)changes.framing={from:point('from'),to:point('to')};
     else if(c.framing)changes.framing=null;
-    changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));changes.transition=n?{type:'fade',duration:n}:null;}
+    changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));if(n!==(c.transition?.duration||0))changes.transition=n?{type:'fade',duration:n}:null;}
   return edit([{op:'update',id,changes}]);}
  case 'fact-source':await proj('/facts/'+Number(id)+'/open',{});return;
  case 'fact-shot':{

@@ -28,6 +28,11 @@ export function createQueue({store, director, media, reviewProject, prepare, del
   function enqueue(projectId,kind,input={}) {
     const p=store.get(projectId);
     if(!['produce','revise','preview','render'].includes(kind))throw fault('未知任务。');
+    if(['produce','revise'].includes(kind)){
+      const engine=input.engine??(p.settings.engine==='local'?'local':'codex');
+      if(!['local','codex'].includes(engine))throw fault('创作引擎无效。');
+      input={...input,engine};
+    }
     const previous=store.listJobs(projectId).find(j=>activeStates.includes(j.status));
     if(previous)throw fault('此工程正在处理任务，可先暂停或等待完成。',409);
     if(input.baseRevision!==undefined&&input.baseRevision!==p.revision)throw fault('工程已改变，请刷新后重新提交。',409);
@@ -64,7 +69,8 @@ export function createQueue({store, director, media, reviewProject, prepare, del
         change(id,{phase:'review',files:{video:res.videoPath,subtitle:res.srtPath}});
       }
       j=store.getJob(id);note('正在核对实际导出文件');
-      const qa=await reviewProject(p,{videoPath:j.files.video,srtPath:j.files.subtitle,signal,preview:j.kind==='preview', findings:p.findings||[]});
+      const styleSpec=styles?.get && p.style ? await styles.get(p.style.id,p.style.version) : undefined;
+      const qa=await reviewProject(p,{videoPath:j.files.video,srtPath:j.files.subtitle,signal,preview:j.kind==='preview',findings:p.findings||[],styleSpec});
       signal.throwIfAborted();
       const remedy=qa.repairs?.[0];
       if(remedy && !qa.deliverable && j.repairs<2 && store.get(projectId).revision===p.revision){

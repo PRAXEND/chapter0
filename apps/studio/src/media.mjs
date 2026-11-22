@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { createAss, createSrt } from './text-tracks.mjs';
-import { framingFilter } from './framing.mjs';
+import { framingFilter, transitionEnvelope } from './framing.mjs';
 import { ffBase, inputArgs, mediaSlot, mediaTool, requiredTool, run, scratch } from './media-runtime.mjs';
 
 export { mediaTool };
@@ -109,9 +109,9 @@ async function renderSpan(span, media, profile, ffmpeg, target, signal) {
   const out = ['-frames:v', String(span.duration), ...videoEncode, target];
   if (!span.top) return run(ffmpeg, [...ffBase, ...lavfi, ...out], { signal });
   const top = span.top;
-  const fade = ['fade', 'crossfade', 'dissolve'].includes(top.transition?.type) ? Math.min(top.duration, Math.max(0, Math.floor(top.transition.duration || 0))) : 0;
+  const fade = transitionEnvelope(top);
   const elapsed = span.start - top.start;
-  const blend = fade > 0 && elapsed < fade;
+  const blend = elapsed < fade.duration;
   const upper = buildVisualInput(top, span, media.get(top.assetId), profile, 0);
   let args = upper.args;
   let filter = upper.chain;
@@ -120,7 +120,7 @@ async function renderSpan(span, media, profile, ffmpeg, target, signal) {
     const lower = span.under ? buildVisualInput(span.under, span, media.get(span.under.assetId), profile, 1) : { args: lavfi, chain: '[1:v]format=yuv420p[v1]' };
     args = [...args, ...lower.args];
     // The timeline determines opacity even when another cut divides this transition.
-    const weight = `min(1,(N+${elapsed})/${Math.max(1, fade)})`;
+    const weight = `min(1,(N+${elapsed+fade.offset})/${fade.total})`;
     filter += `;${lower.chain};[v0][v1]blend=all_expr='A*(${weight})+B*(1-${weight})':shortest=1[composed]`;
     outputLabel = 'composed';
   }

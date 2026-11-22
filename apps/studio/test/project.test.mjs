@@ -29,6 +29,19 @@ test('atomic revisions, imported content identity, scene locks and concurrent ag
   assert.throws(()=>store.setMeta(p.id,{timeline:{clips:[]}}),/编辑接口/);
   store.setMeta(p.id,{threadId:'fixture'});assert.equal(store.get(p.id).revision,3);
 });
+test('a split inside a dissolve keeps the focus, source frame and opacity of both new pieces', async t=>{
+  const {store,p,file}=await fixture(t);
+  const a=await store.addAsset(p.id,file);
+  const c={id:'detail',track:'video',assetId:a.id,start:6,duration:31,sourceIn:10,speed:2,
+    transition:{type:'dissolve',duration:18},framing:{from:{x:.2,y:.5,zoom:1},to:{x:.8,y:.5,zoom:4}}};
+  let doc=store.apply(p.id,store.get(p.id).revision,[{op:'add',clip:c}]);
+  doc=store.apply(p.id,doc.revision,[{op:'split',id:'detail',atFrame:16,newId:'tail'}]);
+  const [head,tail]=doc.timeline.clips;
+  assert.deepEqual(head.transition,{type:'dissolve',duration:10,totalFrames:18,offsetFrames:0});
+  assert.deepEqual(tail.transition,{type:'dissolve',duration:8,totalFrames:18,offsetFrames:10});
+  assert.equal(tail.sourceIn,30);assert.equal(tail.framing.from.zoom,2);assert.equal(head.framing.to.zoom,1.9);
+  assert.throws(()=>store.apply(p.id,doc.revision,[{op:'split',id:'detail',atFrame:16,newId:'no'}]),/分割帧/);
+});
 test('portable project validates hash, re-probes inputs, restores locks and rejects forged duration',async t=>{
   const {store,p,file,root}=await fixture(t);const a=await store.addAsset(p.id,file);
   const edited=store.apply(p.id,2,[{op:'add',clip:{id:'v',track:'video',assetId:a.id,start:0,duration:30}},{op:'lock',id:'v',locked:true}]);

@@ -7,6 +7,14 @@ export function validFraming(framing) {
   return Boolean(validPoint(framing?.from) && (framing.to == null || validPoint(framing.to)));
 }
 
+export function transitionEnvelope(clip) {
+  const t=clip.transition;
+  const duration=['fade','crossfade','dissolve'].includes(t?.type) ? Math.max(0,Math.min(clip.duration,Math.floor(t.duration||0))) : 0;
+  const offset=Number.isSafeInteger(t?.offsetFrames) ? Math.max(0,t.offsetFrames) : 0;
+  const total=Math.max(offset+duration,Number.isSafeInteger(t?.totalFrames)?t.totalFrames:0);
+  return {duration,offset,total};
+}
+
 export function framingFilter(clip, asset, profile, first) {
   if (!validFraming(clip.framing)) throw new Error('取景中心须在原图内，放大倍率须为 1–4。');
   const {from, to = from} = clip.framing;
