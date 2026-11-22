@@ -58,3 +58,5 @@ node scripts/field-trials.mjs "$HOME/Movies/Video Studio/盲评工作台/researc
 在工作台明确选择准备“预置音色”，或执行 `node apps/studio/scripts/prepare-media.mjs preset`。Qwen3-TTS CustomVoice 与克隆共用 Apple Silicon 的 MLX 运行时，预置模型单独准备并核对 12 个文件的 SHA-256，包括语言模型和音频编码器。全新下载约 1.69 GB，已有同版模型或克隆编码器时优先复用已验证的文件。语音在本机生成，预置流程只向进程提供文字、语言和 `dylan`；生成记录包括模型发行版本、权重指纹、输出时长与 WAV 指纹。Dylan 是模型提供的北京青年男声。[模型与许可](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice) · [实际使用的 MLX 权重](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit/tree/08c72cad5e2fd0f41730c8bd1f28149585e46361)
 
 `VIDEO_STUDIO_QWEN_PRESET_MODEL` 可以指定完整的相同版本模型目录；工作台在准备或试音时校验。若已有离线副本，准备时可设置 `VIDEO_STUDIO_QWEN_PRESET_SOURCE`，通过校验的文件将复制到自己的模型缓存。普通应用启动、读取能力和试音不会下载预置权重。
+
+2026-11-23 在 8 GB M1 上用显式准备操作复制既有模型，禁用外部网络代理后再次准备，返回预置音色可用。通过正式 HTTP 的新建脚本工程、音色试听和工程素材下载接口输入“这是一段全新的科普解说。先看画面，再听声音。”实际得到 24 kHz 单声道、5.55 秒、266,444 字节的 WAV，SHA-256 为 `09a9d55465fe6e08a253df6680de22b82228fb2f5b40b0193f7d676019b136d4`。下载字节与工程素材指纹相同，来源登记了预置标识、模型版本及权重指纹。本机无提示 whisper 转写与这条原稿逐字一致。
