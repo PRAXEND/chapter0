@@ -31,7 +31,7 @@ const samples=[
   {id:'fragment-title',start:90,duration:48,at:122,geometry:{x:.29,y:.12,width:.51,height:.18},props:{title:'从现场，看到结构'}},
   {id:'comparison-guide',start:138,duration:54,at:167,geometry:{x:.5,y:.5,width:1,height:.72},props:{left:'Atlas · 搬运实拍',right:'机智号 · 火星实拍'}},
   {id:'process-rail',start:192,duration:64,at:235,geometry:{x:.5,y:.865,width:.91,height:.143},props:{a:'观察动作',b:'定位部件',c:'解释原理'},cues:[0,16,37]},
-  {id:'staggered-explanation',start:256,duration:104,at:338,geometry:{x:.30,y:.355,width:.43,height:.32},props:{a:'先找到旋翼',b:'观察机身',c:'再看起飞结果',transparentBackground:false},cues:[0,24,60]},
+  {id:'staggered-explanation',start:256,duration:104,at:338,geometry:{x:.74,y:.285,width:.43,height:.32},props:{a:'先找到旋翼',b:'观察机身',c:'再看起飞结果',transparentBackground:false},cues:[0,24,60]},
 ];
 const staggered=samples.at(-1);
 const newPhrase='两层旋翼朝相反方向转';

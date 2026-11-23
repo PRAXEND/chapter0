@@ -88,9 +88,12 @@ export async function verifyCompositionPixels({files,evidence,ffmpeg,profile,sam
   const plate=await decode(ffmpeg,files.plate,samples.map(s=>s.at),w,h);
   const sources=[await decode(ffmpeg,files.atlas,splitTimes,w/2,h/2),await decode(ffmpeg,files.flight,splitTimes,w/2,h/2)];
   const sameSource=[];
+  // The YUV420 canvas places the top-left sample on an even chroma coordinate.
+  // A 480×270 image inside 480×540 has a mathematical top of 135, encoded at 134.
+  const paneTop=2*Math.floor((h-h/2)/4);
   for(const frame of splitTimes)for(const pane of [0,1]){
-    const matching=sourceError(full.get(frame),sources[pane].get(frame),pane*w/2,h/4);
-    const swapped=sourceError(full.get(frame),sources[1-pane].get(frame),pane*w/2,h/4);
+    const matching=sourceError(full.get(frame),sources[pane].get(frame),pane*w/2,paneTop);
+    const swapped=sourceError(full.get(frame),sources[1-pane].get(frame),pane*w/2,paneTop);
     sameSource.push({frame,pane:pane?'right':'left',matching,swapped});
   }
   check('同帧两个视口分别来自对应的实拍原片',sameSource.every(x=>x.matching<10&&x.matching<x.swapped*.4),sameSource);
@@ -110,10 +113,19 @@ export async function verifyCompositionPixels({files,evidence,ffmpeg,profile,sam
       const slices=difference(full.get(fragment.start+4),full.get(fragment.start+30),box);
       detail={slices,underline:colourCount(f,region(box,0,.78,.45,.22),cyan)};feature=slices.changed>140&&detail.underline>35;
     }else if(s.id==='comparison-guide'){
-      const divider=region(box,.494,.05,.012,.90);
-      const changedRows=new Set();pixels(f,divider,(r,g,b,_x,y,k)=>{if(cyan(r,g,b)&&Math.max(Math.abs(r-ref.data[k]),Math.abs(g-ref.data[k+1]))>28)changedRows.add(y);});
-      detail={cyanRows:changedRows.size,dividerHeight:divider[3],leftLabel:difference(f,ref,region(box,.02,0,.28,.11)).changed,rightLabel:difference(f,ref,region(box,.53,0,.36,.11)).changed};
-      feature=changedRows.size>divider[3]*.68&&detail.leftLabel>30&&detail.rightLabel>30;
+      // Authored in a 1920px box at x=958, width=4. In 4:2:0 the two thin
+      // output columns share chroma with the adjacent footage. Check their change
+      // toward the stroke colour against the real plain plate; luma is full resolution.
+      const divider=region(box,958/1920,.05,4/1920,.90);
+      const target=[72,225,209],luma=(r,g,b)=>.2126*r+.7152*g+.0722*b;
+      const targetLuma=luma(...target),distance=(r,g,b)=>Math.abs(r-target[0])+Math.abs(g-target[1])+Math.abs(b-target[2]);
+      const changedRows=new Set();
+      pixels(f,divider,(r,g,b,_x,y,k)=>{
+        const oldDistance=distance(ref.data[k],ref.data[k+1],ref.data[k+2]);
+        if(g>r+15&&Math.abs(luma(r,g,b)-targetLuma)<24&&distance(r,g,b)<oldDistance-30)changedRows.add(y);
+      });
+      detail={cyanRows:changedRows.size,dividerHeight:divider[3],dividerColumns:[divider[0],divider[0]+divider[2]-1],leftLabel:difference(f,ref,region(box,.02,0,.28,.11)).changed,rightLabel:difference(f,ref,region(box,.53,0,.36,.11)).changed};
+      feature=changedRows.size>divider[3]*.90&&detail.leftLabel>30&&detail.rightLabel>30;
     }else if(s.id==='process-rail'){
       const cols=railTimes.map(n=>[0,1,2].map(i=>colourCount(full.get(n),region(box,i/3,0,1/3,1),cyan)));
       detail={frames:railTimes,activeCyanByCard:cols};
