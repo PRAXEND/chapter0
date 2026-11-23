@@ -69,7 +69,8 @@ const beat = object(
     emphasis: str,
     template: str,
     framing: object({ from: focal, to: focal }, ['from']),
-    motionComponent:object({...componentFields,atSeconds:num,durationSeconds:num},['componentId','props']),
+    motionComponent:object({...componentFields,atSeconds:num,durationSeconds:num,
+      cueSource:{type:'string',enum:['visualSteps','captionStarts'],description:'Use actual scene action frames or generated caption onsets. The first marker places the component. Omit atSeconds and cueFrames.'}},['componentId','props']),
     visualSteps: {
       type: 'array',
       items: object(
@@ -228,7 +229,7 @@ const instructions = [
   '没有开启发送帧时，用 studio_observe 获得项目中素材的本机类别、颜色与可共享 OCR 结果。动作锚点只能来自实际观看、用户标记、或同帧匹配的可见文字（anchorText）；亮度差不能单独证明某一事件。可分享帧时用 studio_frame 查看原片或风格参考；提交后抽查真实合成帧。注明哪些区间未看片、未听审。',
   '处理改稿时先核对当前版本与选区，用 studio_edit 局部修改，配音改词用 studio_narrate。用户没有要求时不要重新生成整片。',
   '视频 framing.from/to 的 x/y 是原素材归一化中心、zoom 为等比铺满后 1–4 倍。图形 shape=outline、text="" 可做空心框；geometry 的 x/y 是画布中心，width/height 为相对宽高。不要用无关推拉假装拍到动作。',
-  'studio_context.motionComponents 是本机能执行的原版 JSX 组件。v8 首剪在 studio_sequence 的 beat.motionComponent 填组件和本期文字、atSeconds、durationSeconds，无时间参数则覆盖本镜；改稿可用 studio_component，用本期文字、真实语音或动作落点替换样片值。三项分步揭示用 staggered-explanation 的 a/b/c 与 cueFrames；需要双画面对照时先通过 studio_edit 在两个同期 video 片段设独立 viewport={x,y,width,height}（左上角归一坐标），再放 comparison-guide 标识。图形 keyframes.rotation 为顺时针角度，可跨整圈。用实际合成帧或窗口前后核对动效，注意单张静帧看不出转动。保留用户锁定内容。',
+  'studio_context.motionComponents 是本机能执行的原版 JSX 组件。v8 首剪在 studio_sequence 的 beat.motionComponent 填组件和本期文字、atSeconds、durationSeconds，无时间参数则覆盖本镜；改稿可用 studio_component，用本期文字、真实语音或动作落点替换样片值。三项分步揭示用 staggered-explanation 的 a/b/c。首剪可用 cueSource=visualSteps 对齐三个已观察动作或 captionStarts 对齐本镜三句实际字幕的入点。手动改稿用 cueFrames；需要双画面对照时先通过 studio_edit 在两个同期 video 片段设独立 viewport={x,y,width,height}（左上角归一坐标），再放 comparison-guide 标识。图形 keyframes.rotation 为顺时针角度，可跨整圈。用实际合成帧或窗口前后核对动效，注意单张静帧看不出转动。保留用户锁定内容。',
   '技术讲解的段落从实际动作或能在镜头中直接辨认的问题起笔。按句选取能新增信息的视角：比如现场全景交代实验，局部或对照解释变化，回到原片验证。先查是否有同一事件的其他机位、过程前后原照或实测样本。素材身份与测量范围保持准确。需要剖面或零件贴合时，使用 graphic、shape=polygon、text=""，geometry.points 是图层框内 3–128 对归一化 [x,y] 顶点；各部件独立上关键帧，与真实观察同屏比较。',
   '如果找到同一处的前后记录，可将两条已对准的镜头短暂叠放，在后一条设置 transition.type=wipe-right、duration 为帧数，以擦除让观众核查哪里发生了变化。',
   '分清摄影出处和解说论据。图中可直接看见的现象使用 claimKind=observation。解释材料性质、因果关系或未拍到的过程须用 claimKind=explanation，claimUrl 对应真实科学资料，claimQuote 从该资料实际返回的正文或摘要逐字摘录与这句话对应的一小段。书目题名不足以证明原理。找不到可查的材料就删去推论，只说画面能证明什么。',
@@ -890,8 +891,9 @@ export function createDirector(deps) {
     const status = await client.account();
     if (!status.connected) throw new Error(status.message || '请登录 Codex，或选择本地草稿。');
     // App Server registers dynamic tools on thread/start only. Migrate once for
-    // a full visual production; an ordinary local revision retains its thread.
-    const upgrade = Boolean(visual && p.threadId && p.directorToolSignature !== toolSignature);
+    // both first cuts and edits. Resume an interrupted job against its original receipt first.
+    const resumingJob=Boolean(jobId && p.directorState?.jobId===jobId && p.directorState?.turnId);
+    const upgrade = Boolean(!resumingJob && p.threadId && p.directorToolSignature !== toolSignature);
     if (upgrade && p.directorState?.turnId && client.findTurn) {
       const prior = await client.findTurn(p.threadId, p.directorState.turnId);
       if (prior?.turn?.status === 'inProgress' && prior.status?.type === 'active')

@@ -872,3 +872,27 @@ test('the director can place a native JSX beat on first cut and revise its secon
   await createDirector(deps).run(p.id,{kind:'produce'});
   assert.deepEqual(p.timeline.clips.find(c=>c.motion).motion.props,{a:'起点',b:'核对读数',c:'归零'});
 });
+
+test('opening an old project for an ordinary edit registers newly added tools once',async t=>{
+  const {p,deps}=await fixture(t,{threadId:'old-thread',directorToolSignature:'previous-tools'});
+  const starts=[];
+  deps.client={account:async()=>({connected:true}),close(){},
+    async thread(id,tools){starts.push(id);assert.ok(tools.some(t=>t.name==='studio_component'));return 'updated-thread';},
+    async runTurn({onStart}){await onStart('new-turn');return '已读取工程';}};
+  const director=createDirector(deps);
+  await director.run(p.id,{kind:'revise'});
+  await director.run(p.id,{kind:'revise'});
+  assert.deepEqual(starts,[null,'updated-thread']);
+  assert.deepEqual(p.previousDirectorThreads,['old-thread']);
+});
+
+test('first-cut JSX uses this shot’s observed action frames at the actual project rate',async t=>{
+  const {p,deps}=await fixture(t,{settings:{voiceMode:'original',musicEnabled:false}});
+  const beat={assetId:'picture',narration:'逐次转动。',durationSeconds:4,
+    visualSteps:[.4,1,2].map((atSeconds,i)=>({atSeconds,stage:'detail',label:'细节'+i,observation:'标记发生转动'})),
+    motionComponent:{componentId:'staggered-explanation',props:{a:'起点',b:'转动',c:'停稳'},cueSource:'visualSteps'}};
+  await applyScenes(deps,p,[beat]);
+  const c=p.timeline.clips.find(c=>c.motion);
+  assert.equal(c.start,10);assert.deepEqual(c.motion.cueFrames,[0,15,40]);
+  await assert.rejects(applyScenes(deps,p,[{...beat,motionComponent:{...beat.motionComponent,cueFrames:[0,1,2]}}]),/只指定/);
+});

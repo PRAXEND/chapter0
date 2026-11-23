@@ -585,6 +585,7 @@ export async function applyScenes(
         witnessFrameHash: match?.sha256 || null,
       };
     });
+    let motionPlan=beat.motionComponent;
     if (steps.length && style?.templates?.length) {
       const scene = {
         style,
@@ -620,7 +621,17 @@ export async function applyScenes(
             )
           ).clips
         : deps.styleLibrary.compileScene(scene, project.profile);
-      for (const [j, shape] of shapes.entries()) clips.push({ ...shape, id: 'scene-' + i + '-g' + j });
+      const chips=shapes.filter(shape=>shape.templateRole==='process-rail'&&shape.stageActive);
+      if(!motionPlan && chips.length===3 && new Set(steps.map(s=>s.stage)).size===3 &&
+          style.components?.some(c=>c.id==='process-rail')){
+        const texts=chips.map(c=>c.text);
+        motionPlan={componentId:'process-rail',props:{a:texts[0],b:texts[1],c:texts[2]},cueSource:'visualSteps',
+          geometry:{x:.5,y:chips[0].geometry.y,width:1400/1920,height:120/1080}};
+      }
+      for (const [j, shape] of shapes.entries()){
+        if(motionPlan?.componentId==='process-rail'&&shape.templateRole==='process-rail')continue;
+        clips.push({ ...shape, id: 'scene-' + i + '-g' + j });
+      }
     } else if (emphasis && style?.templates?.length) {
       const anchor = Math.round(anchorSec * fps);
       const key = asset.id + ':' + anchor;
@@ -673,9 +684,17 @@ export async function applyScenes(
           });
       } else notes.push({ type: 'suggestion', frame: cursor, message: '重点动作尚无可见证据，已留出动效位置。' });
     }
-    if(beat.motionComponent){
-      const {componentId,props,geometry,cueFrames,atSeconds=0,durationSeconds}=beat.motionComponent;
-      const offset=Math.round(atSeconds*fps);
+    if(motionPlan){
+      const {componentId,props,geometry,cueSource,atSeconds,durationSeconds}=motionPlan;
+      let offset=Math.round((atSeconds??0)*fps),cueFrames=motionPlan.cueFrames;
+      if(cueSource){
+        if(cueFrames||atSeconds!==undefined||!['visualSteps','captionStarts'].includes(cueSource))
+          throw Error('自动绑定落点时请只指定画面动作或字幕起点。');
+        const markers=cueSource==='visualSteps'?steps.map(s=>s.atFrame):clips.filter(c=>c.track==='caption'&&c.start>=cursor&&c.start<cursor+visible).map(c=>c.start);
+        if(!markers.length)throw Error('该镜头没有可绑定的动作或字幕起点。');
+        offset=markers[0]-cursor;
+        cueFrames=markers.map(frame=>frame-markers[0]);
+      }
       const span=durationSeconds===undefined ? visible-offset : Math.round(durationSeconds*fps);
       if(!Number.isSafeInteger(offset)||!Number.isSafeInteger(span)||offset<0||span<1||offset+span>visible)
         throw Error('组件的出场或退场超出该镜头的可见时段。');

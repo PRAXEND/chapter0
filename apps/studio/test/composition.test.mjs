@@ -38,7 +38,7 @@ test('directed rotation about an inset polygon box survives two turns, movement,
   const original=project;
   const split=store.apply(project.id,project.revision,[{op:'split',id:'upper',atFrame:8,newId:'upper-tail'}]);
   assert.equal(split.timeline.clips.find(c=>c.id==='upper-tail').keyframes[0].rotation,210);
-  const motion=store.apply(split.id,split.revision,[{op:'add',clip:{id:'component',track:'graphic',text:'',start:26,duration:4,motion:{componentId:'sample'}}}]);
+  const motion=store.apply(split.id,split.revision,[{op:'add',clip:{id:'component',track:'graphic',text:'',start:26,duration:4,motion:{version:1,componentId:'impact-title',props:{title:'分割检查'}}}}]);
   assert.throws(()=>store.apply(motion.id,motion.revision,[{op:'split',id:'component',atFrame:28,newId:'bad'}]),/独立动画时钟/);
   for(const [name,p,first] of [['full',original,0],['split',split,0],['window',split,6]]) {
     const output=path.join(dir,name+'.mp4');
