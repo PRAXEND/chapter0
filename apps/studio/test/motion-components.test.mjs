@@ -47,3 +47,17 @@ test('parity checks use layer regions and matching revision frame coordinates',(
   assert.equal(pixelDifference(white,black,8,4,left).matches,false);
   assert.equal(pixelDifference(white,black,8,4,{...left,x:.5}).matches,true);
 });
+
+test('a thin rotating signal is compared inside its transformed silhouette at a nonzero angle',()=>{
+  const c={track:'graphic',id:'blade',shape:'polygon',start:0,duration:24,geometry:{x:.4,y:.5,width:.4,height:.018,
+    points:[[0,0],[1,0],[1,1],[0,1]]},keyframes:[{frame:0,rotation:0},{frame:23,rotation:360}]};
+  const p={profile:{width:400,height:200,fps:24},timeline:{clips:[c]}};
+  const [sample]=compositionSamples(p,1);
+  assert.ok(sample.frame>0);
+  const out=Buffer.alloc(400*200*3),preview=Buffer.alloc(out.length);
+  const r=sample.bounds;
+  for(let y=Math.floor(r.y*200);y<Math.ceil((r.y+r.height)*200);y++)
+    for(let x=Math.floor(r.x*400);x<Math.ceil((r.x+r.width)*400);x++)preview.fill(255,(y*400+x)*3,(y*400+x)*3+3);
+  const diff=pixelDifference(out,preview,400,200,r,sample.points);
+  assert.equal(diff.matches,false);assert.ok(diff.pixels>100&&diff.pixels<800);
+});
