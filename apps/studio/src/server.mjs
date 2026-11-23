@@ -1,3 +1,5 @@
+import {compareCompositions} from './composite-parity.mjs';
+import {motionCatalog} from './motion-components.mjs';
 import {paceNarration} from './style-audio-render.mjs';
 import http from 'node:http';
 import {DatabaseSync} from 'node:sqlite';
@@ -59,6 +61,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   const deliveryRoot=process.env.STUDIO_DELIVERY_ROOT||(standardLibrary?path.join(movies,'交付'):path.join(root,'deliveries'));
   const blindRoot=process.env.STUDIO_REVIEW_ROOT||(standardLibrary?path.join(movies,'盲评工作台'):root);
   const queue=createQueue({store,director,deliveryRoot,styles,media:dependencies.media||media,reviewProject:dependencies.reviewProject||reviewProject,
+    comparePreview:(p,options)=>compareCompositions(p,{...options,drafts,cache:store.paths(p.id).cache}),
     async prepare(project,{signal,onProgress,kind,message}){
       if(kind==='produce'&&director.prepareAudio)project=await director.prepareAudio(project.id,{signal,message});
       const caps=await audio.audioCapabilities();
@@ -94,11 +97,12 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       }
       if(parts[0]!=='api'){
         const name=url.pathname==='/'?'index.html':url.pathname.slice(1);
-        if(!['index.html','app.js','studio.css'].includes(name)||method!=='GET')throw fault('页面不存在。',404);
-        res.setHeader('Content-Type',{'index.html':'text/html; charset=utf-8','app.js':'text/javascript; charset=utf-8','studio.css':'text/css; charset=utf-8'}[name]);
+        if(!['index.html','app.js','motion-clock.js','studio.css'].includes(name)||method!=='GET')throw fault('页面不存在。',404);
+        res.setHeader('Content-Type',{'index.html':'text/html; charset=utf-8','motion-clock.js':'text/javascript; charset=utf-8','app.js':'text/javascript; charset=utf-8','studio.css':'text/css; charset=utf-8'}[name]);
         res.setHeader('Cache-Control','no-store');return res.end(await readFile(path.join(web,name)));
       }
       const [,kind,id,action,part,leaf]=parts;
+      if(kind==='motion-components'&&!id&&method==='GET')return json(res,motionCatalog);
       if(kind==='status'&&method==='GET')return json(res,{media:await media.mediaCapabilities(),audio:await audio.audioCapabilities(),install,cloudMusic:music.connected()});
       if(kind==='prepare'&&method==='POST'){
         const b=await readJson(req);if(!['render','speech','clone','preset'].includes(b.feature))throw fault('未知安装项。');
@@ -167,7 +171,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
           const b=await readJson(req);const d=await drafts.open(p,b.fromFrame??0);
           return json(res,{...d,url:'/api/projects/'+id+'/draft/'+d.name});
         }
-        if(action==='draft'&&/^\d+-\d+-\d+\.mp4$/.test(part||'')&&['GET','HEAD'].includes(method)){
+        if(action==='draft'&&/^v2-\d+-\d+-\d+\.mp4$/.test(part||'')&&['GET','HEAD'].includes(method)){
           const dir=path.join(store.paths(id).cache,'drafts');
           return await streamFile(req,res,await contained(path.join(dir,part),dir));
         }

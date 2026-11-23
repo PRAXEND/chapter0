@@ -37,6 +37,15 @@ final class Smoke: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
             const c=document.querySelector('[data-clip="caption-sample"]');c.focus();c.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
             await wait(()=>document.querySelector('[data-act="lock"]'));click('[data-act="lock"]');
             await wait(()=>document.querySelector('[data-clip="caption-sample"].lock'));
+            document.querySelector('#new-component').value='staggered-explanation';
+            click('[data-act="add-component"]');await wait(()=>document.querySelector('#motion-b'));
+            document.querySelector('#motion-b').value='第二句在这里出现';
+            const cue=document.querySelector('#cue-1');cue.value='27';cue.dispatchEvent(new Event('input',{bubbles:true}));
+            if(document.querySelector('#cue-read-1').value!=='27 帧')throw Error('落点读数未更新');
+            click('[data-act="save-clip"]');
+            await wait(()=>document.querySelector('#motion-b')?.value==='第二句在这里出现'&&document.querySelector('.timeline-header')?.innerText.includes('v5'));
+            const saved=await (await fetch('/api/projects/'+p.id)).json(),layer=saved.timeline.clips.find(c=>c.motion);
+            if(layer.motion.props.b!=='第二句在这里出现'||layer.motion.cueFrames[1]!==27)throw Error('组件未写入工程');
             click('[data-act="tab"][data-id="settings"]');await wait(()=>document.querySelector('#voice-mode'));
             document.querySelector('#set-title').value='已保存的剪辑工程';click('[data-act="settings-save"]');
             await wait(()=>document.querySelector('#current-title').textContent==='已保存的剪辑工程');
@@ -50,7 +59,7 @@ final class Smoke: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         guard let status=message.body as? String,status=="ok" else {fputs("WKWebView: \(message.body)\n",stderr);exit(3)}
         view.takeSnapshot(with: nil) { image,error in
             guard let image=image,let tiff=image.tiffRepresentation,let bitmap=NSBitmapImageRep(data:tiff),let png=bitmap.representation(using:.png,properties:[:]) else {exit(4)}
-            do{try png.write(to:URL(fileURLWithPath:self.output));print("WKWebView: create, navigate, edit, lock, settings, snapshot passed");exit(0)}catch{exit(5)}
+            do{try png.write(to:URL(fileURLWithPath:self.output));print("WKWebView: create, navigate, edit, lock, JSX text and cue slider, settings, snapshot passed");exit(0)}catch{exit(5)}
         }
     }
 }

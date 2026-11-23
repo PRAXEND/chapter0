@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const active=p=>p.timeline.clips.filter(c=>!c.hidden&&c.enabled!==false);
 const length=p=>active(p).reduce((n,c)=>Math.max(n,c.start+c.duration),0);
-const fields=['track','assetId','start','duration','sourceIn','speed','gain','muted','fit','text','style','geometry','transition','keyframes'];
+const fields=['track','assetId','start','duration','sourceIn','speed','gain','muted','fit','text','style','geometry','transition','keyframes','motion','viewport','framing'];
 const signature=c=>c&&JSON.stringify(fields.map(k=>c[k]));
 const overlap=(c,l,r)=>c.start<r&&c.start+c.duration>l;
 

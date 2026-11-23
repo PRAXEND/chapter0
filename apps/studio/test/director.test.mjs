@@ -850,3 +850,25 @@ for (const sharing of [true, false])
     assert.equal(p.timeline.clips.find(c => c.track === 'video').sourceIn, 575);
     assert.equal(p.visualDirection.status, sharing ? 'motion-planned' : 'blocked-by-privacy');
   });
+
+test('the director can place a native JSX beat on first cut and revise its second cue without stale or locked writes',async t=>{
+  const {p,deps}=await fixture(t);
+  deps.client={account:async()=>({connected:true}),thread:async()=> 'thread',close(){},
+    async runTurn({onStart,tool}){
+      await onStart('turn');
+      const call=async(name,args)=>JSON.parse((await tool({tool:name,arguments:args})).contentItems[0].text);
+      assert.equal((await call('studio_context',{})).motionComponents.length,6);
+      await call('studio_sequence',{baseRevision:p.revision,beats:[{assetId:'picture',narration:'沿着刻度移动。',
+        motionComponent:{componentId:'staggered-explanation',props:{a:'起点',b:'读数',c:'归零'},cueFrames:[0,10,20]}}]});
+      const first=p.timeline.clips.find(c=>c.motion),rev=p.revision;
+      assert.deepEqual(first.motion.cueFrames,[0,10,20]);
+      const patch={clipId:first.id,baseRevision:rev,cueFrames:[0,15,20],props:{b:'核对读数'}};
+      await call('studio_component',patch);await assert.rejects(call('studio_component',patch),/版本/);
+      assert.equal(p.timeline.clips.find(c=>c.id===first.id).motion.props.a,'起点');
+      p.timeline.clips.find(c=>c.id===first.id).locked=true;
+      await assert.rejects(call('studio_component',{...patch,baseRevision:p.revision}),/locked/);
+      return '编辑完毕';
+    }};
+  await createDirector(deps).run(p.id,{kind:'produce'});
+  assert.deepEqual(p.timeline.clips.find(c=>c.motion).motion.props,{a:'起点',b:'核对读数',c:'归零'});
+});

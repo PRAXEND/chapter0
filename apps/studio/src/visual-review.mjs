@@ -53,7 +53,7 @@ function similarEvidence(a,b) {
   return a.assetId===b.assetId&&overlapRatio(a.region,b.region)>.78;
 }
 
-async function decodePixels(ffmpeg,file,sec,width,height,signal) {
+export async function decodePixels(ffmpeg,file,sec,width,height,signal) {
   const result=await execute(ffmpeg,['-nostdin','-v','error',...(sec==null?[]:['-ss',String(Math.max(0,sec))]),'-protocol_whitelist','file','-i',file,
     '-map','0:v:0','-frames:v','1','-an','-vf','scale='+width+':'+height,'-pix_fmt','rgb24','-threads','1','-f','rawvideo','pipe:1'],
     {signal,encoding:'buffer',maxBuffer:width*height*3+65536,timeout:30000});

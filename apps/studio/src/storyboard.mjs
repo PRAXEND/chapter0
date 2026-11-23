@@ -1,3 +1,4 @@
+import {componentClip} from './motion-components.mjs';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -671,6 +672,15 @@ export async function applyScenes(
             actionFrame,
           });
       } else notes.push({ type: 'suggestion', frame: cursor, message: '重点动作尚无可见证据，已留出动效位置。' });
+    }
+    if(beat.motionComponent){
+      const {componentId,props,geometry,cueFrames,atSeconds=0,durationSeconds}=beat.motionComponent;
+      const offset=Math.round(atSeconds*fps);
+      const span=durationSeconds===undefined ? visible-offset : Math.round(durationSeconds*fps);
+      if(!Number.isSafeInteger(offset)||!Number.isSafeInteger(span)||offset<0||span<1||offset+span>visible)
+        throw Error('组件的出场或退场超出该镜头的可见时段。');
+      clips.push(componentClip({id:'scene-'+i+'-motion',componentId,props,geometry,cueFrames,
+        start:cursor+offset,duration:span},project.profile));
     }
     board.push({
       assetId: asset.id,

@@ -12,7 +12,7 @@ export function draftPreviews(store, media) {
     const span = 6 * project.profile.fps;
     const fromFrame = Math.max(0, Math.min(frame, length - span));
     const toFrame = Math.min(length, fromFrame + span);
-    const name = [project.revision, fromFrame, toFrame].join('-') + '.mp4';
+    const name = ['v2', project.revision, fromFrame, toFrame].join('-') + '.mp4';
     const directory = store.paths(project.id).cache;
     const output = path.join(directory, 'drafts', name);
     const result = {name, revision:project.revision, fromFrame, toFrame};

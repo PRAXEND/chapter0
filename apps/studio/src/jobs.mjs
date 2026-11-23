@@ -8,7 +8,7 @@ import { portableProject, publishDelivery } from "./library.mjs";
 import { fault } from './project.mjs';
 const stamp=()=>new Date().toISOString();
 const activeStates=['queued','running','pausing'];
-export function createQueue({store, director, media, reviewProject, prepare, deliveryRoot, styles}) {
+export function createQueue({store, director, media, reviewProject, comparePreview, prepare, deliveryRoot, styles}) {
   const running=new Map();
   let stopping=false, scheduled=false;
   function change(id,patch){return store.saveJob({...store.getJob(id),...patch,updatedAt:stamp()});}
@@ -74,7 +74,7 @@ export function createQueue({store, director, media, reviewProject, prepare, del
       const styleSpec=styles?.get && p.style ? await styles.get(p.style.id,p.style.version) : undefined;
       const musicPolicy=styleAudioPolicy(styleSpec)?.music;
       const styleMusicResource=musicPolicy&&styles?.getMusicResource?await styles.getMusicResource(p.style.id,p.style.version,musicPolicy):null;
-      const qa=await reviewProject(p,{videoPath:j.files.video,srtPath:j.files.subtitle,signal,preview:j.kind==='preview',findings:p.findings||[],styleSpec,styleMusicResource});
+      const qa=await reviewProject(p,{videoPath:j.files.video,srtPath:j.files.subtitle,signal,comparePreview,preview:j.kind==='preview',findings:p.findings||[],styleSpec,styleMusicResource});
       signal.throwIfAborted();
       const remedy=qa.repairs?.[0];
       if(remedy && !qa.deliverable && j.repairs<2 && store.get(projectId).revision===p.revision){

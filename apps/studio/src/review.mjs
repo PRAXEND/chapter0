@@ -258,7 +258,7 @@ function currentDirectorFindings(project) {
   if(locations.length)problems.push({...issue('estimated-caption-switches','minor',withinSegmentMessage,'播放标记的换字位置，按听感微调字幕。',locations[0].frame,locations[0].frame),locations});
   return problems;
 }
-export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,styleSpec,styleMusicResource,resolveTool=defaultResolver}={}) {
+export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,comparePreview,styleSpec,styleMusicResource,resolveTool=defaultResolver}={}) {
   const problems=[...findings,...currentDirectorFindings(project)],evidence={audio:[],decode:false};
   const meta={revision:project.revision,frameRate:project.profile.fps,artifactSha256:null,subtitleSha256:null,candidatePlayable:false,evidence,
     limitations:['波形与抽帧提供技术证据。音色自然度、发音、节奏偏好和未标注的动作语义需要原速观看或试听。']};
@@ -324,6 +324,15 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
         const sameMissing=item.id==='style-audio-music'?'music-required':'narration-missing';
         if(item.severity==='major'&&problems.some(p=>p.id===sameMissing))continue;
         problems.push(item);
+      }
+    }
+    if(comparePreview && !preview){
+      const parity=await comparePreview(project,{videoPath,ffmpeg,signal});
+      if(parity){
+        evidence.compositeParity=parity;
+        for(const check of parity.checks.filter(c=>c.matches===false)){
+          problems.push(issue('composite-parity-'+check.clipId,'unknown','预览与导出在此处可见差异','对照同版本草稿和导出文件，复核此图层。',check.frame,check.frame));
+        }
       }
     }
     const visual=await reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,hashFile:fileSha256});

@@ -1,3 +1,4 @@
+import {componentClip,motionCatalog} from './motion-components.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { CodexClient } from './codex.mjs';
 import { directSources, importSource, searchSources, searchFacts, readBriefSources } from './sources.mjs';
@@ -37,6 +38,12 @@ const str = { type: 'string' },
   int = { type: 'integer' };
 const focal = object({ x: num, y: num, zoom: num }, ['x', 'y', 'zoom']);
 const region = object({ x: num, y: num, width: num, height: num }, ['x', 'y', 'width', 'height']);
+const componentProperties = object(Object.fromEntries(motionCatalog.flatMap(c => c.fields.map(f =>
+  [f.key, f.type==='number' ? num : f.type==='boolean' ? {type:'boolean'} : str]))));
+const componentSelector = {type:'string', enum:motionCatalog.map(c=>c.id)};
+const componentFields = {componentId:componentSelector,props:componentProperties,
+  cueFrames:{type:'array',items:int,description:'Clip-relative project frames, beginning at zero. Three-step components take exactly three increasing frames.'},
+  geometry:{...region,description:'Normalized canvas centre x/y and size width/height for the overlay.'}};
 const beat = object(
   {
     assetId: str,
@@ -62,6 +69,7 @@ const beat = object(
     emphasis: str,
     template: str,
     framing: object({ from: focal, to: focal }, ['from']),
+    motionComponent:object({...componentFields,atSeconds:num,durationSeconds:num},['componentId','props']),
     visualSteps: {
       type: 'array',
       items: object(
@@ -184,6 +192,12 @@ const tools = [
     ['baseRevision', 'checks']
   ),
   tool(
+    'studio_component',
+    'Place an executable local JSX component in the current shot, or edit an existing component by clipId. New placements use shotId with a relative offsetFrames, or an absolute start frame. Existing clip edits keep unspecified properties. Return to the timeline preview to check the rendered result.',
+    {baseRevision:int,clipId:str,shotId:str,start:int,offsetFrames:int,duration:int,...componentFields},
+    ['baseRevision']
+  ),
+  tool(
     'studio_edit',
     'Edit only unlocked clips. Send JSON array of {op:"update",id,changes}, {op:"add",clip}, or {op:"remove",id}. Numbers start/duration/sourceIn are project frames. Keep other clips unchanged.',
     {
@@ -214,6 +228,7 @@ const instructions = [
   '没有开启发送帧时，用 studio_observe 获得项目中素材的本机类别、颜色与可共享 OCR 结果。动作锚点只能来自实际观看、用户标记、或同帧匹配的可见文字（anchorText）；亮度差不能单独证明某一事件。可分享帧时用 studio_frame 查看原片或风格参考；提交后抽查真实合成帧。注明哪些区间未看片、未听审。',
   '处理改稿时先核对当前版本与选区，用 studio_edit 局部修改，配音改词用 studio_narrate。用户没有要求时不要重新生成整片。',
   '视频 framing.from/to 的 x/y 是原素材归一化中心、zoom 为等比铺满后 1–4 倍。图形 shape=outline、text="" 可做空心框；geometry 的 x/y 是画布中心，width/height 为相对宽高。不要用无关推拉假装拍到动作。',
+  'studio_context.motionComponents 是本机能执行的原版 JSX 组件。v8 首剪在 studio_sequence 的 beat.motionComponent 填组件和本期文字、atSeconds、durationSeconds，无时间参数则覆盖本镜；改稿可用 studio_component，用本期文字、真实语音或动作落点替换样片值。三项分步揭示用 staggered-explanation 的 a/b/c 与 cueFrames；需要双画面对照时先通过 studio_edit 在两个同期 video 片段设独立 viewport={x,y,width,height}（左上角归一坐标），再放 comparison-guide 标识。图形 keyframes.rotation 为顺时针角度，可跨整圈。用实际合成帧或窗口前后核对动效，注意单张静帧看不出转动。保留用户锁定内容。',
   '技术讲解的段落从实际动作或能在镜头中直接辨认的问题起笔。按句选取能新增信息的视角：比如现场全景交代实验，局部或对照解释变化，回到原片验证。先查是否有同一事件的其他机位、过程前后原照或实测样本。素材身份与测量范围保持准确。需要剖面或零件贴合时，使用 graphic、shape=polygon、text=""，geometry.points 是图层框内 3–128 对归一化 [x,y] 顶点；各部件独立上关键帧，与真实观察同屏比较。',
   '如果找到同一处的前后记录，可将两条已对准的镜头短暂叠放，在后一条设置 transition.type=wipe-right、duration 为帧数，以擦除让观众核查哪里发生了变化。',
   '分清摄影出处和解说论据。图中可直接看见的现象使用 claimKind=observation。解释材料性质、因果关系或未拍到的过程须用 claimKind=explanation，claimUrl 对应真实科学资料，claimQuote 从该资料实际返回的正文或摘要逐字摘录与这句话对应的一小段。书目题名不足以证明原理。找不到可查的材料就删去推论，只说画面能证明什么。',
@@ -342,6 +357,8 @@ const clipFields = [
   'actionFrame',
   'anchorSourceFrame',
   'anchorAssetId',
+  'viewport',
+  'motion',
   'framing',
   'shape',
   'fit',
@@ -350,7 +367,7 @@ const projectClip = (c, shareText = true) =>
   ({...Object.fromEntries(
     [...clipFields, 'speechGroup', 'speechCue', 'alignmentMethod', 'cueTiming','templateRole','template','visualStage','role']
       .filter((k) => Object.hasOwn(c, k) && (shareText || k !== 'text'))
-      .map((k) => [k, c[k]])
+      .map((k) => [k, k==='motion' && !shareText ? {...c.motion,props:Object.fromEntries(Object.entries(c.motion.props||{}).filter(([,value])=>typeof value!=='string'))} : c[k]])
   ),...(c.style?{style:Object.fromEntries(Object.entries(c.style).filter(([key])=>['fontSize','color','fontFamily','backgroundColor','borderColor','strokeWidth'].includes(key)))}:{})});
 async function context(deps, project, selection) {
   const s = project.style?.id ? await deps.styleLibrary.get(project.style.id, project.style.version) : null;
@@ -400,6 +417,11 @@ async function context(deps, project, selection) {
     transcript: rows,
     utteranceCounts: Object.fromEntries(transcripts.map(([id, list]) => [id, list.length])),
     style: selectedStyle(s),
+    motionComponents: motionCatalog.map(c=>({id:c.id,name:c.name,version:c.version,
+      recommended:(s?.components||[]).some(x=>x.id===c.id),geometry:c.geometry,
+      params:c.fields.filter(f=>!['second','third'].includes(f.key)).map(f=>({key:f.key,type:f.type,label:f.label})),
+      cueFramesAt30fps:c.referenceCues})),
+
     review: last
       ? {
           result: last.qa.label,
@@ -1100,9 +1122,9 @@ export function createDirector(deps) {
         await remember();
         return toolText({ checked: visual.checks.length });
       }
-      if (visual?.stage === 'verify' && !['studio_edit', 'studio_publication'].includes(name))
+      if (visual?.stage === 'verify' && !['studio_edit', 'studio_component', 'studio_publication'].includes(name))
         throw Error('视觉回看只允许局部修改当前时间线。');
-      if (visual?.stage === 'compose' && !visual.sequence && ['studio_edit', 'studio_narrate'].includes(name))
+      if (visual?.stage === 'compose' && !visual.sequence && ['studio_edit', 'studio_component', 'studio_narrate'].includes(name))
         throw Error('首版请先提交包含真实视觉证据的完整分镜。');
       if (name === 'studio_publication') {
         if (!current.settings.publishPackage) throw new Error('本工程未启用发布包。');
@@ -1158,6 +1180,28 @@ export function createDirector(deps) {
               },
             ];
         }
+      } else if (name === 'studio_component') {
+        const old=args.clipId && current.timeline.clips.find(c=>c.id===args.clipId);
+        if(args.clipId && !old?.motion)throw Error('选中的组件不存在，请重新读取时间线。');
+        const shot=args.shotId && current.timeline.clips.find(c=>c.id===args.shotId && c.track==='video');
+        if(args.shotId && !shot)throw Error('绑定的画面片段不存在。');
+        if(args.offsetFrames!==undefined && (!shot || !Number.isSafeInteger(args.offsetFrames) || args.offsetFrames<0))throw Error('镜头内偏移需要画面片段和非负帧数。');
+        if(args.start!==undefined && shot)throw Error('镜头内偏移与绝对起点只能选一种。');
+        const start=shot ? shot.start+(args.offsetFrames??0) : (args.start??old?.start);
+        const duration=args.duration??old?.duration??(shot && shot.start+shot.duration-start);
+        if(!Number.isSafeInteger(start)||!Number.isSafeInteger(duration)||duration<=0||start<0 ||
+            (shot && start+duration>shot.start+shot.duration))throw Error('组件需要有效的起点和时长，并须位于绑定镜头内。');
+        const componentId=args.componentId??old?.motion.componentId;
+        const same=old?.motion.componentId===componentId;
+        const clip=componentClip({id:old?.id||randomUUID(),componentId,start,duration,
+          props:{...(same?old.motion.props:{}),...args.props},cueFrames:args.cueFrames??(same?old.motion.cueFrames:undefined),
+          geometry:args.geometry??(same?old.geometry:undefined)},current.profile);
+        const command=old?{op:'update',id:old.id,changes:{motion:clip.motion,start,duration,geometry:clip.geometry}}:{op:'add',clip};
+        const applied=await store.apply(id,current.revision,[command],'codex');
+        changed=true;
+        await remember();
+        lastRevision=applied.revision;
+        return toolText({revision:applied.revision,clipId:clip.id,start,duration,componentId});
       } else if (name === 'studio_edit') {
         const commands = JSON.parse(args.commandsJson);
         allowedCommands(commands, current);
