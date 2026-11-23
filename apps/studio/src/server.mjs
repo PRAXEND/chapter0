@@ -171,7 +171,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
           const b=await readJson(req);const d=await drafts.open(p,b.fromFrame??0);
           return json(res,{...d,url:'/api/projects/'+id+'/draft/'+d.name});
         }
-        if(action==='draft'&&/^v2-\d+-\d+-\d+\.mp4$/.test(part||'')&&['GET','HEAD'].includes(method)){
+        if(action==='draft'&&/^[a-f0-9]{16}-\d+-\d+-\d+\.mp4$/.test(part||'')&&['GET','HEAD'].includes(method)){
           const dir=path.join(store.paths(id).cache,'drafts');
           return await streamFile(req,res,await contained(path.join(dir,part),dir));
         }

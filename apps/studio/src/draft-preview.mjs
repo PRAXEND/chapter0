@@ -1,6 +1,18 @@
 import path from 'node:path';
-import {stat} from 'node:fs/promises';
+import {stat,readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import os from 'node:os';
 import {fault} from './project.mjs';
+
+// Projects can be reopened at the same revision after upgrading the compositor.
+const inputs=['./media.mjs','./motion-components.mjs','./motion-dom.mjs','./motion-render.mjs',
+  './motion-jsx.generated.mjs','../scripts/motion-webkit.swift','../www/motion-clock.js',
+  './framing.mjs','./graphic-keys.mjs','./text-tracks.mjs','./polygon.mjs','./viewport.mjs'];
+const rendererVersion=Promise.all(inputs.map(name=>readFile(new URL(name,import.meta.url)))).then(parts=>{
+  const hash=createHash('sha256').update(os.release());
+  for(const bytes of parts)hash.update(bytes);
+  return hash.digest('hex').slice(0,16);
+});
 
 export function draftPreviews(store, media) {
   const active = new Map();
@@ -12,7 +24,7 @@ export function draftPreviews(store, media) {
     const span = 6 * project.profile.fps;
     const fromFrame = Math.max(0, Math.min(frame, length - span));
     const toFrame = Math.min(length, fromFrame + span);
-    const name = ['v2', project.revision, fromFrame, toFrame].join('-') + '.mp4';
+    const name = [await rendererVersion, project.revision, fromFrame, toFrame].join('-') + '.mp4';
     const directory = store.paths(project.id).cache;
     const output = path.join(directory, 'drafts', name);
     const result = {name, revision:project.revision, fromFrame, toFrame};
