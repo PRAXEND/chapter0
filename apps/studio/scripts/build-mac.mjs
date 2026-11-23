@@ -4,6 +4,8 @@ import {constants} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
+import {sourceHashes} from '../src/motion-jsx.generated.mjs';
 import {bundleStyles} from './bundle-styles.mjs';
 import {prepareCodex,codexVersion} from './prepare-codex.mjs';
 import {mediaTool} from '../src/media.mjs';
@@ -30,6 +32,16 @@ try{
   const legacy=path.join('plugins','video-studio','workbench','media.mjs');
   await clone(path.join(repo,legacy),path.join(resources,legacy));
   await bundleStyles(repo,resources);
+  const motionPack=path.join(resources,'user-packs','henry-video-styles','reproduction','technical-explainer');
+  for(const [i,hash] of sourceHashes.entries()){
+    const name='mg-'+String(i+1).padStart(2,'0')+'.jsx';
+    if(createHash('sha256').update(await readFile(path.join(motionPack,name))).digest('hex')!==hash)
+      throw Error(name+' 源码已变更，请审阅后重新编译发行组件。');
+  }
+  const helper=path.join(binDir,'motion-webkit');
+  exec('/usr/bin/xcrun',['swiftc','-parse-as-library','-O',path.join(base,'scripts','motion-webkit.swift'),'-o',helper],
+    {env:{...toolEnv,MACOSX_DEPLOYMENT_TARGET:'13.5'}});
+  exec('/usr/bin/codesign',['--force','--sign',process.env.STUDIO_SIGN_IDENTITY||'-',helper]);
   await clone(process.execPath,path.join(binDir,'node'));
   for(const name of ['ffmpeg','ffprobe','whisper-cli']){
     const tool=await mediaTool(name);if(!tool){if(name==='whisper-cli')continue;throw Error('发行需要可用的 '+name);}

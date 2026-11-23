@@ -60,3 +60,11 @@ node scripts/field-trials.mjs "$HOME/Movies/Video Studio/盲评工作台/researc
 `VIDEO_STUDIO_QWEN_PRESET_MODEL` 可以指定完整的相同版本模型目录；工作台在准备或试音时校验。若已有离线副本，准备时可设置 `VIDEO_STUDIO_QWEN_PRESET_SOURCE`，通过校验的文件将复制到自己的模型缓存。普通应用启动、读取能力和试音不会下载预置权重。
 
 2026-11-23 在 8 GB M1 上用显式准备操作复制既有模型，禁用外部网络代理后再次准备，返回预置音色可用。通过正式 HTTP 的新建脚本工程、音色试听和工程素材下载接口输入“这是一段全新的科普解说。先看画面，再听声音。”实际得到 24 kHz 单声道、5.55 秒、266,444 字节的 WAV，SHA-256 为 `09a9d55465fe6e08a253df6680de22b82228fb2f5b40b0193f7d676019b136d4`。下载字节与工程素材指纹相同，来源登记了预置标识、模型版本及权重指纹。本机无提示 whisper 转写与这条原稿逐字一致。
+
+## 本机 JSX 动效
+
+科普包内的六份 JSX 在发行前编译为受信组件。安装包随附 `Resources/bin/motion-webkit`。工程只保存组件 ID、可编辑的参数、相对片段的出场帧和画布位置。组件使用系统 WebKit 栅格化为透明图层，再经工作台现有的 FFmpeg 合成，字幕位于动效之上。预览选区沿用原片的工程帧。字体使用本机安装的字体。
+
+从源码运行时，第一次渲染使用系统 Command Line Tools 编译随仓 Swift 文件。发行包直接使用内置程序。按工程隔离的动效帧默认存放在媒体缓存的 `motion-frames-v1` 子目录，也可用 `VIDEO_STUDIO_MOTION_CACHE` 指定位置。组件、原生渲染代码或系统版本变化时，工作台使用新指纹重建。单个项目的缓存可在关闭渲染后清理，再次渲染会自动生成。
+
+修改风格包原版 JSX 时，先检查组件所需的元素与样式。在有 TypeScript 的开发机上运行 `node scripts/compile-motion-jsx.mjs /绝对路径/typescript`，连同源码一起提交生成模块。发行构建逐一比对原文件指纹。运行 `node --test test/motion-render.test.mjs` 可复验六个真实组件的透明输出、出场时间、字幕层级和窗口对位。指定 `VIDEO_STUDIO_MOTION_TEST_OUTPUT` 可保留 MP4 和测量记录。

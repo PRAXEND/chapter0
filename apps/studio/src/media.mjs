@@ -310,17 +310,22 @@ async function render(project, { directory, output, preview = false, window, sig
     onProgress(0.6);
     const mix = await renderMix(audible, media, work, fps, mixStart, mixEnd, ffmpeg, signal);
     const layers = clips.filter(c => ['caption', 'graphic'].includes(c.track) && c.start < toFrame && c.start + c.duration > fromFrame);
-    if (layers.length) await writeFile(path.join(work, 'layers.ass'), createAss(layers, profile));
+    let motion;
+    if (layers.some(c => c.track === 'graphic' && c.motion)) {
+      const {prepareMotionOverlay} = await import('./motion-render.mjs');
+      motion = await prepareMotionOverlay(layers, profile, {work, directory, projectId: project.id, fromFrame, toFrame, signal});
+    } else if (layers.length) await writeFile(path.join(work, 'layers.ass'), createAss(layers, profile));
     const srt = createSrt(layers, fps, { fromFrame, toFrame });
     await writeFile(path.join(work, 'captions.srt'), srt);
     const final = path.join(work, 'final.mp4');
     const overlay = fromFrame ? `settb=1/${fps},setpts=N+${fromFrame},ass=layers.ass,setpts=N` : 'ass=layers.ass';
-    const encoding = layers.length ? ['-vf', overlay, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', preview ? 'ultrafast' : 'veryfast', '-crf', preview ? '22' : '18', '-threads', '2'] : ['-c:v', 'copy'];
+    const filters = motion ? ['-filter_complex', motion.filter] : layers.length ? ['-vf', overlay] : [];
+    const encoding = layers.length ? ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', preview ? 'ultrafast' : 'veryfast', '-crf', preview ? '22' : '18', '-threads', '2'] : ['-c:v', 'copy'];
     const sampleAt = frame => Math.round(frame * 48000 / fps);
     const mixWindow = window ? ['-af', `atrim=start_sample=${sampleAt(fromFrame) - sampleAt(mixStart)}:end_sample=${sampleAt(toFrame) - sampleAt(mixStart)},asetpts=PTS-STARTPTS`] : [];
     onProgress(0.76);
     const trackCredit=activeStyleMusicCredit(project);
-    await run(ffmpeg, [...ffBase, ...inputArgs(picture), ...inputArgs(mix), '-map', '0:v:0', '-map', '1:a:0', ...encoding, ...mixWindow, ...(trackCredit?['-metadata','comment='+trackCredit.line]:[]), '-c:a', 'aac', '-ar', '48000', '-b:a', '192k', '-movflags', '+faststart', '-t', rounded(length / fps), final], { cwd: work, signal });
+    await run(ffmpeg, [...ffBase, ...inputArgs(picture), ...inputArgs(mix), ...(motion?.inputs ?? []), ...filters, '-map', motion?.map ?? '0:v:0', '-map', '1:a:0', ...encoding, ...mixWindow, ...(trackCredit?['-metadata','comment='+trackCredit.line]:[]), '-c:a', 'aac', '-ar', '48000', '-b:a', '192k', '-movflags', '+faststart', '-t', rounded(length / fps), final], { cwd: work, signal });
     const info = await probeMedia(final, { signal });
     if (!info.hasAudio || info.width !== width || info.height !== height || Math.abs(info.duration - length / fps) > 1 / fps || (info.frames && info.frames !== length)) throw new Error('导出结果与工程的帧数或规格不符');
     const sha256 = await fileHash(final);
@@ -337,7 +342,7 @@ async function render(project, { directory, output, preview = false, window, sig
       throw error;
     }
     onProgress(1);
-    return { videoPath: output, srtPath, sha256, duration: info.duration, frames: length, engine: melt ? 'mlt' : 'ffmpeg', revision: project.revision, ...(window && { window: { fromFrame, toFrame } }) };
+    return { videoPath: output, srtPath, sha256, duration: info.duration, frames: length, engine: melt ? 'mlt' : 'ffmpeg', revision: project.revision, ...(motion && {motion: motion.info}), ...(window && { window: { fromFrame, toFrame } }) };
   });
   return result;
 }
