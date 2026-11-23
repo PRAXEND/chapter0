@@ -9,6 +9,8 @@ import os from 'node:os';
 import {validFraming,transitionEnvelope} from './framing.mjs';
 import {polygonPath} from './polygon.mjs';
 import {validateMotionClip} from './motion-components.mjs';
+import {splitGraphicKeys} from './graphic-keys.mjs';
+import {viewportRect} from './viewport.mjs';
 
 export const defaultRoot = () => process.env.STUDIO_DATA_ROOT || path.join(os.homedir(),'Library','Application Support','Video Studio','standalone');
 export const tracks = ['video','narration','music','caption','graphic'];
@@ -46,12 +48,17 @@ export function validateClip(clip,p) {
   if(clip.motion!=null) validateMotionClip(clip,p.profile);
   if(clip.geometry)for(const key of ['x','y','width','height'])if(clip.geometry[key]!=null&&!Number.isFinite(clip.geometry[key]))throw fault('图层坐标无效。');
   if(clip.framing!=null && (clip.track!=='video' || !validFraming(clip.framing)))throw fault('画面取景中心须在原素材内，放大倍率须为 1–4。');
+  if (clip.viewport != null) {
+    if (clip.track !== 'video') throw fault('只有视频轨道使用分屏窗口。');
+    try { viewportRect(clip.viewport, p.profile); } catch (error) { throw fault(error.message); }
+  }
   if(clip.shape==='outline' && (clip.track!=='graphic' || clip.text || !['width','height'].every(k=>clip.geometry?.[k]>0 && clip.geometry[k]<=2)))throw fault('指示框需要空文字与有效尺寸。');
   if(clip.shape==='polygon'){
     if(clip.track!=='graphic'||clip.text||!['width','height'].every(k=>clip.geometry?.[k]>0&&clip.geometry[k]<=2))throw fault('矢量轮廓需要空文字与有效宽高。');
     try{polygonPath(clip.geometry.points,Math.round(p.profile.width*clip.geometry.width),Math.round(p.profile.height*clip.geometry.height));}catch(error){throw fault(error.message);}
   }
-  if(clip.keyframes && (!Array.isArray(clip.keyframes)||clip.keyframes.some(k=>!Number.isInteger(k.frame)||k.frame<0||k.frame>clip.duration)))throw fault('关键帧须位于图层范围内。');
+  if(clip.keyframes && (!Array.isArray(clip.keyframes)||clip.keyframes.some(k=>!Number.isInteger(k?.frame)||k.frame<0||k.frame>clip.duration)))throw fault('关键帧须位于图层范围内。');
+  if (clip.keyframes?.some(k => 'rotation' in k && !Number.isFinite(k.rotation))) throw fault('旋转角度必须为有限度数。');
 }
 function newSettings(mode, supplied={}) {
   const s={voiceMode:mode==='interview'?'original':'system',shareFrames:false,shareTranscript:true,cloudEnabled:false,cloudBudget:0,publishPackage:false,...supplied};
@@ -67,8 +74,15 @@ function* expandSplits(commands,project) {
     if(cmd.op!=='split'){yield cmd;continue;}
     const clip=project.timeline.clips.find(c=>c.id===cmd.id);
     const head=cmd.atFrame-clip?.start;
-    if(clip?.track!=='video'||!Number.isSafeInteger(head)||head<1||head>=clip.duration)throw fault('请选择画面片段内的分割帧。');
+    if (!['video','graphic'].includes(clip?.track) || !Number.isSafeInteger(head) || head<1 || head>=clip.duration) throw fault('请选择画面或图形片段内的分割帧。');
     checkId(cmd.newId);
+    if (clip.track === 'graphic') {
+      if (clip.motion) throw fault('此原版组件有独立动画时钟，请保留完整片段或调整出入点。');
+      const [beforeKeys, afterKeys] = splitGraphicKeys(clip, head);
+      yield {op:'update',id:clip.id,changes:{duration:head,keyframes:beforeKeys}};
+      yield {op:'add',clip:{...clip,id:cmd.newId,start:cmd.atFrame,duration:clip.duration-head,keyframes:afterKeys}};
+      continue;
+    }
     const left={duration:head},right={...clip,id:cmd.newId,start:cmd.atFrame,duration:clip.duration-head,transition:null};
     if(project.assets.find(a=>a.id===clip.assetId)?.kind!=='image')right.sourceIn=(clip.sourceIn||0)+Math.round(head*(clip.speed||1));
     const camera=clip.framing;

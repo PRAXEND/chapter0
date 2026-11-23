@@ -1,4 +1,5 @@
 import {polygonPath} from './polygon.mjs';
+import {graphicKeys} from './graphic-keys.mjs';
 const number = (value, fallback) => Number.isFinite(value) ? value : fallback;
 const bound = (val, min, max) => Math.max(min, Math.min(val, max));
 const pad = (value, n = 2) => String(value).padStart(n, '0');
@@ -65,6 +66,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     const font = bound(number(style.fontSize, Math.round((isCaption ? 0.049 : 0.065) * Math.min(height, width * 1.5))), 1, height);
     const shape = !clip.text && clip.geometry?.width && clip.geometry?.height;
     if (!shape && !cleanText(clip.text).trim()) continue;
+    const keys = graphicKeys(clip);
+    const turns = keys.some(k => k.rotation !== 0);
     let drawing = assText(clip.text);
     let anchorWidth = 0, anchorHeight = 0;
     if (shape) {
@@ -77,29 +80,28 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       const hole = clip.shape === 'outline' ? ` m ${edge} ${edge} l ${edge} ${h-edge} ${w-edge} ${h-edge} ${w-edge} ${edge}` : '';
       // libass aligns a drawing to its ink bounds. A polygon's points use the entire editable box,
       // including empty margins. Anchor its top-left corner as the box moves or scales.
-      if (clip.shape === 'polygon') { anchorWidth = w; anchorHeight = h; }
-      const path = clip.shape === 'polygon' ? polygonPath(clip.geometry.points, w, h) : `m 0 0 l ${w} 0 ${w} ${h} 0 ${h}${hole}`;
+      if (clip.shape === 'polygon' && !turns) { anchorWidth = w; anchorHeight = h; }
+      let path = clip.shape === 'polygon' ? polygonPath(clip.geometry.points, w, h) : `m 0 0 l ${w} 0 ${w} ${h} 0 ${h}${hole}`;
+      // Zero-area corner paths give the glyph its full editable box. Its normal
+      // centre alignment now follows a moving pivot even for an inset polygon.
+      if (clip.shape === 'polygon' && turns) path += ` m 0 0 l 0 0 m ${w} ${h} l ${w} ${h}`;
       drawing = `{\\p1}${path}{\\p0}`;
     }
-    const initial = { frame: 0, x: number(clip.geometry?.x, 0.5), y: number(clip.geometry?.y, isCaption ? 0.86 : 0.28), scale: 1, opacity: 1 };
-    const points = new Map([[0, initial]]);
-    let prior = initial;
-    for (const key of [...(clip.keyframes ?? [])].sort((a, b) => a.frame - b.frame)) {
-      if (!Number.isInteger(key.frame) || key.frame < 0 || key.frame > clip.duration) continue;
-      prior = { frame: key.frame, x: number(key.x, prior.x), y: number(key.y, prior.y), opacity: bound(number(key.opacity, prior.opacity), 0, 1), scale: bound(number(key.scale, prior.scale), 0.01, 10) };
-      points.set(key.frame, prior);
-    }
-    if (!points.has(clip.duration)) points.set(clip.duration, { ...prior, frame: clip.duration });
-    const keys = [...points.values()];
     for (let i = 0; i < keys.length - 1; i++) {
       const a = keys[i], b = keys[i + 1];
-      const scalePercent = p => Math.round(100 * p.scale);
-      const x = p => Math.round(width * p.x - anchorWidth * scalePercent(p) / 200);
-      const y = p => Math.round(height * p.y - anchorHeight * scalePercent(p) / 200);
-      const duration = Math.max(1, Math.round(1000 * (b.frame - a.frame) / fps));
-      const pos = (x(a) === x(b) && y(a) === y(b)) ? `\\pos(${x(a)},${y(a)})` : `\\move(${x(a)},${y(a)},${x(b)},${y(b)},0,${duration})`;
-      const transform = p => `\\fscx${scalePercent(p)}\\fscy${scalePercent(p)}\\1a${alpha(p.opacity * fg.opacity)}\\3a${alpha(p.opacity * bg.opacity)}`;
-      const motion = (a.scale !== b.scale || a.opacity !== b.opacity) ? `\\t(0,${duration},${transform(b)})` : '';
+      const precise = n => Number(n.toFixed(6));
+      const scalePercent = p => precise(100 * p.scale);
+      const x = p => precise(width * p.x - anchorWidth * scalePercent(p) / 200);
+      const y = p => precise(height * p.y - anchorHeight * scalePercent(p) / 200);
+      // Event timestamps have centisecond precision, move and transform offsets
+      // have millisecond precision. Reference the actual project frame for splits.
+      const eventMs = Math.floor((clip.start + a.frame) * 100 / fps + 1e-8) * 10;
+      const t1 = Math.round((clip.start + a.frame) * 1000 / fps) - eventMs;
+      const t2 = Math.round((clip.start + b.frame) * 1000 / fps) - eventMs;
+      const pos = (x(a) === x(b) && y(a) === y(b)) ? `\\pos(${x(a)},${y(a)})` : `\\move(${x(a)},${y(a)},${x(b)},${y(b)},${t1},${t2})`;
+      // ASS measures positive Z rotation counterclockwise; the editor uses screen coordinates.
+      const transform = p => `\\fscx${scalePercent(p)}\\fscy${scalePercent(p)}${turns ? '\\frz' + precise(-p.rotation) : ''}\\1a${alpha(p.opacity * fg.opacity)}\\3a${alpha(p.opacity * bg.opacity)}`;
+      const motion = (a.scale !== b.scale || a.opacity !== b.opacity || a.rotation !== b.rotation) ? `\\t(${t1},${t2},${transform(b)})` : '';
       const tags = `{\\an${anchorWidth ? 7 : 5}${pos}\\fs${font}\\1c${fg.rgb}\\3c${bg.rgb}\\bord${shape ? 0 : outline.toFixed(2)}${transform(a)}${motion}}`;
       lines.push(`Dialogue: ${isCaption ? 2 : 1},${clock(clip.start + a.frame, fps, true)},${clock(clip.start + b.frame, fps, true)},${boxed ? 'Box' : 'Caption'},,0,0,0,,${tags}${drawing}`);
     }

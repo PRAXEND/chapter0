@@ -5,6 +5,7 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { createAss, createSrt } from './text-tracks.mjs';
 import { framingFilter, transitionEnvelope } from './framing.mjs';
+import { viewportRect } from './viewport.mjs';
 import { ffBase, inputArgs, mediaSlot, mediaTool, requiredTool, run, scratch } from './media-runtime.mjs';
 
 export { mediaTool };
@@ -62,6 +63,10 @@ function validate(project) {
   if (![width, height].every(v => Number.isInteger(v) && v >= 16 && v <= 8192 && v % 2 === 0) || !(Number.isInteger(fps) && fps >= 1 && fps <= 60)) throw new Error('工程尺寸须为偶数，帧率范围为 1–60');
   const clips = (project.timeline?.clips ?? []).filter(c => !c.hidden && c.enabled !== false);
   for (const c of clips) {
+    if (c.viewport != null) {
+      if (c.track !== 'video') throw Error('只有视频轨道使用分屏窗口。');
+      viewportRect(c.viewport, project.profile);
+    }
     if (!['video', 'narration', 'music', 'caption', 'graphic'].includes(c.track) || !Number.isInteger(c.start) || c.start < 0 || !Number.isInteger(c.duration) || c.duration < 1) throw new Error('时间线包含无效片段');
     if (!Number.isInteger(c.sourceIn ?? 0) || (c.sourceIn ?? 0) < 0 || !Number.isFinite(c.speed ?? 1) || (c.speed ?? 1) < 0.125 || (c.speed ?? 1) > 8 || !Number.isFinite(c.gain ?? 1) || (c.gain ?? 1) < 0 || (c.gain ?? 1) > 16) throw new Error('片段源区间、速率或音量无效');
   }
@@ -70,7 +75,7 @@ function validate(project) {
   return { width, height, fps, clips, length };
 }
 
-function pictureSpans(clips, length, fromFrame, toFrame) {
+function pictureSpans(clips, length, fromFrame, toFrame, profile) {
   const video = clips.filter(c => c.track === 'video').sort((a, b) => a.start - b.start);
   const cuts = new Set([0, length]);
   for (const c of video) {
@@ -83,7 +88,15 @@ function pictureSpans(clips, length, fromFrame, toFrame) {
     const start = Math.max(origin, fromFrame), end = Math.min(positions[i + 1], toFrame);
     if (end <= start) return [];
     const active = video.filter(c => c.start <= start && c.start + c.duration > start);
-    return [{ origin, start, duration: end - start, top: active.at(-1), under: active.at(-2) }];
+    // A fully opaque full-frame shot covers everything below it. Keep the
+    // traditional two-shot transition path when the visible stack has no panes.
+    const opaqueBase = active.findLastIndex(c => {
+      const rect = viewportRect(c.viewport, profile);
+      return rect.width === profile.width && rect.height === profile.height && start - c.start >= transitionEnvelope(c).duration;
+    });
+    const layers = active.slice(Math.max(0, opaqueBase));
+    return [{ origin, start, duration: end - start, top: active.at(-1), under: active.at(-2),
+      ...(layers.some(c => c.viewport) && { layers }) }];
   });
 }
 
@@ -94,21 +107,66 @@ function buildVisualInput(clip, span, asset, profile, index) {
   const { width, height, fps } = profile;
   const rate = clip.speed ?? 1;
   // Retimed and variable-rate footage must keep the same fps sampling phase as the full span.
-  const anchor = asset.kind === 'image' || (rate === 1 && asset.frameRate === fps) ? span.start : span.origin;
+  const anchor = asset.kind === 'image' || (rate === 1 && asset.frameRate === fps) ? span.start : clip.start;
   const skip = span.start - anchor;
   const source = ((clip.sourceIn ?? 0) + (anchor - clip.start) * rate) / fps;
   const args = asset.kind === 'image' ? ['-loop', '1', '-framerate', String(fps), ...inputArgs(asset.path)] : ['-ss', rounded(source), ...inputArgs(asset.path)];
   const cover = clip.fit === 'cover';
   const size = cover ? `scale=${width}:${height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${width}:${height}` : `scale=${width}:${height}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black`;
-  const view = clip.framing ? framingFilter(clip, asset, profile, span.start) : size;
+  const square = clip.viewport && asset.pixelAspect && asset.pixelAspect !== 1 ?
+    `scale=${Math.max(2, 2 * Math.round(asset.width * asset.pixelAspect / 2))}:${asset.height},setsar=1,` : '';
+  const view = clip.framing ? framingFilter(clip, asset, profile, span.start) : square + size;
   const chain = `[${index}:v:0]setpts=(PTS-STARTPTS)/${rounded(rate)},fps=${fps},tpad=stop_mode=clone:stop=-1,trim=start_frame=${skip}:end_frame=${skip + span.duration},setpts=N/(${fps}*TB),${view},setsar=1,format=yuv420p[v${index}]`;
   return { args, chain };
+}
+
+function blendFilter(clip, start) {
+  const fade = transitionEnvelope(clip);
+  const weight = `min(1,(N+${start-clip.start+fade.offset})/${fade.total})`;
+  const expression = clip.transition.type === 'wipe-right' ? `if(lt(X,W*(${weight})),A,B)` : `A*(${weight})+B*(1-${weight})`;
+  return `blend=all_expr='${expression}':shortest=1`;
+}
+
+function composePanes(span, media, profile) {
+  const args = [], chains = [];
+  let picture = null;
+  for (const [i, clip] of span.layers.entries()) {
+    const rect = viewportRect(clip.viewport, profile);
+    const full = rect.width === profile.width && rect.height === profile.height;
+    const fade = span.start - clip.start < transitionEnvelope(clip).duration;
+    const {args: input, chain} = buildVisualInput(clip, span, media.get(clip.assetId), {...profile,...rect}, i);
+    args.push(...input);
+    chains.push(chain);
+    let source = 'v' + i;
+    if (!picture && (fade || !full)) {
+      chains.push(`color=c=black:s=${profile.width}x${profile.height}:r=${profile.fps},format=yuv420p[canvas]`);
+      picture = 'canvas';
+    }
+    if (fade) {
+      let under = picture;
+      if (!full) {
+        chains.push(`[${picture}]split[back${i}][part${i}]`,
+          `[part${i}]crop=${rect.width}:${rect.height}:${rect.x}:${rect.y}[under${i}]`);
+        picture = 'back' + i;
+        under = 'under' + i;
+      }
+      chains.push(`[${source}][${under}]${blendFilter(clip,span.start)}[fade${i}]`);
+      source = 'fade' + i;
+    }
+    if (full) picture = source;
+    else {
+      chains.push(`[${picture}][${source}]overlay=x=${rect.x}:y=${rect.y}:shortest=1[stage${i}]`);
+      picture = 'stage' + i;
+    }
+  }
+  return [...args, '-filter_complex', chains.join(';'), '-map', `[${picture}]`];
 }
 
 async function renderSpan(span, media, profile, ffmpeg, target, signal) {
   const { width, height, fps } = profile;
   const lavfi = ['-f', 'lavfi', '-i', `color=c=black:s=${width}x${height}:r=${fps}`];
   const out = ['-frames:v', String(span.duration), ...videoEncode, target];
+  if (span.layers) return run(ffmpeg, [...ffBase, ...composePanes(span, media, profile), ...out], {signal});
   if (!span.top) return run(ffmpeg, [...ffBase, ...lavfi, ...out], { signal });
   const top = span.top;
   const fade = transitionEnvelope(top);
@@ -122,9 +180,7 @@ async function renderSpan(span, media, profile, ffmpeg, target, signal) {
     const lower = span.under ? buildVisualInput(span.under, span, media.get(span.under.assetId), profile, 1) : { args: lavfi, chain: '[1:v]format=yuv420p[v1]' };
     args = [...args, ...lower.args];
     // The timeline determines opacity even when another cut divides this transition.
-    const weight = `min(1,(N+${elapsed+fade.offset})/${fade.total})`;
-    const blendExpression = top.transition.type === 'wipe-right' ? `if(lt(X,W*(${weight})),A,B)` : `A*(${weight})+B*(1-${weight})`;
-    filter += `;${lower.chain};[v0][v1]blend=all_expr='${blendExpression}':shortest=1[composed]`;
+    filter += `;${lower.chain};[v0][v1]${blendFilter(top,span.start)}[composed]`;
     outputLabel = 'composed';
   }
   return run(ffmpeg, [...ffBase, ...args, '-filter_complex', filter, '-map', `[${outputLabel}]`, ...out], { signal });
@@ -222,11 +278,11 @@ async function render(project, { directory, output, preview = false, window, sig
   const { fromFrame, toFrame } = window ?? { fromFrame: 0, toFrame: projectLength };
   if (!Number.isSafeInteger(fromFrame) || !Number.isSafeInteger(toFrame) || fromFrame < 0 || toFrame <= fromFrame || toFrame > projectLength) throw new Error('预览区间须为工程内的非空帧区间');
   const length = toFrame - fromFrame;
-  const spans = pictureSpans(clips, projectLength, fromFrame, toFrame);
+  const spans = pictureSpans(clips, projectLength, fromFrame, toFrame, project.profile);
   // Start the 320 ms ducking release before the sample and keep limiter lookahead at its end.
   const mixStart = Math.max(0, fromFrame - 3 * fps), mixEnd = Math.min(projectLength, toFrame + fps);
   const audible = clips.filter(c => ['video', 'narration', 'music'].includes(c.track) && c.start < mixEnd && c.start + c.duration > mixStart && (c.gain ?? 1) > 0 && !c.muted);
-  const relevant = window ? new Set([...audible, ...spans.flatMap(s => [s.top, s.under]).filter(Boolean)]) : clips.filter(c => ['video', 'narration', 'music'].includes(c.track));
+  const relevant = window ? new Set([...audible, ...spans.flatMap(s => s.layers || [s.top, s.under]).filter(Boolean)]) : clips.filter(c => ['video', 'narration', 'music'].includes(c.track));
   const profile = { width, height, fps };
   const ffmpeg = await requiredTool('ffmpeg');
   const melt = process.env.VIDEO_STUDIO_RENDER_ENGINE === 'ffmpeg' ? null : await mediaTool('melt');
