@@ -23,7 +23,7 @@ try{
 const exec=(name,args,options={})=>execFileSync(name,args,{stdio:'inherit',env:toolEnv,...options});
 if(process.platform!=='darwin'||process.arch!=='arm64')throw Error('此发行包需要 Apple Silicon Mac。');
 exec('cargo',['build','--release','--locked','--jobs','3'],{cwd:path.join(base,'src-tauri')});
-const dist=path.resolve(process.env.STUDIO_DIST||path.join(base,'dist'));await mkdir(dist,{recursive:true});
+const dist=path.resolve(process.env.STUDIO_DIST||path.join(base,'dist',quality?'quality':''));await mkdir(dist,{recursive:true});
 await mkdir(cache,{recursive:true});const staging=await mkdtemp(path.join(cache,'mac-bundle-'));
 const app=path.join(staging,'Video Studio.app'),contents=path.join(app,'Contents'),resources=path.join(contents,'Resources');
 const clone=async(from,to)=>{await mkdir(path.dirname(to),{recursive:true});await copyFile(from,to,constants.COPYFILE_FICLONE);};
