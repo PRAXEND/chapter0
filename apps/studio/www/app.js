@@ -1,4 +1,4 @@
-import {motionCues} from './motion-clock.js';
+import {motionCues,defaultMotionGeometry} from './motion-clock.js';
 const el=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const urlPart=encodeURIComponent;
@@ -97,7 +97,7 @@ function componentFields(c){
     if(f.type==='boolean')return check(key,f.label,value);
     return field(f.label,input(key,value,f.type==='number'?'number':'text'));
   }).join('');
-  const g=c.geometry??spec.geometry;
+  const g=c.geometry??defaultMotionGeometry(spec,s.p.profile);
   return '<div class="form-grid">'+props+'</div>'+ (cues.length?'<fieldset><legend>出场时刻（片段内）</legend>'+cues.map((at,i)=>field((spec.id==='source-label'?'切换 ':'第 '+(i+1)+' 步 ')+(spec.id==='source-label'?(i+1):'')+' <output id="cue-read-'+i+'">'+at+' 帧</output>',
     input('cue-'+i,at,'range','data-cue="'+i+'" min="0" max="'+(c.duration-1)+'" step="1" '+(i===0?'disabled':'')))).join('')+
     (spec.id==='source-label'?btn('add-cue','增加切换')+(cues.length>1?btn('drop-cue','移除末次切换'):''):'')+'</fieldset>':'')+
@@ -148,7 +148,7 @@ function inspector(c){
   ${c.motion?componentFields(c):['caption','graphic'].includes(c.track)?field('文字',area('clip-text',c.text,2)):''}
   ${c.shape==='polygon'?field('轮廓顶点（图层内 x、y，范围 0–1）',area('clip-points',JSON.stringify(c.geometry.points),3)):''}
   ${!c.motion&&['caption','graphic'].includes(c.track)?`<details><summary>图层位置与关键帧</summary><div class="three">${field('水平位置 0–1',input('clip-x',c.geometry?.x??.5,'number','step=".01"'))}${field('垂直位置 0–1',input('clip-y',c.geometry?.y??.5,'number','step=".01"'))}${field('字号（像素）',input('clip-font',c.style?.fontSize||48,'number','min="1"'))}</div>${field('关键帧（帧、位置、缩放、透明度及顺时针角度 rotation）',area('clip-keys',JSON.stringify(c.keyframes||[]),2))}</details>`:''}
-  ${c.track==='video'?`${viewportFields(c)}${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照']],c.transition?.type==='wipe-right'?'wipe-right':'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>`:''}<div class="actions">${c.track==='video'?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
+  ${c.track==='video'?`${viewportFields(c)}${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照']],c.transition?.type==='wipe-right'?'wipe-right':'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>`:''}<div class="actions">${(c.track==='video'||(c.track==='graphic'&&!c.motion))?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
 }
 async function edit(commands){
   const previous=s.p, result=await proj('/edits',{baseRevision:previous.revision,commands});
@@ -312,7 +312,7 @@ async function runAction(act,id){
    const spec=componentById(val('new-component')),shot=p.timeline.clips.find(c=>c.id===s.clip&&c.track==='video');
    const start=shot?.start??Math.round((el('player')?.currentTime||0)*frameRate()),duration=shot?.duration??frameRate()*4;
    const props=Object.fromEntries(spec.fields.filter(f=>f.type==='text').map(f=>[f.key,newText[f.key]??p.title]));
-   const clip={id:crypto.randomUUID(),track:'graphic',start,duration,geometry:spec.geometry,
+   const clip={id:crypto.randomUUID(),track:'graphic',start,duration,geometry:defaultMotionGeometry(spec,p.profile),
      motion:{componentId:spec.id,version:spec.version,props,cueFrames:motionCues(spec,duration,frameRate())}};
    await edit([{op:'add',clip}]);return pickClip(clip.id);
  }

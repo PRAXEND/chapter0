@@ -1,5 +1,5 @@
-import {motionCues} from '../www/motion-clock.js';
-export {motionCues};
+import {motionCues,defaultMotionGeometry} from '../www/motion-clock.js';
+export {motionCues,defaultMotionGeometry};
 // These versioned presets refer only to the six JSX files shipped with the Henry pack.
 import {readFileSync} from 'node:fs';
 
@@ -31,7 +31,7 @@ export function componentClip({id,componentId,start,duration,props={},cueFrames,
   const component=byId.get(componentId);
   if(!component) fail('该组件尚未注册。');
   const clip={id,track:'graphic',text:'',start,duration,sourceIn:0,speed:1,gain:1,
-    geometry:geometry??{...component.geometry},motion:{version:component.version,componentId,props,...(cueFrames?{cueFrames}:{})}};
+    geometry:geometry??defaultMotionGeometry(component,profile),motion:{version:component.version,componentId,props,...(cueFrames?{cueFrames}:{})}};
   validateMotionClip(clip,profile);
   return clip;
 }
@@ -53,7 +53,7 @@ export function validateMotionClip(clip, profile) {
       : typeof value==='string' && value.length<=(field.type==='font'?120:500);
     if (!valid) fail('组件参数无效：'+field.label);
   }
-  const g = clip.geometry??component.geometry;
+  const g = clip.geometry??defaultMotionGeometry(component,profile);
   if (!['x','y','width','height'].every(k=>Number.isFinite(g[k])) || g.width<=0 || g.height<=0 || g.width>2 || g.height>2 ||
       g.x<0 || g.x>1 || g.y<0 || g.y>1) fail('组件位置须为画布上的中心及有效宽高。');
   const cues = m.cueFrames ?? motionCues(component,clip.duration,profile.fps,m.props);

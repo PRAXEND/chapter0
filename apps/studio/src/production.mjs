@@ -1,4 +1,4 @@
-import {componentClip,motionCatalog} from './motion-components.mjs';
+import {componentClip,motionCatalog,defaultMotionGeometry} from './motion-components.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { CodexClient } from './codex.mjs';
 import { directSources, importSource, searchSources, searchFacts, readBriefSources } from './sources.mjs';
@@ -419,7 +419,7 @@ async function context(deps, project, selection) {
     utteranceCounts: Object.fromEntries(transcripts.map(([id, list]) => [id, list.length])),
     style: selectedStyle(s),
     motionComponents: motionCatalog.map(c=>({id:c.id,name:c.name,version:c.version,
-      recommended:(s?.components||[]).some(x=>x.id===c.id),geometry:c.geometry,
+      recommended:(s?.components||[]).some(x=>x.id===c.id),geometry:defaultMotionGeometry(c,project.profile),
       params:c.fields.filter(f=>!['second','third'].includes(f.key)).map(f=>({key:f.key,type:f.type,label:f.label})),
       cueFramesAt30fps:c.referenceCues})),
 

@@ -8,3 +8,9 @@ export function motionCues(component, duration, fps, props={}) {
   return ref.map((v,i) => Math.max(i, Math.min(duration-(ref.length-i), Math.round(v*step))));
 }
 
+export function defaultMotionGeometry(spec,{width,height}){
+  // Positions remain relative to the stage. Keep the preset's glyphs and circles
+  // at the authored aspect ratio on portrait and square canvases.
+  const scale=Math.min(width/1920,height/1080);
+  return {...spec.geometry,width:spec.width*scale/width,height:spec.height*scale/height};
+}

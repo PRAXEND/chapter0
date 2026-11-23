@@ -61,3 +61,11 @@ test('a thin rotating signal is compared inside its transformed silhouette at a 
   const diff=pixelDifference(out,preview,400,200,r,sample.points);
   assert.equal(diff.matches,false);assert.ok(diff.pixels>100&&diff.pixels<800);
 });
+
+test('default component placement keeps the original shapes proportional across all workspace aspect ratios',()=>{
+  const spec=motionCatalog.find(c=>c.id==='comparison-guide');
+  for(const p of [{width:1080,height:1920,fps:30},{width:1920,height:1080,fps:24},{width:1000,height:1000,fps:60}]){
+    const {geometry:g}=componentClip({id:'divide',componentId:spec.id,start:0,duration:180},p);
+    assert.ok(Math.abs(g.width*p.width/(g.height*p.height)-spec.width/spec.height)<1e-8);
+  }
+});

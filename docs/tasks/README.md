@@ -1,5 +1,7 @@
 # 任务记录
 
+- [技术科普 v8 的原版组件与本地合成](T-20261124-executable-motion.md)
+
 - [技术科普 v8 与月面成片的实际剪辑质量](T-20261123-v8-edit-quality.md)
 - [独立 Mac 自动剪辑工作台](T-20261122-standalone-mac.md)
 

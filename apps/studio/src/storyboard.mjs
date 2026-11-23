@@ -1,4 +1,4 @@
-import {componentClip} from './motion-components.mjs';
+import {componentClip,defaultMotionGeometry,motionCatalog} from './motion-components.mjs';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -626,7 +626,7 @@ export async function applyScenes(
           style.components?.some(c=>c.id==='process-rail')){
         const texts=chips.map(c=>c.text);
         motionPlan={componentId:'process-rail',props:{a:texts[0],b:texts[1],c:texts[2]},cueSource:'visualSteps',
-          geometry:{x:.5,y:chips[0].geometry.y,width:1400/1920,height:120/1080}};
+          geometry:{...defaultMotionGeometry(motionCatalog.find(c=>c.id==='process-rail'),project.profile),y:chips[0].geometry.y}};
       }
       for (const [j, shape] of shapes.entries()){
         if(motionPlan?.componentId==='process-rail'&&shape.templateRole==='process-rail')continue;
