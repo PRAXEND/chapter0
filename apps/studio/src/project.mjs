@@ -10,7 +10,7 @@ import {validFraming,transitionEnvelope} from './framing.mjs';
 import {polygonPath} from './polygon.mjs';
 import {validateMotionClip} from './motion-components.mjs';
 import {splitGraphicKeys} from './graphic-keys.mjs';
-import {viewportRect} from './viewport.mjs';
+import {viewportRect,overlapOnStage} from './viewport.mjs';
 
 export const defaultRoot = () => process.env.STUDIO_DATA_ROOT || path.join(os.homedir(),'Library','Application Support','Video Studio','standalone');
 export const tracks = ['video','narration','music','caption','graphic'];
@@ -59,6 +59,10 @@ export function validateClip(clip,p) {
   }
   if(clip.keyframes && (!Array.isArray(clip.keyframes)||clip.keyframes.some(k=>!Number.isInteger(k?.frame)||k.frame<0||k.frame>clip.duration)))throw fault('关键帧须位于图层范围内。');
   if (clip.keyframes?.some(k => 'rotation' in k && !Number.isFinite(k.rotation))) throw fault('旋转角度必须为有限度数。');
+  if(clip.stackOrigin){
+    checkId(clip.stackOrigin.id);
+    if(!Number.isSafeInteger(clip.stackOrigin.offsetFrames)||clip.stackOrigin.offsetFrames<0||clip.stackOrigin.offsetFrames>p.profile.fps*86400)throw fault('片段分割时钟无效。');
+  }
 }
 function newSettings(mode, supplied={}) {
   const s={voiceMode:mode==='interview'?'original':'system',shareFrames:false,shareTranscript:true,cloudEnabled:false,cloudBudget:0,publishPackage:false,...supplied};
@@ -76,14 +80,15 @@ function* expandSplits(commands,project) {
     const head=cmd.atFrame-clip?.start;
     if (!['video','graphic'].includes(clip?.track) || !Number.isSafeInteger(head) || head<1 || head>=clip.duration) throw fault('请选择画面或图形片段内的分割帧。');
     checkId(cmd.newId);
+    const stackOrigin={id:clip.stackOrigin?.id||clip.id,offsetFrames:(clip.stackOrigin?.offsetFrames||0)+head};
     if (clip.track === 'graphic') {
       if (clip.motion) throw fault('此原版组件有独立动画时钟，请保留完整片段或调整出入点。');
       const [beforeKeys, afterKeys] = splitGraphicKeys(clip, head);
       yield {op:'update',id:clip.id,changes:{duration:head,keyframes:beforeKeys}};
-      yield {op:'add',clip:{...clip,id:cmd.newId,start:cmd.atFrame,duration:clip.duration-head,keyframes:afterKeys}};
+      yield {op:'add',clip:{...clip,id:cmd.newId,start:cmd.atFrame,duration:clip.duration-head,keyframes:afterKeys,stackOrigin}};
       continue;
     }
-    const left={duration:head},right={...clip,id:cmd.newId,start:cmd.atFrame,duration:clip.duration-head,transition:null};
+    const left={duration:head},right={...clip,id:cmd.newId,start:cmd.atFrame,duration:clip.duration-head,transition:null,stackOrigin};
     if(project.assets.find(a=>a.id===clip.assetId)?.kind!=='image')right.sourceIn=(clip.sourceIn||0)+Math.round(head*(clip.speed||1));
     const camera=clip.framing;
     if(camera){
@@ -189,7 +194,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
         const candidate=cmd.op==='add'?{...copy(cmd.clip),locked:false}:{...before,...copy(cmd.changes)};
         validateClip(candidate,p);
         if(actor!=='user' && candidate.assetId!==before?.assetId && dedicatedVoiceReference(p.assets.find(a=>a.id===candidate.assetId)))throw fault('专用音色参考不能被自动加入本片剪辑。',409);
-        if(actor!=='user'&&clips.some(c=>c.locked&&c.track===candidate.track&&spans(c,candidate)))throw fault('本次修改会覆盖已锁定的轨道区间。',409);
+        if(actor!=='user'&&clips.some(c=>c.locked&&c.track===candidate.track&&spans(c,candidate)&&overlapOnStage(c,candidate,p.profile)))throw fault('本次修改会覆盖已锁定的轨道区间。',409);
         if(cmd.op==='add')clips.push(candidate);else clips[found]=candidate;
       }
       clips.sort((a,b)=>a.start-b.start||tracks.indexOf(a.track)-tracks.indexOf(b.track)||a.id.localeCompare(b.id));

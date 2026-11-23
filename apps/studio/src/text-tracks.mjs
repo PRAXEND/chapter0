@@ -1,5 +1,6 @@
 import {polygonPath} from './polygon.mjs';
 import {graphicKeys} from './graphic-keys.mjs';
+import {compositionOrder} from './viewport.mjs';
 const number = (value, fallback) => Number.isFinite(value) ? value : fallback;
 const bound = (val, min, max) => Math.max(min, Math.min(val, max));
 const pad = (value, n = 2) => String(value).padStart(n, '0');
@@ -56,7 +57,8 @@ Style: Box,PingFang SC,52,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,1
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
   const lines = [];
-  for (const clip of clips.filter(c => ['graphic', 'caption'].includes(c.track) && !c.hidden && c.enabled !== false)) {
+  const graphics=clips.filter(c => ['graphic', 'caption'].includes(c.track) && !c.hidden && c.enabled !== false);
+  for (const clip of graphics.some(c=>c.stackOrigin) ? compositionOrder(graphics) : graphics) {
     const style = clip.style ?? {};
     const isCaption = clip.track === 'caption';
     const fg = color(style.color, '#ffffff');

@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {viewportRect} from './viewport.mjs';
 
 const stageNames = {problem:'观察问题', detail:'看细节', mechanism:'解释原因', verification:'回到原片'};
 const bounded = (n, min, max) => Math.max(min, Math.min(max, n));
@@ -11,6 +12,12 @@ export function validRegion(r) {
 
 export function projectSourceRegion(region, view, profile, atFrame) {
   if(!validRegion(region)||![view?.width,view?.height,profile?.width,profile?.height].every(n=>Number.isFinite(n)&&n>0)) return null;
+  if (view.viewport) {
+    const pane=viewportRect(view.viewport,profile);
+    const local=projectSourceRegion(region,{...view,viewport:null},{...profile,...pane},atFrame);
+    return local && {...local,x:(pane.x+local.x*pane.width)/profile.width,y:(pane.y+local.y*pane.height)/profile.height,
+      width:local.width*pane.width/profile.width,height:local.height*pane.height/profile.height};
+  }
   const A=view.width*(Number.isFinite(view.pixelAspect)&&view.pixelAspect>0?view.pixelAspect:1)/view.height, T=profile.width/profile.height;
   let left,top,width,height;
   if(view.framing || view.fit==='cover') {

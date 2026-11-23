@@ -1,3 +1,4 @@
+import {visiblePanes,compositionOrder} from './viewport.mjs';
 // Coordinates refer to the displayed source before any cut, including its display rotation.
 export function validFraming(framing) {
   function validPoint(point) {
@@ -42,15 +43,21 @@ export function framingFilter(clip, asset, profile, first) {
 }
 
 // Shots use the same start order as the renderer. The last active shot covers earlier ones.
-export function visibleWindows(shots) {
+export function visibleWindows(shots, profile) {
+  shots=compositionOrder(shots,s=>s.clip);
   const edges = [...new Set(shots.flatMap(({clip}) => [clip.start, clip.start + clip.duration]))].sort((a,b) => a-b);
   const windows = [];
   for (let i = 0; i + 1 < edges.length; i++) {
     const from = edges[i], to = edges[i+1] - 1;
-    const shot = shots.findLast(({clip}) => clip.start <= from && clip.start + clip.duration > from);
+    const active = shots.filter(({clip}) => clip.start <= from && clip.start + clip.duration > from);
+    if (active.some(s=>s.clip.viewport)) {
+      for (const pane of visiblePanes(active,profile)) windows.push({from,to,...pane});
+      continue;
+    }
+    const shot = active.at(-1);
     if (!shot) continue;
     const previous = windows.at(-1);
-    if (previous?.shot === shot && previous.to + 1 === from) previous.to = to;
+    if (previous?.shot === shot && !previous.regions && previous.to + 1 === from) previous.to = to;
     else windows.push({from, to, shot});
   }
   return windows;

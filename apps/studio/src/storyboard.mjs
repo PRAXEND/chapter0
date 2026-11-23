@@ -21,7 +21,7 @@ export function currentCutNotes(project, notes = project.directorNotes || []) {
   const shots = project.timeline.clips.filter(c => c.track === 'video' && !c.hidden && c.enabled !== false)
     .sort((a, b) => a.start - b.start).map(clip => ({clip, asset: assets.get(clip.assetId)}));
   const current = notes.filter(n => !isHoldNote(n));
-  for (const {shot, from, to} of visibleWindows(shots)) {
+  for (const {shot, from, to} of visibleWindows(shots, project.profile)) {
     if (shot.asset?.source?.role !== 'hold') continue;
     const matches = previous.some(n => n.assetId ? n.assetId === shot.clip.assetId :
       (n.frame >= shot.clip.start && n.frame < shot.clip.start + shot.clip.duration) || /^scene-\d+-hold-video$/.test(shot.clip.id));
@@ -604,6 +604,7 @@ export async function applyScenes(
           sha256: asset.sha256,
           fit: 'contain',
           framing: beat.framing,
+          viewport: beat.viewport,
           start: cursor,
           duration: visible,
         },

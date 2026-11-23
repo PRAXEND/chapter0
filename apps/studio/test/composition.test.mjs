@@ -8,6 +8,9 @@ import {promisify} from 'node:util';
 import {mediaCapabilities, renderProject} from '../src/media.mjs';
 import {createStore, validateClip} from '../src/project.mjs';
 import {viewportRect} from '../src/viewport.mjs';
+import {visibleWindows} from '../src/framing.mjs';
+import {projectSourceRegion} from '../src/visual-steps.mjs';
+import {reviewVisualEvidence} from '../src/visual-review.mjs';
 
 const exec = promisify(execFile);
 async function setup(t) {
@@ -95,4 +98,64 @@ test('two actual video windows retain independent source times, crop, speed and 
     near(8,48,[255,0,255]); near(8,144,[255,0,255]);
     near(12,48,[255,0,0]); near(12,144,[0,255,255]);
   }
+});
+
+test('the inspector can follow an exposed pane even with an older full-frame layer under two opaque halves',()=>{
+  const profile={width:192,height:96};
+  const shots=[{id:'back'}, {id:'left',viewport:{x:0,y:0,width:.5,height:1}}, {id:'right',viewport:{x:.5,y:0,width:.5,height:1}}]
+    .map(c=>({clip:{...c,start:0,duration:10}}));
+  const active=visibleWindows(shots,profile);
+  assert.deepEqual(active.map(w=>[w.shot.clip.id,w.from,w.to,w.regions]),[
+    ['left',0,9,[shots[1].clip.viewport]],['right',0,9,[shots[2].clip.viewport]],
+  ]);
+  const positioned=projectSourceRegion({x:.4,y:.4,width:.2,height:.2},{width:80,height:80,viewport:shots[2].clip.viewport},profile,0);
+  assert.equal(positioned.x,.75);assert.equal(positioned.y,.5);assert.ok(Math.abs(positioned.width-.1)<1e-8);
+  const inset=visibleWindows(shots.slice(0,2),profile);
+  assert.deepEqual(inset[0].regions,[shots[2].clip.viewport]);
+});
+
+test('a locked left pane allows an independent right edit; slicing the lower shot keeps its original stacking',async t=>{
+  const dir=await mkdtemp(path.join(os.tmpdir(),'studio-pane-lock-'));
+  const store=createStore(path.join(dir,'store'),{probeMedia:async()=>({kind:'video',duration:5,hasAudio:false,width:160,height:80})});
+  t.after(async()=>{store.close();await rm(dir,{recursive:true,force:true});});
+  let p=store.create({mode:'script',profile:{width:160,height:80,fps:12}});
+  const file=path.join(dir,'asset.mov');await writeFile(file,'fixture');
+  const asset=await store.addAsset(p.id,file);
+  const make=(id,x,start,duration)=>({id,track:'video',start,duration,assetId:asset.id,viewport:{x,y:0,width:.5,height:1}});
+  const left=make('left',0,0,36),right=make('right',.5,0,36),insert=make('insert',.5,5,16);
+  p=store.apply(p.id,store.get(p.id).revision,[left,right,insert].map(clip=>({op:'add',clip})));
+  p=store.apply(p.id,p.revision,[{op:'lock',id:'left',locked:true}]);
+  p=store.apply(p.id,p.revision,[{op:'update',id:'right',changes:{sourceIn:3}}],'codex');
+  assert.throws(()=>store.apply(p.id,p.revision,[{op:'update',id:'right',changes:{viewport:{x:.3,y:0,width:.7,height:1}}}],'codex'),/锁定/);
+  p=store.apply(p.id,p.revision,[{op:'split',id:'right',atFrame:10,newId:'tail'}],'codex');
+  const sample=f=>visibleWindows(p.timeline.clips.map(clip=>({clip})),p.profile)
+    .filter(v=>v.from<=f&&f<=v.to).map(v=>v.shot.clip.id);
+  assert.deepEqual(sample(14),['left','insert']);
+  assert.deepEqual(sample(22),['left','tail']);
+});
+
+test('final review identifies moving and static panels from their own output pixels and counts the shared seconds once',async t=>{
+  const {dir,ffmpeg}=await setup(t);if(!dir)return;
+  const profile={width:192,height:96,fps:12},length=36;
+  const bytes=Buffer.alloc(128*64*length);let seed=777;
+  for(let n=0;n<length;n++)for(let y=0;y<64;y++)for(let x=0;x<128;x++){
+    seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+    bytes[(n*64+y)*128+x]=x<64?seed>>>24:118;
+  }
+  const raw=path.join(dir,'source.gray'),file=path.join(dir,'two-areas.mkv');
+  await writeFile(raw,bytes);
+  await exec(ffmpeg,['-v','error','-f','rawvideo','-pixel_format','gray','-video_size','128x64','-framerate','12','-i',raw,'-c:v','ffv1',file]);
+  const shots=[0,.5].map((x,i)=>({id:i?'still-pane':'moving-pane',track:'video',assetId:'sample',start:0,duration:length,
+    viewport:{x,y:0,width:.5,height:1},framing:{from:{x:i ? 1 : 0,y:.5,zoom:1}}}));
+  const asset={id:'sample',path:file,kind:'video',width:128,height:64,duration:3};
+  const project={brief:'验证',revision:1,profile,assets:[asset],settings:{visualRequirements:{motionFootage:true}},timeline:{clips:shots},
+    style:{id:'test',rules:[{id:'video-first'}]}};
+  const out=path.join(dir,'motion-check.mp4');
+  await renderProject(project,{directory:dir,output:out});
+  const {evidence}=await reviewVisualEvidence(project,{ffmpeg,videoPath:out,hashFile:async()=>null});
+  assert.equal(evidence.sourceWindows.length,2);
+  const m=evidence.motion.find(x=>x.clipId==='moving-pane'),s=evidence.motion.find(x=>x.clipId==='still-pane');
+  assert.equal(m.result,'changing-footage');assert.equal(s.sourceResult,'changing-footage');
+  assert.equal(s.candidateResult,'no-detectable-change');assert.equal(s.confirmedFrozen,true);
+  assert.deepEqual([evidence.motionCoverage.totalFrames,evidence.motionCoverage.changingFrames,evidence.motionCoverage.confirmedStationaryFrames],[36,36,0]);
 });

@@ -5,6 +5,7 @@ import {motionPolicy,shotFingerprint} from './director-visual.mjs';
 import {sceneChange} from './motion-windows.mjs';
 import {reviewExplanatoryAnimations} from './diagram-review.mjs';
 import {visibleWindows} from './framing.mjs';
+import {viewportRect} from './viewport.mjs';
 
 const execute=promisify(execFile);
 const live=c=>c.hidden!==true&&c.enabled!==false;
@@ -53,9 +54,10 @@ function similarEvidence(a,b) {
   return a.assetId===b.assetId&&overlapRatio(a.region,b.region)>.78;
 }
 
-export async function decodePixels(ffmpeg,file,sec,width,height,signal) {
+const cropFilter = rect => rect ? `crop=${rect.width}:${rect.height}:${rect.x}:${rect.y},` : '';
+export async function decodePixels(ffmpeg,file,sec,width,height,signal,rect) {
   const result=await execute(ffmpeg,['-nostdin','-v','error',...(sec==null?[]:['-ss',String(Math.max(0,sec))]),'-protocol_whitelist','file','-i',file,
-    '-map','0:v:0','-frames:v','1','-an','-vf','scale='+width+':'+height,'-pix_fmt','rgb24','-threads','1','-f','rawvideo','pipe:1'],
+    '-map','0:v:0','-frames:v','1','-an','-vf',cropFilter(rect)+'scale='+width+':'+height,'-pix_fmt','rgb24','-threads','1','-f','rawvideo','pipe:1'],
     {signal,encoding:'buffer',maxBuffer:width*height*3+65536,timeout:30000});
   if(result.stdout.length!==width*height*3)throw Error('缺少合成画面');
   return result.stdout;
@@ -83,7 +85,7 @@ function matchingPaint(pixels,w,h,box) {
   return {visible:sides.filter(n=>n>=7).length>=3,sideCoverage:sides.map(n=>Number((n/12).toFixed(2)))};
 }
 function widestReturn(shot,profile,frame) {
-  const projected=projectSourceRegion({x:0,y:0,width:1,height:1},{...shot.asset,fit:shot.clip.fit,framing:shot.clip.framing,start:shot.clip.start,duration:shot.clip.duration},profile,frame);
+  const projected=projectSourceRegion({x:0,y:0,width:1,height:1},{...shot.asset,fit:shot.clip.fit,framing:shot.clip.framing,viewport:shot.clip.viewport,start:shot.clip.start,duration:shot.clip.duration},profile,frame);
   return projected&&projected.visibleFraction>=.75;
 }
 
@@ -103,7 +105,7 @@ function anchoredLabel(clip,project,checks) {
   return checks.some(c=>!c.needsFix&&c.stage===a.stage&&covers(clip,c.frame)&&sharesSubject(step,project,c.observation)===true);
 }
 
-function makeSteps(project,shots,checks) {
+function makeSteps(project,windows,checks) {
   const graphics=project.timeline.clips.filter(c=>live(c)&&c.track==='graphic');
   const fps=project.profile.fps, profile=project.profile,steps=[];
   const shapeAmbiguous=graphics.some(c=>c.shape==='outline'&&c.geometry?.width>0&&c.geometry?.height>0);
@@ -124,7 +126,7 @@ function makeSteps(project,shots,checks) {
     const from=Math.max(label.start,outline?.start??label.start);
     const end=Math.min(lastFrame(label),outline?lastFrame(outline):lastFrame(label));
     if(end-from+1<Math.max(2,Math.floor(fps*.28)))continue;
-    const mid=Math.floor((from+end)/2),shot=shots.filter(s=>covers(s.clip,mid)).at(-1);
+    const mid=Math.floor((from+end)/2),pane=windows.findLast(w=>w.from<=mid&&w.to>=mid&&w.shot.asset?.id===a.assetId),shot=pane?.shot;
     if(!shot?.asset||shot.asset.id!==a.assetId||shot.asset.sha256!==a.sha256||!Number.isSafeInteger(a.sourceFrame))continue;
     if(shot.asset.kind==='image'?a.sourceFrame!==0:a.sourceFrame<(shot.clip.sourceIn||0)||a.sourceFrame>=(shot.clip.sourceIn||0)+shot.clip.duration*(shot.clip.speed||1))continue;
     const labelPos=transformed(label,profile,mid);
@@ -134,9 +136,10 @@ function makeSteps(project,shots,checks) {
     if(labelPos.opacity<.15||font<5||unitColor(label.style?.color||'#FFFFFF')?.alpha<.15||!Number.isFinite(rect.x)||!Number.isFinite(rect.y))continue;
     const extent=boxRect(rect),visible=Math.max(0,Math.min(1,extent.x+extent.width)-Math.max(0,extent.x))*Math.max(0,Math.min(1,extent.y+extent.height)-Math.max(0,extent.y));
     if(!rect.width||!rect.height||visible<rect.width*rect.height*.78)continue;
-    const view={width:shot.asset.width,height:shot.asset.height,pixelAspect:shot.asset.pixelAspect,fit:shot.clip.fit,framing:shot.clip.framing,start:shot.clip.start,duration:shot.clip.duration};
+    const view={...shot.asset,fit:shot.clip.fit,framing:shot.clip.framing,viewport:shot.clip.viewport,start:shot.clip.start,duration:shot.clip.duration};
     const expected=projectSourceRegion(a.region,view,profile,mid);
     if(!expected||expected.visibleFraction<.85)continue;
+    if(pane.regions&&!pane.regions.some(r=>expected.x>=r.x&&expected.x<=r.x+r.width&&expected.y>=r.y&&expected.y<=r.y+r.height))continue;
     const step={stepId:a.stepId,assetId:a.assetId,sha256:a.sha256,sourceFrame:a.sourceFrame,stage:a.stage,region:a.region,label:a.label,observation:a.observation,
       fromFrame:from,toFrame:end,frame:mid,annotation,shownText:label.text,localized:false,fullView:widestReturn(shot,profile,mid),sourceFile:shot.asset.path};
     if(local&&outline){
@@ -150,11 +153,11 @@ function makeSteps(project,shots,checks) {
   return {steps:steps.sort((a,b)=>a.frame-b.frame),shapeAmbiguous};
 }
 
-async function confirmFrozen(ffmpeg,file,seconds,duration,rate,count,signal) {
+async function confirmFrozen(ffmpeg,file,seconds,duration,rate,count,signal,crop) {
   // Check each displayed frame of suspicious intervals, including the frames between initial samples.
   const width=96,height=54,size=width*height;
   const result=await execute(ffmpeg,['-v','error','-nostdin','-ss',String(Math.max(0,seconds)),'-t',String(duration),'-protocol_whitelist','file','-i',file,'-map','0:v:0','-an',
-    '-vf','fps='+rate+',scale='+width+':'+height+',format=gray','-threads','1','-frames:v',String(count),'-f','rawvideo','pipe:1'],
+    '-vf','fps='+rate+','+cropFilter(crop)+'scale='+width+':'+height+',format=gray','-threads','1','-frames:v',String(count),'-f','rawvideo','pipe:1'],
     {signal,encoding:'buffer',maxBuffer:size*(count+1),timeout:30000});
   const frames=Math.floor(result.stdout.length/size);if(frames<Math.max(2,count-1))return false;
   const pixels=result.stdout,blocks=new Uint16Array(72);
@@ -177,27 +180,29 @@ async function measureMotion(project,windows,ffmpeg,signal,videoPath) {
   }
   const count=Math.min(36,spans.length);
   for(let i=0;i<count;i++) {
-    const {from,to,shot:{clip,asset}}=spans[count===spans.length?i:Math.round(i*(spans.length-1)/(count-1))];
+    const {from,to,shot:{clip,asset},regions}=spans[count===spans.length?i:Math.round(i*(spans.length-1)/(count-1))];
+    const exposed=regions?.reduce((a,b)=>a.width*a.height>=b.width*b.height?a:b);
+    const crop=exposed?viewportRect(exposed,project.profile):null;
     if(!asset.path||to-from<fps*.35)continue;
     const d=to-from, at=(f)=>((clip.sourceIn||0)+(from-clip.start+f)*(clip.speed||1))/fps;
     const fractions=[.22,.47,.72],times=fractions.map(u=>at(d*u));
     try {
-      const compare=async(file,timestamps)=>{
-        const frames=[];for(const sec of timestamps)frames.push(await decodePixels(ffmpeg,file,sec,96,60,signal));
+      const compare=async(file,timestamps,rect)=>{
+        const frames=[];for(const sec of timestamps)frames.push(await decodePixels(ffmpeg,file,sec,96,60,signal,rect));
         const pair=[sceneChange(frames[0],frames[1],96,60),sceneChange(frames[1],frames[2],96,60)];
         const result=pair.every(p=>p.change<1.6)?'no-detectable-change':pair.every(p=>p.afterGlobalMotion<3.2)?'consistent-with-camera-movement':'changing-footage';
         return {pair,result};
       };
-      const source=await compare(asset.path,times),candidate=await compare(videoPath,fractions.map(u=>(from+d*u)/fps));
+      const source=await compare(asset.path,times),candidate=await compare(videoPath,fractions.map(u=>(from+d*u)/fps),crop);
       const kind=source.result==='changing-footage'?candidate.result:source.result,count=to-from+1,speed=clip.speed||1;
       let confirmedFrozen=false;
       if(kind==='no-detectable-change'){
         const sourceStill=source.result==='no-detectable-change';
-        confirmedFrozen=await confirmFrozen(ffmpeg,sourceStill?asset.path:videoPath,sourceStill?at(0):from/fps,count*(sourceStill?speed:1)/fps,fps/(sourceStill?speed:1),count,signal);
+        confirmedFrozen=await confirmFrozen(ffmpeg,sourceStill?asset.path:videoPath,sourceStill?at(0):from/fps,count*(sourceStill?speed:1)/fps,fps/(sourceStill?speed:1),count,signal,sourceStill?null:crop);
       }
-      records.push({assetId:asset.id,fromFrame:from,toFrame:to,sourceTimes:times,comparisons:source.pair,candidateComparisons:candidate.pair,
+      records.push({assetId:asset.id,...(crop&&{clipId:clip.id,sampledRegion:exposed}),fromFrame:from,toFrame:to,sourceTimes:times,comparisons:source.pair,candidateComparisons:candidate.pair,
         sourceResult:source.result,candidateResult:candidate.result,result:kind,confirmedFrozen});
-    }catch(error){if(signal?.aborted)throw error;records.push({assetId:asset.id,fromFrame:from,toFrame:to,result:'unavailable'});}
+    }catch(error){if(signal?.aborted)throw error;records.push({assetId:asset.id,...(crop&&{clipId:clip.id}),fromFrame:from,toFrame:to,result:'unavailable'});}
   }
   return records;
 }
@@ -223,15 +228,15 @@ export function currentVisualChecks(project) {
 
 async function filmedSequence(project,windows,checks,motion,hashFile) {
   const observed=project.visualDirection?.frames||[],verified=[],hashes=new Map();
-  for(const check of checks.filter(c=>!c.needsFix)) {
-    const window=windows.find(w=>w.from<=check.frame&&w.to>=check.frame),asset=window?.shot.asset;
+  for(const check of checks.filter(c=>!c.needsFix)) for(const window of windows.filter(w=>w.from<=check.frame&&w.to>=check.frame)) {
+    const asset=window.shot.asset;
     const row=(project.storyboard||[]).find(r=>r.assetId===asset?.id&&r.start<=check.frame&&r.start+r.duration>check.frame);
     const anchor=row?.visualSteps?.find(s=>s.stage===check.stage&&s.atFrame<=check.frame&&s.assetHash===asset?.sha256&&
       plain(s.observation).length>=4&&observed.some(f=>f.source==='asset'&&f.assetId===asset?.id&&f.assetHash===asset?.sha256&&f.sha256===s.witnessFrameHash));
-    if(!anchor||asset.kind!=='video'||!motion.some(m=>m.assetId===asset.id&&m.fromFrame<=check.frame&&m.toFrame>=check.frame&&m.result==='changing-footage'))continue;
+    if(!anchor||asset.kind!=='video'||!motion.some(m=>m.assetId===asset.id&&(!m.clipId||m.clipId===window.shot.clip.id)&&m.fromFrame<=check.frame&&m.toFrame>=check.frame&&m.result==='changing-footage'))continue;
     if(!hashes.has(asset.id)){try{hashes.set(asset.id,await hashFile(asset.path));}catch{hashes.set(asset.id,null);}}
     if(hashes.get(asset.id)!==asset.sha256)continue;
-    verified.push({stage:check.stage,frame:check.frame,assetId:asset.id,sha256:asset.sha256,sourceFrame:anchor.sourceFrame??anchor.anchorSourceFrame,witnessFrameHash:anchor.witnessFrameHash});
+    verified.push({stage:check.stage,frame:check.frame,assetId:asset.id,...(window.regions&&{clipId:window.shot.clip.id}),sha256:asset.sha256,sourceFrame:anchor.sourceFrame??anchor.anchorSourceFrame,witnessFrameHash:anchor.witnessFrameHash});
   }
   return verified.sort((a,b)=>a.frame-b.frame);
 }
@@ -255,6 +260,32 @@ function videoFirstPolicy(project,spec) {
   return {ruleId:rule.id,basis:rule.basis||'style',lockedByAuthor,instruction:rule.instruction,override:choice==='images-only'||choice==='photo-led'?
     (fromMessage?'user-message':explicit===false?'motionFootage:false':'user-photo-brief'):null};
 }
+// Count wall-clock duration once even when both panes show video. Motion in one
+// pane is sufficient for an interval; both videos must be checked to call it frozen.
+function paneCoverage(windows,motion) {
+  const r={totalFrames:0,stillFrames:0,videoFrames:0,changingFrames:0,stationaryFrames:0,cameraFrames:0,
+    confirmedStationaryFrames:0,unverifiedFrames:0,sampledVideoFrames:0};
+  const bounds=[...new Set([...windows.flatMap(w=>[w.from,w.to+1]),...motion.flatMap(m=>[m.fromFrame,m.toFrame+1])])].sort((a,b)=>a-b);
+  for(let i=0;i+1<bounds.length;i++){
+    const start=bounds[i], n=bounds[i+1]-start;
+    const visible=windows.filter(w=>w.from<=start&&start<=w.to);
+    if(!visible.length)continue;
+    r.totalFrames+=n;
+    const videos=visible.filter(w=>w.shot.asset?.kind==='video');
+    if(!videos.length){r.stillFrames+=n;continue;}
+    r.videoFrames+=n;
+    const samples=videos.map(w=>motion.find(m=>m.assetId===w.shot.asset.id&&(!m.clipId||m.clipId===w.shot.clip.id)&&m.fromFrame<=start&&start<=m.toFrame));
+    if(samples.some(Boolean))r.sampledVideoFrames+=n;
+    if(samples.some(m=>m?.result==='changing-footage'))r.changingFrames+=n;
+    else if(samples.some(m=>!m||m.result==='unavailable'))r.unverifiedFrames+=n;
+    else if(samples.some(m=>m.result==='consistent-with-camera-movement'))r.cameraFrames+=n;
+    else if(samples.every(m=>m.result==='no-detectable-change'))r.stationaryFrames+=n;
+    else r.unverifiedFrames+=n;
+    if(samples.every(m=>m?.confirmedFrozen))r.confirmedStationaryFrames+=n;
+  }
+  r.changingRatio=r.totalFrames?+(r.changingFrames/r.totalFrames).toFixed(4):0;
+  return r;
+}
 function coverage(windows,motion) {
   const length=w=>w.to-w.from+1,frames=motion.reduce((n,m)=>n+m.toFrame-m.fromFrame+1,0);
   const totalFrames=windows.reduce((n,w)=>n+length(w),0),stillFrames=windows.filter(w=>w.shot.asset?.kind==='image').reduce((n,w)=>n+length(w),0);
@@ -267,6 +298,7 @@ function coverage(windows,motion) {
   const confirmedStationaryFrames=motion.filter(m=>m.confirmedFrozen).reduce((n,m)=>n+m.toFrame-m.fromFrame+1,0);
   const videoFrames=windows.filter(w=>w.shot.asset?.kind==='video').reduce((n,w)=>n+length(w),0);
   return {totalFrames,stillFrames,videoFrames,...measured,confirmedStationaryFrames,unverifiedFrames,sampledVideoFrames:frames,changingRatio:totalFrames?+((measured.changingFrames/totalFrames).toFixed(4)):0,
+    ...(windows.some(w=>w.regions)&&paneCoverage(windows,motion)),
     method:{windowMaxSeconds:4,windowLimit:36,sampleFractions:[.22,.47,.72],sampledWindows:motion.length,
       note:'按剪辑边界分为最长约四秒的窗口。每窗在原片和成片各抽三帧，用亮度差与近似整体平移缩放比对。变化帧数指满足该条件的窗口总长，不能精确计作持续动作秒数。疑似整体移动的结果仍可能含有较小或较慢的主体动作。'}};
 }
@@ -286,7 +318,7 @@ async function motionReview(project,windows,evidence,policy,checks,hashFile) {
         if(m.assetId!==a.id||m.result!=='changing-footage'||!m.sourceTimes.some(s=>s>=item.sourceStart&&s<=item.sourceEnd))continue;
         const key=[a.id,m.fromFrame,item.sourceStart,item.sourceEnd].join('@');
         if(!known.has(key)){
-          const w=windows.find(w=>w.shot.asset?.id===a.id&&w.from<=m.fromFrame&&w.to>=m.toFrame),clip=w?.shot.clip;
+          const w=windows.find(w=>w.shot.asset?.id===a.id&&(!m.clipId||m.clipId===w.shot.clip.id)&&(!item.clipId||item.clipId===w.shot.clip.id)&&w.from<=m.fromFrame&&w.to>=m.toFrame),clip=w?.shot.clip;
           if(!clip||clip.id!==item.clipId||clip.start!==item.timelineFrom||clip.duration!==item.timelineFrames)continue;
           const projected=t=>clip.start+(t*fps-(clip.sourceIn||0))/(clip.speed||1);
           const from=Math.max(m.fromFrame,Math.ceil(projected(item.sourceStart))),to=Math.min(m.toFrame,Math.ceil(projected(item.sourceEnd))-1);
@@ -298,7 +330,7 @@ async function motionReview(project,windows,evidence,policy,checks,hashFile) {
   }
   const covered=[];
   for(const sample of evidence.motion.filter(m=>m.result==='changing-footage')){
-    if(evidence.witnessedShots?.some(s=>s.assetId===sample.assetId&&s.frame>=sample.fromFrame&&s.frame<=sample.toFrame))covered.push([sample.fromFrame,sample.toFrame]);
+    if(evidence.witnessedShots?.some(s=>s.assetId===sample.assetId&&(!s.clipId||s.clipId===sample.clipId)&&s.frame>=sample.fromFrame&&s.frame<=sample.toFrame))covered.push([sample.fromFrame,sample.toFrame]);
     else for(const v of verified.filter(v=>v.assetId===sample.assetId&&v.fromFrame<=sample.toFrame&&v.toFrame>=sample.fromFrame))covered.push([v.fromFrame,v.toFrame]);
   }
   let end=-1;
@@ -339,8 +371,8 @@ function requestedEnding(project) {
   return /照片|原照|原图/.test(end)?'photo':/实拍|录像/.test(end)?'video':'source';
 }
 
-async function closingFrameMatch(ffmpeg,videoPath,shot,profile,frame,signal) {
-  const {asset,clip}=shot,view={...asset,fit:clip.fit,framing:clip.framing,start:clip.start,duration:clip.duration};
+async function closingFrameMatch(ffmpeg,videoPath,shot,profile,frame,signal,regions) {
+  const {asset,clip}=shot,view={...asset,fit:clip.fit,framing:clip.framing,viewport:clip.viewport,start:clip.start,duration:clip.duration};
   const full=projectSourceRegion({x:0,y:0,width:1,height:1},view,profile,frame);
   if(!full)return {frame,matched:null};
   const size=88,w=96,h=Math.max(20,Math.round(w*profile.height/profile.width));
@@ -348,6 +380,7 @@ async function closingFrameMatch(ffmpeg,videoPath,shot,profile,frame,signal) {
   const src=await decodePixels(ffmpeg,asset.path,asset.kind==='image'?null:sourceSeconds,size,size,signal),out=await decodePixels(ffmpeg,videoPath,frame/profile.fps,w,h,signal);
   const origin=boxRect(full),pairs=[];
   for(let y=2;y<h-2;y+=2)for(let x=2;x<w-2;x+=2){
+    if(regions&&!regions.some(r=>(x+.5)/w>=r.x&&(x+.5)/w<r.x+r.width&&(y+.5)/h>=r.y&&(y+.5)/h<r.y+r.height))continue;
     const u=((x+.5)/w-origin.x)/origin.width,v=((y+.5)/h-origin.y)/origin.height;
     if(u<.02||u>.98||v<.02||v>.98)continue;
     const i=3*(Math.min(size-1,Math.floor(v*size))*size+Math.min(size-1,Math.floor(u*size))),j=3*(y*w+x);
@@ -364,23 +397,27 @@ async function closingFrameMatch(ffmpeg,videoPath,shot,profile,frame,signal) {
 }
 
 async function closingSource(project,windows,confirmed,request,{ffmpeg,videoPath,hashFile,signal},hashes) {
-  const {from,to,shot}=windows.at(-1),asset=shot.asset;
+  const to=windows.at(-1).to, choices=windows.filter(w=>w.to===to), before=windows.filter(w=>w.to<choices[0].from);
+  const earlier=confirmed.filter(s=>s.stage!=='verification');
+  const previous=earlier.filter(s=>s.toFrame<choices[0].from).at(-1)||earlier.filter(s=>s.toFrame<to-project.profile.fps*.45).at(-1);
+  const target=request==='same-annotated-photo'?previous?.sha256:request==='opening-photo'?before.find(w=>w.shot.asset?.kind==='image')?.shot.asset.sha256:null;
+  const kind=['photo','same-annotated-photo','opening-photo'].includes(request)?'image':request==='video'?'video':null;
+  const pane=choices.findLast(w=>target&&w.shot.asset?.sha256===target)||choices.findLast(w=>w.shot.asset?.kind===kind)||choices.at(-1);
+  const {from,shot}=pane,asset=shot.asset;
   if(!asset)return {request,status:'unverified',fromFrame:from,toFrame:to};
   const board=(project.storyboard||[]).find(r=>r.assetId===asset.id&&r.start<=to&&r.start+r.duration>from);
-  const earlier=confirmed.filter(s=>s.stage!=='verification');
-  const previous=earlier.filter(s=>s.toFrame<from).at(-1)||earlier.filter(s=>s.toFrame<to-project.profile.fps*.45).at(-1);
-  const viewChanged=windows.slice(0,-1).some(w=>w.shot.asset?.sha256!==asset.sha256||w.shot.clip.fit!==shot.clip.fit||JSON.stringify(w.shot.clip.framing)!==JSON.stringify(shot.clip.framing));
+  const viewChanged=before.some(w=>w.shot.asset?.sha256!==asset.sha256||w.shot.clip.fit!==shot.clip.fit||JSON.stringify(w.shot.clip.framing)!==JSON.stringify(shot.clip.framing));
   const closingStage=s=>s?.stage==='verification'&&(s.assetHash||s.sha256)===asset.sha256;
   const likelyReturn=viewChanged||board?.visualSteps?.some(closingStage)||project.timeline.clips.some(c=>live(c)&&c.track==='graphic'&&lastFrame(c)>=from&&c.start<=to&&closingStage(c.evidenceAnchor));
   const sourceUrl=asset.source?.url||asset.source?.pageUrl;
   const asProof=!!(board?.claimUrl&&board.claimUrl===sourceUrl||board?.visualSteps?.some(closingStage)||
-    project.facts?.some(f=>f.assetId===asset.id)||windows.slice(0,-1).some(w=>w.shot.asset?.sha256===asset.sha256)||previous?.sha256===asset.sha256||asset.source?.kind==='user-file');
+    project.facts?.some(f=>f.assetId===asset.id)||before.some(w=>w.shot.asset?.sha256===asset.sha256)||previous?.sha256===asset.sha256||asset.source?.kind==='user-file');
   const result={request,assetId:asset.id,sha256:asset.sha256,kind:asset.kind,name:asset.name,sourceUrl:sourceUrl||board?.claimUrl,
     fromFrame:from,toFrame:to,sameAsAnnotatedSource:previous?asset.sha256===previous.sha256:null,annotatedAssetId:previous?.assetId||null,annotatedSourceSha256:previous?.sha256||null,frames:[],status:'unverified'};
   try {
     if(!hashes.has(asset.id))hashes.set(asset.id,await hashFile(asset.path));
     result.sourceHashVerified=hashes.get(asset.id)===asset.sha256;
-    if(result.sourceHashVerified)for(const f of new Set([Math.floor((from+to)/2),Math.max(from,to-Math.round(project.profile.fps*.18))]))result.frames.push(await closingFrameMatch(ffmpeg,videoPath,shot,project.profile,f,signal));
+    if(result.sourceHashVerified)for(const f of new Set([Math.floor((from+to)/2),Math.max(from,to-Math.round(project.profile.fps*.18))]))result.frames.push(await closingFrameMatch(ffmpeg,videoPath,shot,project.profile,f,signal,pane.regions));
   }catch(error){if(signal?.aborted)throw error;}
   result.trailingFramesWithoutSource=Math.max(0,...project.timeline.clips.filter(live).map(c=>lastFrame(c)-to));
   if(!result.frames.some(f=>f.matched)||result.trailingFramesWithoutSource>project.profile.fps*.6)return result;
@@ -388,7 +425,6 @@ async function closingSource(project,windows,confirmed,request,{ffmpeg,videoPath
   if(!request){result.status='not-requested';return result;}
   const wantsPhoto=['photo','same-annotated-photo','opening-photo'].includes(request);
   if((wantsPhoto&&asset.kind!=='image')||(request==='video'&&asset.kind!=='video')){result.status='unmet';return result;}
-  const target=request==='same-annotated-photo'?previous?.sha256:request==='opening-photo'?windows.slice(0,-1).find(w=>w.shot.asset?.kind==='image')?.shot.asset.sha256:null;
   if(target)result.requestedSourceSha256=target;
   if(request==='opening-photo'||request==='same-annotated-photo')result.status=target?(target!==asset.sha256?'unmet':likelyReturn?'met':'unverified'):'unverified';
   else if(result.returnsToTaskSource)result.status='met';
@@ -404,8 +440,9 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
   const requirements=visualRequirements(project),findings=[];
   const science=usesScienceGrammar(project,styleSpec),policy=videoFirstPolicy(project,styleSpec),ending=requestedEnding(project);
   const assets=new Map(project.assets.map(a=>[a.id,a])),shots=project.timeline.clips.filter(c=>c.track==='video'&&live(c)).sort((a,b)=>a.start-b.start).map(clip=>({clip,asset:assets.get(clip.assetId)}));
-  const windows=visibleWindows(shots),first=windows[0]?.from??0,last=windows.at(-1)?.to??0;
-  const evidence={requirements,sourceWindows:windows.map(w=>({assetId:w.shot.clip.assetId,kind:w.shot.asset?.kind||'unknown',fromFrame:w.from,toFrame:w.to})),steps:[],motion:[]};
+  const windows=visibleWindows(shots,project.profile),first=windows[0]?.from??0,last=windows.at(-1)?.to??0;
+  const evidence={requirements,sourceWindows:windows.map(w=>({assetId:w.shot.clip.assetId,kind:w.shot.asset?.kind||'unknown',fromFrame:w.from,toFrame:w.to,
+    ...(w.regions&&{clipId:w.shot.clip.id,visibleRegions:w.regions})})),steps:[],motion:[]};
   evidence.explanatoryAnimation=await reviewExplanatoryAnimations(project,windows,{ffmpeg,signal,
     readFrame:(frame,width,height)=>decodePixels(ffmpeg,videoPath,frame/project.profile.fps,width,height,signal),
     pose:(clip,frame)=>transformed(clip,project.profile,frame),paint:matchingPaint,related:step=>sharesSubject(step,project)});
@@ -426,7 +463,7 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
     }
   }
   if(!requirements.editableEvidence&&!requirements.styleFidelity&&!policy&&!ending)return {evidence,findings};
-  const {steps,shapeAmbiguous}=makeSteps(project,shots,checks),hashes=new Map(),fps=project.profile.fps;
+  const {steps,shapeAmbiguous}=makeSteps(project,windows,checks),hashes=new Map(),fps=project.profile.fps;
   const w=Math.max(16,Math.min(640,project.profile.width)),h=Math.max(16,Math.round(w*project.profile.height/project.profile.width));
   const confirmed=[];
   for(const s of steps) {

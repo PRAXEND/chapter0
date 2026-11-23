@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { scanMotionWindows } from './motion-windows.mjs';
 import { dedicatedVoiceReference } from './style-audio.mjs';
+import {visiblePanes,compositionOrder} from './viewport.mjs';
 
 export const stages = ['problem', 'detail', 'mechanism', 'verification'];
 export function usesVisualStages(style) {
@@ -47,7 +48,7 @@ export function motionPolicy(style, project, message = '') {
 export function motionCoverage(p, sourceFrames, policy, queries = [], reason = '') {
   if (!policy) return null;
   const fps = p.profile.fps,
-    clips = p.timeline.clips.filter((c) => c.track === 'video' && c.enabled !== false && !c.hidden),
+    clips = compositionOrder(p.timeline.clips.filter((c) => c.track === 'video' && c.enabled !== false && !c.hidden)),
     assets = new Map(p.assets.map((a) => [a.id, a]));
   const windows = [],
     proven = new Set();
@@ -100,12 +101,14 @@ export function motionCoverage(p, sourceFrames, policy, queries = [], reason = '
     witnessedFrames = 0;
   const edges = [...new Set(clips.flatMap((c) => [c.start, c.start + c.duration]))].sort((a, b) => a - b);
   for (let i = 0; i < edges.length - 1; i++) {
-    const c = clips.findLast((c) => c.start <= edges[i] && c.start + c.duration > edges[i]);
-    if (!c) continue;
+    const active = clips.filter((c) => c.start <= edges[i] && c.start + c.duration > edges[i]);
+    if (!active.length) continue;
+    const visible = active.some(c=>c.viewport)
+      ? visiblePanes(active.map(clip=>({clip})),p.profile).map(pane=>pane.shot.clip) : [active.at(-1)];
     const n = edges[i + 1] - edges[i];
-    if (assets.get(c.assetId)?.kind === 'video') videoFrames += n;
+    if (visible.some(c=>assets.get(c.assetId)?.kind==='video')) videoFrames += n;
     else stillFrames += n;
-    if (proven.has(c.id)) witnessedFrames += n;
+    if (visible.some(c=>proven.has(c.id))) witnessedFrames += n;
   }
   const totalFrames = videoFrames + stillFrames;
   let gap = '';

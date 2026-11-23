@@ -20,6 +20,26 @@ export function normalizedViewport(viewport, profile) {
   return {x:r.x/profile.width,y:r.y/profile.height,width:r.width/profile.width,height:r.height/profile.height};
 }
 
+// Splitting should not raise a previously obscured shot above a later inset.
+// The offset lets a subsequent intentional move still change its stacking time.
+export function compositionOrder(items, getClip=item=>item) {
+  const index=new Map(items.map((item,i)=>[getClip(item).id,i]));
+  const key=c=>c.start-(c.stackOrigin?.offsetFrames||0);
+  return [...items].sort((a,b)=>{
+    const ca=getClip(a), cb=getClip(b), time=key(ca)-key(cb);
+    if(time) return time;
+    const idA=ca.stackOrigin?.id||ca.id, idB=cb.stackOrigin?.id||cb.id;
+    if(index.has(idA)&&index.has(idB))return index.get(idA)-index.get(idB);
+    return String(idA).localeCompare(String(idB));
+  });
+}
+
+export function overlapOnStage(a,b,profile) {
+  if(a.track!=='video'||(!a.viewport&&!b.viewport))return true;
+  const x=viewportRect(a.viewport,profile), y=viewportRect(b.viewport,profile);
+  return x.x<y.x+y.width&&y.x<x.x+x.width&&x.y<y.y+y.height&&y.y<x.y+x.height;
+}
+
 function uncovered(area, mask) {
   const x = Math.max(area.x,mask.x), y = Math.max(area.y,mask.y);
   const endX = area.x+area.width, endY = area.y+area.height;

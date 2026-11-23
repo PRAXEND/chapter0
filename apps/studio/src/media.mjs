@@ -5,7 +5,7 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { createAss, createSrt } from './text-tracks.mjs';
 import { framingFilter, transitionEnvelope } from './framing.mjs';
-import { viewportRect } from './viewport.mjs';
+import { viewportRect,compositionOrder } from './viewport.mjs';
 import { ffBase, inputArgs, mediaSlot, mediaTool, requiredTool, run, scratch } from './media-runtime.mjs';
 
 export { mediaTool };
@@ -76,7 +76,7 @@ function validate(project) {
 }
 
 function pictureSpans(clips, length, fromFrame, toFrame, profile) {
-  const video = clips.filter(c => c.track === 'video').sort((a, b) => a.start - b.start);
+  const video = compositionOrder(clips.filter(c => c.track === 'video'));
   const cuts = new Set([0, length]);
   for (const c of video) {
     cuts.add(c.start); cuts.add(c.start + c.duration);
