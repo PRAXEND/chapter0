@@ -1,2 +1,4 @@
 user-packs/henry-video-styles/media/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
 user-packs/henry-video-styles/media/**/*.mp3 filter=lfs diff=lfs merge=lfs -text
+# Preserve the exact upstream font license bytes, including its original spacing.
+apps/studio/src/fonts/NotoSansSC-OFL.txt -whitespace

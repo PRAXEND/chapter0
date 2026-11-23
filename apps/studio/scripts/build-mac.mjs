@@ -6,6 +6,7 @@ import os from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {sourceHashes} from '../src/motion-jsx.generated.mjs';
+import {verifyMotionFont} from '../src/motion-font.mjs';
 import {bundleStyles} from './bundle-styles.mjs';
 import {prepareCodex,codexVersion} from './prepare-codex.mjs';
 import {mediaTool} from '../src/media.mjs';
@@ -57,6 +58,10 @@ try{
   const codexRel=path.relative(vendor,codex);
   await writeFile(path.join(resources,'codex-executable.txt'),codexRel);
   const notices=path.join(resources,'licenses');await mkdir(notices,{recursive:true});
+  const motionTypeface=await verifyMotionFont();
+  if(createHash('sha256').update(await readFile(motionTypeface.license)).digest('hex')!==motionTypeface.licenseSha256)
+    throw Error('Noto Sans SC 的授权文件未通过指纹校验。');
+  await clone(motionTypeface.license,path.join(notices,'Noto-Sans-SC-OFL.txt'));
   const nodeLicense=path.join(path.dirname(process.execPath),'../LICENSE');await clone(nodeLicense,path.join(notices,'Node.txt'));
   for(const name of ['ffmpeg','ffprobe']){
     const license=execFileSync(path.join(binDir,name),['-L'],{encoding:'utf8',stdio:['ignore','pipe','pipe']});await writeFile(path.join(notices,name+'.txt'),license);

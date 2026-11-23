@@ -6,6 +6,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {defaultMotionGeometry, motionCatalog, motionSample, validateMotionClip} from './motion-components.mjs';
 import {serialize} from './motion-dom.mjs';
+import {verifyMotionFont} from './motion-font.mjs';
 import {components, sourceHashes} from './motion-jsx.generated.mjs';
 import {mediaCache, run, scratch} from './media-runtime.mjs';
 import {createAss} from './text-tracks.mjs';
@@ -55,7 +56,7 @@ async function linkOrCopy(from,to){
   catch(error){if(!['EXDEV','ENOTSUP','EPERM'].includes(error.code))throw error;await copyFile(from,to,constants.COPYFILE_FICLONE);}
 }
 
-async function prepareFrames(states,cache,work,signal){
+async function prepareFrames(states,cache,work,signal,font){
   await mkdir(cache,{recursive:true,mode:0o700});
   const pngs=path.join(work,'motion-png');await mkdir(pngs);
   const missing=[];
@@ -65,6 +66,7 @@ async function prepareFrames(states,cache,work,signal){
     if(await cachedPng(path.join(cache,name),state.width,state.height))await linkOrCopy(path.join(cache,name),path.join(pngs,name));
     else missing.push(state);
   }
+  let receipt;
   if(missing.length){
     const helper=await runtimeHelper(signal);
     const batch=path.join(work,'motion-batch.json');
@@ -72,9 +74,11 @@ async function prepareFrames(states,cache,work,signal){
     for(let start=0; start<missing.length;start+=96){
       const chunk=missing.slice(start,start+96);
       await scratch(cache,async staging=>{
-        await writeFile(batch,JSON.stringify({directory:staging,states:chunk}),{mode:0o600});
+        await writeFile(batch,JSON.stringify({directory:staging,states:chunk,font:{path:font.path,sha256:font.sha256}}),{mode:0o600});
         const timeout=AbortSignal.timeout(180_000);
-        await run(helper,[batch],{signal:signal?AbortSignal.any([signal,timeout]):timeout});
+        const result=await run(helper,[batch],{signal:signal?AbortSignal.any([signal,timeout]):timeout});
+        receipt=JSON.parse(result);
+        if(receipt.family!==font.family || receipt.status!=='loaded')throw Error('WebKit 未确认风格包的中文字体。');
         for(const state of chunk){
           const name=state.key+'.png',from=path.join(staging,name),to=path.join(cache,name);
           if(!await cachedPng(from,state.width,state.height))throw Error('本机动效栅格化未产生完整透明帧。');
@@ -83,7 +87,7 @@ async function prepareFrames(states,cache,work,signal){
       });
     }
   }
-  return missing.length;
+  return {rasterized:missing.length,font:{family:font.family,sha256:font.sha256,...(receipt??{status:'cached'})}};
 }
 
 function segmentsFor(clip,profile,from,to,version,states){
@@ -121,14 +125,15 @@ async function sequenceFile(work,name,runs,fps){
 
 export async function prepareMotionOverlay(layers,profile,{work,directory,projectId,fromFrame,toFrame,signal}){
   const {width,height,fps}=profile;
-  const version=await nativeVersion;
+  const font=await verifyMotionFont();
+  const version=(await nativeVersion)+'/'+font.sha256;
   const states=new Map(),presets=new Map();
   const graphics=layers.filter(c=>c.track==='graphic');
   for(const clip of graphics.filter(c=>c.motion)){
     presets.set(clip,segmentsFor(clip,profile,fromFrame,toFrame,version,states));
   }
   const projectCache=path.join(process.env.VIDEO_STUDIO_MOTION_CACHE||path.join(mediaCache(),'motion-frames-v1'),digest(String(projectId||path.resolve(directory))));
-  const rasterized=await prepareFrames(states,projectCache,work,signal);
+  const raster=await prepareFrames(states,projectCache,work,signal,font);
   const inputs=[],filters=[];
   let current='0:v',serial=0,inputIndex=2;
   const next=()=> 'motionlayer'+(++serial);
@@ -158,5 +163,5 @@ export async function prepareMotionOverlay(layers,profile,{work,directory,projec
   }
   // Captions retain their higher track regardless of the order in which timeline edits inserted them.
   await paintAss([...ordinary,...layers.filter(c=>c.track==='caption')]);
-  return {inputs,filter:filters.join(';'),map:'['+current+']',info:{clips:presets.size,uniqueFrames:states.size,rasterized}};
+  return {inputs,filter:filters.join(';'),map:'['+current+']',info:{clips:presets.size,uniqueFrames:states.size,...raster}};
 }

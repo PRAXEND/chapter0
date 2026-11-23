@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import CryptoKit
 import ImageIO
 import UniformTypeIdentifiers
 import WebKit
@@ -13,16 +14,34 @@ struct State: Decodable {
 struct Batch: Decodable {
     let directory: String
     let states: [State]
+    let font: FontAsset
+}
+struct FontAsset: Decodable {
+    let path: String
+    let sha256: String
 }
 
 @MainActor final class Renderer: NSObject, WKNavigationDelegate {
     let batch: Batch
+    var fontData: Data?
     let window: NSWindow
     let view: WKWebView
     var index = 0
 
-    init(_ batch: Batch) {
+    init(_ batch: Batch) throws {
         self.batch = batch
+        // Only the pinned bytes enter WebKit. The content process never receives a path or file URL.
+        let url=URL(fileURLWithPath:batch.font.path)
+        let info=try url.resourceValues(forKeys:[.isRegularFileKey,.fileSizeKey])
+        guard info.isRegularFile==true, let byteCount=info.fileSize, byteCount>0, byteCount<=24*1024*1024 else {
+            throw NSError(domain:"VideoStudioMotionFont",code:1,userInfo:[NSLocalizedDescriptionKey:"内置字体文件无效。"])
+        }
+        let data=try Data(contentsOf:url,options:.mappedIfSafe)
+        let hash=SHA256.hash(data:data).map{String(format:"%02x",$0)}.joined()
+        guard hash==batch.font.sha256 else {
+            throw NSError(domain:"VideoStudioMotionFont",code:2,userInfo:[NSLocalizedDescriptionKey:"字体验证失败。"])
+        }
+        self.fontData=data
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         self.view = WKWebView(frame: NSRect(x:0, y:0, width:1, height:1), configuration:config)
@@ -51,7 +70,48 @@ struct Batch: Decodable {
         FileHandle.standardError.write(Data((message+"\n").utf8))
         exit(1)
     }
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { next() }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { loadFont(at:0) }
+    func loadFont(at offset:Int) {
+        guard let bytes=fontData else { fail("内置字体尚未初始化。") }
+        // A 512-KiB base64 IPC message avoids embedding a 24-MB string in the HTML document.
+        let end=min(offset+384*1024,bytes.count)
+        let script="""
+        const fontBytes=window.__studioFontBytes??=new Uint8Array(total);
+        const part=atob(encoded);
+        for(let i=0;i<part.length;i++)fontBytes[offset+i]=part.charCodeAt(i);
+        if(!last)return true;
+        const face=new FontFace('Noto Sans SC',fontBytes.buffer,{style:'normal',weight:'100 900'});
+        await face.load();document.fonts.add(face);await document.fonts.ready;
+        delete window.__studioFontBytes;
+        if(face.status!=='loaded' || !document.fonts.has(face))throw Error('Noto Sans SC 未在 WebKit 中就绪');
+        const canvas=document.createElement('canvas');canvas.width=280;canvas.height=68;
+        const ctx=canvas.getContext('2d',{willReadFrequently:true});
+        const sample=(family,weight)=>{
+          ctx.clearRect(0,0,280,68);ctx.font=weight+' 43px '+family;
+          ctx.fillText('潮位 Aa18 月印',5,50);
+          const rgba=ctx.getImageData(0,0,280,68).data;
+          let h=2166136261;
+          for(let i=3;i<rgba.length;i+=4)h=Math.imul(h^rgba[i],16777619);
+          return (h>>>0).toString(16).padStart(8,'0');
+        };
+        return {family:face.family,status:face.status,weight:face.weight,
+          regularRaster:sample('"Noto Sans SC"',400),boldRaster:sample('"Noto Sans SC"',900),
+          systemSansRaster:sample('"PingFang SC"',400),serifRaster:sample('serif',400)};
+        """
+        let args:[String:Any]=["total":bytes.count,"offset":offset,"encoded":bytes[offset..<end].base64EncodedString(),"last":end==bytes.count]
+        view.callAsyncJavaScript(script,arguments:args,in:nil,in:.page){result in
+            switch result {
+            case .failure(let error): self.fail("内置中文字体无法加载："+error.localizedDescription)
+            case .success(let value):
+                if end < bytes.count { self.loadFont(at:end);return }
+                guard let receipt=value as? [String:Any],receipt["status"] as? String=="loaded",
+                      let encoded=try? JSONSerialization.data(withJSONObject:receipt) else { self.fail("WebKit 未确认内置字体。") }
+                FileHandle.standardOutput.write(encoded)
+                self.fontData=nil
+                self.next()
+            }
+        }
+    }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { fail("动效 WebKit 进程中断。") }
     func next() {
         guard index < batch.states.count else { exit(0) }
@@ -98,7 +158,7 @@ struct Batch: Decodable {
         app.setActivationPolicy(.accessory)
         guard CommandLine.arguments.count==2 else { exit(2) }
         let data=try Data(contentsOf:URL(fileURLWithPath:CommandLine.arguments[1]))
-        let renderer=Renderer(try JSONDecoder().decode(Batch.self,from:data))
+        let renderer=try Renderer(JSONDecoder().decode(Batch.self,from:data))
         renderer.start()
         app.run()
     }

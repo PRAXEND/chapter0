@@ -9,6 +9,7 @@ import path from 'node:path';
 import {promisify} from 'node:util';
 import {sourceHashes,components} from '../src/motion-jsx.generated.mjs';
 import {serialize} from '../src/motion-dom.mjs';
+import {motionFont,verifyMotionFont} from '../src/motion-font.mjs';
 import {motionSample} from '../src/motion-components.mjs';
 import {mediaCapabilities,renderProject} from '../src/media.mjs';
 
@@ -176,4 +177,33 @@ test('one-pixel moves of a one-frame JSX layer preserve odd as well as even canv
     assert.equal(row.findIndex(n=>n>80),319+i);
     assert.ok(rgb(blank,319+i,170)[0]<20);
   }
+});
+
+
+test('the declared Chinese typeface is a bundled, licensed variable font and reaches the actual WebKit and MP4 pixels', {skip:process.platform!=='darwin',timeout:100_000},async t=>{
+  assert.equal(await verifyMotionFont(),motionFont);
+  const license=await readFile(motionFont.license);
+  assert.match(license.toString(),/SIL OPEN FONT LICENSE/);
+  assert.equal(createHash('sha256').update(license).digest('hex'),motionFont.licenseSha256);
+  const {ready,ffmpeg}=await mediaCapabilities();if(!ready)return t.skip('requires FFmpeg');
+  const directory=await mkdtemp(path.join(os.tmpdir(),'studio-embedded-noto-'));
+  const oldCache=process.env.VIDEO_STUDIO_MOTION_CACHE;process.env.VIDEO_STUDIO_MOTION_CACHE=path.join(directory,'cache');
+  t.after(async()=>{
+    if(oldCache==null)delete process.env.VIDEO_STUDIO_MOTION_CACHE;else process.env.VIDEO_STUDIO_MOTION_CACHE=oldCache;
+    await rm(directory,{recursive:true,force:true});
+  });
+  // One static native JSX source and identical subtitle copy. Only the selected typeface changes.
+  const fonts=[undefined,'PingFang SC','serif'];
+  const clips=fonts.map((font,i)=>({id:'font-'+i,track:'graphic',start:4*i,duration:4,
+    geometry:{x:.5,y:.45,width:.8,height:.24},motion:{componentId:'source-label',
+      props:{lab:'潮位 Aa18 月印 - 猎户座返回',...(font&&{font})}}}));
+  const output=path.join(directory,'types.mp4');
+  const rendered=await renderProject({id:'font-probe',profile,assets:[],timeline:{clips}},{directory,output});
+  const proof=rendered.motion.font;
+  assert.equal(proof.sha256,motionFont.sha256);
+  assert.equal(proof.status,'loaded');assert.equal(proof.family,'Noto Sans SC');assert.equal(proof.weight,'100 900');
+  assert.equal(new Set([proof.regularRaster,proof.boldRaster,proof.systemSansRaster,proof.serifRaster]).size,4);
+  const images=await Promise.all(clips.map(c=>frame(ffmpeg,output,c.start+1)));
+  assert.ok(changed(images[0],images[1],undefined,35)>80,'default font silently drew the installed sans fallback');
+  assert.ok(changed(images[0],images[2],undefined,35)>80,'default font silently drew generic serif');
 });
