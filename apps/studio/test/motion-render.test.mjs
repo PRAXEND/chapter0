@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {mkdtemp,mkdir,readFile,rm,writeFile} from 'node:fs/promises';
+import {watch} from 'node:fs';
+import {mkdtemp,mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {promisify} from 'node:util';
 import {sourceHashes,components} from '../src/motion-jsx.generated.mjs';
 import {serialize} from '../src/motion-dom.mjs';
-import {motionCatalog,motionSample} from '../src/motion-components.mjs';
+import {motionSample} from '../src/motion-components.mjs';
 import {mediaCapabilities,renderProject} from '../src/media.mjs';
 
 const exec=promisify(execFile);
@@ -90,9 +91,18 @@ test('six shipped JSX components render with alpha on footage, preserve cue timi
     const corner=maxDelta(rgb(blank,7,8),rgb(normal,7,8));
     const insideBox=maxDelta(rgb(blank,32,45),rgb(normal,32,45));
     assert.ok(corner<=10&&insideBox<=12,names[i]+': underlying source disappeared');
-    const after=await frame(ffmpeg,output,clip.start+duration+1);
+    if([0,2,3,4].includes(i)){
+      const entered=await frame(ffmpeg,output,clip.start+1);
+      assert.ok(changed(entered,normal)>140,names[i]+': missing frame-by-frame entrance');
+    }
+    const after=await frame(ffmpeg,output,clip.start+duration);
     assert.ok(changed(blank,after,undefined,24)<40,'overlay retained after '+names[i]);
     sampled.push({component:names[i],renderedPixels:count,sceneCornerDelta:corner,transparentRegionDelta:insideBox});
+  }
+  // A static component must show every requested frame, through the last one.
+  for(const [index,visible] of [[comparison.start-1,false],[comparison.start,true],[comparison.start+duration-1,true],[comparison.start+duration,false]]){
+    const actual=await frame(ffmpeg,output,index);
+    assert.equal(changed(blank,actual)>500,visible,'static component at exact edge '+index);
   }
   const label=clips[1];
   const before=await frame(ffmpeg,output,label.start+24),switched=await frame(ffmpeg,output,label.start+25);
@@ -100,7 +110,7 @@ test('six shipped JSX components render with alpha on footage, preserve cue timi
   const atCaption=await frame(ffmpeg,output,caption.start+2);
   const under=await frame(ffmpeg,output,comparison.start+18);
   const split=rgb(under,319,173),subtitle=rgb(atCaption,319,173);
-  assert.ok(split[1]>split[0]+50,'expected cyan divider beneath caption: '+split);
+  assert.ok(split[1]>split[0]+15 && split[1]-rgb(blank,319,173)[1]>65,'expected narrow cyan divider blended with source: '+split);
   assert.ok(subtitle[0]>subtitle[2]+90,'expected caption painted above cyan divider: '+subtitle);
   const from=clips[3].start+10,to=clips[4].start+30;
   const windowFile=path.join(directory,'window.mp4');
@@ -112,4 +122,58 @@ test('six shipped JSX components render with alpha on footage, preserve cue timi
   }
   assert.match(await readFile(full.srtPath,'utf8'),/同一画面/);
   if(evidence)await writeFile(path.join(directory,'six-components.json'),JSON.stringify({profile,full,short,sources:sourceHashes,sampled,clips:project.timeline.clips},null,2));
+});
+
+
+test('cancelling during genuine WebKit rasterization preserves the existing output pair and the next render can resume', {skip:process.platform!=='darwin',timeout:90_000}, async t=>{
+  if(!(await mediaCapabilities()).ready)return t.skip('requires FFmpeg');
+  const directory=await mkdtemp(path.join(os.tmpdir(),'studio-native-cancel-'));
+  const cache=path.join(directory,'cache');
+  const oldCache=process.env.VIDEO_STUDIO_MOTION_CACHE;
+  process.env.VIDEO_STUDIO_MOTION_CACHE=cache;
+  t.after(async()=>{
+    if(oldCache==null)delete process.env.VIDEO_STUDIO_MOTION_CACHE;else process.env.VIDEO_STUDIO_MOTION_CACHE=oldCache;
+    await rm(directory,{recursive:true,force:true});
+  });
+  const project={id:'cancel-native',profile,assets:[],timeline:{clips:[{id:'reveal',track:'graphic',start:0,duration:104,motion:{componentId:'staggered-explanation',props:edits[3],cueFrames:[0,36,70]}}]}};
+  const output=path.join(directory,'draft.mp4'),srt=path.join(directory,'draft.srt');
+  await writeFile(output,'earlier video');await writeFile(srt,'earlier captions');
+  const abort=new AbortController();
+  const observer=watch(directory,{recursive:true},(_,name)=>{
+    // Wait for native WebKit to be producing actual PNG content before cancelling.
+    if(name && name.includes('.media-') && name.endsWith('.png'))abort.abort(new Error('取消本机动效'));
+  });
+  try{
+    await assert.rejects(renderProject(project,{directory,output,signal:abort.signal}),/取消本机动效/);
+  }finally{observer.close();}
+  assert.equal(await readFile(output,'utf8'),'earlier video');
+  assert.equal(await readFile(srt,'utf8'),'earlier captions');
+  const leftovers=await readdir(directory,{recursive:true});
+  assert.ok(!leftovers.some(name=>name.includes('.media-')),'cancelled job left a partial batch');
+  const resumed=await renderProject(project,{directory,output,window:{fromFrame:4,toFrame:5}});
+  assert.equal(resumed.frames,1);assert.equal(resumed.motion.uniqueFrames,1);
+});
+
+test('one-pixel moves of a one-frame JSX layer preserve odd as well as even canvas coordinates', {skip:process.platform!=='darwin',timeout:40_000},async t=>{
+  const {ready,ffmpeg}=await mediaCapabilities();if(!ready)return t.skip('requires FFmpeg');
+  const directory=await mkdtemp(path.join(os.tmpdir(),'studio-native-pixel-'));
+  const oldCache=process.env.VIDEO_STUDIO_MOTION_CACHE;process.env.VIDEO_STUDIO_MOTION_CACHE=path.join(directory,'cache');
+  t.after(async()=>{
+    if(oldCache==null)delete process.env.VIDEO_STUDIO_MOTION_CACHE;else process.env.VIDEO_STUDIO_MOTION_CACHE=oldCache;
+    await rm(directory,{recursive:true,force:true});
+  });
+  const clips=Array.from({length:4},(_,i)=>({
+    id:'grid-'+i,track:'graphic',start:2*i+1,duration:1,
+    motion:{componentId:'comparison-guide',props:{left:'',right:'',cyan:'#ffffff'}},
+    geometry:{x:.5+i/profile.width,y:.5,width:1,height:1}
+  }));
+  const output=path.join(directory,'grid.mp4');
+  const r=await renderProject({id:'odd',profile,assets:[],timeline:{clips}},{directory,output});
+  assert.equal(r.motion.uniqueFrames,1);
+  for(const [i,clip] of clips.entries()){
+    const visible=await frame(ffmpeg,output,clip.start),blank=await frame(ffmpeg,output,clip.start-1);
+    const row=Array.from({length:profile.width},(_,x)=>rgb(visible,x,170)[0]);
+    assert.equal(row.findIndex(n=>n>80),319+i);
+    assert.ok(rgb(blank,319+i,170)[0]<20);
+  }
 });

@@ -67,4 +67,4 @@ node scripts/field-trials.mjs "$HOME/Movies/Video Studio/盲评工作台/researc
 
 从源码运行时，第一次渲染使用系统 Command Line Tools 编译随仓 Swift 文件。发行包直接使用内置程序。按工程隔离的动效帧默认存放在媒体缓存的 `motion-frames-v1` 子目录，也可用 `VIDEO_STUDIO_MOTION_CACHE` 指定位置。组件、原生渲染代码或系统版本变化时，工作台使用新指纹重建。单个项目的缓存可在关闭渲染后清理，再次渲染会自动生成。
 
-修改风格包原版 JSX 时，先检查组件所需的元素与样式。在有 TypeScript 的开发机上运行 `node scripts/compile-motion-jsx.mjs /绝对路径/typescript`，连同源码一起提交生成模块。发行构建逐一比对原文件指纹。运行 `node --test test/motion-render.test.mjs` 可复验六个真实组件的透明输出、出场时间、字幕层级和窗口对位。指定 `VIDEO_STUDIO_MOTION_TEST_OUTPUT` 可保留 MP4 和测量记录。
+修改风格包原版 JSX 时，先检查组件所需的元素与样式。在有 TypeScript 的开发机上运行 `node scripts/compile-motion-jsx.mjs /绝对路径/typescript`，连同源码一起提交生成模块。发行构建逐一比对原文件指纹。运行 `node --test test/motion-render.test.mjs` 可复验六个真实组件的透明输出、出场时间、逐像素定位、字幕层级、取消恢复和窗口对位。指定 `VIDEO_STUDIO_MOTION_TEST_OUTPUT` 可保留 MP4 和测量记录。

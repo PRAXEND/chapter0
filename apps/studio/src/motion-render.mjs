@@ -153,7 +153,7 @@ export async function prepareMotionOverlay(layers,profile,{work,directory,projec
     // fps expands the duration-bearing PNG entries; trim discards the concat demuxer's terminal sentinel.
     filters.push('['+(inputIndex++)+':v]fps='+fps+',trim=end_frame='+frames+','+narrowClock+'+'+start+
       ',format=rgba,scale='+w+':'+h+':flags=lanczos,setsar=1['+ink+']');
-    filters.push('['+current+']['+ink+']overlay=x='+x+':y='+y+':eof_action=pass:repeatlast=0:alpha=straight'+
+    filters.push('['+current+']['+ink+']overlay=x='+x+':y='+y+':eof_action=pass:repeatlast=0:alpha=straight:format=yuv444'+
       ":enable='between(n,"+start+','+(start+frames-1)+")'["+out+']');current=out;
   }
   // Captions retain their higher track regardless of the order in which timeline edits inserted them.
