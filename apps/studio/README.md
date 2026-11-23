@@ -34,7 +34,7 @@ node scripts/build-mac.mjs
 
 Node 服务只监听环回地址。命令行启动时会显示一次性本地入口。Tauri 内置 Node、Codex、FFmpeg/ffprobe、可用的 whisper-cli 与公开风格包；已发布的风格媒体按 Git LFS SHA-256 和大小物化。构建从官方 npm 包取得固定版 Codex 并验证 SHA-512。本地包采用 ad-hoc 签名。对外分发需要发行方自己的 Developer ID 签名与 Apple 公证。
 
-默认资料库位于 ~/Library/Application Support/Video Studio/standalone。STUDIO_DATA_ROOT 可以选择独立资料库，STUDIO_DELIVERY_ROOT 可选择导出目录。模型缓存由 VIDEO_STUDIO_MEDIA_HOME 指定。STUDIO_START_VIEW=blind 可直接打开盲评室，STUDIO_REVIEW_ROOT 可指定另一套研究库。prepare-media 的 render、speech、clone 子命令可分开运行。
+默认资料库位于 ~/Library/Application Support/Video Studio/standalone。设置 STUDIO_BUILD_CHANNEL=quality 和独立的 STUDIO_DIST 可生成质量验证版，Finder 用独立应用标识启动，默认打开同目录下的 standalone-quality 资料库。STUDIO_DATA_ROOT 可以选择独立资料库，STUDIO_DELIVERY_ROOT 可选择导出目录。模型缓存由 VIDEO_STUDIO_MEDIA_HOME 指定。STUDIO_START_VIEW=blind 可直接打开盲评室，STUDIO_REVIEW_ROOT 可指定另一套研究库。prepare-media 的 render、speech、clone 子命令可分开运行。
 
 ## 工程与恢复
 

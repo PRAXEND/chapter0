@@ -261,7 +261,10 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
 }
 async function pinnedStyle(styles,selector){const s=await styles.get(selector.id,selector.version);return {id:s.id,name:s.name,version:s.version};}
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
-  const app=await startStudio({port:Number(process.env.STUDIO_PORT||0)});
+  const channelFile=process.env.VIDEO_STUDIO_RESOURCE_DIR && path.join(process.env.VIDEO_STUDIO_RESOURCE_DIR,'quality-channel');
+  const quality=channelFile && !process.env.STUDIO_DATA_ROOT && (await readFile(channelFile,'utf8').catch(()=>'' )).trim()==='quality';
+  const root=quality?path.join(path.dirname(defaultRoot()),'standalone-quality'):defaultRoot();
+  const app=await startStudio({root,port:Number(process.env.STUDIO_PORT||0)});
   process.stdout.write((process.argv.includes('--native')?JSON.stringify({url:app.url}):'Video Studio  '+app.url)+'\n');
   let closing=false;const stop=async()=>{if(closing)return;closing=true;await app.close();process.exit(0);};
   process.on('SIGTERM',stop);process.on('SIGINT',stop);

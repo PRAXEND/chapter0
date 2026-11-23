@@ -11,6 +11,9 @@ import {prepareCodex,codexVersion} from './prepare-codex.mjs';
 import {mediaTool} from '../src/media.mjs';
 const base=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'), repo=path.resolve(base,'../..');
 const cache=path.join(os.homedir(),'Library/Caches/VideoStudioBuild');
+const quality=process.env.STUDIO_BUILD_CHANNEL==='quality';
+const bundleId='studio.local.videoworkbench'+(quality?'.quality':'');
+const displayName=quality?'Video Studio 质量验证版':'Video Studio';
 const toolEnv={...process.env};
 try{
   await access(path.join(cache,'cargo/bin/cargo'));toolEnv.CARGO_HOME||=path.join(cache,'cargo');toolEnv.RUSTUP_HOME||=path.join(cache,'rustup');
@@ -59,8 +62,9 @@ try{
     const license=execFileSync(path.join(binDir,name),['-L'],{encoding:'utf8',stdio:['ignore','pipe','pipe']});await writeFile(path.join(notices,name+'.txt'),license);
   }
   await writeFile(path.join(notices,'components.txt'),'Node.js · https://nodejs.org/\\nFFmpeg · https://ffmpeg.org/\\nCodex CLI '+codexVersion+' · Apache-2.0 · https://github.com/openai/codex\\nwhisper.cpp · MIT · https://github.com/ggml-org/whisper.cpp\\n'.replaceAll('\\n','\n'));
+  if(quality)await writeFile(path.join(resources,'quality-channel'),'quality\n');
   const plist=`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>studio.local.videoworkbench</string><key>CFBundleName</key><string>Video Studio</string><key>CFBundleDisplayName</key><string>Video Studio</string>
+<key>CFBundleIdentifier</key><string>${bundleId}</string><key>CFBundleName</key><string>${displayName}</string><key>CFBundleDisplayName</key><string>${displayName}</string>
 <key>CFBundleExecutable</key><string>video-studio</string><key>CFBundleIconFile</key><string>VideoStudio</string><key>CFBundleShortVersionString</key><string>0.1.0</string><key>CFBundleVersion</key><string>1</string><key>CFBundlePackageType</key><string>APPL</string><key>LSMinimumSystemVersion</key><string>13.5</string><key>NSHighResolutionCapable</key><true/><key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict></dict></plist>`;
   await writeFile(path.join(contents,'Info.plist'),plist);
   // macOS refuses to sign Finder metadata copied from a File Provider checkout.
@@ -70,6 +74,6 @@ try{
   exec('/usr/bin/codesign',['--force','--sign',process.env.STUDIO_SIGN_IDENTITY||'-',app]);
   exec('/usr/bin/codesign',['--verify','--deep','--strict',app]);
   const final=path.join(dist,'Video Studio.app');
-  try{await access(final);const id=execFileSync('/usr/libexec/PlistBuddy',['-c','Print CFBundleIdentifier',path.join(final,'Contents/Info.plist')],{encoding:'utf8'}).trim();if(id!=='studio.local.videoworkbench')throw Error('构建目录已有其他应用。');await rm(final,{recursive:true});}catch(e){if(e.code!=='ENOENT')throw e;}
+  try{await access(final);const id=execFileSync('/usr/libexec/PlistBuddy',['-c','Print CFBundleIdentifier',path.join(final,'Contents/Info.plist')],{encoding:'utf8'}).trim();if(id!==bundleId)throw Error('构建目录已有其他应用。');await rm(final,{recursive:true});}catch(e){if(e.code!=='ENOENT')throw e;}
   await rename(app,final);console.log(final);
 }finally{await rm(staging,{recursive:true,force:true});}
