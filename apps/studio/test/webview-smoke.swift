@@ -42,10 +42,13 @@ final class Smoke: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
             document.querySelector('#motion-b').value='第二句在这里出现';
             const cue=document.querySelector('#cue-1');cue.value='27';cue.dispatchEvent(new Event('input',{bubbles:true}));
             if(document.querySelector('#cue-read-1').value!=='27 帧')throw Error('落点读数未更新');
-            click('[data-act="save-clip"]');
+            click('[data-act="save-preview-cue"]');
             await wait(()=>document.querySelector('#motion-b')?.value==='第二句在这里出现'&&document.querySelector('.timeline-header')?.innerText.includes('v5'));
             const saved=await (await fetch('/api/projects/'+p.id)).json(),layer=saved.timeline.clips.find(c=>c.motion);
             if(layer.motion.props.b!=='第二句在这里出现'||layer.motion.cueFrames[1]!==27)throw Error('组件未写入工程');
+            await wait(()=>document.querySelector('#dialog[open] video')?.readyState>=1);
+            if(!document.querySelector('#dialog-title').textContent.includes('v5'))throw Error('落点预览版本不符');
+            click('#dismiss');
             click('[data-act="tab"][data-id="settings"]');await wait(()=>document.querySelector('#voice-mode'));
             document.querySelector('#set-title').value='已保存的剪辑工程';click('[data-act="settings-save"]');
             await wait(()=>document.querySelector('#current-title').textContent==='已保存的剪辑工程');

@@ -148,7 +148,7 @@ function inspector(c){
   ${c.motion?componentFields(c):['caption','graphic'].includes(c.track)?field('文字',area('clip-text',c.text,2)):''}
   ${c.shape==='polygon'?field('轮廓顶点（图层内 x、y，范围 0–1）',area('clip-points',JSON.stringify(c.geometry.points),3)):''}
   ${!c.motion&&['caption','graphic'].includes(c.track)?`<details><summary>图层位置与关键帧</summary><div class="three">${field('水平位置 0–1',input('clip-x',c.geometry?.x??.5,'number','step=".01"'))}${field('垂直位置 0–1',input('clip-y',c.geometry?.y??.5,'number','step=".01"'))}${field('字号（像素）',input('clip-font',c.style?.fontSize||48,'number','min="1"'))}</div>${field('关键帧（帧、位置、缩放、透明度及顺时针角度 rotation）',area('clip-keys',JSON.stringify(c.keyframes||[]),2))}</details>`:''}
-  ${c.track==='video'?`${viewportFields(c)}${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照']],c.transition?.type==='wipe-right'?'wipe-right':'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>`:''}<div class="actions">${(c.track==='video'||(c.track==='graphic'&&!c.motion))?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
+  ${c.track==='video'?`${viewportFields(c)}${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照']],c.transition?.type==='wipe-right'?'wipe-right':'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>`:''}<div class="actions">${(c.track==='video'||(c.track==='graphic'&&!c.motion))?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${c.motion?btn('save-preview-cue','保存并预览落点','',c.id):''}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
 }
 async function edit(commands){
   const previous=s.p, result=await proj('/edits',{baseRevision:previous.revision,commands});
@@ -164,7 +164,10 @@ async function pickClip(id,seek=true){
   const video=el('player');if(seek&&video&&lastVideo())video.currentTime=c.start/frameRate();
 }
 document.addEventListener('input',e=>{
-  if(e.target.dataset.cue!==undefined)el('cue-read-'+e.target.dataset.cue).value=e.target.value+' 帧';
+  if(e.target.dataset.cue!==undefined){
+    s.cueFocus={id:s.clip,index:e.target.dataset.cue};
+    el('cue-read-'+e.target.dataset.cue).value=e.target.value+' 帧';
+  }
 });
 let dragging;
 document.addEventListener('change',e=>{
@@ -281,6 +284,18 @@ async function environment(){
  ${v.install?'<p class="help">'+esc(v.install.state+' · '+v.install.message)+'</p>':''}
  <h3>云配乐账号</h3>${field('ElevenLabs API 密钥（仅在本次打开期间使用）',input('cloud-key','','password','autocomplete="off"'))}${btn('cloud-key','保存本次连接')} <span class="help">${v.cloudMusic?'已连接':''}</span>`);
 }
+async function showDraft(project,fromFrame,focusFrame){
+  notice('正在合成此处的工程草稿');
+  const draft=await api('/api/projects/'+project.id+'/draft',{fromFrame});
+  if(s.p?.id!==project.id||draft.revision!==s.p.revision)return;
+  const fps=project.profile.fps;
+  modal('当前草稿 · v'+draft.revision+' · '+clock(draft.fromFrame/fps)+'–'+clock(draft.toFrame/fps),
+    '<video class="wide-video" autoplay controls playsinline src="'+esc(draft.url)+'"></video>');
+  if(Number.isInteger(focusFrame)){
+    const player=el('dialog-body').querySelector('video');
+    player.addEventListener('loadedmetadata',()=>{player.currentTime=Math.max(0,(focusFrame-draft.fromFrame)/fps-.5);},{once:true});
+  }
+}
 async function runAction(act,id){
  const p=s.p;
  switch(act){
@@ -292,12 +307,16 @@ async function runAction(act,id){
  case 'direct':return startJob(p.timeline.clips.length?'revise':'produce','codex');
  case 'local':return startJob(p.timeline.clips.length&&val('instruction').trim()?'revise':'produce','local');
  case 'draft':{
-   const projectId=p.id,at=Math.floor((el('player')?.currentTime||0)*p.profile.fps);
+   const at=Math.floor((el('player')?.currentTime||0)*p.profile.fps);
    const selected=p.timeline.clips.find(c=>c.id===s.clip);
-   notice('正在合成此处的工程草稿');
-   const draft=await proj('/draft',{fromFrame:selected?.start??at});
-   if(s.p?.id!==projectId)return;
-   return modal('当前草稿 · v'+draft.revision+' · '+clock(draft.fromFrame/p.profile.fps)+'–'+clock(draft.toFrame/p.profile.fps),`<video class="wide-video" autoplay controls playsinline src="${esc(draft.url)}"></video>`);
+   return showDraft(p,selected?.start??at);
+ }
+ case 'save-preview-cue':{
+   const index=s.cueFocus?.id===id?s.cueFocus.index:0;
+   const focusFrame=Math.round(Number(val('clip-at'))*p.profile.fps)+Number(val('cue-'+index));
+   await runAction('save-clip',id);
+   if(s.p?.id===p.id)return showDraft(s.p,Math.max(0,focusFrame-p.profile.fps),focusFrame);
+   return;
  }
  case 'preview':case 'render':return startJob(act,'local');
  case 'pause':s.jobs=await proj('/jobs');await api('/api/jobs/'+id+'/pause',{});return reload();
