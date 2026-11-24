@@ -92,3 +92,17 @@ test('final voice and music samples are distinct from timeline placement, custom
   assert.equal(stale.review.link,'different-or-unknown-revision');assert.equal(stale.audio.voice.matchedWindows,0);
   assert.equal(stale.audio.voice.sources[0].identity,undefined);assert.equal(stale.audio.music.mixStatus,'not-sampled');
 });
+
+
+test('a dedicated final-mix row can corroborate an effect while its mere placement or asset hash cannot',()=>{
+  const fx=asset('ping','audio','sha-ping',{kind:'effect'});
+  const p=project([fx],[{id:'hit',assetId:'ping',track:'music',start:8,duration:5}],{id:'case-a'});
+  const qa={revision:3,projectId:'case-a',evidence:{audio:[{clip:'hit',sourceHash:'sha-ping',method:'source-hash'}]}};
+  assert.equal(cutFeedback(p,qa).audio.effects.mixStatus,'not-sampled');
+  qa.evidence.audio=[{clip:'hit',sourceHash:'other',method:'source-and-mix-windows',windows:[{similarity:.99}]}];
+  assert.equal(cutFeedback(p,qa).audio.effects.sampledEvents,0);
+  qa.evidence.audio[0].sourceHash='sha-ping';
+  assert.equal(cutFeedback(p,qa).audio.effects.events[0].mixStatus,'matched-in-samples');
+  assert.equal(cutFeedback(p,qa).audio.effects.matchedWindows,1);
+  assert.equal(cutFeedback(p,{...qa,projectId:'other'}).audio.effects.sampledEvents,0);
+});

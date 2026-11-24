@@ -119,7 +119,8 @@ function pictureTiming(clips,assets,profile,frames){
 function publicWindow(w){
   return {clipId:w.clipId,assetId:w.assetId,fromFrame:w.fromFrame,toFrame:w.toFrame,
     ...(Number.isFinite(w.sourceFrom)&&{sourceFrom:round(w.sourceFrom),sourceTo:round(w.sourceTo)}),
-    ...(w.clip.viewport&&{viewport:w.clip.viewport}),...(w.clip.framing&&{framing:w.clip.framing}),...(w.clip.locked&&{locked:true}),
+    ...(w.clip.viewport&&{viewport:subset(w.clip.viewport,['x','y','width','height'])}),
+    ...(w.clip.framing&&{framing:Object.fromEntries(['from','to'].filter(k=>w.clip.framing[k]).map(k=>[k,subset(w.clip.framing[k],['x','y','zoom'])]))}),...(w.clip.locked&&{locked:true}),
     ...(w.clip.transition?.duration&&{transition:w.clip.transition.type})};
 }
 function repetitions(windows,first,last){
@@ -173,24 +174,37 @@ function audioFeedback(project,clips,assets,evidence){
   const voiceQA=evidence?.styleAudio?.voice,musicQA=evidence?.styleAudio?.music;
   const stems=evidence?.audio||[],voices=clips.filter(c=>c.track==='narration');
   const originals=project.settings?.voiceMode==='original'&&!voices.length?clips.filter(c=>c.track==='video'&&assets.get(c.assetId)?.hasAudio):[];
+  function mixWindows(clip,asset){
+    if(!audible(clip)||!asset?.sha256)return;
+    return stems.find(s=>s.clip===clip.id&&s.sourceHash===asset.sha256&&s.method!=='source-hash'&&Array.isArray(s.windows));
+  }
+  function measured(row){
+    const windows=row?.windows||[],matched=windows.filter(w=>w.similarity>=.65).length;
+    return {mixStatus:row?.dropouts?.length?'dropouts-in-samples':matched?'matched-in-samples':row?'sampled-unverified':'not-sampled',
+      mixSamples:windows.length,matchedWindows:matched};
+  }
   const voiceRows=[...voices,...originals].map(c=>{
     const asset=assets.get(c.assetId),meta=asset?.source||{},row=voiceQA?.sources?.find(s=>s.clipId===c.id&&(!s.sha256||s.sha256===asset?.sha256));
-    const stem=stems.find(s=>s.clip===c.id&&s.sourceHash===asset?.sha256);
-    const windows=stem?.windows||[];
+    const stem=mixWindows(c,asset),checked=measured(stem);
     return {clipId:c.id,assetId:c.assetId,mode:row?.mode||meta.mode||(originals.includes(c)?'original':'unrecorded'),
       voiceId:row?.voiceId||meta.voiceId||meta.preset||meta.speaker,identity:row?.identity,enabled:audible(c),
-      mixSamples:windows.length,matchedWindows:row?.matchedWindows??windows.filter(w=>w.similarity>=.65).length,
+      ...checked,...(row?.sourceInMix&&!stem&&{mixStatus:'matched-in-samples'}),matchedWindows:row?.matchedWindows??checked.matchedWindows,
       ...(row?.paceMeasured&&{measuredRate:row.effectiveRate}),...(stem?.dropouts?.length&&{dropouts:stem.dropouts.length})};
   });
   const music=clips.filter(c=>isMusicBed(c,assets.get(c.assetId))),effects=clips.filter(c=>c.track==='music'&&!isMusicBed(c,assets.get(c.assetId)));
+  const effectsChecked=effects.map(c=>{
+    const a=assets.get(c.assetId);
+    return {clipId:c.id,atFrame:c.start,role:c.templateRole||c.role||'sfx',title:short(a?.name),enabled:audible(c),...measured(mixWindows(c,a))};
+  });
+  const sampledEffects=effectsChecked.filter(e=>e.mixStatus!=='not-sampled');
   const musicWindows=musicQA?.windows||[];
   const gains=musicWindows.filter(w=>w.status==='present'&&Number.isFinite(w.gainDb)).map(w=>w.gainDb);
   return {
     voice:{requested:project.settings?.voiceMode,status:voiceQA?.status||'not-assessed',selection:voiceQA?.selection,clips:voiceRows.length,
       matchedWindows:voiceRows.reduce((n,r)=>n+r.matchedWindows,0),sources:sample(voiceRows,10)},
     effects:{clips:effects.length,enabledClips:effects.filter(audible).length,
-      ...(project.settings?.sceneSound===false&&{disabledByProject:true}),mixStatus:'not-sampled',
-      events:sample(effects.map(c=>({clipId:c.id,atFrame:c.start,role:c.templateRole||c.role||'sfx',title:short(assets.get(c.assetId)?.name),enabled:audible(c)})),8)},
+      ...(project.settings?.sceneSound===false&&{disabledByProject:true}),mixStatus:sampledEffects.length?'sampled':'not-sampled',
+      sampledEvents:sampledEffects.length,matchedWindows:sampledEffects.reduce((n,e)=>n+e.matchedWindows,0),events:sample(effectsChecked,8)},
     music:{clips:music.length,enabledClips:music.filter(audible).length,requestedMode:project.settings?.musicMode,
       titles:[...new Set(music.map(c=>{const a=assets.get(c.assetId);return short(a?.source?.title||a?.name);}).filter(Boolean))].slice(0,8),
       status:musicQA?.status||'not-assessed',mixStatus:musicQA?.mixStatus||'not-sampled',selection:musicQA?.selection,
@@ -202,7 +216,8 @@ function audioFeedback(project,clips,assets,evidence){
 export function cutFeedback(project,qa){
   const clips=project.timeline.clips.filter(active),profile=project.profile,fps=profile.fps;
   const frames=clips.reduce((n,c)=>Math.max(n,end(c)),0),assets=new Map(project.assets.map(a=>[a.id,a]));
-  const linked=Number.isSafeInteger(project.revision)&&qa?.revision===project.revision;
+  const differentProject=qa?.projectId&&project.id&&qa.projectId!==project.id;
+  const linked=!differentProject&&Number.isSafeInteger(project.revision)&&qa?.revision===project.revision;
   const evidence=linked?qa.evidence:undefined,visual=evidence?.visual;
   const {spans,windows,coverage,gaps}=pictureTiming(clips,assets,profile,frames);
   const opening=spans.at(0)||null,closing=spans.at(-1)||null;
@@ -218,7 +233,7 @@ export function cutFeedback(project,qa){
   const parity=(evidence?.compositeParity?.checks||[]).filter(c=>graphicIds.has(c.clipId));
   const issues=linked?qa.issues||[]:[];
   return {revision:project.revision,fps,frames,durationSeconds:round(frames/fps),targetSeconds:project.settings?.targetDuration,
-    review:{link:linked?'same-revision':qa?'different-or-unknown-revision':'not-reviewed',
+    review:{link:linked?'same-revision':differentProject?'different-project':qa?'different-or-unknown-revision':'not-reviewed',
       ...(linked&&{status:qa.status,candidatePlayable:qa.candidatePlayable,sha256:qa.artifactSha256,measuredSeconds:evidence?.duration}),
       issueCount:issues.length,issues:sample(issues.map(i=>({id:i.id,severity:i.severity,message:short(i.message,240),
         ...(Number.isInteger(i.fromFrame)&&Number.isInteger(i.toFrame)&&{fromFrame:i.fromFrame,toFrame:i.toFrame+1})})),10),
