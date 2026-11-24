@@ -32,7 +32,7 @@ async function choose(id,tab='edit'){s.p=await api('/api/projects/'+urlPart(id))
 async function reload(){if(s.p)await choose(s.p.id,s.tab);}
 const frameRate=()=>s.p.profile.fps;
 function captureNew(){
-  if(el('new-title'))s.form={title:val('new-title'),brief:val('brief'),script:val('script'),style:val('new-style'),ratio:val('ratio'),sourceUrls:val('new-urls'),factUrls:val('new-facts'),voice:val('new-voice'),shareFrames:el('new-share-frames').checked,shareTranscript:el('new-share-text').checked};
+  if(el('new-title'))s.form={title:val('new-title'),brief:val('brief'),script:val('script'),style:val('new-style'),ratio:val('ratio'),targetDuration:val('new-duration'),sourceScope:val('new-source-scope'),autoReview:el('new-auto-review').checked,sourceUrls:val('new-urls'),factUrls:val('new-facts'),voice:val('new-voice'),shareFrames:el('new-share-frames').checked,shareTranscript:el('new-share-text').checked};
   if(el('new-files')?.files.length)s.newFiles=[...el('new-files').files];
 }
 function newPage(fresh=true){
@@ -44,10 +44,10 @@ function newPage(fresh=true){
   <div class="card">${field('工程名称',input('new-title',f.title,'text','placeholder="例如，岛上的第一场雨" maxlength="160"'))}
   ${field(s.mode==='topic'?'选题与制作要求':'制作要求',area('brief',f.brief,3,s.mode==='interview'?'保留哪些观点，想剪成多长？':'想让观众看懂什么？'))}
   ${s.mode==='script'?field('脚本',area('script',f.script,5,'粘贴准备好的旁白或分镜稿')):''}
-  ${s.mode==='topic'?field('出处网页（每行一个，可选）',area('new-facts',f.factUrls,2))+field('可用的媒体文件直链（可选）',area('new-urls',f.sourceUrls,2)):''}
-  <div class="form-grid">${field('画幅',select('ratio',[['16:9','16:9 横屏'],['9:16','9:16 竖屏'],['1:1','1:1 方形']],f.ratio||'16:9'))}${field('风格',select('new-style',styleOptions(),f.style|| (s.mode==='interview'?'original-dialogue@1':'neutral@1')))}</div>
+  ${s.mode==='topic'?field('素材范围',select('new-source-scope',[['search','检索和使用工程素材'],['project','仅使用工程已有素材']],f.sourceScope||'search'))+field('出处网页（每行一个，可选）',area('new-facts',f.factUrls,2))+field('可用的媒体文件直链（可选）',area('new-urls',f.sourceUrls,2)):''}
+  <div class="form-grid">${field('画幅',select('ratio',[['16:9','16:9 横屏'],['9:16','9:16 竖屏'],['1:1','1:1 方形']],f.ratio||'16:9'))}${field('风格',select('new-style',styleOptions(),f.style|| (s.mode==='interview'?'original-dialogue@1':'neutral@1')))}${field('目标片长（秒，可留空）',input('new-duration',f.targetDuration||'','number','min="1"'))}</div>
   ${s.voices.length?field('本期音色',select('new-voice',[['','跟随所选风格'],...s.voices.map(v=>[v.id,v.name])],f.voice||'')):''}<div class="outline">${field(s.mode==='interview'?'原片':'本地素材',fileInput('new-files'))}<small id="selected-files">${s.newFiles.length?esc(s.newFiles.map(f=>f.name).join('、')):'支持视频、音频和图片，可在工程中继续添加。'}</small></div>
-  <fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格及剪辑预览帧',f.shareFrames===true)}<small>按参考片剪辑时，开启画面分享可让 Codex 对照原素材和实际合成画面。</small></fieldset>
+  <fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格、草稿与成片帧',f.shareFrames===true)}${check('new-auto-review','分享画面时自动回看首版，保留两版',f.autoReview!==false)}</fieldset>
   <div class="actions">${btn('create','仅创建工程')}${btn('create-run','创建并开始制作','primary')}</div></div>
   <input type="file" id="folder-picker" webkitdirectory multiple hidden></section>`;
 }
@@ -62,7 +62,7 @@ async function uploadFiles(projectId,files){
 async function create(run){
   captureNew();const f=s.form,mode=s.mode;const ratio=f.ratio==='9:16'?[1080,1920]:f.ratio==='1:1'?[1080,1080]:[1920,1080];
   if(!f.title?.trim()&&!f.brief?.trim()&&!f.script?.trim()&&!s.newFiles.length)throw Error('请填写选题、脚本或选择原片。');
-  const p=await api('/api/projects',{mode,title:f.title||f.brief?.slice(0,36)||s.newFiles[0]?.name||'新工程',brief:f.brief,script:f.script,style:styleSelector(f.style),profile:{width:ratio[0],height:ratio[1],fps:30},settings:{shareFrames:f.shareFrames===true,shareTranscript:f.shareTranscript!==false,factUrls:(f.factUrls||'').split('\n').map(v=>v.trim()).filter(Boolean),sourceUrls:(f.sourceUrls||'').split('\n').map(v=>v.trim()).filter(Boolean)}});
+  const p=await api('/api/projects',{mode,title:f.title||f.brief?.slice(0,36)||s.newFiles[0]?.name||'新工程',brief:f.brief,script:f.script,style:styleSelector(f.style),profile:{width:ratio[0],height:ratio[1],fps:30},settings:{autoReview:f.autoReview,sourceScope:f.sourceScope||'search',targetDuration:f.targetDuration?Number(f.targetDuration):null,shareFrames:f.shareFrames===true,shareTranscript:f.shareTranscript!==false,factUrls:(f.factUrls||'').split('\n').map(v=>v.trim()).filter(Boolean),sourceUrls:(f.sourceUrls||'').split('\n').map(v=>v.trim()).filter(Boolean)}});
   try{await uploadFiles(p.id,s.newFiles);if(f.voice){const latest=await api('/api/projects/'+p.id);await api('/api/projects/'+p.id+'/voices/use',{id:f.voice,baseRevision:latest.revision});}}finally{await choose(p.id);}
   if(run)await startJob('produce','codex');
 }
@@ -77,6 +77,8 @@ function lastVideo(){return s.jobs.find(j=>j.files?.includes('video'));}
 const componentById=id=>s.components?.find(c=>c.id===id);
 function clipTitle(c){return componentById(c.motion?.componentId)?.name||c.text||(c.shape==='outline'?'证据指示框':c.shape==='polygon'?'矢量轮廓':'')||assetName(c.assetId)||tracks[c.track];}
 function cutLabel(job) {
+  if(job?.cutRole==='first')return 'Codex 首版';
+  if(job?.cutRole==='self-review')return job.creativeResult?.changed===false?'Codex 回看版（保留原剪）':'Codex 回看版';
   const engine=job?.creativeEngine;
   const mode=engine==='local'?'本地粗剪':engine==='codex'?'Codex 剪辑':'';
   return [mode,job?.kind==='preview'?'预览':job?.kind==='render'?'导出':''].filter(Boolean).join(' · ')||'工程成片';
@@ -267,7 +269,7 @@ function drawSettings(){
  ${p.styleAudio?.voice?.status==='preview-only'?'<p class="help">本期旁白为试听候选。确认采用当前声音，或在个人音色库选择已授权音色。</p>':''}${field('本期旁白选择',select('voice-selection',[['style','跟随所选风格'],['user','使用我为本片指定的声音'],['preview','仅用于试听候选']],t.voiceSelection||p.styleAudio?.voice?.selection||(['import','clone','original'].includes(t.voiceMode)?'user':'style')))}${field('声音',select('voice-mode',[['original','保留同期声'],['system','系统中文配音'],['preset','Qwen 本地预置男声 Dylan'],['import','导入旁白'],['clone','本地克隆']],t.voiceMode))}${field('导入旁白',select('narration',options,t.narrationAssetId))}
  ${field('参考录音',select('voice-reference',options,t.voiceReferenceAssetId))}${field('参考录音的准确原文',area('reference-text',t.voiceReferenceText,2))}${check('consent','我已获准用该录音建立音色',t.voiceConsent)}${btn('audition','试听当前音色')}<details><summary>个人音色库</summary>${field('使用已登记的音色',select('saved-voice',[['','请选择'],...s.voices.map(v=>[v.id,v.name])],t.voiceLibraryId))}${btn('use-voice','用于本工程')}${field('给参考音色取名',input('voice-label'))}${btn('enroll-voice','登记参考录音')}</details>
  ${field('本期配乐选择',select('music-selection',[['style','跟随所选风格'],['user','使用我为本片指定的配乐设置']],t.musicSelection||p.styleAudio?.music?.selection||(['asset','original'].includes(t.musicMode)||p.mode==='interview'?'user':'style')))}${field('配乐方式',select('music-mode',[['library','本地曲库'],['asset','指定素材'],['original','原创配乐'],['none','无需配乐']],t.musicEnabled===false?'none':t.musicMode||'library'))}${field('配乐素材',select('bgm',options,t.musicAssetId))}${check('project-scene-sound','场景模板在动作发生时加落点音效',t.sceneSound??(p.mode!=='interview'))}${check('pack','附两种封面和发布文案',t.publishPackage)}<details><summary>编辑发布文案</summary>${field('发布标题',input('pub-title',p.publication?.title))}${field('给观众的正文',area('pub-body',p.publication?.body,3))}${field('话题',input('pub-tags',p.publication?.tags?.join(' ')))}</details></section>
- <section class="card"><h2>项目隐私与服务</h2><p class="help">Codex 会收到本项目的要求、脚本和剪辑结构。原媒体保存在本机。</p>${check('share-text','允许把转录文字交给 Codex',t.shareTranscript)}${check('share-frames','允许把选取的参考帧交给 Codex',t.shareFrames)}
+ <section class="card"><h2>项目隐私与服务</h2><p class="help">Codex 会收到本项目的要求、脚本和剪辑结构。原媒体保存在本机。</p>${check('share-text','允许把转录文字交给 Codex',t.shareTranscript)}${check('share-frames','允许分享选取的参考帧、素材帧和成片帧',t.shareFrames)}${check('auto-review','分享画面时自动回看首版，保留两版',t.autoReview===true)}
  ${check('cloud','启用第三方原创配乐',t.cloudEnabled)}${field('本项目云配乐总时长预算（秒）',input('budget',t.cloudBudget,'number','min="0" step="1"'))}
  <div class="actions">${btn('settings-save','保存工程设置','primary')}</div><hr><h3>原创配乐</h3>${field('曲风与用途',area('music-prompt','',2))}${field('时长（秒）',input('music-length',15,'number','min="3" max="600"'))}${btn('compose-music','从云端生成并导入')}${(p.musicReceipts||[]).map(r=>`<div class="entry"><small>${esc(r.seconds)} 秒 · ${esc(r.status)}</small>${['sent','unknown'].includes(r.status)?btn('reconcile','核对回执','',r.id):''}</div>`).join('')}</section></div></section>`;
 }
@@ -418,7 +420,7 @@ async function runAction(act,id){
   const st=await api('/api/styles/preferences',{id:s.style.id,version:s.style.version,findEdit:true,instruction:val('preference'),before:{...after,revision:Math.max(1,p.revision-1)},after,source:'用户明确保存的改稿偏好'});s.styles=await api('/api/styles');notice('已保存新版本');return loadStyle(st);}
  case 'learn':{const name=val('learn-name').trim();if(!name)throw Error('请输入风格名称。');const st=await proj('/learn-style',{name,script:val('learn-script'),assetId:val('learn-media'),observation:val('learn-observation'),templateId:val('learn-template'),exception:val('learn-exception')});s.styles=await api('/api/styles');notice('风格已保存');return loadStyle(st);}
  case 'settings-save':{
-   const changes={title:val('set-title'),brief:val('set-brief'),script:val('set-script'),publication:{title:val('pub-title'),body:val('pub-body'),tags:val('pub-tags').split(/\s+/).filter(Boolean)},settings:{voiceSelection:val('voice-selection'),musicSelection:val('music-selection'),targetDuration:val('target-length')?Number(val('target-length')):null,voiceMode:val('voice-mode'),narrationAssetId:val('narration'),voiceReferenceAssetId:val('voice-reference'),voiceReferenceText:val('reference-text'),voiceConsent:el('consent').checked,musicAssetId:val('bgm'),musicMode:val('music-mode'),musicEnabled:val('music-mode')!=='none',requireMusic:val('music-mode')==='asset'||val('music-mode')==='original',publishPackage:el('pack').checked,sceneSound:el('project-scene-sound').checked,shareTranscript:el('share-text').checked,shareFrames:el('share-frames').checked,cloudEnabled:el('cloud').checked,cloudBudget:Number(val('budget'))}};
+   const changes={title:val('set-title'),brief:val('set-brief'),script:val('set-script'),publication:{title:val('pub-title'),body:val('pub-body'),tags:val('pub-tags').split(/\s+/).filter(Boolean)},settings:{autoReview:el('auto-review').checked,voiceSelection:val('voice-selection'),musicSelection:val('music-selection'),targetDuration:val('target-length')?Number(val('target-length')):null,voiceMode:val('voice-mode'),narrationAssetId:val('narration'),voiceReferenceAssetId:val('voice-reference'),voiceReferenceText:val('reference-text'),voiceConsent:el('consent').checked,musicAssetId:val('bgm'),musicMode:val('music-mode'),musicEnabled:val('music-mode')!=='none',requireMusic:val('music-mode')==='asset'||val('music-mode')==='original',publishPackage:el('pack').checked,sceneSound:el('project-scene-sound').checked,shareTranscript:el('share-text').checked,shareFrames:el('share-frames').checked,cloudEnabled:el('cloud').checked,cloudBudget:Number(val('budget'))}};
    s.p=await proj('/configure',{baseRevision:p.revision,changes});notice('已保存工程设置');await refreshList();return draw();}
  case 'enroll-voice':{
     const r=await proj('/voices/enroll',{name:val('voice-label'),assetId:val('voice-reference'),referenceText:val('reference-text'),consent:el('consent').checked});

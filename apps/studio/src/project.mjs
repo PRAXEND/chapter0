@@ -66,6 +66,8 @@ export function validateClip(clip,p) {
 }
 function newSettings(mode, supplied={}) {
   const s={voiceMode:mode==='interview'?'original':'system',shareFrames:false,shareTranscript:true,cloudEnabled:false,cloudBudget:0,publishPackage:false,...supplied};
+  if(s.autoReview!==undefined && typeof s.autoReview!=='boolean')throw fault('自动回看设置无效。');
+  if(s.sourceScope!==undefined && !['project','search'].includes(s.sourceScope))throw fault('素材范围无效。');
   if(!['system','clone','preset','original','import'].includes(s.voiceMode))throw fault('声音方式无效。');
   if(s.voiceMode==='preset'&&s.presetVoice!=null&&!/^[a-z0-9_-]{1,45}$/.test(s.presetVoice))throw fault('本地预置声音名称无效。');
   for(const key of ['voiceSelection','musicSelection'])if(s[key]!=null&&!['style','user','preview'].includes(s[key]))throw fault('声音偏好来源无效。');
@@ -148,7 +150,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     const id=randomUUID(), dirs=paths(id);
     for(const dir of Object.values(dirs))mkdirSync(dir,{recursive:true,mode:0o700});
     const p={schema:1,id,title:text(data.title||'未命名工程',160),mode:data.mode,brief:text(data.brief),script:text(data.script,160000),
-      profile:profileOf(data.profile), settings:newSettings(data.mode,data.settings),style:data.style||{id:'neutral',version:1},
+      profile:profileOf(data.profile), settings:newSettings(data.mode,{autoReview:true,...data.settings}),style:data.style||{id:'neutral',version:1},
       revision:1,assets:[],timeline:{clips:[]},createdAt:now(),updatedAt:now()};
     return transaction(()=>persist(p,true));
   }
@@ -242,6 +244,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     return destination;
   }
   function saveJob(j){db.prepare('INSERT OR REPLACE INTO jobs VALUES(?,?,?)').run(checkId(j.id),checkId(j.projectId),JSON.stringify(j));return j;}
+  function saveCutPair(first,review){return transaction(()=>{saveJob(first);saveJob(review);});}
   function listJobs(id){const rows=id?db.prepare('SELECT body FROM jobs WHERE project=? ORDER BY rowid DESC').all(checkId(id)):db.prepare('SELECT body FROM jobs ORDER BY rowid DESC').all();return rows.map(r=>JSON.parse(r.body));}
   function getJob(id){const row=db.prepare('SELECT body FROM jobs WHERE id=?').get(checkId(id));if(!row)throw fault('找不到该任务。',404);return JSON.parse(row.body);}
   async function importSnapshot(file,styles) {
@@ -273,5 +276,5 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
       return transaction(()=>persist(p,true));
     }catch(e){rmSync(dirs.directory,{recursive:true,force:true});throw e;}
   }
-  return {root,db,paths,get,list,create,addAsset,apply,setMeta,configure,revision,snapshot,importSnapshot,saveJob,getJob,listJobs,close:()=>db.close()};
+  return {root,db,paths,get,list,create,addAsset,apply,setMeta,configure,revision,snapshot,importSnapshot,saveJob,saveCutPair,getJob,listJobs,close:()=>db.close()};
 }

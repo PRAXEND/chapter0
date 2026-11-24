@@ -585,7 +585,9 @@ export async function applyScenes(
         witnessFrameHash: match?.sha256 || null,
       };
     });
-    let motionPlan=beat.motionComponent;
+    const motionPlans=beat.motionComponents??(beat.motionComponent?[beat.motionComponent]:[]);
+    if(!Array.isArray(motionPlans)||motionPlans.length>8||motionPlans.some(plan=>!plan||typeof plan!=='object')||(beat.motionComponents&&beat.motionComponent))
+      throw Error('请用单个组件或至多八个分层组件提交本镜动效。');
     if (steps.length && style?.templates?.length) {
       const scene = {
         style,
@@ -623,14 +625,14 @@ export async function applyScenes(
           ).clips
         : deps.styleLibrary.compileScene(scene, project.profile);
       const chips=shapes.filter(shape=>shape.templateRole==='process-rail'&&shape.stageActive);
-      if(!motionPlan && chips.length===3 && new Set(steps.map(s=>s.stage)).size===3 &&
+      if(!motionPlans.length && beat.motionComponents===undefined && chips.length===3 && new Set(steps.map(s=>s.stage)).size===3 &&
           style.components?.some(c=>c.id==='process-rail')){
         const texts=chips.map(c=>c.text);
-        motionPlan={componentId:'process-rail',props:{a:texts[0],b:texts[1],c:texts[2]},cueSource:'visualSteps',
-          geometry:{...defaultMotionGeometry(motionCatalog.find(c=>c.id==='process-rail'),project.profile),y:chips[0].geometry.y}};
+        motionPlans.push({componentId:'process-rail',props:{a:texts[0],b:texts[1],c:texts[2]},cueSource:'visualSteps',
+          geometry:{...defaultMotionGeometry(motionCatalog.find(c=>c.id==='process-rail'),project.profile),y:chips[0].geometry.y}});
       }
       for (const [j, shape] of shapes.entries()){
-        if(motionPlan?.componentId==='process-rail'&&shape.templateRole==='process-rail')continue;
+        if(shape.templateRole==='process-rail' && motionPlans.some(plan=>plan.componentId==='process-rail'))continue;
         clips.push({ ...shape, id: 'scene-' + i + '-g' + j });
       }
     } else if (emphasis && style?.templates?.length) {
@@ -685,7 +687,7 @@ export async function applyScenes(
           });
       } else notes.push({ type: 'suggestion', frame: cursor, message: '重点动作尚无可见证据，已留出动效位置。' });
     }
-    if(motionPlan){
+    for(const [layer,motionPlan] of motionPlans.entries()){
       const {componentId,props,geometry,cueSource,atSeconds,durationSeconds}=motionPlan;
       let offset=Math.round((atSeconds??0)*fps),cueFrames=motionPlan.cueFrames;
       if(cueSource){
@@ -699,7 +701,7 @@ export async function applyScenes(
       const span=durationSeconds===undefined ? visible-offset : Math.round(durationSeconds*fps);
       if(!Number.isSafeInteger(offset)||!Number.isSafeInteger(span)||offset<0||span<1||offset+span>visible)
         throw Error('组件的出场或退场超出该镜头的可见时段。');
-      clips.push(componentClip({id:'scene-'+i+'-motion',componentId,props,geometry,cueFrames,
+      clips.push(componentClip({id:'scene-'+i+'-motion'+(layer?'-'+layer:''),componentId,props,geometry,cueFrames,
         start:cursor+offset,duration:span},project.profile));
     }
     board.push({

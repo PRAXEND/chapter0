@@ -61,6 +61,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   const deliveryRoot=process.env.STUDIO_DELIVERY_ROOT||(standardLibrary?path.join(movies,'交付'):path.join(root,'deliveries'));
   const blindRoot=process.env.STUDIO_REVIEW_ROOT||(standardLibrary?path.join(movies,'盲评工作台'):root);
   const queue=createQueue({store,director,deliveryRoot,styles,media:dependencies.media||media,reviewProject:dependencies.reviewProject||reviewProject,
+    transcribeForReview:audio.transcribe,
     comparePreview:(p,options)=>compareCompositions(p,{...options,drafts,cache:store.paths(p.id).cache}),
     async prepare(project,{signal,onProgress,kind,message}){
       if(kind==='produce'&&director.prepareAudio)project=await director.prepareAudio(project.id,{signal,message});

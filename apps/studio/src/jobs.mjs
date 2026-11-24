@@ -6,9 +6,10 @@ import {styleAudioPolicy} from './style-audio.mjs';
 import { randomUUID } from 'node:crypto';
 import { portableProject, publishDelivery } from "./library.mjs";
 import { fault } from './project.mjs';
+import {cutFeedback} from './cut-feedback.mjs';
 const stamp=()=>new Date().toISOString();
 const activeStates=['queued','running','pausing'];
-export function createQueue({store, director, media, reviewProject, comparePreview, prepare, deliveryRoot, styles}) {
+export function createQueue({store, director, media, reviewProject, comparePreview, transcribeForReview, prepare, deliveryRoot, styles}) {
   const running=new Map();
   let stopping=false, scheduled=false;
   function change(id,patch){return store.saveJob({...store.getJob(id),...patch,updatedAt:stamp()});}
@@ -28,6 +29,7 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
     });
   }
   function enqueue(projectId,kind,input={}) {
+    if('reviewCandidate' in input)throw fault('回看文件由工作台绑定。');
     const p=store.get(projectId);
     if(!['produce','revise','preview','render'].includes(kind))throw fault('未知任务。');
     if(['produce','revise'].includes(kind)){
@@ -40,6 +42,7 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
     if(input.baseRevision!==undefined&&input.baseRevision!==p.revision)throw fault('工程已改变，请刷新后重新提交。',409);
     const id=randomUUID(), j={id,projectId,kind,input,status:'queued',phase:['produce','revise'].includes(kind)?'creative':'render',
       revision:p.revision,snapshot:['preview','render'].includes(kind)?p:undefined,createdAt:stamp(),updatedAt:stamp(),events:[],repairs:0};
+    if(kind==='produce' && input.engine==='codex' && p.settings.autoReview && p.settings.shareFrames)j.cutRole='first';
     store.saveJob(j);kick();return j;
   }
   async function execute(initial){
@@ -49,12 +52,31 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
     try{
       let j=store.getJob(id);
       if(j.phase==='creative'){
+        let reviewCandidate;
+        if(j.firstCutId){
+          const first=store.getJob(j.firstCutId), current=store.get(projectId);
+          if(first.projectId!==projectId || first.reviewJobId!==id || !first.files?.video || !first.qa?.candidatePlayable)
+            throw fault('自动回看缺少已冻结的首版。');
+          if(!current.settings.shareFrames)throw fault('工程已关闭成片帧分享，首版保存在交付页。');
+          if(current.revision!==first.revision && current.directorState?.jobId!==id)
+            throw fault('首版后工程已有编辑，已保留当前时间线与首版。请从当前版本发起改稿。',409);
+          reviewCandidate={jobId:first.id,revision:first.revision,videoPath:first.files.video,
+            sha256:first.qa.artifactSha256,feedback:cutFeedback(first.snapshot,first.qa)};
+          if(current.settings.shareTranscript && transcribeForReview && first.qa.evidence?.duration<=150){
+            try{
+              reviewCandidate.feedback.audio.finalTranscript=await transcribeForReview(first.files.video,{directory:store.paths(projectId).cache,signal});
+            }catch(error){
+              signal.throwIfAborted();
+              note('本地成片转录不可用，将使用现有声音检测回看。');
+            }
+          }
+        }
         if(prepare)await prepare(store.get(projectId),{signal,onProgress:note,kind:j.kind,message:j.input?.message});
-        note('正在组织素材和剪辑');
-        const outcome=await director.run(projectId,{...j.input,jobId:id,kind:j.kind,signal,onEvent:note});
+        note(reviewCandidate?'Codex 正在回看已导出的首版':'正在组织素材和剪辑');
+        const outcome=await director.run(projectId,{...j.input,reviewCandidate,jobId:id,kind:j.kind,signal,onEvent:note});
         if(signal.aborted)throw signal.reason;
         const p=store.setMeta(projectId,{lastDirection:{message:String(outcome?.message||''),engine:outcome?.engine,needsReview:outcome?.needsReview||null}});
-        change(id,{phase:'render',revision:p.revision,snapshot:p,creativeResult:{message:outcome?.message,engine:outcome?.engine,needsReview:outcome?.needsReview||false}});
+        change(id,{phase:'render',revision:p.revision,snapshot:p,creativeResult:{message:outcome?.message,engine:outcome?.engine,changed:outcome?.changed,needsReview:outcome?.needsReview||false}});
         if(!p.timeline.clips.some(c=>c.track==='video'))throw fault(outcome?.message||'草稿缺少可用画面，请导入素材。');
       }
       j=store.getJob(id);
@@ -77,7 +99,7 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
       const qa=await reviewProject(p,{videoPath:j.files.video,srtPath:j.files.subtitle,signal,comparePreview,preview:j.kind==='preview',findings:p.findings||[],styleSpec,styleMusicResource});
       signal.throwIfAborted();
       const remedy=qa.repairs?.[0];
-      if(remedy && !qa.deliverable && j.repairs<2 && store.get(projectId).revision===p.revision){
+      if(remedy && !(j.cutRole==='first' && qa.candidatePlayable) && !qa.deliverable && j.repairs<2 && store.get(projectId).revision===p.revision){
         let next=p;
         if(remedy.kind==='edit'){
           if(remedy.baseRevision!==p.revision)throw fault('修复所依据的工程版本已改变。',409);
@@ -107,10 +129,19 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
       if(latest.revision===p.revision)store.snapshot(latest);
       let published,publicationWarning;
       const localDraft=j.creativeResult?.engine==='local' && ['produce','revise'].includes(j.kind);
-      if(qa.deliverable&&j.kind!=='preview'&&!localDraft&&deliveryRoot){
+      const currentForPublication=j.cutRole!=='self-review' || latest.revision===p.revision;
+      if(qa.deliverable&&j.kind!=='preview'&&j.cutRole!=='first'&&currentForPublication&&!localDraft&&deliveryRoot){
         try{published=await publishDelivery(deliveryRoot,p,j.id,files,styles);}catch(e){publicationWarning='成片已保存到工程交付目录。另存到影片目录时遇到问题：'+e.message;}
       }
-      change(id,{status:'done',phase:'done',progress:1,files,qa,published,publicationWarning,stale:latest.revision!==p.revision});
+      const finished={status:'done',phase:'done',progress:1,files,qa,published,publicationWarning,stale:latest.revision!==p.revision};
+      if(j.cutRole==='first' && qa.candidatePlayable && !finished.stale && latest.settings.shareFrames && latest.settings.autoReview){
+        signal.throwIfAborted();
+        const reviewId=randomUUID(),at=stamp();
+        const followup={id:reviewId,projectId,kind:'revise',cutRole:'self-review',firstCutId:id,
+          input:{engine:'codex',baseRevision:p.revision,message:'回看首版的实际成片、声音检测和本期风格。请自己判断哪里需要改进，直接在工程中实施并复查；如果保留原剪，说明依据。遵守本期时长、素材范围与锁定项。'},
+          status:'queued',phase:'creative',revision:p.revision,createdAt:at,updatedAt:at,events:[],repairs:0};
+        store.saveCutPair({...store.getJob(id),...finished,reviewJobId:reviewId,updatedAt:at},followup);
+      }else change(id,finished);
       note(qa.label||'已完成');
     }catch(error){
       const interrupted=signal.aborted;
@@ -118,7 +149,9 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
     }finally{running.delete(id);kick();}
   }
   function resume(id,input={}){
+    if('reviewCandidate' in input)throw fault('回看文件由工作台绑定。');
     const j=store.getJob(id);if(!['paused','failed'].includes(j.status))throw fault('当前任务不能续作。',409);
+    if(j.firstCutId && input.engine!==undefined && input.engine!=='codex')throw fault('自动回看须使用 Codex 续作。');
     if(store.listJobs(j.projectId).some(other=>other.id!==j.id&&activeStates.includes(other.status)))throw fault('该工程另有任务正在运行。',409);
     if(j.phase==='creative'&&j.input.engine!=='local'&&input.engine!=='local'&&!input.confirmRetry)throw fault('上次 Codex 回合可能已完成。请检查当前时间线后选择续作，或直接渲染已有剪辑。',409);
     change(id,{status:'queued',error:null,input:{...j.input,...input}});kick();return store.getJob(id);
@@ -132,6 +165,7 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
     if(typeof message!=='string'||!message.trim()||message.length>10000)throw fault('请输入本次新的制作要求。');
     const j=store.getJob(id);
     if(engine!==undefined&&!['local','codex'].includes(engine))throw fault('创作引擎无效。');
+    if(j.firstCutId && engine==='local')throw fault('自动回看须使用 Codex。');
     const requested=engine||(j.phase==='creative'?j.input.engine:'codex')||'codex';
     if(j.status==='queued'&&j.phase==='creative'){
       change(id,{input:{...j.input,engine:requested,message:[j.input.message,message].filter(Boolean).join('\n'),selection:selection||j.input.selection}});
