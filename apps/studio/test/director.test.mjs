@@ -414,6 +414,39 @@ test('local mode never substitutes a different voice when clone consent or refer
   assert.equal(p.timeline.clips.length, 0);
 });
 
+test('fixed project sources bypass every external lookup and the director can inspect any source interval with time labels',async t=>{
+  const fact={url:'https://example.org/experiment',title:'试验说明',excerpt:'A repeatable pattern.'};
+  const film={...picture,id:'candidate-source',kind:'video',duration:75,source:{url:'https://example.org/footage'}};
+  const {p,deps}=await fixture(t,{mode:'topic',assets:[film],factSources:[fact],brief:'固定素材。https://example.org/avoid',
+    settings:{sourceScope:'project',shareFrames:true,voiceMode:'original',musicMode:'none',factUrls:['https://example.org/avoid'],sourceUrls:['https://example.org/avoid.mov']}});
+  const style={id:'test',rules:[{id:'video-first',instruction:'实拍优先'},{id:'first-five-seconds',instruction:'自订开场条件'},{id:'deduplicate-source-windows',instruction:'自订复用条件'}],templates:[],references:[]};
+  deps.styleLibrary.get=async()=>style;deps.scanMotionWindows=async()=>({candidates:[]});
+  deps.media.frameAt=async(_file,seconds,target)=>writeFile(target,Buffer.from('source@'+seconds));
+  let calls=0,external=0;const net=async()=>{external++;throw Error('unexpected external request');};
+  Object.assign(deps,{searchSources:net,importSource:net,searchFacts:net,readBriefSources:net,
+    client:{account:async()=>({connected:true}),thread:async()=>'thread',close(){},async runTurn({onStart,prompt,tool}){
+      calls++;await onStart('turn');
+      const call=(name,args)=>tool({tool:name,arguments:args});
+      assert.ok(prompt.includes('自订开场条件')&&prompt.includes('自订复用条件')&&prompt.includes('任意原片'));
+      const ctx=JSON.parse((await call('studio_context',{})).contentItems[0].text);
+      assert.equal(ctx.sourceScope,'project');assert.deepEqual(ctx.factSources,[fact]);
+      await assert.rejects(call('studio_find',{query:'example'}),/固定/);
+      await assert.rejects(call('studio_import',{candidateId:'anything'}),/固定/);
+      const cached=JSON.parse((await call('studio_research',{query:'example',readUrl:fact.url})).contentItems[0].text);
+      assert.deepEqual(cached.sources,[fact]);
+      const seq=await call('studio_frames',{source:'asset',id:film.id,startSeconds:58,count:3});
+      assert.deepEqual(seq.contentItems.map(x=>x.type),['inputText','inputImage','inputText','inputImage','inputText','inputImage']);
+      assert.ok(seq.contentItems[0].text.includes('58')&&seq.contentItems[4].text.includes('58.08'));
+      assert.equal(Buffer.from(seq.contentItems[5].imageUrl.split(',')[1],'base64').toString(),'source@58.08');
+      const result=JSON.parse((await call('studio_sequence',{baseRevision:p.revision,beats:[{assetId:film.id,sourceStart:58,sourceEnd:60,durationSeconds:2,narration:'试验出现图案。',claimUrl:film.source.url}],motionGap:'短镜头仅能说明可见现象。'})).contentItems[0].text);
+      assert.ok(result.timing.seconds>=1);
+      return '已提交。';
+    }}});
+  const director=createDirector(deps);t.after(()=>director.close());await director.run(p.id,{jobId:'fixed-composition'});
+  assert.equal(external,0);assert.equal(calls,1);assert.deepEqual(p.factSources,[fact]);
+  assert.ok(p.visualDirection.frames.some(f=>f.delivery==='tool'&&f.seconds===58.08));
+});
+
 test('visible OCR can anchor a matching graphic, a brightness change alone cannot', async (t) => {
   const { p, deps } = await fixture(t, { settings: { voiceMode: 'original', musicMode: 'none' } });
   deps.styleLibrary.get = async () => ({ id: 'news', templates: [{ id: 'action-result' }] });

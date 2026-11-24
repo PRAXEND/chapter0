@@ -444,7 +444,7 @@ export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
         gaps.push(stage + '：当前剪辑中找不到这个阶段仍在播放的绑定镜头或图层。');
   }
   const used = new Set();
-  for (const r of [...requests, ...(extra || []).slice(0, 12)]) {
+  for (const r of [...requests, ...(extra || []).slice(0, 24)]) {
     const key = JSON.stringify([r.source, r.id, r.frame ?? r.seconds]);
     if (used.has(key)) continue;
     used.add(key);
