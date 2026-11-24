@@ -13,6 +13,7 @@ import {
 import { describeFrames } from './vision.mjs';
 import { resolveProductionAudio } from './style-audio-preparation.mjs';
 import { dedicatedVoiceReference } from './style-audio.mjs';
+import {openCandidate} from './candidate-inspection.mjs';
 import { draftPreviews } from './draft-preview.mjs';
 import { compileSceneWithSound } from './scene-sound.mjs';
 import {
@@ -161,7 +162,7 @@ const tools = [
     'studio_frame',
     'View one rendered frame or an original/selected style frame if sharing is enabled. All times are seconds.',
     {
-      source: { type: 'string', enum: ['asset', 'style', 'timeline'] },
+      source: { type: 'string', enum: ['asset', 'style', 'timeline','candidate'] },
       id: str,
       seconds: num,
     },
@@ -837,11 +838,29 @@ export function createDirector(deps) {
   }
   async function runProject(
     id,
-    { message = '', kind = 'produce', signal, onEvent, engine, selection, jobId, visual, usesVisual } = {}
+    { message = '', kind = 'produce', signal, onEvent, engine, selection, jobId, visual, usesVisual, reviewCandidate } = {}
   ) {
     signal?.throwIfAborted();
     let p = await store.get(id);
     const local = engine === 'local' || (!engine && p.settings?.engine === 'local');
+    if(reviewCandidate && (kind!=='revise'||local))throw Error('首版自审需要使用 Codex 的独立改稿任务。');
+    const candidate=reviewCandidate?await openCandidate(deps,p,reviewCandidate,signal):null;
+    const candidateState=p.directorState?.jobId===jobId?p.directorState:null;
+    let candidateFrames=[], requestsSeen=[];
+    let observedRevision=p.revision;
+    if(candidate){
+      const prior=candidateState;
+      const sameCut=!prior?.candidateSha256||prior.candidateSha256===candidate.sha256;
+      const current=Number.isSafeInteger(prior?.observedRevision)?p.revision===prior.observedRevision:
+        prior?.edited?Boolean(prior.lastEditHash&&prior.lastEditHash===shotFingerprint(p)):p.revision===candidate.revision;
+      if(!sameCut||!current)throw Error('首版之后工程已有其他编辑，保留当前工程与首版，请从当前版本重新改稿。');
+    }
+    async function checkCandidateVersion() {
+      if(!candidate)return;
+      const current=await store.get(id);
+      if(current.revision!==observedRevision||current.settings.shareFrames!==true)
+        throw Error('回看期间工程或帧分享设置已改变；已保留其他编辑与首版。');
+    }
     let changed = false,
       notes = [],
       lastRevision = p.revision;
@@ -991,12 +1010,15 @@ export function createDirector(deps) {
       edited: changed,
       startHash: existingTurnId ? old.startHash : sceneIdentity(p),
       ...(visual ? { visualStage: visual.stage, attempt: visual.attempt } : {}),
+      ...(candidate?{candidateSha256:candidate.sha256,reviewOfJobId:candidate.jobId}:{}),
     };
     const remember = async () => {
+      await checkCandidateVersion();
       state = {
         ...state,
         turnId,
         edited: changed,
+        ...(candidate?{observedRevision,lastEditHash:shotFingerprint(await store.get(id))}:{}),
         ...(visual
           ? {
               sequence: !!visual.sequence,
@@ -1008,7 +1030,7 @@ export function createDirector(deps) {
       await store.setMeta(id, { directorState: state });
     };
     const image = async (args, current) => {
-      const pic = await readVisualFrame({ ...deps, drafts }, current, args, signal);
+      const pic = await readVisualFrame({ ...deps, drafts,reviewCandidate:candidate }, current, args, signal);
       if (args.source === 'asset')
         observed.add(args.id + ':' + Math.round(pic.frame.seconds * current.profile.fps));
       if (
@@ -1022,11 +1044,14 @@ export function createDirector(deps) {
         visual.frames.push({...pic.frame,delivery:'tool'});
       }
       if((await store.get(id)).settings?.shareFrames!==true)throw Error('工程已关闭图像分享。');
+      if(candidate&&['candidate','asset','timeline'].includes(args.source)&&requestsSeen.length<120)
+        requestsSeen.push({...pic.frame,delivery:'tool'});
       return pic;
     };
     const dispatch = async ({ tool: name, arguments: args }) => {
       signal?.throwIfAborted();
       const current = await store.get(id);
+      await checkCandidateVersion();
       args ??= {};
       if (name === 'studio_context') return toolText(await context(deps, current, selection));
       if (current.settings?.sourceScope === 'project' || p.settings?.sourceScope === 'project') {
@@ -1197,6 +1222,7 @@ export function createDirector(deps) {
         const saved = await store.configure(id, args.baseRevision, {
           publication: { title: args.title, body: args.body, tags: args.tags },
         });
+        if(candidate){observedRevision=saved.revision;changed=true;await remember();}
         return toolText({ revision: saved.revision });
       }
       if (name === 'studio_sequence') {
@@ -1264,6 +1290,7 @@ export function createDirector(deps) {
           geometry:args.geometry??(same?old.geometry:undefined)},current.profile);
         const command=old?{op:'update',id:old.id,changes:{motion:clip.motion,start,duration,geometry:clip.geometry}}:{op:'add',clip};
         const applied=await store.apply(id,current.revision,[command],'codex');
+        observedRevision=applied.revision;
         changed=true;
         await remember();
         lastRevision=applied.revision;
@@ -1272,16 +1299,33 @@ export function createDirector(deps) {
         const commands = JSON.parse(args.commandsJson);
         allowedCommands(commands, current);
         const applied = await store.apply(id, current.revision, commands, 'codex');
+        observedRevision=applied.revision;
         notes = durationNotes(applied);
         await store.setMeta(id, { directorNotes: notes });
       } else if (name === 'studio_narrate') {
-        await reviseLine(deps, current, args.clipId, args.text, signal);
+        const editDeps=candidate?{...deps,store:{...store,apply:async(...args)=>{
+          const updated=await store.apply(...args);observedRevision=updated.revision;return updated;
+        }}}:deps;
+        await reviseLine(editDeps, current, args.clipId, args.text, signal);
       } else throw new Error('工具未注册。');
       changed = true;
       await remember();
       lastRevision = (await store.get(id)).revision;
       return toolText({ revision: lastRevision, notes, timing:timelineTiming(await store.get(id)) });
     };
+    const candidateImages=[];
+    if(candidate && !existingTurnId) {
+      for(const sample of candidate.samples){
+        await checkCandidateVersion();
+        candidateImages.push(await readVisualFrame({...deps,reviewCandidate:candidate},p,{source:'candidate',...sample},signal));
+      }
+      candidateFrames=candidateImages.map(image=>image.frame);
+    }else if(candidate){
+      candidateFrames=p.candidateInspection?.frames||[];requestsSeen=p.candidateInspection?.requests||[];
+    }
+    const candidateRecord=status=>({status,jobId,firstCutJobId:candidate.jobId,firstRevision:candidate.revision,firstSha256:candidate.sha256,
+      firstFrames:candidate.frames,fps:candidate.fps,frames:candidateFrames,requests:requestsSeen,observedRevision});
+    if(candidate)await store.setMeta(id,{candidateInspection:candidateRecord('reviewing')});
     const summary = await context(deps, p, selection);
     const prompt =
       (kind === 'produce' ? '完成本期首版工程并实际调用 studio_sequence。' : '按下面要求检查和编辑工程。') +
@@ -1302,6 +1346,8 @@ export function createDirector(deps) {
     const focusRules=(summary.style?.rules||[]).filter(r=>['first-five-seconds','deduplicate-source-windows','continuous-actions','payoff-and-boundary','speech-led-pacing','semantic-explanation-motion'].includes(r.id));
     const editorial=focusRules.length?'\n本期选中风格原文（其示例仅供理解剪法），其他完整条件见 studio_context.style。由你根据本期实际素材决定开场、镜头数、是否需要对照/标注以及怎样结束。回扣同一任务时判断是否出现新结果、可见变化或不同的证明；有叙事理由也可以复用镜头。\n'+JSON.stringify(focusRules):'';
     const timing='\n提交或改动后读取 studio_context.timing：按实测旁白和当前时间线长度，与本期简报给出的允许区间、targetSeconds 核对；确需调整时自己调整，保留完整语句和锁定项，完成前再次读回。';
+    const inspection=candidate?'\n现在进行首版自审。附件是已实际导出的首版 MP4 的抽样画面，每张都注明原导出工程帧和时间。先自行判断成片：开场让人看到什么，画面是否提供新信息，讲解与原片能否对上，结尾有没有结果以及能确认的边界。科学证据、剪法与本期目标服从已选风格和用户要求。抽样无法覆盖整片，可用 studio_frames(source=candidate) 检查冻结首版任何有效时刻前后的连续帧，用 source=asset 对比原片源窗。改稿后 source=timeline 给出当前可编辑版本的实际合成。自行决定保留首版或用 studio_edit / studio_component / studio_narrate 修改可编辑镜头、声音、字幕或叠层。请回报实际看过的区间、保留或修改理由与仍不确定的听感。\n下列客观检测来自首版实际导出。finalTranscript 若存在，是本机对最终混音的带时码机器转录。本轮没有给你音频，不能据此声称听到了发音、情绪或听感。\n'+JSON.stringify(candidate.feedback)+'\n首版身份及实际时间基准：'+JSON.stringify({revision:candidate.revision,sha256:candidate.sha256,fps:candidate.fps,frames:candidate.frames,seconds:candidate.frames/candidate.fps}):'';
+    await checkCandidateVersion();
     const movement =
       visual?.policy === 'video-first'
         ? '\n本风格的 video-first 规则要求能提供信息的现场、实验、录屏或标明身份的仿真作为主体。'+
@@ -1339,8 +1385,8 @@ export function createDirector(deps) {
               longestQuietRanges: quiet.slice().sort((a,b) => (b[1]-b[0])-(a[1]-a[0])).slice(0,6), note,
             }))) : '') +
           (visual.staged&&requiresFourStages(p)?'\n本工程沿用四阶段顺序，依次覆盖 problem/detail/mechanism/verification。':'\n按实际已选的证据落点编排。导演决定顺序与段数，回看本片采用的阶段及需核对的解说起句。') + movement + editorial + timing
-        : prompt + editorial + timing,
-      images: visual?.images || [],
+        : prompt + editorial + timing + inspection,
+      images: visual?.images || candidateImages,
       tool: dispatch,
       signal,
       onEvent,
@@ -1352,6 +1398,11 @@ export function createDirector(deps) {
         emit('progress', existingTurnId ? '已重新连接原 Codex 轮次。' : 'Codex 已开始处理本工程。');
       },
     });
+    if(candidate){
+      await checkCandidateVersion();
+      await candidate.assertFrozen();
+      await store.setMeta(id,{candidateInspection:candidateRecord(changed?'revised':'retained')});
+    }
     if (kind === 'produce' && !changed && !visual)
       throw new Error('Codex 没有提交成片时间线。' + trim(outcome, 600));
     return {

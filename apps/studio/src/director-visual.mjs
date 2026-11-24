@@ -244,6 +244,16 @@ export async function readVisualFrame(deps, project, requested, signal) {
     file = verified.path;
     description = '风格基准 ' + verified.id + '，源秒 ' + at + '。只借鉴剪法，基准人物和事实不属于本期。';
     properties = { source: 'style', assetId: verified.id, assetHash: verified.sha256, seconds: at };
+  } else if(requested.source==='candidate'){
+    const candidate=deps.reviewCandidate;
+    if(!candidate)throw Error('本回合未绑定可回看的首版导出。');
+    await candidate.assertFrozen();
+    const frame=requested.frame??Math.floor(seconds*candidate.fps+1e-7);
+    if(!Number.isSafeInteger(frame)||frame<0||frame>=candidate.frames)throw Error('所选时刻超出冻结首版范围。');
+    file=candidate.file;
+    at=frame/candidate.fps;
+    description='已导出的首版 MP4，工程帧 '+frame+'，时间 '+at.toFixed(3)+' 秒'+(requested.reason?'（'+requested.reason+'）':'')+'。';
+    properties={source:'candidate',frame,seconds:at,jobId:candidate.jobId,revision:candidate.revision,artifactSha256:candidate.sha256};
   } else if (requested.source === 'timeline') {
     const fps = project.profile.fps,
       frame = requested.frame ?? Math.floor(seconds * fps);
@@ -269,6 +279,7 @@ export async function readVisualFrame(deps, project, requested, signal) {
     const out = path.join(dir, 'frame.jpg');
     await deps.media.frameAt(file, at, out, { signal, maxWidth: 640 });
     const data = await readFile(out);
+    if(requested.source==='candidate')await deps.reviewCandidate.assertFrozen();
     if (data.length > 900000 || data.length < 1) throw Error('参考图尺寸无法直接发送。');
     signal?.throwIfAborted();
     return visualReceipt(description, properties, data);
