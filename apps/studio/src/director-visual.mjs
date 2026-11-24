@@ -6,6 +6,14 @@ import { dedicatedVoiceReference } from './style-audio.mjs';
 import {visiblePanes,compositionOrder} from './viewport.mjs';
 
 export const stages = ['problem', 'detail', 'mechanism', 'verification'];
+export function requiresFourStages(project) {
+  const explicit=project.settings?.visualRequirements?.fourStages;
+  if(typeof explicit==='boolean')return explicit;
+  if(project.settings?.autoReview!==true)return true;
+  return String(project.brief||'').split(/[，。；;\n]/u).some(clause=>
+    !/(?:不必|不要|不要求|无需|不用|不限定|不用套|do not|no need)/i.test(clause)&&
+    /(?:按|依次|使用|必须|四个阶段都|四阶段都).{0,16}(?:四(?:个)?阶段)|(?:require|use|follow).{0,12}four stages/i.test(clause));
+}
 export function usesVisualStages(style) {
   if (style?.id === 'henry-technical-explainer' && Number(style.version) >= 8) return true;
   const plan = style?.executionPlan;
@@ -183,6 +191,7 @@ export function checkVisualPlan(beats, project, frames) {
       seen.push(step.stage);
     }
   }
+  if(!requiresFourStages(project))return;
   let at = 0;
   for (const stage of seen) if (stage === stages[at]) at++;
   if (at !== stages.length)
@@ -439,9 +448,12 @@ export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
       else requests.push({source:'timeline', frame, claimOnset:true,
         stage:all.find(s => s.atFrame <= frame && frame < s.end)?.stage || 'mechanism'});
     }
-    for (const stage of stages)
-      if (!all.some((s) => s.stage === stage))
-        gaps.push(stage + '：当前剪辑中找不到这个阶段仍在播放的绑定镜头或图层。');
+    if(requiresFourStages(p)){
+      for(const stage of stages)if(!all.some(s=>s.stage===stage))gaps.push(stage+'：当前剪辑中找不到这个阶段仍在播放的绑定镜头或图层。');
+    }else if(!all.length){
+      for(const picture of new Set([pictures[0],pictures[Math.floor(pictures.length/2)],pictures.at(-1)].filter(Boolean)))
+        requests.push({source:'timeline',frame:picture.start+Math.floor((picture.duration-1)/2),stage:'shot'});
+    }
   }
   const used = new Set();
   for (const r of [...requests, ...(extra || []).slice(0, 24)]) {

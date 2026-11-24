@@ -17,6 +17,7 @@ import { draftPreviews } from './draft-preview.mjs';
 import { compileSceneWithSound } from './scene-sound.mjs';
 import {
   usesVisualStages,
+  requiresFourStages,
   stages,
   checkVisualPlan,
   prepareVisuals,
@@ -194,7 +195,7 @@ const tools = [
       checks: {
         type: 'array',
         items: object(
-          { stage: { type: 'string', enum: stages }, frame: int, observation: str, needsFix: { type: 'boolean' } },
+          { stage: { type: 'string', enum: [...stages,'shot'] }, frame: int, observation: str, needsFix: { type: 'boolean' } },
           ['stage', 'frame', 'observation', 'needsFix']
         ),
       },
@@ -1168,7 +1169,7 @@ export function createDirector(deps) {
         if (missingClaim) throw Error('请在 checks 中复看解释旁白起句的实际工程帧 ' + missingClaim.frame + '，说明画面怎样支持这一句，或标出需修的缺口。');
         if (
           !actual.length ||
-          !stages.every((s) => args.checks.some((c) => c.stage === s)) ||
+          !(requiresFourStages(current)?stages:[...new Set(actual.map(f=>f.stage))]).every((s) => args.checks.some((c) => c.stage === s)) ||
           args.checks.some(
             (c) =>
               !actual.some((f) => c.stage === f.stage && c.frame === f.frame) ||
@@ -1177,7 +1178,7 @@ export function createDirector(deps) {
               c.observation.trim().length < 4
           )
         )
-          throw Error('请逐一使用四个真实合成帧的工程帧号并写明可见事实。');
+          throw Error('请按已选阶段和随附合成图的真实工程帧号，写明各处可见事实。');
         visual.checks = args.checks.map((c) => ({
           stage: c.stage,
           frame: c.frame,
@@ -1319,9 +1320,9 @@ export function createDirector(deps) {
             sources:
               '本轮只核实事实并导入可信素材，不提交剪辑。不早报任务完成。先 studio_context。根据题材用 studio_find 的 kind 选视频或档案图片；历史静照可实拍核验局部，但勿虚构动作。导入能提供不同证据的来源。',
             compose: !visual.staged ? '请按风格规则先检查原素材与候选区间，把实际可观察到的动作编入叙述，保留用户给定的脚本和原句。用 studio_sequence 写入本片分镜。' :
-              '本轮请阅读 studio_context 中完整风格规则、原蓝图和适用条件，以及本轮原生附图。先就每张图确定实际能证明什么。实际调用 studio_sequence，整片的 visualSteps 跨镜头记录 problem/detail/mechanism/verification。每个镜头按其实际作用选择落点、组件或实拍，镜头数与表达方式服从本期证据。atSeconds 是本镜头内的秒数；静图 sourceSeconds=0，视频填本轮帧标签给出的精确源秒。具体观察写 observation，局部实际所在位置用 region 左上角+宽高，必要时用 framing。不要在原图凭空制造过程。可用 studio_frames 在原片任意秒连看动作、比较前后、再决定镜头。需要再次接收这些帧作原生回合附件时，结束本轮后继续。缺参考或分享关闭时明说依据。',
+              '本轮请阅读 studio_context 中完整风格规则、原蓝图和适用条件，以及本轮原生附图。先就每张图确定实际能证明什么。实际调用 studio_sequence，visualSteps 的阶段标签可选 problem/detail/mechanism/verification。每个镜头按其实际作用选择落点、组件或实拍，镜头数与表达方式服从本期证据。atSeconds 是本镜头内的秒数；静图 sourceSeconds=0，视频填本轮帧标签给出的精确源秒。具体观察写 observation，局部实际所在位置用 region 左上角+宽高，必要时用 framing。不要在原图凭空制造过程。可用 studio_frames 在原片任意秒连看动作、比较前后、再决定镜头。需要再次接收这些帧作原生回合附件时，结束本轮后继续。缺参考或分享关闭时明说依据。',
             verify:
-              '按本轮标注工程帧号的真实合成图，检查遮挡、局部指向、阅读层级、结尾重新落在原片。根据看到的问题用 studio_edit 做必要的局部修正，工作台会重新给你合成图；满意时必须 studio_visual_review 提交四阶段检查，填写真实帧号、观众能看到的事实和是否还需修。若某帧欠缺请如实指出。',
+              '按本轮标注工程帧号的真实合成图，检查遮挡、局部指向、阅读层级、结尾重新落在原片。根据看到的问题用 studio_edit 做必要的局部修正，工作台会重新给你合成图；完成时用 studio_visual_review 提交本轮实际采用的阶段与关键起句检查，填写真实帧号、观众能看到的事实和是否还需修。若某帧欠缺请如实指出。',
           }[visual.stage] +
           (visual.staged && visual.stage==='compose'
             ? '\n解释原因的段落要落实为观众能看到的一次对应或状态变化。实拍确实记录了过程时，随动作指出变化。如果研究支持这个解释，但远景只交代现场，用资料能支持的原片细节前后对照，或把明确标作“原理示意”的可编辑图解与关键细节放在一起。在 studio_sequence 写入后可用 studio_edit 加入独立图层和关键帧，让状态在相应台词处变化。优先保留能作证的现场动作，别让整段只剩一个机位配术语。没有可靠依据时缩小解说范围，保留具体缺口。'
@@ -1337,7 +1338,7 @@ export function createDirector(deps) {
               assetId, regionsScanned, candidates: candidates.map(({ fromHash, toHash, ...w }) => w),
               longestQuietRanges: quiet.slice().sort((a,b) => (b[1]-b[0])-(a[1]-a[0])).slice(0,6), note,
             }))) : '') +
-          movement + editorial + timing
+          (visual.staged&&requiresFourStages(p)?'\n本工程沿用四阶段顺序，依次覆盖 problem/detail/mechanism/verification。':'\n按实际已选的证据落点编排。导演决定顺序与段数，回看本片采用的阶段及需核对的解说起句。') + movement + editorial + timing
         : prompt + editorial + timing,
       images: visual?.images || [],
       tool: dispatch,

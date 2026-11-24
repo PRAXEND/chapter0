@@ -7,6 +7,7 @@ import { createDirector } from '../src/production.mjs';
 import { applyScenes, reviseLine, durationNotes } from '../src/storyboard.mjs';
 import {
   checkVisualPlan,
+  requiresFourStages,
   usesVisualStages,
   motionPolicy,
   motionCoverage,
@@ -25,6 +26,18 @@ const picture = {
   source: {},
 };
 const clone = (v) => structuredClone(v);
+test('automatic editorial review honours the chosen stages and a user can expressly require four',async t=>{
+  const {p,deps}=await fixture(t,{settings:{autoReview:true,shareFrames:true},timeline:{clips:[{id:'shot',track:'video',assetId:'picture',start:0,duration:27}]}});
+  const beat={assetId:'picture',visualSteps:[{stage:'verification',atSeconds:0,label:'记录',observation:'原图显示条纹。'}]};
+  const frame={source:'asset',assetId:'picture',assetHash:'p',seconds:0};
+  assert.equal(requiresFourStages(p),false);checkVisualPlan([beat],p,[frame]);
+  assert.throws(()=>checkVisualPlan([beat],p,[]),/真实图像/);
+  const drafts={open:async()=>({name:'draft.mp4',fromFrame:0})};
+  deps.media.frameAt=async(_file,seconds,dest)=>writeFile(dest,'frame@'+seconds);
+  const verified=await prepareVisuals({...deps,drafts},p,'verify',[],undefined,null);
+  assert.deepEqual(verified.gaps,[]);assert.equal(verified.result[0].frame.stage,'shot');
+  p.brief='请按四个阶段制作。';assert.equal(requiresFourStages(p),true);assert.throws(()=>checkVisualPlan([beat],p,[frame]),/四个阶段/);
+});
 test('an illustrated explanation is checked before and after the change on its actual shot',async t=>{
   const {p,deps}=await fixture(t);
   p.settings.shareFrames=true;
