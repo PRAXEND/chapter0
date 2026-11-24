@@ -292,3 +292,43 @@ test('recovery refuses another job’s old turn receipt and keeps self-review bo
   assert.deepEqual(await work.file(a.id,'video'),frozen);
   assert.equal((await work.jobs(p)).length,2);
 });
+
+test('saving the first-cut link and its child is a single database transaction',async t=>{
+  const root=await mkdtemp(path.join(tmpdir(),'studio-cut-commit-'));
+  const store=createStore(root);
+  t.after(async()=>{store.close();await rm(root,{recursive:true,force:true});});
+  const p=store.create({mode:'script',title:'transaction fixture'});
+  const running={id:'first',projectId:p.id,status:'running',phase:'review',cutRole:'first'};
+  store.saveJob(running);
+  const first={...running,status:'done',phase:'done',reviewJobId:'review'};
+  const second={id:'review',projectId:p.id,status:'queued',phase:'creative',cutRole:'self-review',firstCutId:first.id};
+  assert.throws(()=>store.saveCutPair(first,{...second,id:''}));
+  assert.deepEqual(store.getJob(first.id),running);
+  assert.equal(store.listJobs(p.id).length,1);
+  store.saveCutPair(first,second);
+  assert.deepEqual(store.getJob(first.id),first);
+  assert.deepEqual(store.getJob(second.id),second);
+});
+
+test('a user edit during the revised export preserves both frozen candidates and prevents stale automatic publication',async t=>{
+  const gate=barrier();
+  const work=await workbench(t,{async rendering(_p,count,signal){if(count===2)await gate.hold(signal);},
+    async direction(store,id){const p=store.get(id);store.apply(id,p.revision,[{op:'update',id:'caption',changes:{text:'B'}}],'codex');}});
+  const p=await work.create(),a=await work.enqueue(p),first=await work.done(a.id);
+  await gate.started;
+  const route='/api/projects/'+p.id, previous=await work.request(route);
+  const user=await work.request(route+'/edits',{baseRevision:previous.revision,commands:[
+    {op:'update',id:'caption',changes:{text:'user edit during B export'}},{op:'lock',id:'caption',locked:true},
+  ]});
+  gate.unblock();
+  const second=await work.done(first.reviewJobId);
+  assert.equal(second.stale,true);
+  assert.equal(second.revision,previous.revision);
+  assert.equal(user.revision,previous.revision+1);
+  assert.equal(JSON.parse(await work.file(a.id,'project')).timeline.clips.find(c=>c.id==='caption').text,'First');
+  assert.equal(JSON.parse(await work.file(second.id,'project')).timeline.clips.find(c=>c.id==='caption').text,'B');
+  const current=await work.request(route);
+  assert.equal(current.timeline.clips.find(c=>c.id==='caption').text,'user edit during B export');
+  assert.equal(current.timeline.clips.find(c=>c.id==='caption').locked,true);
+  assert.deepEqual(await published(work.root),[]);
+});
