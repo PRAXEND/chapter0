@@ -1,5 +1,7 @@
 # 任务记录
 
+- [Codex 从空时间线首剪并回看冻结成片](T-20261125-codex-self-review.md)
+
 - [技术科普 v8 的原版组件与本地合成](T-20261124-executable-motion.md)
 
 - [技术科普 v8 与月面成片的实际剪辑质量](T-20261123-v8-edit-quality.md)
