@@ -389,8 +389,19 @@ function timelineTiming(project) {
   const end=rows=>rows.reduce((max,c)=>Math.max(max,c.start+c.duration),0);
   const fps=project.profile.fps, frames=end(visible);
   const display=f=>Number((f/fps).toFixed(3));
+  let allowedSeconds;
+  // A local request such as “change 18–24 seconds” is a selection, not a runtime.
+  const range=/(\d+(?:\.\d+)?)\s*(?:秒|s(?:ec(?:onds?)?)?)?\s*(?:[-–—~～至到]|to)\s*(\d+(?:\.\d+)?)\s*(?:秒|s(?:ec(?:onds?)?)?\b)/i;
+  for(const clause of String(project.brief||'').split(/[，,。；;\n]/u)){
+    const m=clause.match(range);
+    if(!m)continue;
+    const before=clause.slice(0,m.index),after=clause.slice(m.index+m[0].length);
+    if(!/(?:全片|成片时长|总时长|片长|视频时长|全长|运行时长|total duration|runtime|running time)[^，,。；;]{0,18}$|^\s*(?:目标)?时长[^，,。；;]{0,12}$/i.test(before)&&!/^\s*(?:的)?(?:短片|成片|视频)/u.test(after))continue;
+    if(+m[1]>0&&+m[2]>=+m[1]){allowedSeconds={min:+m[1],max:+m[2]};break;}
+  }
   return {fps,frames,seconds:display(frames),narrationEndSeconds:display(end(visible.filter(c=>c.track==='narration'&&!c.muted))),
-    targetSeconds:project.settings?.targetDuration??null,durationNotes:durationNotes(project,[]).filter(n=>n.kind==='target-duration').map(n=>n.message)};
+    targetSeconds:project.settings?.targetDuration??null,...(allowedSeconds&&{allowedSeconds,withinRequestedRange:frames/fps>=allowedSeconds.min&&frames/fps<=allowedSeconds.max}),
+    durationNotes:durationNotes(project,[]).filter(n=>n.kind==='target-duration').map(n=>n.message)};
 }
 async function context(deps, project, selection) {
   const s = project.style?.id ? await deps.styleLibrary.get(project.style.id, project.style.version) : null;
@@ -709,7 +720,8 @@ export function createDirector(deps) {
             turnId: result.turnId || completed.directorState?.turnId,
             model: client.modelForThread?.(completed.threadId) || null,
             requestedEffort: p.settings?.reasoningEffort || null,
-            images: frameData.length,
+            images: packet.result.length,
+            toolImages: session.frames.filter(f=>f.delivery==='tool').length,
             revision: completed.revision,
           },
         ],
@@ -846,7 +858,8 @@ export function createDirector(deps) {
     if(reviewCandidate && (kind!=='revise'||local))throw Error('首版自审需要使用 Codex 的独立改稿任务。');
     const candidate=reviewCandidate?await openCandidate(deps,p,reviewCandidate,signal):null;
     const candidateState=p.directorState?.jobId===jobId?p.directorState:null;
-    let candidateFrames=[], requestsSeen=[];
+    let candidateFrames=[], requestsSeen=candidate&&p.candidateInspection?.jobId===jobId&&p.candidateInspection.firstSha256===candidate.sha256
+      ? [...(p.candidateInspection.requests||[])] : [];
     let observedRevision=p.revision;
     if(candidate){
       const prior=candidateState;
@@ -969,7 +982,14 @@ export function createDirector(deps) {
       (!visual || (old.visualStage === visual.stage && old.attempt === visual.attempt))
     ) {
       const { turn: previous, status: threadStatus } = await client.findTurn(threadId, old.turnId);
+      await checkCandidateVersion();
       notes = p.directorNotes || [];
+      if(candidate&&previous?.status==='completed'){
+        const receipt=p.candidateInspection;
+        if(receipt?.jobId!==jobId||receipt.firstSha256!==candidate.sha256||!receipt.frames?.length)
+          throw Error('已完成回合缺少对应首版图像的记录，请基于当前版本重新发起自审。');
+        await store.setMeta(id,{candidateInspection:{...receipt,status:old.edited?'revised':'retained',observedRevision}});
+      }
       if (previous?.status === 'completed' && (await store.get(id)).directorState?.edited) {
         if (visual?.stage === 'compose' && old.sequence) visual.sequence = true;
         if (visual?.stage === 'verify') visual.checks = old.checks || [];
@@ -988,7 +1008,7 @@ export function createDirector(deps) {
       if (previous?.status === 'inProgress' && threadStatus?.type === 'active') {
         existingTurnId = old.turnId;
         changed = Boolean(old.edited);
-      } else if (old.edited)
+      } else if (old.edited && !candidate)
         return {
           project: await store.get(id),
           engine: 'codex',
@@ -996,6 +1016,7 @@ export function createDirector(deps) {
           needsReview: true,
           message: '已保留中断前提交的编辑，可预览后继续。',
         };
+      else if(candidate&&old.edited)changed=true;
       else if (previous?.status === 'completed') {
         const message =
           previous.items?.findLast((item) => item.type === 'agentMessage')?.text || '上一轮已完成，工程未改变。';
@@ -1029,24 +1050,25 @@ export function createDirector(deps) {
       };
       await store.setMeta(id, { directorState: state });
     };
-    const image = async (args, current) => {
-      const pic = await readVisualFrame({ ...deps, drafts,reviewCandidate:candidate }, current, args, signal);
-      if (args.source === 'asset')
-        observed.add(args.id + ':' + Math.round(pic.frame.seconds * current.profile.fps));
-      if (
-        visual?.stage === 'compose' &&
-        args.source === 'asset' &&
-        !visual.frames.some(
-          (f) => f.source === 'asset' && f.assetId === pic.frame.assetId && f.seconds === pic.frame.seconds
-        )
-      ) {
-        visual.requested.push({ source: 'asset', id: args.id, seconds: pic.frame.seconds });
-        visual.frames.push({...pic.frame,delivery:'tool'});
+    const image = (args,current) => readVisualFrame({...deps,drafts,reviewCandidate:candidate},current,args,signal);
+    const rememberImages = async (pictures) => {
+      const current=await store.get(id);
+      if(current.settings?.shareFrames!==true)throw Error('工程已关闭图像分享。');
+      await checkCandidateVersion();
+      for(const pic of pictures){
+        const f=pic.frame;
+        if(f.source==='asset'){
+          observed.add(f.assetId+':'+Math.round(f.seconds*current.profile.fps));
+          if(visual?.stage==='compose'&&!visual.frames.some(a=>a.source==='asset'&&a.assetId===f.assetId&&a.seconds===f.seconds)){
+            visual.requested.push({source:'asset', id:f.assetId,seconds:f.seconds});
+            visual.frames.push({...f,delivery:'tool'});
+          }
+        }
+        if(candidate&&['candidate','asset','timeline'].includes(f.source)&&requestsSeen.length<120)
+          requestsSeen.push({...f,delivery:'tool'});
       }
-      if((await store.get(id)).settings?.shareFrames!==true)throw Error('工程已关闭图像分享。');
-      if(candidate&&['candidate','asset','timeline'].includes(args.source)&&requestsSeen.length<120)
-        requestsSeen.push({...pic.frame,delivery:'tool'});
-      return pic;
+      if(candidate&&current.candidateInspection?.jobId===jobId)
+        await store.setMeta(id,{candidateInspection:{...current.candidateInspection,requests:requestsSeen}});
     };
     const dispatch = async ({ tool: name, arguments: args }) => {
       signal?.throwIfAborted();
@@ -1105,6 +1127,7 @@ export function createDirector(deps) {
       }
       if (name === 'studio_frame') {
         const pic=await image(args,current);
+        await rememberImages([pic]);
         return {success:true,contentItems:[{type:'inputImage',imageUrl:pic.url},{type:'inputText',text:pic.label}]};
       }
       if(name==='studio_frames'){
@@ -1118,12 +1141,10 @@ export function createDirector(deps) {
         }
         if(!Array.isArray(times)||times.length<2||times.length>8||times.some((t,i)=>!Number.isFinite(t)||t<0||(i>0&&t<=times[i-1])))
           throw Error('请提供 2–8 个按先后排序的有效秒数。');
-        const contentItems=[];
-        for(const seconds of times){
-          const pic=await image({source:args.source,id:args.id,seconds},await store.get(id));
-          contentItems.push({type:'inputText',text:pic.label},{type:'inputImage',imageUrl:pic.url});
-        }
-        return {success:true,contentItems};
+        const pictures=[];
+        for(const seconds of times)pictures.push(await image({source:args.source,id:args.id,seconds},await store.get(id)));
+        await rememberImages(pictures);
+        return {success:true,contentItems:pictures.flatMap(pic=>[{type:'inputText',text:pic.label},{type:'inputImage',imageUrl:pic.url}])};
       }
       if (name === 'studio_research') {
         if (current.mode !== 'topic') throw new Error('公开检索限于本期选题模式。');
@@ -1399,8 +1420,8 @@ export function createDirector(deps) {
       },
     });
     if(candidate){
-      await checkCandidateVersion();
       await candidate.assertFrozen();
+      await checkCandidateVersion();
       await store.setMeta(id,{candidateInspection:candidateRecord(changed?'revised':'retained')});
     }
     if (kind === 'produce' && !changed && !visual)

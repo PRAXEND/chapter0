@@ -932,6 +932,24 @@ test('opening an old project for an ordinary edit registers newly added tools on
   assert.deepEqual(p.previousDirectorThreads,['old-thread']);
 });
 
+test('a first cut can apply independently editable headline and credit components to the same shot',async t=>{
+  const {p,deps}=await fixture(t);let schemas;
+  deps.client={account:async()=>({connected:true}),thread:async(_id,tools)=>{schemas=tools;return 'thread';},close(){},
+    async runTurn({onStart,tool}){
+      await onStart('turn');
+      const schema=schemas.find(t=>t.name==='studio_sequence').inputSchema.properties.beats.items.properties.motionComponents;
+      assert.equal(schema.maxItems,8);
+      await tool({tool:'studio_sequence',arguments:{baseRevision:p.revision,beats:[{assetId:'picture',narration:'测试开始。',motionComponents:[
+        {componentId:'impact-title',props:{label:'原片',title:'启动'}},
+        {componentId:'source-label',props:{lab:'台架记录',hardware:'检验原件'},atSeconds:.25},
+      ]}]}});
+      return '已加入标题与来源。';
+    }};
+  const director=createDirector(deps);t.after(()=>director.close());await director.run(p.id);
+  const layers=p.timeline.clips.filter(c=>c.motion);
+  assert.deepEqual(layers.map(c=>[c.id,c.motion.componentId,c.start]),[['scene-0-motion','impact-title',0],['scene-0-motion-1','source-label',6]]);
+});
+
 test('first-cut JSX uses this shot’s observed action frames at the actual project rate',async t=>{
   const {p,deps}=await fixture(t,{settings:{voiceMode:'original',musicEnabled:false}});
   const beat={assetId:'picture',narration:'逐次转动。',durationSeconds:4,
