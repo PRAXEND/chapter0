@@ -1007,9 +1007,8 @@ for(const [styleId,template] of [['henry-hot-news','action-result'],['henry-tech
           p.timeline.clips.find(c=>c.id===firstClip.id).locked=false;
           await assert.rejects(call('studio_edit',{baseRevision:p.revision-1,commandsJson:'[]'}),/版本/);
           await call('studio_cut_ready',{baseRevision:p.revision});
-          return '首版齐了';
         }
-        assert.equal(calls,3);
+        assert.equal(calls,2);
         assert.ok(images.some(i=>i.frame.source==='timeline'));
         await sequence('replace-all',['重新开场','已核对的结果。']);
         const voice=p.timeline.clips.find(c=>c.track==='narration'&&c.start===50);
@@ -1023,8 +1022,62 @@ for(const [styleId,template] of [['henry-hot-news','action-result'],['henry-tech
       }};
     const d=createDirector(deps);t.after(()=>d.close());
     const result=await d.run(p.id,{kind:'produce',jobId:'continuous-test'});
-    assert.equal(calls,3);assert.equal(p.visualDirection.status,'reviewed');assert.equal(result.changed,true);
+    assert.equal(calls,2);assert.equal(p.visualDirection.status,'reviewed');assert.equal(result.changed,true);
     assert.ok(p.timeline.clips.some(c=>c.track==='caption'&&c.text.includes('复查之后')));
     assert.ok(counts().syntheses>=6);assert.equal(p.storyboard.length,2);
   });
 }
+
+test('v8 can finish and inspect in one foreground or background turn; silence causes no extra paid turn',async t=>{
+  for(const commits of [true,false]){
+    const {p,deps}=await fixture(t,{style:{id:'henry-hot-news',version:8},settings:{shareFrames:true,voiceMode:'original',musicMode:'none'}});
+    const baseline={id:'baseline',kind:'video',available:true,path:'/private/fixture',duration:2,sha256:'base'};
+    deps.styleLibrary.get=async()=>({...p.style,baseline,references:[baseline],templates:[{id:'action-result'}]});
+    deps.media.frameAt=async(_f,sec,out)=>writeFile(out,'stub-'+sec);
+    deps.drafts={open:async()=>({name:'fixture',fromFrame:0})};
+    let turns=0;
+    deps.client={account:async()=>({connected:true}),thread:async()=> 'only-one',close(){},runTurn:async({onStart,tool,images})=>{
+      turns++;await onStart('first');if(!commits)return '未动剪辑';
+      assert.ok(images.some(i=>i.frame.source==='style')&&images.some(i=>i.frame.source==='asset'));
+      const call=(name,args={})=>tool({tool:name,arguments:{baseRevision:p.revision,...args}});
+      await call('studio_sequence',{beats:[{assetId:picture.id,narration:'原始记录。',durationSeconds:2}]});
+      const packet=await call('studio_review_cut');
+      const {samples}=JSON.parse(packet.contentItems[0].text);
+      await call('studio_visual_review',{checks:samples.map(f=>({stage:f.stage,frame:f.frame,observation:'可读的中央标记。',needsFix:false}))});
+      await call('studio_cut_ready');return '完成';
+    }};
+    const director=createDirector(deps);t.after(()=>director.close());
+    if(commits){await director.run(p.id,{kind:'produce',jobId:'one'});assert.equal(p.visualDirection.status,'reviewed');}
+    else await assert.rejects(director.run(p.id,{kind:'produce',jobId:'one'}),/完整初版/);
+    assert.equal(turns,1);
+  }
+});
+
+test('optional manual sequence approval binds the complete pre-speech cut, refuses alterations and resumes without rewriting it',async t=>{
+  const {p,deps,counts}=await fixture(t,{style:{id:'henry-hot-news',version:8},
+    settings:{shareFrames:false,shareTranscript:false,voiceMode:'system',voiceSelection:'user',musicMode:'none',sourceScope:'project',confirmSequence:true}});
+  deps.styleLibrary.get=async()=>({...p.style,templates:[{id:'action-result'}],references:[]});
+  let turns=0;
+  deps.client={account:async()=>({connected:true}),thread:async()=> 'manual',close(){},runTurn:async({onStart,tool,images})=>{
+    turns++;await onStart('manual-turn');assert.deepEqual(images,[]);
+    const call=(name,args={})=>tool({tool:name,arguments:{baseRevision:p.revision,...args}});
+    await assert.rejects(call('studio_edit',{commandsJson:'[]'}),/手动审稿/);
+    await assert.rejects(call('studio_sequence',{beats:[{assetId:picture.id,narration:'测试'}],intent:'trial'}),/先审稿/);
+    await call('studio_sequence',{beats:[{assetId:picture.id,narration:'这是一段获准的话。',sourceStart:0}]});
+    return '请用户确认';
+  }};
+  const d=createDirector(deps);t.after(()=>d.close());
+  const opts={kind:'produce',jobId:'manual'};
+  const initial=await d.run(p.id,opts),{hash}=initial.awaitingSequenceApproval;
+  assert.equal(initial.awaitingSequenceApproval.beats[0].narration,'这是一段获准的话。');assert.equal(hash.length,64);
+  assert.equal((await d.run(p.id,opts)).awaitingSequenceApproval.hash,hash);
+  assert.equal(counts().syntheses,0);assert.deepEqual(p.timeline.clips,[]);assert.equal(turns,1);
+  await assert.rejects(d.run(p.id,{...opts,approvedSequenceHash:'0'.repeat(64)}),/指纹/);
+  p.pendingSequence.plan.beats[0].narration='偷换的稿件';
+  await assert.rejects(d.run(p.id,{...opts,approvedSequenceHash:hash}),/版本、素材或事实/);
+  p.pendingSequence.plan.beats[0].narration='这是一段获准的话。';
+  p.revision++;await assert.rejects(d.run(p.id,{...opts,approvedSequenceHash:hash}),/版本、素材或事实/);p.revision--;
+  const finished=await d.run(p.id,{...opts,approvedSequenceHash:hash});
+  assert.ok(finished.changed);assert.equal(turns,1);assert.equal(counts().syntheses,1);assert.equal(p.pendingSequence,null);
+  assert.equal(p.sequenceApproval.hash,hash);assert.equal(p.timeline.clips.find(c=>c.track==='caption').text,'这是一段获准的话。');
+});

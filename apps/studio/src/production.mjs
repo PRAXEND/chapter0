@@ -1,4 +1,5 @@
 import {portraitLayout} from './presentation.mjs';
+import {holdSequence,checkProposal,waitingForSequence} from './sequence-approval.mjs';
 import {continuousStyle,publicStyleValue,stylePage} from './director-style.mjs';
 import {componentClip,motionCatalog,defaultMotionGeometry} from './motion-components.mjs';
 import { createHash, randomUUID } from 'node:crypto';
@@ -132,8 +133,8 @@ const tools = [
     {section:str,offset:int},['section']),
   tool('studio_review_cut','Inspect the currently editable cut on this revision, including selected evidence and spoken claim onsets. Returns time-labelled composed images with current timeline identity. Use after a trial or change, then revise or record the checks.',
     {baseRevision:int},['baseRevision']),
-  tool('studio_cut_ready','Mark the current trial cut ready for full review. Continue adjusting until this cut represents the entire intended film.',
-    {baseRevision:int},['baseRevision']),
+  tool('studio_cut_ready','Mark the complete cut ready. Normally inspect/check it in this same turn. If a separate native-image pass is genuinely needed, request it with a specific reason.',
+    {baseRevision:int,reviewInNextTurn:{type:'boolean'},reason:str},['baseRevision']),
   tool(
     'studio_transcript',
     'Read the next 120 original timed utterances. Text is included only when the project allows transcript sharing.',
@@ -637,7 +638,25 @@ export function createDirector(deps) {
     if (active.has(id)) throw new Error('当前工程已有创作任务。');
     active.set(id, { jobId: options.jobId, signal: options.signal });
     try {
-      const original = await store.get(id);
+      let original=await store.get(id);
+      if((options.kind||'produce')==='produce'&&(options.engine||original.settings?.engine)!=='local' && original.settings?.confirmSequence){
+        if(!options.jobId)options={...options,jobId:original.pendingSequence?.plan.jobId||randomUUID()};
+        if(original.pendingSequence?.plan.jobId===options.jobId){
+          const pending=checkProposal(original,options.jobId,options.approvedSequenceHash);
+          if(options.approvedSequenceHash===undefined)return waitingForSequence(original,pending);
+          const {plan,evidence}=pending;
+          const result=await applyScenes(deps,original,plan.beats,{...options,placement:plan,visualFrames:evidence.frames,
+            observed:new Set(evidence.observed),observedText:new Map(evidence.observedText),approval:{jobId:options.jobId,hash:pending.hash}});
+          original=await store.get(id);
+          if(!original.visualDirection||original.visualDirection.jobId!==options.jobId)
+            return {project:original,engine:'codex',changed:true,needsReview:Boolean(result.notes.length),notes:result.notes,message:'已按确认的分镜完成剪辑。'};
+          await store.setMeta(id,{visualDirection:{...original.visualDirection,composed:true,afterCompose:shotFingerprint(original),
+            motionGap:plan.motionGap||'',status:'approved'}});
+          original=await store.get(id);
+        }else if(options.approvedSequenceHash!==undefined &&
+           (original.sequenceApproval?.hash!==options.approvedSequenceHash||original.sequenceApproval?.jobId!==options.jobId))
+          throw Error('没有对应本次工程与任务的待确认分镜。');
+      }
       const p = (options.kind || 'produce') === 'produce' ? await resolveProductionAudio(deps,original,{signal:options.signal,message:options.message}) : original;
       const style=p.style?.id?await styleLibrary.get(p.style.id,p.style.version):null;
       const producing=(options.kind||'produce')==='produce';
@@ -699,6 +718,10 @@ export function createDirector(deps) {
     const execute = async (stage, attempt = 0, extra = []) => {
       let p = await store.get(id);
       const packet = await prepareVisuals({ ...deps, drafts }, p, stage, extra, signal, policy);
+      if(continuous && stage==='compose'&&attempt>0&&p.timeline.clips.some(c=>c.track==='video')){
+        const currentCut=await prepareVisuals({...deps,drafts},p,'verify',[],signal,policy);
+        packet.result.push(...currentCut.result);
+      }
       if(continuous && stage==='verify'){
         const refs=await prepareVisuals({...deps,drafts},p,'compose',[],signal,policy);
         packet.result.unshift(...refs.result);
@@ -740,6 +763,8 @@ export function createDirector(deps) {
       const completed = await store.get(id);
       await save({
         ...(session.motionFeedback ? { motionFeedback: session.motionFeedback } : {}),
+        ...(continuous&&session.checkedHash?{inlineReview:{hash:session.checkedHash,checks:session.checks,gaps:session.reviewGaps||[]}}:{}),
+        ...(continuous?{requestedReview:session.reviewReason||null}:{}),
         frames:[...receipt.frames.filter(f=>f.phase!==stage),...session.frames.map(f=>({...f,phase:stage}))],
         motionQueries: [...(receipt.motionQueries || []), ...session.queries].slice(-32),
         motionGap: session.motionGap || receipt.motionGap || '',
@@ -781,10 +806,14 @@ export function createDirector(deps) {
       )
         await execute('sources');
       let { result, session } = await execute('compose');
+      if(result.awaitingSequenceApproval)return result;
       let requests=[];
-      for(let retry=1;(!session.sequence||session.trial)&&(continuous||session.requested.length)&&retry<=3;retry++){
+      const maxContinuation=continuous?1:3;
+      for(let retry=1;(!session.sequence||session.trial)&&(session.trial||session.requested.length)&&retry<=maxContinuation;retry++){
+        if(continuous)options.onEvent?.({type:'progress',message:'追加 1 个导演回合。'+(session.trial?'导演已提交试剪，需要继续完成整片。':'导演请求了其他原素材区间作为本轮原生附件。')});
         requests=[...requests,...session.requested].slice(-24);
         ({result,session}=await execute('compose',retry,requests));
+        if(result.awaitingSequenceApproval)return result;
       }
       if (!session.sequence||session.trial) throw Error('试剪已留在时间线，导演还未将本片标记为完整初版。' + trim(result.message));
     }
@@ -819,13 +848,26 @@ export function createDirector(deps) {
       return { project: await store.get(id), engine: 'codex', changed: true, needsReview: Boolean(motion?.gap || notes.length),
         notes, message: motion?.gap || '首版分镜已根据本期素材编排。' };
     }
-    let { session } = await execute('verify');
-    current = await store.get(id);
-    for(let attempt=1;attempt<=(continuous?3:1)&&(session.checkedHash||session.initial)!==shotFingerprint(current);attempt++){
-      ({session}=await execute('verify',attempt));
+    let session;
+    const currentHash=shotFingerprint(current), inline=receipt.inlineReview;
+    if(continuous&&inline?.hash===currentHash){
+      session={initial:currentHash,checkedHash:currentHash,checks:inline.checks};
+      if(inline.gaps?.length)await save({gaps:[...new Set([...receipt.gaps,...inline.gaps])]});
+    }else if(continuous && (!receipt.requestedReview || receipt.rounds.filter(r=>r.stage==='compose').length>1) && !options.approvedSequenceHash){
+      session={initial:currentHash,checks:[]};
+    }else{
+      if(continuous)options.onEvent?.({type:'progress',message:'追加 1 个合成画面回合。'+(receipt.requestedReview||'用户已确认分镜，首次核对据此编成的画面。')});
+      let review=await execute('verify');
+      if(review.result.awaitingSequenceApproval)return review.result;
+      session=review.session;
+      current=await store.get(id);
+      if(!continuous&&session.initial!==shotFingerprint(current)){
+        review=await execute('verify',1);
+        if(review.result.awaitingSequenceApproval)return review.result;
+        session=review.session;
+      }
       current=await store.get(id);
     }
-    current = await store.get(id);
     const motion = motionCoverage(current, receipt.frames, policy, receipt.motionQueries, receipt.motionGap);
     const basePolicy=motionPolicy(activeStyle,original);
     if(motion&&policy!==basePolicy)motion.policyOverride={source:'user-message',base:basePolicy};
@@ -908,6 +950,8 @@ export function createDirector(deps) {
       if(current.revision!==observedRevision||current.settings.shareFrames!==true)
         throw Error('回看期间工程或帧分享设置已改变；已保留其他编辑与首版。');
     }
+    let pendingApproval;
+    const manual=kind==='produce'&&!local&&p.settings?.confirmSequence===true;
     let changed = false,
       notes = [],
       lastRevision = p.revision;
@@ -1131,6 +1175,9 @@ export function createDirector(deps) {
       const current = await store.get(id);
       await checkCandidateVersion();
       args ??= {};
+      if(pendingApproval && name!=='studio_context')return toolText({waitingForUser:true,hash:pendingApproval.hash});
+      if(manual&&['studio_edit','studio_narrate','studio_component','studio_cut_ready'].includes(name))
+        throw Error('用户选中了手动审稿。请用 studio_sequence 提交完整计划，后续改动须由用户确认新分镜。');
       if (name === 'studio_context') return toolText(await context(deps, current, selection));
       if(name==='studio_style'){
         const {id:styleId,version}=current.style;
@@ -1286,6 +1333,10 @@ export function createDirector(deps) {
       }
       if(name==='studio_cut_ready'){
         if(!visual?.continuous||!current.timeline.clips.some(c=>c.track==='video'&&!c.hidden&&c.enabled!==false))throw Error('请先在时间线上试剪可播放的画面。');
+        if(args.reviewInNextTurn===true){
+          if(typeof args.reason!=='string'||args.reason.trim().length<4)throw Error('请说明需要额外合成画面回合的具体区间或缺口。');
+          visual.reviewReason=trim(args.reason,260);
+        }
         visual.sequence=true;visual.trial=false;await remember();
         return toolText({ready:true,revision:current.revision,timing:timelineTiming(current)});
       }
@@ -1360,6 +1411,15 @@ export function createDirector(deps) {
             if(!candidate)await store.setMeta(id, { visualDirection: { ...current.visualDirection, motionFeedback: feedback } });
             throw Error(feedback + ' 请先看附件并判断主体和动作是否与讲解吻合，再提交分镜。刻意停留或其他窗口不合题时，写进 motionGap 即可继续。');
           }
+        }
+        if(manual){
+          if(args.intent==='trial')throw Error('本期选择先审稿。请先提交可供确认的完整分镜，之后才会生成正式旁白。');
+          if(!Array.isArray(args.beats)||!beats.length&&operation!=='replace-range'||beats.length>400)throw Error('请先提供有效的审稿分镜。');
+          if(!beats.every(b=>current.assets.some(a=>a.id===b.assetId&&['image','video'].includes(a.kind)&&!dedicatedVoiceReference(a))))
+            throw Error('待确认分镜只能引用本工程真实、可用于画面的素材。');
+          pendingApproval=holdSequence(current,jobId,{...args,operation,beats},witnesses,observed,observedText);
+          await store.setMeta(id,{pendingSequence:pendingApproval});
+          return toolText({waitingForUser:true,hash:pendingApproval.hash,message:'本轮到此结束，用户会查看完整旁白与源窗。'});
         }
         const result = await applyScenes(editDeps(current), current, beats, {
           signal,
@@ -1481,7 +1541,8 @@ export function createDirector(deps) {
         : visual?.policy === 'images-only'
           ? '\n用户明确规定全片只用静态图像，按此素材例外制作。'
           : visual?.policy==='photo-led' ? '\n本片允许照片为主，可按照片上的实际位置解释细节；用户要求的个别现场镜头仍可正常检索。' : '';
-    const creativeLoop=visual?.continuous?'\n本次在同一个工程持续剪辑。可先用 studio_edit 或 studio_sequence(intent=trial) 做一个可见的试剪，然后用 studio_frame(s) 或 studio_review_cut 看实切效果并继续选源、扩剪和改句。可用 studio_sequence(operation=append) 续段、replace-range 一次重排多镜或删整段、replace-all 重新编排本片。复查时同样可改旁白、镜头和整段结构。用 studio_cut_ready 表示试剪已足以代表完整本片。每次改动后复查真实新版本，限制以用户选区、锁和素材授权为准。'+
+    const approvalMessage=manual?'\n用户选择了手动审稿。先用 studio_sequence 提交完整镜头、源窗、组件和旁白方案；工作台等待用户确认精确指纹后再合成，不要把待审方案或试剪称为已完成。':'';
+    const creativeLoop=visual?.continuous?'\n本次在同一个工程持续剪辑。可先用 studio_edit 或 studio_sequence(intent=trial) 做一个可见的试剪，然后用 studio_frame(s) 或 studio_review_cut 看实切效果并继续选源、扩剪和改句。可用 studio_sequence(operation=append) 续段、replace-range 一次重排多镜或删整段、replace-all 重新编排本片。复查时同样可改旁白、镜头和整段结构。完整时在本回合用 studio_review_cut 和 studio_visual_review 提交这一版的实看记录，然后 studio_cut_ready。默认不会另开复查回合；确实缺少必须原生附图的合成证据时，可用 studio_cut_ready(reviewInNextTurn=true,reason) 说明。每次改动后复查真实新版本，限制以用户选区、锁和素材授权为准。'+
       (summary.publishPackage||summary.presentation?' 使用 studio_publication 设置简短标题、标题内的黄色重点及两个封面的帧和取景中心。竖版标题最多两行，每行最多约十个汉字。图解与动作在居中的素材窗内，字幕在窗下。片末留 1.8 秒连续的动作与渐隐黑场，先结束旁白。':''):'';
     const outcome = await client.runTurn({
       threadId,
@@ -1512,8 +1573,8 @@ export function createDirector(deps) {
               assetId, regionsScanned, candidates: candidates.map(({ fromHash, toHash, ...w }) => w),
               longestQuietRanges: quiet.slice().sort((a,b) => (b[1]-b[0])-(a[1]-a[0])).slice(0,6), note,
             }))) : '') +
-          (visual.staged&&requiresFourStages(p)?'\n本工程沿用四阶段顺序，依次覆盖 problem/detail/mechanism/verification。':'\n按实际已选的证据落点编排。导演决定顺序与段数，回看本片采用的阶段及需核对的解说起句。') + movement + editorial + timing + inspection
-        : prompt + editorial + timing + inspection,
+          (visual.staged&&requiresFourStages(p)?'\n本工程沿用四阶段顺序，依次覆盖 problem/detail/mechanism/verification。':'\n按实际已选的证据落点编排。导演决定顺序与段数，回看本片采用的阶段及需核对的解说起句。') + movement + editorial + timing + inspection + approvalMessage
+        : prompt + editorial + timing + inspection + approvalMessage,
       images: [...candidateImages,...(visual?.images||[])],
       tool: dispatch,
       signal,
@@ -1532,6 +1593,7 @@ export function createDirector(deps) {
         emit('progress', existingTurnId ? '已重新连接原 Codex 轮次。' : 'Codex 已开始处理本工程。');
       },
     });
+    if(pendingApproval)return waitingForSequence(await store.get(id),pendingApproval);
     if(candidate){
       await candidate.assertFrozen();
       await checkCandidateVersion();

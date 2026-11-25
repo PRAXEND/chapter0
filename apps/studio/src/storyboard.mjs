@@ -352,7 +352,7 @@ export async function applyScenes(
   deps,
   project,
   beats,
-  { signal, observed = new Set(), observedText = new Map(), onEvent, visualFrames = [], localDraft = false, placement } = {}
+  { signal, observed = new Set(), observedText = new Map(), onEvent, visualFrames = [], localDraft = false, placement, approval } = {}
 ) {
   const range=sequenceRange(project,placement);
   if (!Array.isArray(beats) || (!beats.length && range.mode!=='replace-range') || beats.length>400) throw Error('分镜最多 400 段。空分镜只能用来移除已指定的整段。');
@@ -830,6 +830,7 @@ export async function applyScenes(
   const edit=compileSequenceEdit(latest,range,{clips,board,facts,notes,frames:cursor});
   const finalNotes=durationNotes({...latest,timeline:{clips:edit.clips}},edit.notes);
   const metadata={storyboard:edit.storyboard,facts:edit.facts,directorNotes:finalNotes,
+    ...(approval?{pendingSequence:null,sequenceApproval:{...approval,appliedRevision:latest.revision+1}}:{}),
     ...(project.styleAudio?{styleAudio:{...project.styleAudio,music:mixReceipt}}:{})};
   let updated;
   if(deps.store.applySceneEdit){

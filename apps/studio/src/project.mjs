@@ -209,7 +209,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     });
   }
   function applySceneEdit(id,baseRevision,commands,metadata,actor='codex'){
-    if(!metadata||Object.keys(metadata).some(k=>!['storyboard','facts','directorNotes','styleAudio'].includes(k)))throw fault('分镜事务元数据无效。');
+    if(!metadata||Object.keys(metadata).some(k=>!['storyboard','facts','directorNotes','styleAudio','pendingSequence','sequenceApproval'].includes(k)))throw fault('分镜事务元数据无效。');
     return apply(id,baseRevision,commands,actor,metadata);
   }
   const immutable=new Set(['id','schema','profile','title','mode','settings','timeline','assets','style','script','brief','revision','createdAt','updatedAt','__proto__','constructor','prototype']);
