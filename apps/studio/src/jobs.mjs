@@ -173,9 +173,8 @@ export function createQueue({store, director, media, reviewProject, finalReviewe
     if(j.status==='awaiting-plan'){
       if(store.listJobs(j.projectId).some(other=>other.id!==j.id&&activeStates.includes(other.status)))throw fault('该工程另有任务正在运行。',409);
       if(typeof j.approval?.hash!=='string'||input.approvedSequenceHash!==j.approval.hash)throw fault('请核对当前方案再确认。',409);
-      const changed=store.get(j.projectId).revision!==j.approval.revision;
-      change(id,{status:'queued',error:null,approval:null,input:{...j.input,approvedSequenceHash:changed?undefined:j.approval.hash}});
-      if(changed)event(id,'方案展示后工程已改变，将重新提交方案。');
+      if(store.get(j.projectId).revision!==j.approval.revision)throw fault('方案已过期。请选择“重新拟定分镜”，核对新版后再确认。',409);
+      change(id,{status:'queued',error:null,approval:null,input:{...j.input,approvedSequenceHash:j.approval.hash}});
       kick();return store.getJob(id);
     }
     if('approvedSequenceHash' in input)throw fault('此任务当前没有待确认方案。',409);

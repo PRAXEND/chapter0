@@ -138,7 +138,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
         if(method==='GET'&&id&&action&&part==='references'){
           const ref=await styles.getReference(id,action,leaf);if(!ref?.path||ref.verified===false)throw fault('参考文件尚未核验。',404);return await streamFile(req,res,ref.path);
         }
-        if(method==='GET'&&id)return json(res,await styles.get(id,action));
+        if(method==='GET'&&id){const style=await styles.get(id,action);return json(res,{...style,readiness:v8Readiness(style)});}
       }
       if(kind==='legacy'&&method==='GET')return json(res,await legacy.list());
       if(kind==='legacy-editor'&&method==='POST'){

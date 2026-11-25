@@ -84,3 +84,18 @@ test('manual material choices stay in their project and selected-only mode forbi
   assert.deepEqual(await sources.pick(p,[{key:first.key}]),['asset1']);assert.deepEqual(seen,[['p','demo']]);
   p.settings.sourceScope='project';await assert.rejects(sources.find(p,'demo'),/已有素材/);
 });
+test('shared portrait filter displays source in its window and uses the absolute fade clock in a one-frame preview',async t=>{
+  const {execFileSync}=await import('node:child_process');
+  const {symlink}=await import('node:fs/promises');
+  const {fileURLToPath}=await import('node:url');
+  const directory=await mkdtemp(path.join(os.tmpdir(),'v8-pixel-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  await symlink(fileURLToPath(new URL('../src/fonts/',import.meta.url)),path.join(directory,'fonts'));
+  const p={...project,profile:{width:270,height:480,fps:30},timeline:{clips:[]}}, l=portraitLayout(p);
+  const ff=await mediaTool('ffmpeg'),total=600;
+  for(const [at,min,max] of [[30,235,255],[564,110,145],[599,0,4]]){
+    await writeFile(path.join(directory,'portrait.ass'),portraitScript(p,l,at,at+1,total));
+    const raw=execFileSync(ff,['-loglevel','error','-filter_complex_threads','1','-f','lavfi','-i','color=red:s=270x152:r=30','-filter_complex',portraitGraph(p,l,'[0:v]',at,total),'-map','[outportrait]','-frames:v','1','-pix_fmt','rgb24','-f','rawvideo','pipe:1'],{cwd:directory});
+    const center=raw[(240*270+130)*3];assert.ok(center>=min&&center<=max,'sample '+at+' red '+center);
+    assert.ok(raw[(60*270+100)*3]<45);
+  }
+});

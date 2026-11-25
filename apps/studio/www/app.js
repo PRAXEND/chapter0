@@ -147,7 +147,7 @@ function activity(j){
   const text=(j.events||[]).slice(-8).map(e=>'<li>'+esc(e.message)+'</li>').join('');
   return `<div class="hrow space"><strong>${esc(['produce','revise'].includes(j.kind)?(j.creativeEngine==='local'?'本地粗剪进度':j.creativeEngine==='codex'?'Codex 剪辑进度':'剪辑进度'):j.kind==='preview'?'预览进度':'导出进度')}</strong><span class="pill">${statusLabels[j.status]||j.status}</span></div>
   ${j.status==='running'?'<progress></progress>':''}<ul class="log">${text}</ul>${j.error?'<p class="feedback">'+esc(j.error)+'</p>':''}
-  ${j.status==='awaiting-plan'&&j.approval?'<ol>'+j.approval.beats.map(b=>'<li>'+esc(s.p.assets.find(a=>a.id===b.assetId)?.name||b.assetId||'')+' · '+esc(String(b.sourceStart??0))+' 秒 · '+esc(b.narration||'')+'</li>').join('')+'</ol>'+btn('approve-plan','确认这版分镜并继续','primary',j.id):''}
+  ${j.status==='awaiting-plan'&&j.approval?'<ol>'+j.approval.beats.map(b=>'<li>'+esc(s.p.assets.find(a=>a.id===b.assetId)?.name||b.assetId||'')+' · '+esc(String(b.sourceStart??0))+' 至 '+esc(String(b.sourceEnd??'由实际片长决定'))+' 秒 · '+esc(b.narration||'')+'</li>').join('')+'</ol><details><summary>查看完整分镜、源区间和动效</summary><pre>'+esc(JSON.stringify(j.approval.beats,null,2))+'</pre></details>'+btn('approve-plan','确认这版分镜并继续','primary',j.id)+btn('replan','重新拟定分镜','',j.id):''}
   ${['running','queued'].includes(j.status)?btn('pause','暂停','',j.id):['paused','failed'].includes(j.status)?btn('resume','检查后续作','',j.id):''}`;
 }
 function inspector(c){
@@ -233,7 +233,7 @@ function drawAssets(){
 async function loadStyle(selector=s.p.style){
  const selected=s.p.id;const st=await api('/api/styles/'+urlPart(selector.id)+'/'+urlPart(selector.version));if(s.p?.id!==selected||s.tab!=='style')return;
  s.style=st;const ref=(st.references||[]).filter(r=>r.available!==false&&r.locator&&r.sha256);
- const templates=st.templates||[];el('view').innerHTML=`<section class="page"><h1>风格库</h1><div class="two-col"><section class="card">${field('查看风格与版本',select('browse-style',styleOptions(),st.id+'@'+st.version))}<div class="hrow space"><h2>${esc(st.name)}</h2><span class="pill">v${esc(st.version)}</span></div><p class="help">${esc(st.description||'')}</p>
+ const templates=st.templates||[];el('view').innerHTML=`<section class="page"><h1>风格库</h1><div class="two-col"><section class="card">${field('查看风格与版本',select('browse-style',styleOptions(),st.id+'@'+st.version))}<div class="hrow space"><h2>${esc(st.name)}</h2><span class="pill">v${esc(st.version)}</span></div><p class="help">${esc(st.description||'')}</p>${st.readiness?'<p>'+esc(st.readiness.ready?'基准片指纹已核对 · 可执行原动效 '+st.readiness.executable+' / '+st.readiness.expected:st.readiness.problems.join('，'))+'</p>':''}
  ${ref.map(r=>`<div class="entry"><span>${esc(r.title||r.id)}</span>${btn('style-ref',r.kind==='image'?'查看参考帧':r.kind==='audio'?'试听':/script|direction|text/i.test(r.kind)?'查看文字':'看片段','',r.id)}</div>`).join('')}<div class="actions">${btn('pin-style','用于本工程','primary')}</div>
  <h3>场景模板</h3>${field('模板',select('scene-template',templates.map(t=>typeof t==='string'?[t,t]:[t.id,t.name||t.title||t.id]),''))}
  <div class="form-grid">${field('事件落点（秒）',input('scene-action','1','number','min="0" step=".1"'))}${field('场景时长（秒）',input('scene-duration','4','number','min=".3" step=".1"'))}</div>${field('强调文字',input('scene-text','','text','placeholder="例如，灯芯亮起"'))}${check('scene-sound','在已标记的动作帧上加入音效',s.p.settings.sceneSound??(s.p.mode!=='interview'))}${field('落点音效来源',select('scene-sound-asset',[['','模板自带'],...s.p.assets.filter(a=>a.kind==='audio').map(a=>[a.id,a.name])],''))}${btn('add-scene','在选区加入可编辑模板')}</section>
@@ -335,6 +335,7 @@ async function runAction(act,id){
  }
  case 'preview':case 'render':return startJob(act,'local');
  case 'pause':s.jobs=await proj('/jobs');await api('/api/jobs/'+id+'/pause',{});return reload();
+ case 'replan':return startJob('produce','codex');
  case 'approve-plan':{
    const j=s.jobs.find(job=>job.id===id);
    await api('/api/jobs/'+id+'/resume',{approvedSequenceHash:j.approval.hash});return reload();}
