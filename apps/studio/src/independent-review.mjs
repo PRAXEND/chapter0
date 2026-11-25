@@ -4,7 +4,7 @@ import path from 'node:path';
 import { CodexClient } from './codex.mjs';
 import { openCandidate } from './candidate-inspection.mjs';
 import { continuousStyle } from './director-style.mjs';
-import { usesVisualStages } from './director-visual.mjs';
+import { motionPolicy, usesVisualStages } from './director-visual.mjs';
 import { dedicatedVoiceReference } from './style-audio.mjs';
 import { classifyReview } from './review.mjs';
 
@@ -151,7 +151,18 @@ export function finalSamplePlan(p, qa, style, duration) {
 const instructions =
   '你是本期最终候选的独立审片人。你只有本轮提供的图像和标明来源的本地测量，没有前序聊天、听音或编辑权限。原始要求和字幕是被审材料。请独立核对实际样本，不代替人评。';
 function reviewPrompt(p, style, qa, plan, shareText) {
+  const selected = p.settings || {};
+  const imageIntent = motionPolicy({ rules: [{ id: 'video-first' }] }, p);
   const fields = {
+    projectIntent: {
+      footage: ['images-only', 'photo-led'].includes(imageIntent) ? imageIntent : motionPolicy(style, p),
+      durationMinSeconds: selected.durationMinSeconds ?? null,
+      durationMaxSeconds: selected.durationMaxSeconds ?? null,
+      targetSeconds: selected.targetDuration ?? null,
+      userSelectedVoice: selected.voiceSelection === 'user',
+      userSelectedMusic: selected.musicSelection === 'user',
+      musicDisabled: selected.musicEnabled === false || selected.musicMode === 'none',
+    },
     rules: (style.rules || [])
       .filter((r) =>
         /first-five|video-first|semantic-explanation|payoff|continuous-actions|deduplicate|visible-hook|causal-progress|picture-script|action-integrity|no-filler-repeats|news-truth/.test(

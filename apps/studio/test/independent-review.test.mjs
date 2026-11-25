@@ -179,6 +179,7 @@ test('a new isolated turn compares signed final frames to the signed baseline wi
   assert.notEqual(got.threadId, f.project.threadId);
   assert.deepEqual(f.calls[0], { type: 'thread', id: null, tools: [] });
   const args = f.calls[1].args;
+  assert.match(args.prompt, /projectIntent/);
   assert.doesNotMatch(args.prompt, /UNSHARED_PROJECT_TEXT|PRIVATE_TRANSCRIPT|creative-author|\/Users\//);
   assert.equal(args.images.length, got.samples.length);
   assert.ok(got.samples.length <= 16);
