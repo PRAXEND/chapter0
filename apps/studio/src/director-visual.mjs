@@ -1,3 +1,4 @@
+import {continuousStyle} from './director-style.mjs';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -383,12 +384,13 @@ export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
             ];
       for (const seconds of new Set(times)) requests.push({ source: 'style', id: b.id, seconds });
     } else if (usesVisualStages(s)) gaps.push('基准片未登记。');
+    const sampleActions=policy==='video-first'||(continuousStyle(s)&&s.rules?.some(r=>r.id==='action-integrity'));
     const available = p.assets.filter((a) => a.source?.role !== 'hold' && !dedicatedVoiceReference(a));
     for (const a of available.filter((a) => a.kind === 'image').slice(0, 6))
       requests.push({ source: 'asset', id: a.id, seconds: 0 });
     for (const a of available.filter((a) => a.kind === 'video' && policy !== 'images-only').slice(0, 3)) {
       const fps = p.profile.fps, last = Math.max(0, Math.floor(a.duration * fps) - 1);
-      if (policy === 'video-first') {
+      if (sampleActions) {
         let scan;
         try {
           const { cache } = await deps.store.paths(p.id);
@@ -409,7 +411,9 @@ export async function prepareVisuals(deps, p, stage, extra, signal, policy) {
           requests.push({ source: 'asset', id: a.id, seconds });
         if (candidates.length) continue;
       }
-      requests.push({ source: 'asset', id: a.id, seconds: Math.min(last, Math.round(.5 * fps)) / fps });
+      const first=Math.min(last,Math.round(.5*fps));
+      requests.push({source:'asset',id:a.id,seconds:first/fps});
+      if(sampleActions&&last>first)requests.push({source:'asset',id:a.id,seconds:Math.min(last,first+Math.round(.75*fps))/fps});
     }
   } else if (stage === 'verify') {
     const { slots: all, pictures } = currentReviewWindows(p);

@@ -1083,3 +1083,43 @@ test('optional manual sequence approval binds the complete pre-speech cut, refus
   assert.ok(finished.changed);assert.equal(turns,1);assert.equal(counts().syntheses,1);assert.equal(p.pendingSequence,null);
   assert.equal(p.sequenceApproval.hash,hash);assert.equal(p.timeline.clips.find(c=>c.track==='caption').text,'这是一段获准的话。');
 });
+
+test('v8 B receives the scoped frozen A and style samples together and leaves current-only evidence on B',async t=>{
+  const {p,deps}=await fixture(t,{style:{id:'henry-technical-explainer',version:8},
+    settings:{shareFrames:true,shareTranscript:false,voiceMode:'original',musicMode:'none',sourceScope:'project'},
+    timeline:{clips:[{id:'old-shot',track:'video',assetId:picture.id,start:0,duration:50,sourceIn:0}]}});
+  const cache=deps.store.paths(p.id).cache;
+  // The transport contract uses labelled bytes. No decoder, model or video export is invoked.
+  const signature='a'.repeat(64),file=path.join(cache,'registered-first.mp4');
+  await writeFile(file,'plain text identity fixture');
+  deps.store.paths=()=>({cache,outputs:cache});
+  p.visualDirection={jobId:'A',status:'reviewed',timelineHash:'old-confirmed-version',frames:[]};
+  const original=clone(p);deps.store.getJob=()=>({projectId:p.id,revision:original.revision,files:{video:file},qa:{artifactSha256:signature},snapshot:original});
+  const baseline={id:'registered-reference',path:'/private/reference',kind:'video',duration:4,available:true,sha256:'refhash'};
+  deps.styleLibrary.get=async()=>({...p.style,templates:[{id:'step-reveal'}],references:[baseline],baseline,recipeSections:['reproduction_bundle.reference_srt']});
+  deps.styleLibrary.readDirectorSection=async()=>{throw Error('private section must be blocked first');};
+  deps.drafts={open:async current=>({name:'current-'+current.revision,fromFrame:0})};
+  deps.media={probeMedia:async()=>({kind:'video',duration:2,frames:50}),fileHash:async()=>signature,
+    frameAt:async (input,seconds,out)=>writeFile(out,'stub:'+input+':'+seconds)};
+  const cf={jobId:'A',revision:1,videoPath:file,sha256:signature,feedback:{audio:{finalTranscript:[{text:'DO_NOT_SEND_PRIVATE_TRANSCRIPT'}]}}};
+  deps.client={account:async()=>({connected:true}),thread:async()=> 'persistent',close(){},runTurn:async({onStart,prompt,images,tool})=>{
+    await onStart('review-b');assert.ok(!prompt.includes('DO_NOT_SEND_PRIVATE_TRANSCRIPT'));
+    assert.deepEqual(new Set(images.map(i=>i.frame.source)),new Set(['asset','style','candidate']));
+    const call=(name,args={})=>tool({tool:name,arguments:{baseRevision:p.revision,...args}});
+    await assert.rejects(call('studio_style',{section:'reproduction_bundle.reference_srt'}),/关闭转录/);
+    await assert.rejects(call('studio_import',{candidateId:'foreign'}),/固定/);
+    const before=await call('studio_frame',{source:'candidate',seconds:0});
+    await call('studio_sequence',{operation:'replace-all',beats:[{assetId:picture.id,durationSeconds:2,narration:'本版改用另一种说法。'}]});
+    const now=await call('studio_frame',{source:'timeline',seconds:0});
+    assert.notDeepEqual(before.contentItems[0],now.contentItems[0]);
+    const after=await call('studio_frame',{source:'candidate',seconds:0});assert.deepEqual(before,after);
+    return '已重新编排';
+  }};
+  const d=createDirector(deps);t.after(()=>d.close());
+  await d.run(p.id,{kind:'revise',jobId:'B',reviewCandidate:cf,message:'独立回看第一版'});
+  assert.deepEqual(p.visualDirection,original.visualDirection);assert.equal(p.candidateInspection.status,'revised');
+  assert.ok(p.candidateInspection.requests.some(f=>f.source==='asset'&&f.delivery==='native'));
+  const current=p.candidateInspection.requests.find(f=>f.source==='timeline');
+  assert.equal(current.revision,p.revision);assert.match(current.timelineHash,/^[a-f0-9]{64}$/);
+  assert.ok(!original.timeline.clips.some(c=>c.id==='scene-0-video'));
+});

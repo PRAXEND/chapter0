@@ -16,9 +16,10 @@ export function recipeSections(spec) {
   return sections;
 }
 
-const privateKey=/(?:path|locator|file_?url|editor_?url|source_?url|master_scope|original_scope|token|credential|private_?key|authorization|cookie)$/i;
+const privateKey=/(?:path|locator|file_?url|editor_?url|source_?url|master_scope|original_scope|token|credential|private_?key|authorization|cookie|base64|data_?url)$/i;
 export function publicStyleValue(v){
-  if(typeof v==='string')return v.replace(/(?:file:\/\/)?\/(?:Users|private|Volumes|home|mnt)\/[^\s，。；)\]"']+/gu,'[本地参考]')
+  if(typeof v==='string')return v.replace(/(?:file:\/\/)?\/(?:Users|private|Volumes|home|mnt|tmp|var)\/[^\s，。；)\]"']+/gu,'[本地参考]')
+    .replace(/data:[^\s,;]+(?:;[^,\s]*)?,[A-Za-z0-9+/=]{32,}/gi,'[媒体保存在本机]')
     .replace(/https?:\/\/[^\s，。；)"'\]]+/gu,s=>{
       try{const u=new URL(s);if(u.username||u.password)return '[私有地址]';u.search='';u.hash='';return u.href;}catch{return '[参考链接]';}
     });
