@@ -102,8 +102,12 @@ export function createStyleLibrary(dataRoot, options={}) {
     const result=new Map();
     const bundledResources=new Map();
     const packRoots=[];
+    const shippedV8=new Set();
     function add(spec,origin,pack) {
       if (!spec || !validId.test(spec.id)||!Number.isSafeInteger(spec.version)||spec.version<1||!spec.name) return;
+      const fixed=spec.version===8 && ['henry-hot-news','henry-technical-explainer'].includes(spec.id);
+      if(fixed && shippedV8.has(spec.id))return;
+      if(fixed && origin==='pack' && path.dirname(pack)===packDir)shippedV8.add(spec.id);
       result.set(spec.id+'@'+spec.version,{spec,origin,pack});
     }
     for(const spec of fallbackSpecs) add(spec,'builtin',null);

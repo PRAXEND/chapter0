@@ -438,7 +438,7 @@ async function context(deps, project, selection) {
     brief: project.brief,
     script: project.script,
     revision: project.revision,
-    profile: project.profile,
+    profile: project.profile, presentation:portraitLayout(project),
     selection: selection || project.selection || null,
     publishPackage: Boolean(project.settings?.publishPackage),
     privacy: { shareTranscript: shared, shareFrames: project.settings?.shareFrames === true },
@@ -1482,7 +1482,7 @@ export function createDirector(deps) {
           ? '\n用户明确规定全片只用静态图像，按此素材例外制作。'
           : visual?.policy==='photo-led' ? '\n本片允许照片为主，可按照片上的实际位置解释细节；用户要求的个别现场镜头仍可正常检索。' : '';
     const creativeLoop=visual?.continuous?'\n本次在同一个工程持续剪辑。可先用 studio_edit 或 studio_sequence(intent=trial) 做一个可见的试剪，然后用 studio_frame(s) 或 studio_review_cut 看实切效果并继续选源、扩剪和改句。可用 studio_sequence(operation=append) 续段、replace-range 一次重排多镜或删整段、replace-all 重新编排本片。复查时同样可改旁白、镜头和整段结构。用 studio_cut_ready 表示试剪已足以代表完整本片。每次改动后复查真实新版本，限制以用户选区、锁和素材授权为准。'+
-      (summary.publishPackage?' 发布文案与横竖封面由 studio_publication 设置。涉及竖屏标题时结合实测旁白结束时刻，为片末 1.8 秒留可连续观看的动作。':''):'';
+      (summary.publishPackage||summary.presentation?' 使用 studio_publication 设置简短标题、标题内的黄色重点及两个封面的帧和取景中心。竖版标题最多两行，每行最多约十个汉字。图解与动作在居中的素材窗内，字幕在窗下。片末留 1.8 秒连续的动作与渐隐黑场，先结束旁白。':''):'';
     const outcome = await client.runTurn({
       threadId,
       existingTurnId,

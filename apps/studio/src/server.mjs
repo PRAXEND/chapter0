@@ -1,3 +1,4 @@
+import {v8Readiness} from './v8-readiness.mjs';
 import {sourceSelection} from './source-selection.mjs';
 import {compareCompositions} from './composite-parity.mjs';
 import {motionCatalog} from './motion-components.mjs';
@@ -66,6 +67,10 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
     transcribeForReview:audio.transcribe,
     comparePreview:(p,options)=>compareCompositions(p,{...options,drafts,cache:store.paths(p.id).cache}),
     async prepare(project,{signal,onProgress,kind,message}){
+      if(kind==='produce'&&styles.get){
+        const ready=v8Readiness(await styles.get(project.style.id,project.style.version));
+        if(ready&&!ready.ready)throw fault('此风格尚未就绪：'+ready.problems.join('，'),409);
+      }
       if(kind==='produce'&&director.prepareAudio)project=await director.prepareAudio(project.id,{signal,message});
       const caps=await audio.audioCapabilities();
       if(project.settings.voiceMode==='preset'&&!caps.preset)throw fault('本机尚未准备 Qwen 预置中文声音。请在工作台设置中点击“准备本地预置男声”，完成后继续本工程。',409);
@@ -179,6 +184,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
           return await streamFile(req,res,await contained(path.join(dir,part),dir));
         }
         if(action==='select'&&method==='POST'){const b=await readJson(req);if(b.clipId&&!p.timeline.clips.some(c=>c.id===b.clipId))throw fault('片段不存在。');store.setMeta(id,{selection:b});return json(res,{ok:true});}
+        if(action==='v8-readiness'&&method==='GET')return json(res,v8Readiness(await styles.get(p.style.id,p.style.version)));
         if(action==='source-options'&&method==='POST'){
           const b=await readJson(req);
           return json(res,part==='pick'?await shortlist.pick(p,b.items):await shortlist.find(p,b.query));

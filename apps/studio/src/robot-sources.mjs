@@ -2,7 +2,7 @@ import path from 'node:path';
 import {stat} from 'node:fs/promises';
 import {mediaTool,run} from './media-runtime.mjs';
 
-export const robotics=/机器人|机械手|具身|宇树|优必选|机器人|人形|robot(?:ics|s)?|humanoid|unitree|boston dynamics|optimus|figure ai|agility robotics/i;
+export const robotics=/机器人|机械手|具身|宇树|优必选|人形|robot(?:ics|s)?|humanoid|unitree|boston dynamics|optimus|figure ai|agility robotics/i;
 const repo='chchenghuiguo-alt/video-daily',api='https://api.github.com/repos/'+repo;
 const tokens=q=>String(q).toLowerCase().match(/[a-z0-9]+|[\u3400-\u9fff]{2}/gu)||[];
 const score=(title,q)=>tokens(q).reduce((n,t)=>n+(title.toLowerCase().includes(t)?t.length:0),0);
@@ -27,7 +27,7 @@ export async function dailySources(query,{readJson,signal,kind}) {
     for(const [i,meta] of metas.entries()){
       if(!/^https:\/\/(?:www\.)?(?:x|twitter)\.com\//i.test(meta.source_url||''))continue;
       for(const media of meta.media||[]){
-        if(media.type!==kind||!/^([\w.-]+\/)*[\w.-]+$/.test(media.file)||media.file.split('/').some(x=>x==='.'||x==='..')||!/^\w{64}$/.test(media.sha256)||!(media.bytes>0))continue;
+        if(media.type!==kind||!/^([\w.-]+\/)*[\w.-]+$/.test(media.file)||media.file.split('/').some(x=>x==='.'||x==='..')||!/^[a-f0-9]{64}$/i.test(media.sha256)||!(media.bytes>0))continue;
         const key=prefix+selected[i].id+'/'+media.file;
         results.push({provider:'每日 X 素材仓库',kind,title:meta.title||selected[i].title,statement:meta.summary||'',url:meta.source_url,
           downloadUrl:'https://media.githubusercontent.com/media/'+repo+'/'+sha+'/'+key,alternateUrls:[raw+key],expectedSha256:media.sha256,expectedBytes:media.bytes,
@@ -51,7 +51,9 @@ export async function youtubeSources(query,{signal,execute=run,resolve=mediaTool
   const exe=await resolve('yt-dlp');
   if(!exe)throw Error('YouTube 区间工具 yt-dlp 尚未安装。');
   const id=youtubeId(query);
-  const out=await execute(exe,['--ignore-config','--skip-download','--no-playlist',...(id?[]:['--flat-playlist']),'--dump-json','--socket-timeout','8','--retries','0','--',id?'https://www.youtube.com/watch?v='+id:'ytsearch4:'+query],{signal,maxOutput:6*1024*1024});
+  const timeout=AbortSignal.timeout(30000);
+  const deadline=signal?AbortSignal.any([signal,timeout]):timeout;
+  const out=await execute(exe,['--ignore-config','--skip-download','--no-playlist',...(id?[]:['--flat-playlist']),'--dump-json','--socket-timeout','8','--retries','0','--',id?'https://www.youtube.com/watch?v='+id:'ytsearch4:'+query],{signal:deadline,maxOutput:6*1024*1024});
   return out.trim().split('\n').filter(Boolean).map(l=>JSON.parse(l)).filter(v=>/^[\w-]{11}$/.test(v.id)).map(v=>{
     const url='https://www.youtube.com/watch?v='+v.id;
     return {provider:'YouTube',youtubeId:v.id,url,downloadUrl:url,kind:'video',title:v.title||'',statement:v.description?.slice(0,900)||'',
@@ -74,4 +76,19 @@ export async function acquireYoutube(candidate,temp,window,{signal,resolve=media
   const actual=await probe(file,opts);
   if(actual.kind!=='video'||Math.abs(actual.duration-(window.end-window.start))>1||(await stat(file)).size>256*1024*1024)throw Error('取得的源片段与登记区间不一致。');
   return {file,source:{...candidate,...metadata,sourceOffsetSeconds:window.start,sourceEndSeconds:window.end,sourceWindow:window}};
+}
+
+const publishers=['bostondynamics.com','figure.ai','agilityrobotics.com','unitree.com','deepmind.google','nvidia.com','spectrum.ieee.org','1x.tech','apptronik.com','robotics.stanford.edu','csail.mit.edu','rai-inst.com'];
+export async function publisherFacts(query,readJson,signal) {
+  const terms=String(query).replace(/[^\p{L}\p{N}\s-]/gu,' ').trim().slice(0,150);
+  if(!terms)return [];
+  const url=new URL('https://api.gdeltproject.org/api/v2/doc/doc');
+  url.search=new URLSearchParams({query:terms+' ('+publishers.map(h=>'domain:'+h).join(' OR ')+')',mode:'artlist',format:'json',maxrecords:'12',sort:'datedesc'});
+  const data=await readJson(url,signal),found=[];
+  for(const a of data.articles||[]){
+    let page;try{page=new URL(a.url);}catch{continue;}
+    if(page.protocol!=='https:'||!publishers.some(h=>page.hostname===h||page.hostname.endsWith('.'+h))||!a.title)continue;
+    found.push({url:page.href,title:String(a.title),excerpt:String(a.title),publisher:page.hostname,type:'indexed-page',indexedAt:a.seendate,date:'',excerptSource:'title-only'});
+  }
+  return found;
 }

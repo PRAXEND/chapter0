@@ -124,6 +124,11 @@ async function fixture(t, config = {}) {
       p.revision++;
       return clone(a);
     },
+    async applySceneEdit(id,base,commands,metadata,actor){
+      await this.apply(id,base,commands,actor);
+      this.setMeta(id,metadata);
+      return this.get(id);
+    },
     async apply(_id, base, commands) {
       assert.equal(base, p.revision, 'revision write conflict');
       const clips = clone(p.timeline.clips);

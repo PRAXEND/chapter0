@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {robotics,dailySources,youtubeSources,youtubeId,acquireYoutube} from './robot-sources.mjs';
+import {publisherFacts,robotics,dailySources,youtubeSources,youtubeId,acquireYoutube} from './robot-sources.mjs';
 import dns from 'node:dns/promises';
 import https from 'node:https';
 import { BlockList, isIP } from 'node:net';
@@ -489,7 +489,7 @@ async function openverse(query, readJson, signal) {
 }
 
 // These references describe claims. An illustrative media asset keeps its own separate credit.
-export async function searchFacts(query, { signal } = {}) {
+export async function searchFacts(query, { signal,readJson=json } = {}) {
   const term = String(query || '')
     .trim()
     .slice(0, 200);
@@ -515,7 +515,7 @@ export async function searchFacts(query, { signal } = {}) {
     rows: '5',
     select: 'DOI,title,abstract,published,publisher',
   });
-  const [papers, encyclopedia] = await Promise.allSettled([json(crossref, signal), json(wiki, signal)]);
+  const [papers, encyclopedia, primary] = await Promise.allSettled([readJson(crossref, signal), readJson(wiki, signal), robotics.test(term)?publisherFacts(term,readJson,signal):[]]);
   signal?.throwIfAborted();
   const a =
     papers.status === 'fulfilled'
@@ -538,7 +538,7 @@ export async function searchFacts(query, { signal } = {}) {
           type: 'encyclopedia',
         }))
       : [];
-  return [...b, ...a].filter((x) => x.url && x.excerpt);
+  return [...(primary.status==='fulfilled'?primary.value:[]), ...b, ...a].filter((x) => x.url && x.excerpt);
 }
 const spaceTerms =
   /太空|太空人|月球|月面|月壤|登月|阿波罗|阿尔忒弥斯|火星|航天|天文|宇航|卫星|空间站|望远镜|\b(nasa|apollo|artemis|orion|moon|mars|space|orbital|telescope|astronaut|satellite|lunar)\b/i;
