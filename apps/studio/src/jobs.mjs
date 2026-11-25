@@ -6,10 +6,12 @@ import {styleAudioPolicy} from './style-audio.mjs';
 import { randomUUID } from 'node:crypto';
 import { portableProject, publishDelivery } from "./library.mjs";
 import { fault } from './project.mjs';
+import {applyFinalReview,finalReviewApplies,finalReviewSkeleton,finalReviewSkip} from './independent-review.mjs';
+import {usesVisualStages} from './director-visual.mjs';
 import {cutFeedback} from './cut-feedback.mjs';
 const stamp=()=>new Date().toISOString();
 const activeStates=['queued','running','pausing'];
-export function createQueue({store, director, media, reviewProject, comparePreview, transcribeForReview, prepare, deliveryRoot, styles}) {
+export function createQueue({store, director, media, reviewProject, finalReviewer, comparePreview, transcribeForReview, prepare, deliveryRoot, styles}) {
   const running=new Map();
   let stopping=false, scheduled=false;
   function change(id,patch){return store.saveJob({...store.getJob(id),...patch,updatedAt:stamp()});}
@@ -101,10 +103,12 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
       const styleSpec=styles?.get && p.style ? await styles.get(p.style.id,p.style.version) : undefined;
       const musicPolicy=styleAudioPolicy(styleSpec)?.music;
       const styleMusicResource=musicPolicy&&styles?.getMusicResource?await styles.getMusicResource(p.style.id,p.style.version,musicPolicy):null;
-      const qa=await reviewProject(p,{videoPath:j.files.video,srtPath:j.files.subtitle,signal,comparePreview,preview:j.kind==='preview',findings:p.findings||[],styleSpec,styleMusicResource});
+      const former=j.firstCutId?store.getJob(j.firstCutId):null;
+      const previousCandidate=former?.reviewJobId===id&&former.projectId===projectId?former:null;
+      let qa=j.phase==='independent-review'?j.qa:await reviewProject(p,{videoPath:j.files.video,srtPath:j.files.subtitle,signal,comparePreview,preview:j.kind==='preview',findings:p.findings||[],styleSpec,styleMusicResource,previousCandidate});
       signal.throwIfAborted();
       const remedy=qa.repairs?.[0];
-      if(remedy && !(j.cutRole==='first' && qa.candidatePlayable) && !qa.deliverable && j.repairs<2 && store.get(projectId).revision===p.revision){
+      if(j.phase!=='independent-review' && remedy && !(j.cutRole==='first' && qa.candidatePlayable) && !qa.deliverable && j.repairs<2 && store.get(projectId).revision===p.revision){
         let next=p;
         if(remedy.kind==='edit'){
           if(remedy.baseRevision!==p.revision)throw fault('修复所依据的工程版本已改变。',409);
@@ -113,6 +117,16 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
         note(remedy.reason||'修复后重新检查成片');
         change(id,{status:'queued',phase:'render',repairs:j.repairs+1,revision:next.revision,snapshot:next,priorCandidates:[...(j.priorCandidates||[]),{revision:j.revision,files:j.files,qa}]});
         return;
+      }
+      if(finalReviewer&&finalReviewApplies(j,p,styleSpec)){
+        if(j.phase!=='independent-review')j=change(id,{phase:'independent-review',qa});
+        note('独立终审正在核对冻结候选与风格基准');
+        const state=qa.candidatePlayable?await finalReviewer({job:j,project:p,style:styleSpec,checkpoint:j.finalReviewState,signal,persist:state=>change(id,{finalReviewState:state})}):{...finalReviewSkeleton(j,p,styleSpec),status:'skipped',reason:'no-playable-candidate'};
+        signal.throwIfAborted();
+        change(id,{finalReviewState:state});qa=applyFinalReview(qa,state);
+      }else if(j.kind==='produce'&&j.input.engine==='codex'&&usesVisualStages(styleSpec||p.style)){
+        const skip=finalReviewSkip(store.get(projectId),p);
+        if(skip)qa=applyFinalReview(qa,{...finalReviewSkeleton({...j,qa},p,styleSpec),status:'skipped',reason:skip});
       }
       let files={...j.files};
       if(p.settings.publishPackage&&j.kind!=='preview')files={...files,...await makePublicationPackage(p,{videoPath:files.video,directory,media,signal})};

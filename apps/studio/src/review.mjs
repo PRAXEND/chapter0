@@ -6,6 +6,7 @@ import {fileSha256} from './style.mjs';
 import {reviewVisualEvidence} from './visual-review.mjs';
 import {reviewStyleAudio} from './style-audio-review.mjs';
 import {isMusicBed} from './music-evidence.mjs';
+import {durationFinding} from './duration.mjs';
 import {currentCutNotes} from './storyboard.mjs';
 import {withinSegmentMessage} from './speech-alignment.mjs';
 export {createBlindReview} from './blind-review.mjs';
@@ -258,7 +259,7 @@ function currentDirectorFindings(project) {
   if(locations.length)problems.push({...issue('estimated-caption-switches','minor',withinSegmentMessage,'播放标记的换字位置，按听感微调字幕。',locations[0].frame,locations[0].frame),locations});
   return problems;
 }
-export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,comparePreview,styleSpec,styleMusicResource,resolveTool=defaultResolver}={}) {
+export async function reviewProject(project,{videoPath,srtPath,findings=[],signal,preview=false,comparePreview,styleSpec,styleMusicResource,previousCandidate,resolveTool=defaultResolver}={}) {
   const problems=[...findings,...currentDirectorFindings(project)],evidence={audio:[],decode:false};
   const meta={revision:project.revision,frameRate:project.profile.fps,artifactSha256:null,subtitleSha256:null,candidatePlayable:false,evidence,
     limitations:['波形与抽帧提供技术证据。音色自然度、发音、节奏偏好和未标注的动作语义需要原速观看或试听。']};
@@ -277,6 +278,8 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
     evidence.decode=true;meta.candidatePlayable=true;
     const frameCount=Number(stream.nb_frames),duration=Number(stream.duration||probe.format.duration);
     evidence.duration=duration;
+    const range=!preview&&durationFinding(project.settings,duration,project.profile.fps);
+    if(range)problems.push(range);
     const expected=Math.max(0,...project.timeline.clips.filter(isActive).map(c=>c.start+c.duration));
     if(!Number.isFinite(duration)||Math.abs((Number.isFinite(frameCount)&&frameCount>0?frameCount:Math.round(duration*project.profile.fps))-expected)>1 ||Math.abs(duration-expected/project.profile.fps)>1.5/project.profile.fps) {
       const end=Number.isFinite(duration)?Math.max(0,Math.round(duration*project.profile.fps)-1):0;
@@ -335,7 +338,7 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
         }
       }
     }
-    const visual=await reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,hashFile:fileSha256});
+    const visual=await reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,previousCandidate,hashFile:fileSha256});
     evidence.visual=visual.evidence;
     const director=project.visualDirection;
     if(visual.evidence.styleExecution&&director?.motion?.gap){

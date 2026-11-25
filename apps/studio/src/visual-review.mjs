@@ -4,6 +4,7 @@ import {projectSourceRegion,validRegion} from './visual-steps.mjs';
 import {motionPolicy,shotFingerprint} from './director-visual.mjs';
 import {sceneChange} from './motion-windows.mjs';
 import {reviewExplanatoryAnimations} from './diagram-review.mjs';
+import {refreshMotionWitnesses} from './semantic-refresh.mjs';
 import {visibleWindows} from './framing.mjs';
 import {viewportRect} from './viewport.mjs';
 
@@ -302,8 +303,8 @@ function coverage(windows,motion) {
     method:{windowMaxSeconds:4,windowLimit:36,sampleFractions:[.22,.47,.72],sampledWindows:motion.length,
       note:'按剪辑边界分为最长约四秒的窗口。每窗在原片和成片各抽三帧，用亮度差与近似整体平移缩放比对。变化帧数指满足该条件的窗口总长，不能精确计作持续动作秒数。疑似整体移动的结果仍可能含有较小或较慢的主体动作。'}};
 }
-async function motionReview(project,windows,evidence,policy,checks,hashFile) {
-  const {fps}=project.profile,c=coverage(windows,evidence.motion),r=project.visualDirection,verified=[];
+async function motionReview(project,windows,evidence,policy,checks,hashFile,renewed=[]) {
+  const {fps}=project.profile,c=coverage(windows,evidence.motion),r=project.visualDirection,verified=[...renewed];
   if(!policy.override&&c.changingFrames) {
     const filmed=await filmedSequence(project,windows,checks,evidence.motion,hashFile);
     evidence.witnessedShots=filmed;
@@ -436,7 +437,7 @@ function relevantRange(project,first,last) {
   return cue?[cue.start,lastFrame(cue)]:[first,last];
 }
 
-export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,hashFile}) {
+export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styleSpec,hashFile,previousCandidate}) {
   const requirements=visualRequirements(project),findings=[];
   const science=usesScienceGrammar(project,styleSpec),policy=videoFirstPolicy(project,styleSpec),ending=requestedEnding(project);
   const assets=new Map(project.assets.map(a=>[a.id,a])),shots=project.timeline.clips.filter(c=>c.track==='video'&&live(c)).sort((a,b)=>a.start-b.start).map(clip=>({clip,asset:assets.get(clip.assetId)}));
@@ -513,7 +514,12 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
   }
   if(policy) {
     if(!photosOnly&&!evidence.motion.length)evidence.motion=await measureMotion(project,windows,ffmpeg,signal,videoPath);
-    const miss=await motionReview(project,windows,evidence,policy,checks,hashFile);
+    let renewed=[];
+    if(previousCandidate&&!policy.override){
+      try{renewed=await refreshMotionWitnesses(project,previousCandidate,evidence.motion,{videoPath,hashFile,signal,readFrame:(file,t,w,h,rect)=>decodePixels(ffmpeg,file,t,w,h,signal,rect)});}
+      catch(error){signal?.throwIfAborted();evidence.previousWitnessChecks='unavailable';}
+    }
+    const miss=await motionReview(project,windows,evidence,policy,checks,hashFile,renewed);
     if(miss&&!findings.some(f=>f.id==='required-moving-footage'))findings.push(miss);
   }
   if(science&&requirements.styleFidelity) {
