@@ -320,7 +320,7 @@ async function render(project, { directory, output, preview = false, window, sig
     onProgress(0.6);
     const mix = await renderMix(audible, media, work, fps, mixStart, mixEnd, ffmpeg, signal, layout && portraitEnding(projectLength,fps));
     const layers = clips.filter(c => ['caption', 'graphic'].includes(c.track) && c.start < toFrame && c.start + c.duration > fromFrame);
-    const stageLayers=layout?layers.filter(c=>c.track!=='caption'):layers;
+    const stageLayers=layout||project.settings?.captionDisplay==='sidecar'?layers.filter(c=>c.track!=='caption'):layers;
     if (layout) {
       await symlink(fileURLToPath(new URL('./fonts',import.meta.url)),path.join(work,'fonts'));
       await writeFile(path.join(work,'portrait.ass'),portraitScript(project,layout,fromFrame,toFrame,projectLength));

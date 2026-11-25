@@ -73,6 +73,8 @@ export function validateClip(clip,p) {
 }
 function newSettings(mode, supplied={},style) {
   const s={voiceMode:mode==='interview'?'original':'system',shareFrames:false,shareTranscript:true,cloudEnabled:false,cloudBudget:0,publishPackage:false,...supplied};
+  if(s.captionDisplay!=null&&!['burned-in','sidecar'].includes(s.captionDisplay))throw fault('字幕显示方式无效。');
+  if(henryV8(style))s.requireCaptions=true;
   try {validateDuration(s);} catch(error){throw fault(error.message);}
   if(s.finalReviewMaxTurns!=null && ![0,1].includes(s.finalReviewMaxTurns))throw fault('独立终审次数可选 0 或 1。');
   if(s.confirmSequence!=null&&typeof s.confirmSequence!=='boolean')throw fault('审稿方式无效。');

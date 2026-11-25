@@ -436,6 +436,7 @@ async function context(deps, project, selection) {
     brief: project.brief,
     script: project.script,
     revision: project.revision,
+    captionDisplay:project.settings?.captionDisplay||'burned-in',
     profile: project.profile, presentation:portraitLayout(project),
     selection: selection || project.selection || null,
     publishPackage: Boolean(project.settings?.publishPackage),

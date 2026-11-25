@@ -114,7 +114,7 @@ function makeSteps(project,windows,checks) {
   const shapeAmbiguous=graphics.some(c=>c.shape==='outline'&&c.geometry?.width>0&&c.geometry?.height>0);
   const labels=graphics.filter(c=>anchoredLabel(c,project,checks));
   const candidates=labels.map(label=>({label,a:label.evidenceAnchor,annotation:'editable-label'}));
-  const captions=project.timeline.clips.filter(c=>live(c)&&c.track==='caption'&&plain(c.text)&&!generic(c.text));
+  const captions=project.timeline.clips.filter(c=>project.settings?.captionDisplay!=='sidecar'&&live(c)&&c.track==='caption'&&plain(c.text)&&!generic(c.text));
   for(const box of graphics.filter(c=>c.shape==='outline'&&c.evidenceAnchor)) {
     const a=box.evidenceAnchor;
     if(labels.some(l=>l.evidenceAnchor.stepId===a.stepId&&l.start<=lastFrame(box)&&box.start<=lastFrame(l)))continue;
@@ -457,7 +457,7 @@ export async function reviewVisualEvidence(project,{videoPath,ffmpeg,signal,styl
   const checks=currentVisualChecks(project);
   if(checks.length)evidence.composedChecks=checks.map(c=>({stage:c.stage,frame:c.frame,needsFix:c.needsFix}));
   for(const c of checks.filter(c=>c.needsFix)) {
-    const cue=project.timeline.clips.find(clip=>clip.track==='caption'&&covers(clip,c.frame));
+    const cue=project.timeline.clips.find(clip=>project.settings?.captionDisplay!=='sidecar'&&clip.track==='caption'&&covers(clip,c.frame));
     findings.push(finding('visual-witness-'+c.frame,requirements.editableEvidence||requirements.styleFidelity?'unknown':'minor','合成复看记录：'+c.observation+(cue?' 同段字幕为“'+cue.text+'”。':''),'回看对应原片与这段合成画面，再调整贴合画面的说明或镜头。',cue?.start??c.frame,cue?lastFrame(cue):c.frame));
   }
   if(!Object.values(requirements).some(Boolean)&&!policy&&!ending)return {evidence,findings};

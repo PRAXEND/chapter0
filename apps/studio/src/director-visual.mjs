@@ -27,7 +27,7 @@ export function usesVisualStages(style) {
 }
 export const shotFingerprint = (p) =>
   createHash('sha256')
-    .update(JSON.stringify([p.profile, p.timeline.clips,...(portraitLayout(p)?[p.style,headline(p)]:[])]))
+    .update(JSON.stringify([p.profile, p.timeline.clips,...(p.settings?.captionDisplay==='sidecar'?['sidecar']:[]),...(portraitLayout(p)?[p.style,headline(p)]:[])]))
     .digest('hex');
 const signature = (buffer) => createHash('sha256').update(buffer).digest('hex');
 

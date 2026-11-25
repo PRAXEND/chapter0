@@ -96,7 +96,7 @@ export function portraitScript(project,layout,from,to,total) {
   const {title,emphasis}=headline(project);
   const rows=balancedRows(title,10.55);
   lines.push(event(3,0,total,fps,typeLine({text:coloredTitle(rows,emphasis),x:width/2,y:layout.titleBottom,size:layout.titleSize})));
-  for(const c of project.timeline.clips.filter(c=>c.track==='caption'&&c.enabled!==false&&!c.hidden&&c.start<to&&c.start+c.duration>from)){
+  for(const c of project.timeline.clips.filter(c=>project.settings?.captionDisplay!=='sidecar'&&c.track==='caption'&&c.enabled!==false&&!c.hidden&&c.start<to&&c.start+c.duration>from)){
     const rows=balancedRows(c.text,18);
     lines.push(event(4,c.start,c.start+c.duration,fps,typeLine({text:rows.map(assText).join('\\N'),align:5,x:width/2,y:layout.captionTop+(rows.length===1?34:67.5)*s,size:layout.captionSize,weight:600})));
   }

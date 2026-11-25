@@ -105,3 +105,10 @@ test('shared portrait filter displays source in its window and uses the absolute
     assert.ok(raw[(60*270+100)*3]<45);
   }
 });
+
+test('a v8 sidecar project retains the aligned subtitle file while keeping the editable cue off the portrait picture',async()=>{
+  const {createSrt}=await import('../src/text-tracks.mjs');
+  const p={...project,settings:{captionDisplay:'sidecar'},timeline:{clips:[make('cap','caption',10,33,{text:'试听实际动作'})]}};
+  const cue=createSrt(p.timeline.clips,30);assert.match(cue,/试听实际动作/);assert.match(cue,/00:00:00,333/);
+  assert.doesNotMatch(portraitScript(p,portraitLayout(p),1,100,300),/试听实际动作/);
+});
