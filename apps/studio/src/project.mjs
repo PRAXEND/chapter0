@@ -1,4 +1,4 @@
-import {publicationFields} from './presentation.mjs';
+import {publicationFields,portraitLayout,portraitTitleProblem} from './presentation.mjs';
 import {requestedDurationRange,validateDuration} from './duration.mjs';
 import {validatePictureEffects,splitPictureEffects} from './news-effects.mjs';
 import {syncMotionSounds} from './motion-sound-binding.mjs';
@@ -236,6 +236,8 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
       if(changes.publication){
         const {title,body,tags}=changes.publication;
         if(typeof title!=='string'||typeof body!=='string'||!Array.isArray(tags)||tags.some(t=>typeof t!=='string'))throw fault('请输入有效的发布标题、正文与话题。');
+        const titleError=title.trim()&&portraitLayout(p)&&portraitTitleProblem(title);
+        if(titleError)throw fault(titleError);
         let layout;try{layout=publicationFields({...p.publication,...changes.publication});}catch(e){throw fault(e.message);}
         p.publication={...layout,title:text(title,180).trim(),body:text(body,4000).trim(),tags:[...new Set(tags.map(tag=>text(tag,48).trim().replace(/^#+/,'')))].filter(Boolean).slice(0,12)};
       }

@@ -1,3 +1,4 @@
+import {portraitFindings} from './presentation.mjs';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {readFile} from 'node:fs/promises';
@@ -280,6 +281,7 @@ export async function reviewProject(project,{videoPath,srtPath,findings=[],signa
     evidence.duration=duration;
     const range=!preview&&durationFinding(project.settings,duration,project.profile.fps);
     if(range)problems.push(range);
+    if(!preview)problems.push(...portraitFindings(project,Math.round(duration*project.profile.fps)));
     const expected=Math.max(0,...project.timeline.clips.filter(isActive).map(c=>c.start+c.duration));
     if(!Number.isFinite(duration)||Math.abs((Number.isFinite(frameCount)&&frameCount>0?frameCount:Math.round(duration*project.profile.fps))-expected)>1 ||Math.abs(duration-expected/project.profile.fps)>1.5/project.profile.fps) {
       const end=Number.isFinite(duration)?Math.max(0,Math.round(duration*project.profile.fps)-1):0;

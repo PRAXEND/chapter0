@@ -113,3 +113,22 @@ export function portraitGraph(project,layout,base,from,total) {
   const clock='settb=1/'+fps+',setpts=N+'+from;
   return 'color=c=0x030405:s='+width+'x'+height+':r='+fps+','+clock+',ass=portrait.ass:fontsdir=fonts,setpts=N[paper];[paper]'+base+'overlay=x=0:y='+layout.top+':shortest=1[stage];[stage]split[f][b];[b]drawbox=c=black:t=fill[black];[f][black]blend=all_expr=\'A*(1-('+t+')*('+t+')*(3-2*('+t+')))+B*('+t+')*('+t+')*(3-2*('+t+'))\':shortest=1[outportrait]';
 }
+
+export function portraitTitleProblem(title) {
+  const rows=balancedRows(title,10.55);
+  if(rows.length>2||rows.some(row=>[...row].reduce((n,c)=>n+(c.codePointAt(0)<256?.56:1),0)>10.55))
+    return '竖版标题超出两行素材窗，请缩短标题或调整换行。';
+  return null;
+}
+export function portraitFindings(project,total) {
+  if(!portraitLayout(project))return [];
+  const {title,emphasis}=headline(project),problems=[];
+  const issue=(id,severity,message,fix,fromFrame,toFrame)=>({id,reason:id,severity,message,fix,fromFrame,toFrame});
+  const overflow=portraitTitleProblem(title);
+  if(overflow)problems.push(issue('portrait-title-overflow','major',overflow,'在发布标题中保留主要信息。',0,0));
+  if(!emphasis)problems.push(issue('portrait-title-emphasis','minor','竖版标题缺少原风格的黄色重点。','在标题中选出要强调的词。',0,0));
+  const {black}=portraitEnding(total,project.profile.fps);
+  if(project.timeline.clips.some(c=>c.track==='narration'&&c.enabled!==false&&!c.hidden&&!c.muted&&(c.gain??1)>0&&c.start+c.duration>black))
+    problems.push(issue('portrait-narration-ending','minor','旁白轨延伸到片尾黑场，建议试听最后一句。','检查词尾，并在最后一句后保留动作和收尾。',black,Math.max(black,total-1)));
+  return problems;
+}

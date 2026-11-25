@@ -5,7 +5,7 @@ import os from 'node:os';
 import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
 import {requestedDurationRange,durationFinding} from '../src/duration.mjs';
 import {replacementEdits} from '../src/ripple.mjs';
-import {portraitLayout,portraitScript,portraitGraph,portraitEnding,publicationFields} from '../src/presentation.mjs';
+import {portraitLayout,portraitScript,portraitGraph,portraitEnding,portraitTitleProblem,publicationFields} from '../src/presentation.mjs';
 import {coverComposition,makePublicationPackage} from '../src/publication.mjs';
 import {dailySources,youtubeId,acquireYoutube} from '../src/robot-sources.mjs';
 import {sourceSelection} from '../src/source-selection.mjs';
@@ -43,6 +43,8 @@ test('retime a multi-shot line preserving source intervals, cue points, free-run
   p.timeline.clips[2].locked=true;assert.throws(()=>replacementEdits(p,voice,new Set(['voice']),40),/shot2/);
 });
 test('both portrait styles compile the approved window, title, captions, texture and ending on one project clock',()=>{
+  assert.ok(portraitTitleProblem('很长的选题'.repeat(14)));
+  assert.equal(portraitTitleProblem(project.title),null);
   const p={...project,publication:{title:project.title,emphasis:'抓牢'},timeline:{clips:[make('sub','caption',2,70,{text:'看指尖的动作'})]}};
   for(const id of ['henry-hot-news','henry-technical-explainer']){
     p.style={id,version:8};const l=portraitLayout(p);assert.equal(l.contentHeight,608);assert.equal(l.top,656);
