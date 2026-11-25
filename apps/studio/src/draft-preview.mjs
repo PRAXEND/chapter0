@@ -7,7 +7,7 @@ import {fault} from './project.mjs';
 // Projects can be reopened at the same revision after upgrading the compositor.
 const inputs=['./media.mjs','./motion-components.mjs','./motion-dom.mjs','./motion-render.mjs','./motion-font.mjs',
   './motion-jsx.generated.mjs','../scripts/motion-webkit.swift','../www/motion-clock.js',
-  './framing.mjs','./news-effects.mjs','./graphic-keys.mjs','./text-tracks.mjs','./polygon.mjs','./viewport.mjs'];
+  './presentation.mjs','./framing.mjs','./news-effects.mjs','./graphic-keys.mjs','./text-tracks.mjs','./polygon.mjs','./viewport.mjs'];
 const rendererVersion=Promise.all(inputs.map(name=>readFile(new URL(name,import.meta.url)))).then(parts=>{
   const hash=createHash('sha256').update(os.release());
   for(const bytes of parts)hash.update(bytes);

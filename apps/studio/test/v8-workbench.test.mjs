@@ -20,6 +20,10 @@ test('persist inclusive frame limits and keep local edit requests out of project
   const p=store.create({mode:'topic',style,brief:'从空工程剪一条50–60秒的完整成片。'});
   assert.equal(p.settings.durationMinSeconds,50);assert.equal(p.settings.durationMaxSeconds,60);
   assert.deepEqual(requestedDurationRange('把 18–24 秒换成操作特写'),{});
+  const runtime={durationMinSeconds:50,durationMaxSeconds:60};
+  assert.deepEqual(requestedDurationRange('将 18–24 秒的视频换成特写，片长保持 50–60 秒。'),runtime);
+  assert.deepEqual(requestedDurationRange('请把原片的 18–24 秒的视频换成特写。'),{});
+  assert.deepEqual(requestedDurationRange('做一条 50–60 秒的短视频。'),runtime);
   for(const n of [50,55,60])assert.equal(durationFinding(p.settings,n,24),null);
   for(const n of [49.5,60.25])assert.equal(durationFinding(p.settings,n,24).reason,'duration-range');
   assert.throws(()=>store.configure(p.id,p.revision,{settings:{durationMinSeconds:61}}));

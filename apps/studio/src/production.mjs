@@ -1,3 +1,4 @@
+import {requestedDurationRange} from './duration.mjs';
 import {contentStage} from '../www/motion-clock.js';
 import {hasV8Presentation,portraitLayout} from './presentation.mjs';
 import {sequenceRange} from './sequence-edit.mjs';
@@ -404,20 +405,10 @@ function timelineTiming(project) {
   const end=rows=>rows.reduce((max,c)=>Math.max(max,c.start+c.duration),0);
   const fps=project.profile.fps, frames=end(visible);
   const display=f=>Number((f/fps).toFixed(3));
-  let allowedSeconds;
-  // A local request such as “change 18–24 seconds” is a selection, not a runtime.
   const bounds=project.settings||{};
-  const range=/(\d+(?:\.\d+)?)\s*(?:秒|s(?:ec(?:onds?)?)?)?\s*(?:[-–—~～至到]|to)\s*(\d+(?:\.\d+)?)\s*(?:秒|s(?:ec(?:onds?)?)?\b)/i;
-  for(const clause of String(project.brief||'').split(/[，,。；;\n]/u)){
-    const m=clause.match(range);
-    if(!m)continue;
-    const before=clause.slice(0,m.index),after=clause.slice(m.index+m[0].length);
-    if(!/(?:全片|成片时长|总时长|片长|视频时长|全长|运行时长|total duration|runtime|running time)[^，,。；;]{0,18}$|^\s*(?:目标)?时长[^，,。；;]{0,12}$/i.test(before)&&!/^\s*(?:的)?(?:短片|成片|视频)/u.test(after))continue;
-    if(+m[1]>0&&+m[2]>=+m[1]){allowedSeconds={min:+m[1],max:+m[2]};break;}
-  }
-  if(Number.isFinite(bounds.durationMinSeconds)||Number.isFinite(bounds.durationMaxSeconds))allowedSeconds={
-    ...(Number.isFinite(bounds.durationMinSeconds)?{min:bounds.durationMinSeconds}:{}),
-    ...(Number.isFinite(bounds.durationMaxSeconds)?{max:bounds.durationMaxSeconds}:{})};
+  const explicit=['durationMinSeconds','durationMaxSeconds'].some(key=>Object.hasOwn(bounds,key));
+  const {durationMinSeconds:min,durationMaxSeconds:max}=explicit?bounds:requestedDurationRange(project.brief);
+  const allowedSeconds=(Number.isFinite(min)||Number.isFinite(max)) ? {...(min!=null&&{min}),...(max!=null&&{max})} : undefined;
   return {fps,frames,seconds:display(frames),narrationEndSeconds:display(end(visible.filter(c=>c.track==='narration'&&!c.muted))),
     targetSeconds:project.settings?.targetDuration??null,...(allowedSeconds&&{allowedSeconds,withinRequestedRange:frames/fps>=(allowedSeconds.min??0)&&frames/fps<=(allowedSeconds.max??Infinity)}),
     durationNotes:durationNotes(project,[]).filter(n=>n.kind==='target-duration').map(n=>n.message)};

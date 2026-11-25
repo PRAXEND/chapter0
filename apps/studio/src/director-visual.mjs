@@ -1,3 +1,4 @@
+import {portraitLayout,headline} from './presentation.mjs';
 import {continuousStyle} from './director-style.mjs';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -26,7 +27,7 @@ export function usesVisualStages(style) {
 }
 export const shotFingerprint = (p) =>
   createHash('sha256')
-    .update(JSON.stringify([p.profile, p.timeline.clips]))
+    .update(JSON.stringify([p.profile, p.timeline.clips,...(portraitLayout(p)?[p.style,headline(p)]:[])]))
     .digest('hex');
 const signature = (buffer) => createHash('sha256').update(buffer).digest('hex');
 

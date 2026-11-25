@@ -1,8 +1,19 @@
 // Explicit bounds are inclusive. A target by itself is a creative preference.
 export function requestedDurationRange(brief) {
-  const match = String(brief || '').match(/(?:片长|时长|总长|全长|控制在|剪(?:辑)?(?:一条|一个)?|制作(?:一条|一个)?)\s*(?:为|在|约)?\s*(\d+(?:\.\d+)?)\s*[-–—~～至到]\s*(\d+(?:\.\d+)?)\s*秒|(?:^|[，,。\s])(?<min>\d+(?:\.\d+)?)\s*[-–—~～至到]\s*(?<max>\d+(?:\.\d+)?)\s*秒(?:钟)?的?(?:完整)?(?:成片|短片|视频|片子)/u);
-  if (!match) return {};
-  return { durationMinSeconds: Number(match[1] ?? match.groups.min), durationMaxSeconds: Number(match[2] ?? match.groups.max) };
+  const range=/(\d+(?:\.\d+)?)\s*(?:秒|s(?:ec(?:onds?)?)?)?\s*(?:[-–—~～至到]|\bto\b)\s*(\d+(?:\.\d+)?)\s*(?:秒(?:钟)?|s(?:ec(?:onds?)?)?\b)/i;
+  let inferred;
+  for (const clause of String(brief||'').split(/[，,。；;\n]/u)) {
+    const m=range.exec(clause);
+    if(!m)continue;
+    const before=clause.slice(0,m.index),after=clause.slice(m.index+m[0].length);
+    const length=/(?:全片|(?:成片|目标|总|视频)?时长|片长|总长|全长|runtime|total duration|running time)[^，,。；;]{0,18}$/i.test(before);
+    const bounds={durationMinSeconds:Number(m[1]),durationMaxSeconds:Number(m[2])};
+    if(length)return bounds;
+    const film=/^\s*(?:的)?(?:完整)?(?:短视频|短片|成片|视频|片子)/u.test(after);
+    const editing=/(?:原片|素材|镜头|片段|把|将)[^，。]{0,12}$/u.test(before)||/(?:换成|改成|替换|剪掉|删除|保留旁白|回看|截取)/u.test(after);
+    if(film&&!editing)inferred=bounds;
+  }
+  return inferred||{};
 }
 export function validateDuration(settings) {
   for (const key of ['durationMinSeconds', 'durationMaxSeconds', 'targetDuration']) {
