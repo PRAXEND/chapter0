@@ -19,7 +19,8 @@ function cleanText(value) {
   return String(value ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f]/g, '');
 }
 
-function assText(value) {
+export const assClock=(frame,fps)=>clock(frame,fps,true);
+export function assText(value) {
   return cleanText(value).replaceAll('\\', '\\\u200c').replaceAll('{', '\\{').replaceAll('}', '\\}').replaceAll('\n', '\\N');
 }
 

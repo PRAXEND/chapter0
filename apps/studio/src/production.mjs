@@ -1,3 +1,4 @@
+import {portraitLayout} from './presentation.mjs';
 import {componentClip,motionCatalog,defaultMotionGeometry} from './motion-components.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { CodexClient } from './codex.mjs';
@@ -114,8 +115,8 @@ const tool = (name, description, properties = {}, required = []) => ({
 const tools = [
   tool(
     'studio_publication',
-    'Save the audience-facing Chinese title, post text and topics when the project requests a publish package.',
-    { baseRevision: int, title: str, body: str, tags: { type: 'array', items: str } },
+    'Save the audience-facing Chinese title, post text and topics for the portrait title and optional publication package. Choose a short exact emphasis substring and independent cover frames/focal points, coordinates 0–1.',
+    { baseRevision: int, title: str, emphasis:str, cover34:object({frame:int,x:num,y:num},['frame','x','y']), cover43:object({frame:int,x:num,y:num},['frame','x','y']), body: str, tags: { type: 'array', items: str } },
     ['baseRevision', 'title', 'body', 'tags']
   ),
   tool(
@@ -144,7 +145,7 @@ const tools = [
     'studio_research',
     'Look up dated bibliographic or encyclopedic evidence for a public topic. A publication title supports only what its wording states. Distinguish archival material from a recent event.',
     {
-      query: str,
+      query: str, urls:{type:'array',items:str,maxItems:4,description:'Public primary-source pages to inspect directly.'},
       readUrl: {
         type: 'string',
         description: 'Optional URL of an already registered public fact result to inspect its actual page text.',
@@ -154,8 +155,8 @@ const tools = [
   ),
   tool(
     'studio_import',
-    'Import a public media result from the host shortlist into this project.',
-    { candidateId: str },
+    'Import a registered media candidate. YouTube requires sourceStart and sourceEnd (original seconds) and a verified media licence.',
+    { candidateId: str,sourceStart:num,sourceEnd:num },
     ['candidateId']
   ),
   tool(
@@ -271,7 +272,7 @@ function publicSource(source = {}) {
     url: urlForModel(source.url),
     license: trim(source.license),
     statement: trim(source.statement, 1200),
-    date: trim(source.date),
+    date: trim(source.date), eventDate:trim(source.eventDate), collectedAt:trim(source.collectedAt), verifyStatus:trim(source.verifyStatus), sourceOffsetSeconds:source.sourceOffsetSeconds,
     role: trim(source.role),
   };
 }
@@ -1149,7 +1150,11 @@ export function createDirector(deps) {
       if (name === 'studio_research') {
         if (current.mode !== 'topic') throw new Error('公开检索限于本期选题模式。');
         let entries;
-        if(args.readUrl){
+        if(args.urls?.length){
+          if(args.urls.length>4)throw Error('每次最多核对四个来源。');
+          entries=(await readFacts({brief:'',settings:{factUrls:args.urls}},{signal})).map(f=>({...f,excerptSource:'page'}));
+          if(!entries.length)throw Error('没有取得可核对的网页正文。');
+        }else if(args.readUrl){
           const registered=(current.factSources||[]).find(f=>urlForModel(f.url)===args.readUrl);
           if(!registered)throw Error('仅可读取本工程已查得的公开事实来源。');
           const [page]=await readFacts({brief:'',settings:{factUrls:[registered.url]}},{signal});
@@ -1188,7 +1193,7 @@ export function createDirector(deps) {
       if (name === 'studio_import') {
         const entry = candidates.get(args.candidateId);
         if (!entry) throw new Error('请从本次查询结果选择素材。');
-        const asset = await acquire(store, id, entry, { signal });
+        const asset = await acquire(store, id, entry, { signal, ...(entry.youtubeId&&{window:{start:args.sourceStart,end:args.sourceEnd}}) });
         return toolText({
           assetId: asset.id,
           name: asset.name,
@@ -1239,9 +1244,9 @@ export function createDirector(deps) {
       if (visual?.stage === 'compose' && !visual.sequence && ['studio_edit', 'studio_component', 'studio_narrate'].includes(name))
         throw Error('首版请先提交包含真实视觉证据的完整分镜。');
       if (name === 'studio_publication') {
-        if (!current.settings.publishPackage) throw new Error('本工程未启用发布包。');
+        if (!current.settings.publishPackage && !portraitLayout(current)) throw new Error('本工程未启用发布包。');
         const saved = await store.configure(id, args.baseRevision, {
-          publication: { title: args.title, body: args.body, tags: args.tags },
+          publication: { title: args.title, body: args.body, tags: args.tags, emphasis:args.emphasis||'', ...(args.cover34&&{cover34:args.cover34}), ...(args.cover43&&{cover43:args.cover43}) },
         });
         if(candidate){observedRevision=saved.revision;changed=true;await remember();}
         return toolText({ revision: saved.revision });

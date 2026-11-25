@@ -63,7 +63,7 @@ export async function publishDelivery(root,project,jobId,files,styles){
   const date=new Intl.DateTimeFormat('sv-SE',{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const folder=path.join(root,date+' '+title+' · v'+project.revision+'-'+jobId.slice(0,8));
   const temp=folder+'.'+randomUUID()+'.tmp';
-  const names={video:title+'.mp4',subtitle:title+'.srt',review:'验收记录.json',credits:'素材与事实来源.txt',cover34:'封面 3×4.jpg',cover43:'封面 4×3.jpg',copy:'发布文案.txt'};
+  const names={video:title+'.mp4',subtitle:title+'.srt',review:'验收记录.json',credits:'素材与事实来源.txt',cover34:'封面 3×4.png',cover43:'封面 4×3.png',copy:'发布文案.txt'};
   await mkdir(temp,{recursive:true,mode:0o700});
   try{
     const published={};

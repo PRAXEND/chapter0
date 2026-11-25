@@ -19,13 +19,14 @@ export async function executable(candidates) {
 
 const checks = new Map();
 export async function mediaTool(name) {
-  if (!['ffmpeg', 'ffprobe', 'melt', 'whisper-cli'].includes(name)) throw new Error('未知媒体工具');
+  if (!['ffmpeg', 'ffprobe', 'melt', 'whisper-cli', 'yt-dlp'].includes(name)) throw new Error('未知媒体工具');
   const override = process.env[`VIDEO_STUDIO_${name.toUpperCase().replaceAll('-', '_')}`];
   const resourceDir = process.env.VIDEO_STUDIO_RESOURCE_DIR;
   const cache = mediaCache();
   const bundle = 'Shotcut.app/Contents/MacOS';
   const candidates = [
     override,
+    name==='yt-dlp'&&path.join(os.homedir(),'Library/Application Support/Video Studio/runtime/bin/yt-dlp'),
     resourceDir && path.join(resourceDir, 'bin', name),
     process.env.VIDEO_STUDIO_NATIVE_BIN && path.join(process.env.VIDEO_STUDIO_NATIVE_BIN, name),
     path.join(cache, 'bin', name),

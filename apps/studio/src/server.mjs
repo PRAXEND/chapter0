@@ -1,3 +1,4 @@
+import {sourceSelection} from './source-selection.mjs';
 import {compareCompositions} from './composite-parity.mjs';
 import {motionCatalog} from './motion-components.mjs';
 import {paceNarration} from './style-audio-render.mjs';
@@ -54,6 +55,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   const release=owner?await nativeOwner(root):async()=>{};
   const store=createStore(root,{probeMedia:dependencies.probeMedia||media.probeMedia});
   const styles=dependencies.styles||createStyleLibrary(root);
+  const shortlist=sourceSelection(store,dependencies.sourceSelection);
   const drafts=draftPreviews(store,dependencies.media||media);
   const director=dependencies.director||createDirector({store,styleLibrary:styles,media,audio,drafts});
   const standardLibrary=path.resolve(root)===path.resolve(defaultRoot())&&!process.env.STUDIO_DATA_ROOT;
@@ -177,6 +179,10 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
           return await streamFile(req,res,await contained(path.join(dir,part),dir));
         }
         if(action==='select'&&method==='POST'){const b=await readJson(req);if(b.clipId&&!p.timeline.clips.some(c=>c.id===b.clipId))throw fault('片段不存在。');store.setMeta(id,{selection:b});return json(res,{ok:true});}
+        if(action==='source-options'&&method==='POST'){
+          const b=await readJson(req);
+          return json(res,part==='pick'?await shortlist.pick(p,b.items):await shortlist.find(p,b.query));
+        }
         if(action==='facts'&&method==='GET')return json(res,{facts:p.facts||[],notes:p.directorNotes||[],anchors:p.sourceAnchors||[]});
         if(action==='facts'&&part&&leaf==='open'&&method==='POST'){
           const fact=/^\d+$/.test(part)&&p.facts?.[Number(part)];

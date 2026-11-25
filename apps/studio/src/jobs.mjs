@@ -29,6 +29,7 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
     });
   }
   function enqueue(projectId,kind,input={}) {
+    if('approvedSequenceHash' in input)throw fault('方案须从本任务的确认入口批准。');
     if('reviewCandidate' in input)throw fault('回看文件由工作台绑定。');
     const p=store.get(projectId);
     if(!['produce','revise','preview','render'].includes(kind))throw fault('未知任务。');
@@ -75,6 +76,10 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
         note(reviewCandidate?'Codex 正在回看已导出的首版':'正在组织素材和剪辑');
         const outcome=await director.run(projectId,{...j.input,reviewCandidate,jobId:id,kind:j.kind,signal,onEvent:note});
         if(signal.aborted)throw signal.reason;
+        if(outcome?.awaitingSequenceApproval){
+          change(id,{status:'awaiting-plan',approval:outcome.awaitingSequenceApproval,input:{...j.input,approvedSequenceHash:undefined}});
+          note('分镜和台词已备好，等待本期指定的确认。');return;
+        }
         const p=store.setMeta(projectId,{lastDirection:{message:String(outcome?.message||''),engine:outcome?.engine,needsReview:outcome?.needsReview||null}});
         change(id,{phase:'render',revision:p.revision,snapshot:p,creativeResult:{message:outcome?.message,engine:outcome?.engine,changed:outcome?.changed,needsReview:outcome?.needsReview||false}});
         if(!p.timeline.clips.some(c=>c.track==='video'))throw fault(outcome?.message||'草稿缺少可用画面，请导入素材。');
@@ -150,7 +155,17 @@ export function createQueue({store, director, media, reviewProject, comparePrevi
   }
   function resume(id,input={}){
     if('reviewCandidate' in input)throw fault('回看文件由工作台绑定。');
-    const j=store.getJob(id);if(!['paused','failed'].includes(j.status))throw fault('当前任务不能续作。',409);
+    const j=store.getJob(id);
+    if(j.status==='awaiting-plan'){
+      if(store.listJobs(j.projectId).some(other=>other.id!==j.id&&activeStates.includes(other.status)))throw fault('该工程另有任务正在运行。',409);
+      if(typeof j.approval?.hash!=='string'||input.approvedSequenceHash!==j.approval.hash)throw fault('请核对当前方案再确认。',409);
+      const changed=store.get(j.projectId).revision!==j.approval.revision;
+      change(id,{status:'queued',error:null,approval:null,input:{...j.input,approvedSequenceHash:changed?undefined:j.approval.hash}});
+      if(changed)event(id,'方案展示后工程已改变，将重新提交方案。');
+      kick();return store.getJob(id);
+    }
+    if('approvedSequenceHash' in input)throw fault('此任务当前没有待确认方案。',409);
+    if(!['paused','failed'].includes(j.status))throw fault('当前任务不能续作。',409);
     if(j.firstCutId && input.engine!==undefined && input.engine!=='codex')throw fault('自动回看须使用 Codex 续作。');
     if(store.listJobs(j.projectId).some(other=>other.id!==j.id&&activeStates.includes(other.status)))throw fault('该工程另有任务正在运行。',409);
     if(j.phase==='creative'&&j.input.engine!=='local'&&input.engine!=='local'&&!input.confirmRetry)throw fault('上次 Codex 回合可能已完成。请检查当前时间线后选择续作，或直接渲染已有剪辑。',409);

@@ -1,3 +1,4 @@
+import {replacementClock,replacementEdits} from './ripple.mjs';
 import {componentClip,defaultMotionGeometry,motionCatalog} from './motion-components.mjs';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -280,37 +281,7 @@ export async function reviseLine(deps, project, clipId, text, signal) {
   let speed = frames / voice.duration;
   const changes = [];
   if (speed < 0.85 || speed > 1.18) {
-    const delta = frames - voice.duration,
-      end = voice.start + voice.duration;
-    const groupIds = new Set([voice.id, ...captions.map((c) => c.id)]);
-    const overlaps = project.timeline.clips.filter(
-      (c) => c.start < end && c.start + c.duration > voice.start && !groupIds.has(c.id)
-    );
-    if (
-      overlaps.some((c) => c.locked || c.start !== voice.start || c.duration !== voice.duration) ||
-      project.timeline.clips.some((c) => c.start >= end && c.locked)
-    )
-      throw new Error('新台词时长会移动受保护或跨句片段，请缩短台词或先在时间线上调整空间。');
-    for (const c of overlaps) {
-      const source = project.assets.find((a) => a.id === c.assetId);
-      if (
-        source?.kind === 'video' &&
-        c.track === 'video' &&
-        (c.sourceIn || 0) + frames * (c.speed || 1) > Math.ceil(source.duration * project.profile.fps)
-      ) {
-        throw new Error('新台词超出这个镜头的可用源区间，请先延长画面或缩短台词。');
-      }
-      changes.push({ op: 'update', id: c.id, changes: { duration: frames } });
-    }
-    for (const c of project.timeline.clips.filter((c) => c.start >= end))
-      changes.push({
-        op: 'update',
-        id: c.id,
-        changes: {
-          start: c.start + delta,
-          ...(Number.isInteger(c.actionFrame) ? { actionFrame: c.actionFrame + delta } : {}),
-        },
-      });
+    changes.push(...replacementEdits(project, voice, new Set([voice.id, ...captions.map(c => c.id)]), frames));
     speed = 1;
   }
   const duration = speed === 1 ? frames : voice.duration;
@@ -351,9 +322,9 @@ export async function reviseLine(deps, project, clipId, text, signal) {
   signal?.throwIfAborted();
   const latest = await deps.store.get(project.id);
   if (sceneIdentity(latest) !== expected) throw new Error('合成期间工程已更新，请对照当前版本重试。');
-  const result = await deps.store.apply(project.id, latest.revision, changes, 'codex');
+  const result = latest;
   const note = alignmentNote(alignment, voice.id, voice.start);
-  const move = (frame) => (frame >= voice.start + voice.duration ? frame + duration - voice.duration : frame);
+  const move = replacementClock(voice.start,voice.duration,duration);
   const notes = (result.directorNotes || [])
     .filter((n) => n.speechGroup !== voice.id)
     .map((n) => ({ ...n, frame: move(n.frame) }));
@@ -368,10 +339,12 @@ export async function reviseLine(deps, project, clipId, text, signal) {
           speechAssetId: audio.id,
           speechScriptHash: alignment.scriptHash,
         }
-      : { ...row, start: move(row.start) }
+      : { ...row, start: move(row.start), duration: move(row.start + row.duration) - move(row.start) }
   );
-  const facts = (result.facts || []).map((f) => ({ ...f, start: move(f.start) }));
-  return deps.store.setMeta(project.id, { directorNotes: notes, storyboard: board, facts });
+  for (const row of board) if(row.visualSteps) row.visualSteps=row.visualSteps.map(step=>({...step,atFrame:move(step.atFrame)}));
+  const facts = (result.facts || []).map(f => ({...f,start:move(f.start),...(Number.isInteger(f.duration)&&{duration:move(f.start+f.duration)-move(f.start)})}));
+  const metadata={directorNotes:notes,storyboard:board,facts};
+  return deps.store.applySceneEdit(project.id,latest.revision,changes,metadata,'codex');
 }
 
 export async function applyScenes(

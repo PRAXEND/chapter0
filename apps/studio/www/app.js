@@ -12,7 +12,7 @@ const fileInput=(id,multiple=true)=>`<input id="${id}" type="file" accept="video
 const val=id=>el(id)?.value||'';
 const tracks={video:'画面',narration:'人声',music:'配乐',caption:'字幕',graphic:'动效'};
 const modeLabels={topic:'从选题开始',script:'脚本与素材',interview:'精剪原片'};
-const statusLabels={queued:'等待中',running:'制作中',pausing:'正在暂停',paused:'已暂停',done:'已完成',failed:'需要处理'};
+const statusLabels={'awaiting-plan':'等待确认分镜',queued:'等待中',running:'制作中',pausing:'正在暂停',paused:'已暂停',done:'已完成',failed:'需要处理'};
 const s={projects:[],styles:[],voices:[],p:null,mode:'topic',tab:'edit',clip:null,jobs:[],form:{},style:null,notice:0,polling:false,newFiles:[]};
 const clock=v=>{const n=Math.max(0,Math.floor(Number(v)||0));return Math.floor(n/60)+':'+String(n%60).padStart(2,'0');};
 const assetName=id=>s.p?.assets.find(a=>a.id===id)?.name||'';
@@ -32,7 +32,7 @@ async function choose(id,tab='edit'){s.p=await api('/api/projects/'+urlPart(id))
 async function reload(){if(s.p)await choose(s.p.id,s.tab);}
 const frameRate=()=>s.p.profile.fps;
 function captureNew(){
-  if(el('new-title'))s.form={title:val('new-title'),brief:val('brief'),script:val('script'),style:val('new-style'),ratio:val('ratio'),targetDuration:val('new-duration'),sourceScope:val('new-source-scope'),autoReview:el('new-auto-review').checked,sourceUrls:val('new-urls'),factUrls:val('new-facts'),voice:val('new-voice'),shareFrames:el('new-share-frames').checked,shareTranscript:el('new-share-text').checked};
+  if(el('new-title'))s.form={title:val('new-title'),brief:val('brief'),script:val('script'),style:val('new-style'),ratio:val('ratio'),targetDuration:val('new-duration'),confirmSequence:el('new-confirm-sequence').checked,minimum:val('new-min'),maximum:val('new-max'),finalReview:el('new-final-review').checked,sourceScope:val('new-source-scope'),autoReview:el('new-auto-review').checked,sourceUrls:val('new-urls'),factUrls:val('new-facts'),voice:val('new-voice'),shareFrames:el('new-share-frames').checked,shareTranscript:el('new-share-text').checked};
   if(el('new-files')?.files.length)s.newFiles=[...el('new-files').files];
 }
 function newPage(fresh=true){
@@ -46,11 +46,17 @@ function newPage(fresh=true){
   ${s.mode==='script'?field('脚本',area('script',f.script,5,'粘贴准备好的旁白或分镜稿')):''}
   ${s.mode==='topic'?field('素材范围',select('new-source-scope',[['search','检索和使用工程素材'],['project','仅使用工程已有素材']],f.sourceScope||'search'))+field('出处网页（每行一个，可选）',area('new-facts',f.factUrls,2))+field('可用的媒体文件直链（可选）',area('new-urls',f.sourceUrls,2)):''}
   <div class="form-grid">${field('画幅',select('ratio',[['16:9','16:9 横屏'],['9:16','9:16 竖屏'],['1:1','1:1 方形']],f.ratio||'16:9'))}${field('风格',select('new-style',styleOptions(),f.style|| (s.mode==='interview'?'original-dialogue@1':'neutral@1')))}${field('目标片长（秒，可留空）',input('new-duration',f.targetDuration||'','number','min="1"'))}</div>
+  <div class="form-grid">${field('最短片长（秒）',input('new-min',f.minimum||'','number','min=".01" step="any"'))}${field('最大片长（秒）',input('new-max',f.maximum||'','number','min=".01" step="any"'))}</div>
   ${s.voices.length?field('本期音色',select('new-voice',[['','跟随所选风格'],...s.voices.map(v=>[v.id,v.name])],f.voice||'')):''}<div class="outline">${field(s.mode==='interview'?'原片':'本地素材',fileInput('new-files'))}<small id="selected-files">${s.newFiles.length?esc(s.newFiles.map(f=>f.name).join('、')):'支持视频、音频和图片，可在工程中继续添加。'}</small></div>
-  <fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格、草稿与成片帧',f.shareFrames===true)}${check('new-auto-review','分享画面时自动回看首版，保留两版',f.autoReview!==false)}</fieldset>
+  ${check('new-confirm-sequence','制作前由我确认正式分镜与台词',f.confirmSequence===true)}<fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格、草稿与成片帧',f.shareFrames===true)}${check('new-auto-review','分享画面时自动回看首版，保留两版',f.autoReview!==false)}${check('new-final-review','允许独立终审使用 1 个 Codex 回合',f.finalReview!==false)}<p id="review-mode" class="help"></p></fieldset>
   <div class="actions">${btn('create','仅创建工程')}${btn('create-run','创建并开始制作','primary')}</div></div>
-  <input type="file" id="folder-picker" webkitdirectory multiple hidden></section>`;
+  <input type="file" id="folder-picker" webkitdirectory multiple hidden></section>`;reviewMode();
 }
+function reviewMode(){
+  const node=el('review-mode');if(!node)return;
+  node.textContent=!el('new-share-frames').checked?'本次只使用本地检测。开启分享画面后，可让 Codex 看素材与成片。':!el('new-auto-review').checked?'本次由主导演制作，可手动查看成片。':el('new-final-review').checked?'主导演可看图和修改首版。最终候选另交独立终审，最多 1 个 Codex 回合。':'主导演可看图和修改首版。独立终审已关闭。';
+}
+document.addEventListener('change', e=>{if(['new-share-frames','new-auto-review','new-final-review'].includes(e.target.id))reviewMode();});
 function styleOptions(){const rows=s.styles.flatMap(i=>(i.versions||[i.version]).map(v=>[i.id+'@'+v,(i.name||i.id)+' · v'+v]));if(!rows.some(r=>r[0]==='neutral@1'))rows.unshift(['neutral@1','自由剪辑']);return rows;}
 function styleSelector(value){const [id,version]=String(value||'neutral@1').split('@');return {id,version:Number(version)||1};}
 async function uploadFiles(projectId,files){
@@ -62,7 +68,7 @@ async function uploadFiles(projectId,files){
 async function create(run){
   captureNew();const f=s.form,mode=s.mode;const ratio=f.ratio==='9:16'?[1080,1920]:f.ratio==='1:1'?[1080,1080]:[1920,1080];
   if(!f.title?.trim()&&!f.brief?.trim()&&!f.script?.trim()&&!s.newFiles.length)throw Error('请填写选题、脚本或选择原片。');
-  const p=await api('/api/projects',{mode,title:f.title||f.brief?.slice(0,36)||s.newFiles[0]?.name||'新工程',brief:f.brief,script:f.script,style:styleSelector(f.style),profile:{width:ratio[0],height:ratio[1],fps:30},settings:{autoReview:f.autoReview,sourceScope:f.sourceScope||'search',targetDuration:f.targetDuration?Number(f.targetDuration):null,shareFrames:f.shareFrames===true,shareTranscript:f.shareTranscript!==false,factUrls:(f.factUrls||'').split('\n').map(v=>v.trim()).filter(Boolean),sourceUrls:(f.sourceUrls||'').split('\n').map(v=>v.trim()).filter(Boolean)}});
+  const p=await api('/api/projects',{mode,title:f.title||f.brief?.slice(0,36)||s.newFiles[0]?.name||'新工程',brief:f.brief,script:f.script,style:styleSelector(f.style),profile:{width:ratio[0],height:ratio[1],fps:30},settings:{confirmSequence:f.confirmSequence,autoReview:f.autoReview,finalReviewMaxTurns:f.finalReview?1:0,...(f.minimum&&{durationMinSeconds:Number(f.minimum)}),...(f.maximum&&{durationMaxSeconds:Number(f.maximum)}),sourceScope:f.sourceScope||'search',targetDuration:f.targetDuration?Number(f.targetDuration):null,shareFrames:f.shareFrames===true,shareTranscript:f.shareTranscript!==false,factUrls:(f.factUrls||'').split('\n').map(v=>v.trim()).filter(Boolean),sourceUrls:(f.sourceUrls||'').split('\n').map(v=>v.trim()).filter(Boolean)}});
   try{await uploadFiles(p.id,s.newFiles);if(f.voice){const latest=await api('/api/projects/'+p.id);await api('/api/projects/'+p.id+'/voices/use',{id:f.voice,baseRevision:latest.revision});}}finally{await choose(p.id);}
   if(run)await startJob('produce','codex');
 }
@@ -141,6 +147,7 @@ function activity(j){
   const text=(j.events||[]).slice(-8).map(e=>'<li>'+esc(e.message)+'</li>').join('');
   return `<div class="hrow space"><strong>${esc(['produce','revise'].includes(j.kind)?(j.creativeEngine==='local'?'本地粗剪进度':j.creativeEngine==='codex'?'Codex 剪辑进度':'剪辑进度'):j.kind==='preview'?'预览进度':'导出进度')}</strong><span class="pill">${statusLabels[j.status]||j.status}</span></div>
   ${j.status==='running'?'<progress></progress>':''}<ul class="log">${text}</ul>${j.error?'<p class="feedback">'+esc(j.error)+'</p>':''}
+  ${j.status==='awaiting-plan'&&j.approval?'<ol>'+j.approval.beats.map(b=>'<li>'+esc(s.p.assets.find(a=>a.id===b.assetId)?.name||b.assetId||'')+' · '+esc(String(b.sourceStart??0))+' 秒 · '+esc(b.narration||'')+'</li>').join('')+'</ol>'+btn('approve-plan','确认这版分镜并继续','primary',j.id):''}
   ${['running','queued'].includes(j.status)?btn('pause','暂停','',j.id):['paused','failed'].includes(j.status)?btn('resume','检查后续作','',j.id):''}`;
 }
 function inspector(c){
@@ -221,7 +228,7 @@ function previewOriginal(asset,{fromFrame=0,toFrame}={}){
 function drawAssets(){
  const p=s.p;const utterances=Object.entries(p.transcript||{}).flatMap(([assetId,arr])=>Array.isArray(arr)?arr.map(u=>({...u,assetId})):[]);
  el('view').innerHTML=`<section class="page"><div class="hrow space"><h1>素材与原句</h1>${btn('legacy','从历史工程导入')}</div><div class="two-col"><section class="card"><h2>项目素材</h2><div class="outline">${fileInput('asset-upload')}</div><div class="asset-list">${p.assets.map(a=>`<div class="asset"><div><strong>${esc(a.name)}</strong><small>${esc(a.kind)} · ${clock(a.duration)}　${esc(a.source?.credit||a.source?.author||'')}</small>${a.source?.url?'<small class="wrap">'+esc(a.source.url)+'</small>':''}</div><div class="hrow">${btn('asset-play','预览','',a.id)}${btn('add-asset-clip','加入时间线','',a.id)}${a.hasAudio?btn('transcribe','转录','',a.id):''}</div></div>`).join('')}</div></section>
- <section class="card"><h2>按来源导入</h2>${field('媒体文件直链',input('asset-url','','url','placeholder="https://…"'))}${field('来源与授权说明',input('asset-rights'))}${btn('add-url','导入工程')}<h3>转录原句</h3>${utterances.length?utterances.map((u,i)=>`<div class="entry"><div><strong>${esc(u.text)}</strong><small>${clock(u.start)} – ${clock(u.end)}</small></div><div class="hrow">${btn('play-line','听原句','',i)}${btn('restore-line','恢复','',i)}</div></div>`).join(''):'<p class="help">转录带声音的素材后，可试听原句或恢复到时间线。</p>'}</section></div>${factList(p)}</section>`;s.utterances=utterances;
+ <section class="card"><h2>按来源导入</h2>${s.p.settings.sourceScope!=='project'?field('查找并手动选择源录像',input('asset-query'))+btn('search-assets','查找候选')+'<div id="source-choices"></div>':''}${field('媒体文件直链',input('asset-url','','url','placeholder="https://…"'))}${field('来源与授权说明',input('asset-rights'))}${btn('add-url','导入工程')}<h3>转录原句</h3>${utterances.length?utterances.map((u,i)=>`<div class="entry"><div><strong>${esc(u.text)}</strong><small>${clock(u.start)} – ${clock(u.end)}</small></div><div class="hrow">${btn('play-line','听原句','',i)}${btn('restore-line','恢复','',i)}</div></div>`).join(''):'<p class="help">转录带声音的素材后，可试听原句或恢复到时间线。</p>'}</section></div>${factList(p)}</section>`;s.utterances=utterances;
 }
 async function loadStyle(selector=s.p.style){
  const selected=s.p.id;const st=await api('/api/styles/'+urlPart(selector.id)+'/'+urlPart(selector.version));if(s.p?.id!==selected||s.tab!=='style')return;
@@ -245,6 +252,12 @@ function pictureEvidence(qa){
  const policy={met:'运动画面承担了主要讲解。',partial:'已用部分运动镜头，风格要求的运动画面占比仍有差距。',unmet:'所选风格要求用运动画面讲解，此版没有核实到相应镜头。',unverified:'运动镜头的作用仍待核实。','photo-adaptation':'按本期要求以照片讲解。'};
  return '<div class="entry"><div><strong>实际画面构成</strong><p>'+esc(rows.join(' · '))+'</p><small>'+esc(measured+explained+(policy[visual.styleExecution?.motionStatus]||''))+'</small></div></div>';
 }
+function independentEvidence(qa){
+ const r=qa.evidence?.independentReview;
+ if(!r)return '';
+ const state={completed:'已完成',skipped:'已跳过',unavailable:'待复核'};
+ return '<div class="entry"><div><strong>独立终审 · '+esc(state[r.status]||r.status)+'</strong><p>'+esc(r.reason||'')+'</p>'+((r.comparisons||[]).map(c=>'<small>'+esc(c.observation||c.description||c.message||'')+'</small>').join(' '))+'</div></div>';
+}
 function parityEvidence(qa){
  const p=qa.evidence?.compositeParity;
  if(!p)return '';
@@ -258,18 +271,18 @@ function issuePlayback(q,job,index,rate){
 }
 function drawDeliver(){
  const cards=s.jobs.filter(j=>j.files?.includes('video')).map(j=>{const qa=j.qa||{};return `<section class="card"><div class="hrow space"><h2>${esc(cutLabel(j))} · v${j.revision}</h2><span class="pill ${qa.status==='repair'?'bad':qa.status==='unverified'?'warn':''}">${esc(qa.label||'验收中')}</span></div>
- <video class="wide-video" data-review="${esc(j.id)}" controls preload="metadata" src="/api/jobs/${j.id}/file/video"></video>${parityEvidence(qa)}${pictureEvidence(qa)}
+ <video class="wide-video" data-review="${esc(j.id)}" controls preload="metadata" src="/api/jobs/${j.id}/file/video"></video>${parityEvidence(qa)}${pictureEvidence(qa)}${independentEvidence(qa)}
  <div class="actions">${(j.files||[]).filter(k=>['video','subtitle','project','cover34','cover43','copy','credits','review'].includes(k)).map(k=>btn('reveal',({video:'MP4',subtitle:'SRT',project:'可编辑工程',cover34:'3:4 封面',cover43:'4:3 封面',copy:'发布文案',credits:'素材与事实来源',review:'验收记录'})[k],'',j.id+'|'+k)).join('')}</div>
  ${(qa.issues||[]).map((q,i)=>`<div class="feedback"><strong>${esc(q.message||q.reason)}</strong> ${issuePlayback(q,j.id,i,qa.frameRate||frameRate())} ${btn('fix-issue','按意见修改','',j.id+'|'+i)}<br><small>${esc(q.fix||'')}</small></div>`).join('')}<p class="help">${esc((qa.limitations||[]).join('　'))}</p></section>`;}).join('');
  el('view').innerHTML=`<section class="page"><h1>交付记录</h1>${cards||'<div class="card empty-panel">完成渲染后，可在这里播放成片并打开本地交付目录。</div>'}</section>`;
 }
 function drawSettings(){
  const p=s.p,t=p.settings,options=[['','请选择'],...p.assets.filter(a=>a.hasAudio||a.kind==='audio').map(a=>[a.id,a.name])];
- el('view').innerHTML=`<section class="page"><h1>工程设置</h1><div class="two-col"><section class="card"><h2>创作与交付</h2>${field('名称',input('set-title',p.title))}${field('制作要求',area('set-brief',p.brief))}${field('原始脚本',area('set-script',p.script,4))}${field('目标片长（秒，可留空）',input('target-length',t.targetDuration||'','number','min="1"'))}
+ el('view').innerHTML=`<section class="page"><h1>工程设置</h1><div class="two-col"><section class="card"><h2>创作与交付</h2>${field('名称',input('set-title',p.title))}${field('制作要求',area('set-brief',p.brief))}${field('原始脚本',area('set-script',p.script,4))}${field('素材范围',select('set-scope',[['search','允许检索其他来源'],['project','只使用我已选入工程的素材']],t.sourceScope||'search'))}${field('最短片长（秒）',input('set-min',t.durationMinSeconds||'','number','min=".01" step="any"'))}${field('最大片长（秒）',input('set-max',t.durationMaxSeconds||'','number','min=".01" step="any"'))}${field('目标片长（秒，可留空）',input('target-length',t.targetDuration||'','number','min="1"'))}
  ${p.styleAudio?.voice?.status==='preview-only'?'<p class="help">本期旁白为试听候选。确认采用当前声音，或在个人音色库选择已授权音色。</p>':''}${field('本期旁白选择',select('voice-selection',[['style','跟随所选风格'],['user','使用我为本片指定的声音'],['preview','仅用于试听候选']],t.voiceSelection||p.styleAudio?.voice?.selection||(['import','clone','original'].includes(t.voiceMode)?'user':'style')))}${field('声音',select('voice-mode',[['original','保留同期声'],['system','系统中文配音'],['preset','Qwen 本地预置男声 Dylan'],['import','导入旁白'],['clone','本地克隆']],t.voiceMode))}${field('导入旁白',select('narration',options,t.narrationAssetId))}
  ${field('参考录音',select('voice-reference',options,t.voiceReferenceAssetId))}${field('参考录音的准确原文',area('reference-text',t.voiceReferenceText,2))}${check('consent','我已获准用该录音建立音色',t.voiceConsent)}${btn('audition','试听当前音色')}<details><summary>个人音色库</summary>${field('使用已登记的音色',select('saved-voice',[['','请选择'],...s.voices.map(v=>[v.id,v.name])],t.voiceLibraryId))}${btn('use-voice','用于本工程')}${field('给参考音色取名',input('voice-label'))}${btn('enroll-voice','登记参考录音')}</details>
- ${field('本期配乐选择',select('music-selection',[['style','跟随所选风格'],['user','使用我为本片指定的配乐设置']],t.musicSelection||p.styleAudio?.music?.selection||(['asset','original'].includes(t.musicMode)||p.mode==='interview'?'user':'style')))}${field('配乐方式',select('music-mode',[['library','本地曲库'],['asset','指定素材'],['original','原创配乐'],['none','无需配乐']],t.musicEnabled===false?'none':t.musicMode||'library'))}${field('配乐素材',select('bgm',options,t.musicAssetId))}${check('project-scene-sound','场景模板在动作发生时加落点音效',t.sceneSound??(p.mode!=='interview'))}${check('pack','附两种封面和发布文案',t.publishPackage)}<details><summary>编辑发布文案</summary>${field('发布标题',input('pub-title',p.publication?.title))}${field('给观众的正文',area('pub-body',p.publication?.body,3))}${field('话题',input('pub-tags',p.publication?.tags?.join(' ')))}</details></section>
- <section class="card"><h2>项目隐私与服务</h2><p class="help">Codex 会收到本项目的要求、脚本和剪辑结构。原媒体保存在本机。</p>${check('share-text','允许把转录文字交给 Codex',t.shareTranscript)}${check('share-frames','允许分享选取的参考帧、素材帧和成片帧',t.shareFrames)}${check('auto-review','分享画面时自动回看首版，保留两版',t.autoReview===true)}
+ ${field('本期配乐选择',select('music-selection',[['style','跟随所选风格'],['user','使用我为本片指定的配乐设置']],t.musicSelection||p.styleAudio?.music?.selection||(['asset','original'].includes(t.musicMode)||p.mode==='interview'?'user':'style')))}${field('配乐方式',select('music-mode',[['library','本地曲库'],['asset','指定素材'],['original','原创配乐'],['none','无需配乐']],t.musicEnabled===false?'none':t.musicMode||'library'))}${field('配乐素材',select('bgm',options,t.musicAssetId))}${check('project-scene-sound','场景模板在动作发生时加落点音效',t.sceneSound??(p.mode!=='interview'))}${check('pack','附两种封面和发布文案',t.publishPackage)}<details><summary>编辑发布文案</summary>${field('发布标题',input('pub-title',p.publication?.title))}${field('标题中的黄色重点',input('pub-emphasis',p.publication?.emphasis))}${field('给观众的正文',area('pub-body',p.publication?.body,3))}${field('话题',input('pub-tags',p.publication?.tags?.join(' ')))}</details></section>
+ <section class="card"><h2>项目隐私与服务</h2>${check('confirm-plan','制作前由我确认正式分镜与台词',t.confirmSequence===true)}<p class="help">Codex 会收到本项目的要求、脚本和剪辑结构。原媒体保存在本机。</p>${check('share-text','允许把转录文字交给 Codex',t.shareTranscript)}${check('share-frames','允许分享选取的参考帧、素材帧和成片帧',t.shareFrames)}${check('auto-review','分享画面时自动回看首版，保留两版',t.autoReview===true)}${check('final-review','允许独立终审使用 1 个 Codex 回合',t.finalReviewMaxTurns!==0)}
  ${check('cloud','启用第三方原创配乐',t.cloudEnabled)}${field('本项目云配乐总时长预算（秒）',input('budget',t.cloudBudget,'number','min="0" step="1"'))}
  <div class="actions">${btn('settings-save','保存工程设置','primary')}</div><hr><h3>原创配乐</h3>${field('曲风与用途',area('music-prompt','',2))}${field('时长（秒）',input('music-length',15,'number','min="3" max="600"'))}${btn('compose-music','从云端生成并导入')}${(p.musicReceipts||[]).map(r=>`<div class="entry"><small>${esc(r.seconds)} 秒 · ${esc(r.status)}</small>${['sent','unknown'].includes(r.status)?btn('reconcile','核对回执','',r.id):''}</div>`).join('')}</section></div></section>`;
 }
@@ -322,6 +335,9 @@ async function runAction(act,id){
  }
  case 'preview':case 'render':return startJob(act,'local');
  case 'pause':s.jobs=await proj('/jobs');await api('/api/jobs/'+id+'/pause',{});return reload();
+ case 'approve-plan':{
+   const j=s.jobs.find(job=>job.id===id);
+   await api('/api/jobs/'+id+'/resume',{approvedSequenceHash:j.approval.hash});return reload();}
  case 'resume':await api('/api/jobs/'+id+'/resume',{confirmRetry:true});return reload();
  case 'lock':{const c=p.timeline.clips.find(c=>c.id===id);return edit([{op:'lock',id,locked:!c.locked}]);}
  case 'remove':s.clip=null;return edit([{op:'remove',id}]);
@@ -395,6 +411,12 @@ async function runAction(act,id){
   const a=p.assets.find(a=>a.id===id);const track=a.kind==='audio'?'music':'video';
   const start=Math.max(0,...p.timeline.clips.filter(c=>c.track===track).map(c=>c.start+c.duration));
   s.clip=crypto.randomUUID();await edit([{op:'add',clip:{id:s.clip,assetId:id,track,start,sourceIn:0,duration:Math.max(1,Math.round((a.kind==='image'?4:a.duration)*frameRate())),gain:1,speed:1}}]);notice('已加入'+tracks[track]+'轨');return;}
+ case 'search-assets':{
+   const rows=await proj('/source-options',{query:val('asset-query')});
+   el('source-choices').innerHTML=rows.map(r=>'<div class="entry"><div>'+check('pick-'+r.key,r.title,false)+'<small>'+esc([r.credit,r.date,r.license].filter(Boolean).join(' · '))+'</small>'+(r.hasWindow?field('原片入点（秒）',input('in-'+r.key,'0','number'))+field('原片出点（秒）',input('out-'+r.key,'10','number'))+check('rights-'+r.key,'我已获得该原片的使用授权',false):'')+'</div></div>').join('')+(rows.length?btn('pick-assets','导入选中素材'):'没有找到匹配的录像。');return;}
+ case 'pick-assets':{
+   const items=Array.from(el('source-choices').querySelectorAll('input[id^="pick-"]:checked')).map(e=>{const key=e.id.slice(5);return {key,...(el('in-'+key)&&{window:{start:Number(val('in-'+key)),end:Number(val('out-'+key))},authorized:el('rights-'+key).checked})};});
+   await proj('/source-options/pick',{items});return choose(p.id,'assets');}
  case 'add-url':await proj('/url',{url:val('asset-url'),rights:val('asset-rights')});return reload();
  case 'transcribe':notice('正在本地转录');await proj('/transcript',{assetId:id});return reload();
  case 'play-line':{const u=s.utterances[Number(id)];modal('原句试听',`<audio id="line-audio" controls src="${aid(u.assetId)}"></audio><p>${esc(u.text)}</p>`);const a=el('line-audio');a.addEventListener('loadedmetadata',()=>{a.currentTime=u.start;a.play().catch(()=>{});},{once:true});a.ontimeupdate=()=>{if(a.currentTime>=u.end)a.pause();};return;}
@@ -420,7 +442,7 @@ async function runAction(act,id){
   const st=await api('/api/styles/preferences',{id:s.style.id,version:s.style.version,findEdit:true,instruction:val('preference'),before:{...after,revision:Math.max(1,p.revision-1)},after,source:'用户明确保存的改稿偏好'});s.styles=await api('/api/styles');notice('已保存新版本');return loadStyle(st);}
  case 'learn':{const name=val('learn-name').trim();if(!name)throw Error('请输入风格名称。');const st=await proj('/learn-style',{name,script:val('learn-script'),assetId:val('learn-media'),observation:val('learn-observation'),templateId:val('learn-template'),exception:val('learn-exception')});s.styles=await api('/api/styles');notice('风格已保存');return loadStyle(st);}
  case 'settings-save':{
-   const changes={title:val('set-title'),brief:val('set-brief'),script:val('set-script'),publication:{title:val('pub-title'),body:val('pub-body'),tags:val('pub-tags').split(/\s+/).filter(Boolean)},settings:{autoReview:el('auto-review').checked,voiceSelection:val('voice-selection'),musicSelection:val('music-selection'),targetDuration:val('target-length')?Number(val('target-length')):null,voiceMode:val('voice-mode'),narrationAssetId:val('narration'),voiceReferenceAssetId:val('voice-reference'),voiceReferenceText:val('reference-text'),voiceConsent:el('consent').checked,musicAssetId:val('bgm'),musicMode:val('music-mode'),musicEnabled:val('music-mode')!=='none',requireMusic:val('music-mode')==='asset'||val('music-mode')==='original',publishPackage:el('pack').checked,sceneSound:el('project-scene-sound').checked,shareTranscript:el('share-text').checked,shareFrames:el('share-frames').checked,cloudEnabled:el('cloud').checked,cloudBudget:Number(val('budget'))}};
+   const changes={title:val('set-title'),brief:val('set-brief'),script:val('set-script'),publication:{title:val('pub-title'),emphasis:val('pub-emphasis'),body:val('pub-body'),tags:val('pub-tags').split(/\s+/).filter(Boolean)},settings:{sourceScope:val('set-scope'),confirmSequence:el('confirm-plan').checked,autoReview:el('auto-review').checked,finalReviewMaxTurns:el('final-review').checked?1:0,durationMinSeconds:val('set-min')?Number(val('set-min')):null,durationMaxSeconds:val('set-max')?Number(val('set-max')):null,voiceSelection:val('voice-selection'),musicSelection:val('music-selection'),targetDuration:val('target-length')?Number(val('target-length')):null,voiceMode:val('voice-mode'),narrationAssetId:val('narration'),voiceReferenceAssetId:val('voice-reference'),voiceReferenceText:val('reference-text'),voiceConsent:el('consent').checked,musicAssetId:val('bgm'),musicMode:val('music-mode'),musicEnabled:val('music-mode')!=='none',requireMusic:val('music-mode')==='asset'||val('music-mode')==='original',publishPackage:el('pack').checked,sceneSound:el('project-scene-sound').checked,shareTranscript:el('share-text').checked,shareFrames:el('share-frames').checked,cloudEnabled:el('cloud').checked,cloudBudget:Number(val('budget'))}};
    s.p=await proj('/configure',{baseRevision:p.revision,changes});notice('已保存工程设置');await refreshList();return draw();}
  case 'enroll-voice':{
     const r=await proj('/voices/enroll',{name:val('voice-label'),assetId:val('voice-reference'),referenceText:val('reference-text'),consent:el('consent').checked});
@@ -476,7 +498,7 @@ async function refreshJobs(){
  if(s.polling||!s.p)return;s.polling=true;
  try{
   const id=s.p.id,previous=s.jobs;const next=await proj('/jobs');if(s.p?.id!==id)return;
-  const changed=previous.some(a=>['queued','running','pausing'].includes(a.status)&&next.some(b=>a.id===b.id&&['done','paused','failed'].includes(b.status)));
+  const changed=previous.some(a=>['queued','running','pausing'].includes(a.status)&&next.some(b=>a.id===b.id&&['done','paused','failed','awaiting-plan'].includes(b.status)));
   s.jobs=next;
   if(changed){s.p=await proj();if(s.p.id===id){if(s.tab==='edit'&&el('instruction')?.value){const draft=val('instruction');draw();el('instruction').value=draft;}else draw();}await refreshList();}
   else if(el('activity')&&next.length)el('activity').innerHTML=activity(next[0]);

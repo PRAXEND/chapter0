@@ -1,5 +1,7 @@
+import {fileURLToPath} from 'node:url';
+import {portraitLayout,portraitScript,portraitGraph,portraitEnding} from './presentation.mjs';
 import {activeStyleMusicCredit} from './style-audio.mjs';
-import { stat, mkdir, writeFile, rename, link, unlink } from 'node:fs/promises';
+import { stat, mkdir, writeFile, rename, link, unlink, symlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
@@ -212,7 +214,7 @@ function tempo(rate) {
   return filters;
 }
 
-async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, signal) {
+async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, signal, ending) {
   const audioClips = clips.filter(c => ['video', 'narration', 'music'].includes(c.track) && media.get(c.assetId)?.hasAudio && (c.gain ?? 1) > 0 && !c.muted);
   const buses = { voice: [], music: [], fixed: [] };
   const sampleAt = frame => Math.round(frame * 48000 / fps);
@@ -229,7 +231,10 @@ async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, sign
     const duration = rate * c.duration / fps - seek / 48000;
     const out = path.join(work, `sound-${index}.wav`);
     const filter = [`atrim=duration=${rounded(duration)}`, 'asetpts=PTS-STARTPTS', 'aresample=48000', ...tempo(rate), `volume=${rounded(c.gain ?? 1)}`, 'apad', `atrim=start_sample=${skip - seek}:end_sample=${skip - seek + count}`, 'asetpts=PTS-STARTPTS'].join(',');
-    await run(ffmpeg, [...ffBase, '-ss', rounded(source), ...inputArgs(asset.path), '-map', '0:a:0', '-vn', '-af', filter, '-ar', '48000', '-ac', '2', '-c:a', 'pcm_f32le', out], { signal });
+    // Fade only background music, on the project clock and before the final black hold.
+    const bed=c.track==='music'&&c.role!=='sfx';
+    const gainEnvelope=ending&&bed?',volume='+ "'clip(("+ending.black+"/"+fps+"-t-"+first+"/"+fps+")/("+Math.max(1,ending.black-ending.musicFade)+"/"+fps+"),0,1)':eval=frame" : '';
+    await run(ffmpeg, [...ffBase, '-ss', rounded(source), ...inputArgs(asset.path), '-map', '0:a:0', '-vn', '-af', filter+gainEnvelope, '-ar', '48000', '-ac', '2', '-c:a', 'pcm_f32le', out], { signal });
     const bus = c.track === 'music' ? (c.ducking === false ? 'fixed' : 'music') : 'voice';
     buses[bus].push({ file: out, offset: sampleAt(first) - sampleAt(mixStart) });
   }
@@ -278,12 +283,13 @@ async function render(project, { directory, output, preview = false, window, sig
   const { fromFrame, toFrame } = window ?? { fromFrame: 0, toFrame: projectLength };
   if (!Number.isSafeInteger(fromFrame) || !Number.isSafeInteger(toFrame) || fromFrame < 0 || toFrame <= fromFrame || toFrame > projectLength) throw new Error('预览区间须为工程内的非空帧区间');
   const length = toFrame - fromFrame;
-  const spans = pictureSpans(clips, projectLength, fromFrame, toFrame, project.profile);
+  const layout=portraitLayout(project);
+  const profile = {width,height:layout?.contentHeight||height,fps};
+  const spans = pictureSpans(clips, projectLength, fromFrame, toFrame, profile);
   // Start the 320 ms ducking release before the sample and keep limiter lookahead at its end.
   const mixStart = Math.max(0, fromFrame - 3 * fps), mixEnd = Math.min(projectLength, toFrame + fps);
   const audible = clips.filter(c => ['video', 'narration', 'music'].includes(c.track) && c.start < mixEnd && c.start + c.duration > mixStart && (c.gain ?? 1) > 0 && !c.muted);
   const relevant = window ? new Set([...audible, ...spans.flatMap(s => s.layers || [s.top, s.under]).filter(Boolean)]) : clips.filter(c => ['video', 'narration', 'music'].includes(c.track));
-  const profile = { width, height, fps };
   const ffmpeg = await requiredTool('ffmpeg');
   const melt = process.env.VIDEO_STUDIO_RENDER_ENGINE === 'ffmpeg' ? null : await mediaTool('melt');
   const media = new Map();
@@ -308,24 +314,36 @@ async function render(project, { directory, output, preview = false, window, sig
     onProgress(0.45);
     const picture = await assemblePicture(spans, work, profile, ffmpeg, melt, signal);
     onProgress(0.6);
-    const mix = await renderMix(audible, media, work, fps, mixStart, mixEnd, ffmpeg, signal);
+    const mix = await renderMix(audible, media, work, fps, mixStart, mixEnd, ffmpeg, signal, layout && portraitEnding(projectLength,fps));
     const layers = clips.filter(c => ['caption', 'graphic'].includes(c.track) && c.start < toFrame && c.start + c.duration > fromFrame);
+    const stageLayers=layout?layers.filter(c=>c.track!=='caption'):layers;
+    if (layout) {
+      await symlink(fileURLToPath(new URL('./fonts',import.meta.url)),path.join(work,'fonts'));
+      await writeFile(path.join(work,'portrait.ass'),portraitScript(project,layout,fromFrame,toFrame,projectLength));
+    }
     let motion;
-    if (layers.some(c => c.track === 'graphic' && c.motion)) {
+    if (stageLayers.some(c => c.track === 'graphic' && c.motion)) {
       const {prepareMotionOverlay} = await import('./motion-render.mjs');
-      motion = await prepareMotionOverlay(layers, profile, {work, directory, projectId: project.id, fromFrame, toFrame, signal});
-    } else if (layers.length) await writeFile(path.join(work, 'layers.ass'), createAss(layers, profile));
+      motion = await prepareMotionOverlay(stageLayers, profile, {work, directory, projectId: project.id, fromFrame, toFrame, signal});
+    } else if (stageLayers.length) await writeFile(path.join(work, 'layers.ass'), createAss(stageLayers, profile));
     const srt = createSrt(layers, fps, { fromFrame, toFrame });
     await writeFile(path.join(work, 'captions.srt'), srt);
     const final = path.join(work, 'final.mp4');
     const overlay = fromFrame ? `settb=1/${fps},setpts=N+${fromFrame},ass=layers.ass,setpts=N` : 'ass=layers.ass';
-    const filters = motion ? ['-filter_complex', motion.filter] : layers.length ? ['-vf', overlay] : [];
-    const encoding = layers.length ? ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', preview ? 'ultrafast' : 'veryfast', '-crf', preview ? '22' : '18', '-threads', '2'] : ['-c:v', 'copy'];
+    let map=motion?.map??'0:v:0';
+    let filters=motion?['-filter_complex',motion.filter]:stageLayers.length?['-vf',overlay]:[];
+    if(layout){
+      const base=motion?.map || (stageLayers.length?'[vstage]':'[0:v]');
+      const before=motion?.filter || (stageLayers.length?'[0:v]'+overlay+'[vstage]':'');
+      filters=['-filter_complex',[before,portraitGraph(project,layout,base,fromFrame,projectLength)].filter(Boolean).join(';')];
+      map='[outportrait]';
+    }
+    const encoding = layout || layers.length ? ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', preview ? 'ultrafast' : 'veryfast', '-crf', preview ? '22' : '18', '-threads', '2'] : ['-c:v', 'copy'];
     const sampleAt = frame => Math.round(frame * 48000 / fps);
     const mixWindow = window ? ['-af', `atrim=start_sample=${sampleAt(fromFrame) - sampleAt(mixStart)}:end_sample=${sampleAt(toFrame) - sampleAt(mixStart)},asetpts=PTS-STARTPTS`] : [];
     onProgress(0.76);
     const trackCredit=activeStyleMusicCredit(project);
-    await run(ffmpeg, [...ffBase, ...inputArgs(picture), ...inputArgs(mix), ...(motion?.inputs ?? []), ...filters, '-map', motion?.map ?? '0:v:0', '-map', '1:a:0', ...encoding, ...mixWindow, ...(trackCredit?['-metadata','comment='+trackCredit.line]:[]), '-c:a', 'aac', '-ar', '48000', '-b:a', '192k', '-movflags', '+faststart', '-t', rounded(length / fps), final], { cwd: work, signal });
+    await run(ffmpeg, [...ffBase, ...inputArgs(picture), ...inputArgs(mix), ...(motion?.inputs ?? []), ...filters, '-map', map, '-map', '1:a:0', ...encoding, ...mixWindow, ...(trackCredit?['-metadata','comment='+trackCredit.line]:[]), '-c:a', 'aac', '-ar', '48000', '-b:a', '192k', '-movflags', '+faststart', '-t', rounded(length / fps), final], { cwd: work, signal });
     const info = await probeMedia(final, { signal });
     if (!info.hasAudio || info.width !== width || info.height !== height || Math.abs(info.duration - length / fps) > 1 / fps || (info.frames && info.frames !== length)) throw new Error('导出结果与工程的帧数或规格不符');
     const sha256 = await fileHash(final);

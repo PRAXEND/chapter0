@@ -1,3 +1,5 @@
+import {publicationFields} from './presentation.mjs';
+import {requestedDurationRange,validateDuration} from './duration.mjs';
 import {dedicatedVoiceReference} from './style-audio.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID, createHash } from 'node:crypto';
@@ -66,6 +68,9 @@ export function validateClip(clip,p) {
 }
 function newSettings(mode, supplied={}) {
   const s={voiceMode:mode==='interview'?'original':'system',shareFrames:false,shareTranscript:true,cloudEnabled:false,cloudBudget:0,publishPackage:false,...supplied};
+  try {validateDuration(s);} catch(error){throw fault(error.message);}
+  if(s.finalReviewMaxTurns!=null && ![0,1].includes(s.finalReviewMaxTurns))throw fault('独立终审次数可选 0 或 1。');
+  if(s.confirmSequence!=null&&typeof s.confirmSequence!=='boolean')throw fault('审稿方式无效。');
   if(s.autoReview!==undefined && typeof s.autoReview!=='boolean')throw fault('自动回看设置无效。');
   if(s.sourceScope!==undefined && !['project','search'].includes(s.sourceScope))throw fault('素材范围无效。');
   if(!['system','clone','preset','original','import'].includes(s.voiceMode))throw fault('声音方式无效。');
@@ -150,7 +155,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     const id=randomUUID(), dirs=paths(id);
     for(const dir of Object.values(dirs))mkdirSync(dir,{recursive:true,mode:0o700});
     const p={schema:1,id,title:text(data.title||'未命名工程',160),mode:data.mode,brief:text(data.brief),script:text(data.script,160000),
-      profile:profileOf(data.profile), settings:newSettings(data.mode,{autoReview:true,...data.settings}),style:data.style||{id:'neutral',version:1},
+      profile:profileOf(data.profile), settings:newSettings(data.mode,{autoReview:true,...requestedDurationRange(data.brief),...data.settings}),style:data.style||{id:'neutral',version:1},
       revision:1,assets:[],timeline:{clips:[]},createdAt:now(),updatedAt:now()};
     return transaction(()=>persist(p,true));
   }
@@ -215,7 +220,8 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
       if(changes.publication){
         const {title,body,tags}=changes.publication;
         if(typeof title!=='string'||typeof body!=='string'||!Array.isArray(tags)||tags.some(t=>typeof t!=='string'))throw fault('请输入有效的发布标题、正文与话题。');
-        p.publication={title:text(title,180).trim(),body:text(body,4000).trim(),tags:[...new Set(tags.map(tag=>text(tag,48).trim().replace(/^#+/,'')))].filter(Boolean).slice(0,12)};
+        let layout;try{layout=publicationFields({...p.publication,...changes.publication});}catch(e){throw fault(e.message);}
+        p.publication={...layout,title:text(title,180).trim(),body:text(body,4000).trim(),tags:[...new Set(tags.map(tag=>text(tag,48).trim().replace(/^#+/,'')))].filter(Boolean).slice(0,12)};
       }
       if(changes.sourceAnchors){
         if(!Array.isArray(changes.sourceAnchors)||changes.sourceAnchors.some(a=>!p.assets.some(asset=>asset.id===a.assetId&&a.sourceFrame<=Math.ceil(asset.duration*p.profile.fps))||!Number.isSafeInteger(a.sourceFrame)||a.sourceFrame<0||!String(a.label||'').trim()))throw fault('动作标记必须绑定可用原片内的帧。');

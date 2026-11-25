@@ -1,3 +1,5 @@
+import {createHash} from 'node:crypto';
+import {robotics,dailySources,youtubeSources,youtubeId,acquireYoutube} from './robot-sources.mjs';
 import dns from 'node:dns/promises';
 import https from 'node:https';
 import { BlockList, isIP } from 'node:net';
@@ -141,9 +143,10 @@ async function download(url, candidate, temp, signal, maxBytes, openMedia, probe
       .replace(/^\.+/, '') + ext
   );
   let bytes = 0;
+  const digest=candidate.expectedSha256?createHash('sha256'):null;
   const check = new Transform({
     transform(chunk, _encoding, callback) {
-      bytes += chunk.length;
+      bytes += chunk.length;digest?.update(chunk);
       callback(
         bytes > maxBytes ? new Error('素材超过 ' + Math.floor(maxBytes / 1048576) + ' MiB。') : null,
         chunk
@@ -152,6 +155,7 @@ async function download(url, candidate, temp, signal, maxBytes, openMedia, probe
   });
   try {
     await pipeline(res, check, createWriteStream(file, { flags: 'wx' }), { signal });
+    if ((digest && digest.digest('hex')!==candidate.expectedSha256)||(candidate.expectedBytes&&bytes!==candidate.expectedBytes)) throw Error('媒体大小或指纹与原始清单不一致。');
     const actual = await probe(file, { signal });
     if (candidate.kind && candidate.kind !== actual.kind)
       throw new Error('候选标为 ' + candidate.kind + '，实际文件是 ' + actual.kind + '。');
@@ -165,18 +169,22 @@ export async function importSource(
   store,
   projectId,
   candidate,
-  { signal, openMedia = publicRequest, probe = probeMedia } = {}
+  { signal, openMedia = publicRequest, probe = probeMedia, window } = {}
 ) {
   const p = await store.get(projectId);
   const existing = p.assets.find(
     (a) =>
-      a.source?.downloadUrl === candidate.downloadUrl || a.source?.requestedDownloadUrl === candidate.downloadUrl
+      (a.source?.downloadUrl === candidate.downloadUrl || a.source?.requestedDownloadUrl === candidate.downloadUrl) && (!candidate.youtubeId || (a.source?.sourceOffsetSeconds === window?.start && a.source?.sourceEndSeconds === window?.end))
   );
   if (existing) return existing;
   const paths = await store.paths(projectId);
   await mkdir(paths.cache, { recursive: true });
   const temp = await mkdtemp(path.join(paths.cache, 'source-'));
   try {
+    if(candidate.youtubeId) {
+      const {file,source}=await acquireYoutube(candidate,temp,window,{signal,probe});
+      return await store.addAsset(projectId,file,{...source,acquiredAt:new Date().toISOString()});
+    }
     const video = (candidate.kind || suffixKind(candidate.downloadUrl)) === 'video';
     const timeout = AbortSignal.timeout(video ? 180_000 : 30_000);
     const deadline = signal ? AbortSignal.any([signal, timeout]) : timeout;
@@ -579,16 +587,21 @@ function interleave(groups) {
   return { distinct: all, mirrors };
 }
 export async function searchSources(query, {
-  signal, kind = 'any', onDiagnostic, readJson = json, readHtml = publisherHtml, catalogs = publisherCatalogs,
+  signal, kind = 'any', onDiagnostic, readJson = json, readHtml = publisherHtml, catalogs = publisherCatalogs, roboticsCatalog = dailySources, channelSearch=youtubeSources,
 } = {}) {
   const term = String(query || '')
     .trim()
     .slice(0, 200);
   if (!term) return [];
   if (!['any', 'video', 'image'].includes(kind)) throw Error('素材类型须为 any、video 或 image。');
+  if(youtubeId(term))return channelSearch(term,{signal});
   const space = spaceTerms.test(term) && nasaQuery(term);
   const requests = [];
   for (const type of kind === 'any' ? ['video', 'image'] : [kind]) {
+    if(robotics.test(term)) {
+      requests.push({name:'每日 X 素材仓库',type,result:roboticsCatalog(term,{readJson,signal,kind:type})});
+      if(type==='video')requests.push({name:'YouTube',type,result:channelSearch(term,{signal})});
+    }
     if (type === 'video') for (const catalog of catalogs) {
       const q = space || term;
       if (catalog.scope.test(q)) requests.push({ name: catalog.name, type,
