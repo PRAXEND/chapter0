@@ -1,3 +1,4 @@
+import {archiveSound,supportsSound} from './style-sounds.mjs';
 import {createHash,randomUUID} from 'node:crypto';
 import {mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import path from 'node:path';
@@ -29,7 +30,12 @@ export async function compileSceneWithSound(styles,store,project,scene) {
   const anchor=project.assets.find(a=>a.id===scene.anchorAssetId);
   const fps=project.profile.fps;
   if(!clips.length||!preset||quiet||anchor?.kind!=='video'||!Number.isSafeInteger(scene.anchorSourceFrame)||scene.anchorSourceFrame<0||scene.anchorSourceFrame>=Math.ceil(anchor.duration*fps)) return {clips,baseRevision:project.revision};
-  const gain=scene.soundGain??preset.gain,sourceIn=scene.soundSourceIn??0;
+  const archived=!scene.soundAssetId && supportsSound(scene.style,'tiny-pop')?archiveSound(scene.style,'tiny-pop'):null;
+  const defaultDb=scene.style.id==='henry-technical-explainer'?-12:archived?.spec.gainDb;
+  const gain=scene.soundGain??(archived?10**(defaultDb/20):preset.gain);
+  const impact=archived?Math.round(archived.spec.impactSeconds*fps):0;
+  const start=Math.max(0,scene.actionFrame-impact);
+  const sourceIn=(scene.soundSourceIn??0)+Math.max(0,impact-scene.actionFrame);
   if(!Number.isFinite(gain)||gain<0||gain>16||!Number.isSafeInteger(sourceIn)||sourceIn<0) throw Error('音效音量或源位置无效');
   const now=await store.get(project.id);
   if(now.revision!==project.revision) throw Error('工程版本已更新，请重新读取动作位置');
@@ -38,14 +44,14 @@ export async function compileSceneWithSound(styles,store,project,scene) {
     asset=now.assets.find(a=>a.id===scene.soundAssetId);
     if(asset?.kind!=='audio'||asset.hasAudio===false) throw Error('请选择本工程已导入的短音效');
   } else {
-    const generated=synthesized(template);
+    const generated=archived?{wav:archived.data,sha256:archived.spec.sha256}:synthesized(template);
     asset=now.assets.find(a=>a.sha256===generated.sha256);
     if(!asset) {
       const parent=store.paths(project.id).cache;await mkdir(parent,{recursive:true});
       const work=await mkdtemp(path.join(parent,'scene-sound-'));
       try {
-        const file=path.join(work,template+'.wav');await writeFile(file,generated.wav,{mode:0o600});
-        asset=await store.addAsset(project.id,file,{name:preset.name+'.wav',kind:'template-sound',role:'sfx',template,version:1,provider:'Video Studio PCM synthesis',rights:'工作台本机合成，可随工程使用及导出。'});
+        const file=path.join(work,archived?archived.spec.file:template+'.wav');await writeFile(file,generated.wav,{mode:0o600});
+        asset=await store.addAsset(project.id,file,archived?.source||{name:preset.name+'.wav',kind:'template-sound',role:'sfx',template,version:1,provider:'Video Studio PCM synthesis',rights:'工作台本机合成，可随工程使用及导出。'});
         if(asset.sha256!==generated.sha256)throw Error('本地音效录入后指纹不符');
       } finally {await rm(work,{recursive:true,force:true});}
       const latest=await store.get(project.id);
@@ -55,9 +61,9 @@ export async function compileSceneWithSound(styles,store,project,scene) {
   }
   if(sourceIn>=asset.duration*fps) throw Error('音效源位置之后没有可用采样');
   const maxFrames=Math.max(1,Math.floor(asset.duration*fps+.0001)-sourceIn);
-  const duration=Math.min(maxFrames,scene.start+scene.duration-scene.actionFrame,Math.max(1,Math.round(preset.seconds*fps)));
+  const duration=Math.min(maxFrames,scene.start+scene.duration-start,Math.max(1,Math.round((archived?archived.spec.frames30/30:preset.seconds)*fps))-Math.max(0,impact-scene.actionFrame));
   if(duration<1)throw Error('音效源位置之后没有可用采样');
-  clips.push({id:randomUUID(),track:'music',role:'sfx',assetId:asset.id,start:scene.actionFrame,duration,sourceIn,speed:1,gain,locked:false,
+  clips.push({id:randomUUID(),track:'music',role:'sfx',assetId:asset.id,start,duration,sourceIn,speed:1,gain,locked:false,
     template,templateVersion:1,templateRole:preset.role,styleId:scene.style.id,styleVersion:scene.style.version,actionFrame:scene.actionFrame,
     anchorAssetId:scene.anchorAssetId,anchorSourceFrame:scene.anchorSourceFrame});
   return {clips,baseRevision};

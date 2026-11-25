@@ -5,8 +5,8 @@ import {compositionSamples,pixelDifference} from '../src/composite-parity.mjs';
 
 const profile={width:1920,height:1080,fps:24};
 const make=(componentId,extra={})=>componentClip({id:'label',componentId,start:120,duration:120,...extra},profile);
-test('six native definitions keep their editable properties and only registered JSX is accepted',()=>{
-  assert.equal(new Set(motionCatalog.map(c=>c.id)).size,6);
+test('thirteen native definitions keep their editable properties and only registered JSX is accepted',()=>{
+  assert.equal(new Set(motionCatalog.map(c=>c.id)).size,13);
   for(const spec of motionCatalog){
     const c=make(spec.id);validateMotionClip(c,profile);
     const sample=motionSample(c,profile,126);

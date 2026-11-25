@@ -7,6 +7,7 @@ import {mkdtemp,mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {promisify} from 'node:util';
+import {motionSources} from '../src/motion-source-files.mjs';
 import {sourceHashes,components} from '../src/motion-jsx.generated.mjs';
 import {serialize} from '../src/motion-dom.mjs';
 import {motionFont,verifyMotionFont} from '../src/motion-font.mjs';
@@ -26,10 +27,10 @@ const edits=[
   {left:'之前的刻度',right:'之后的刻度'}
 ];
 
-test('the offline compiler preserves all six release source digests and treats model copy as text',async()=>{
+test('the offline compiler preserves all release source digests and treats model copy as text',async()=>{
   for(const [i,hash] of sourceHashes.entries()){
-    const file='mg-'+String(i+1).padStart(2,'0')+'.jsx';
-    const source=await readFile(new URL('../../../user-packs/henry-video-styles/reproduction/technical-explainer/'+file,import.meta.url));
+    const {folder,file}=motionSources[i];
+    const source=await readFile(new URL('../../../user-packs/henry-video-styles/reproduction/'+folder+'/'+file,import.meta.url));
     assert.equal(createHash('sha256').update(source).digest('hex'),hash);
   }
   const clip={track:'graphic',start:0,duration,motion:{componentId:names[0],props:{title:'<img src=x onerror=alert(1)>',font:'none;position:fixed'}}};

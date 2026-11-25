@@ -106,10 +106,34 @@ function componentFields(c){
     return field(f.label,input(key,value,f.type==='number'?'number':'text'));
   }).join('');
   const g=c.geometry??defaultMotionGeometry(spec,s.p.profile);
-  return '<div class="form-grid">'+props+'</div>'+ (cues.length?'<fieldset><legend>出场时刻（片段内）</legend>'+cues.map((at,i)=>field((spec.id==='source-label'?'切换 ':'第 '+(i+1)+' 步 ')+(spec.id==='source-label'?(i+1):'')+' <output id="cue-read-'+i+'">'+at+' 帧</output>',
+  const sameStyle=spec.styleId===s.p.style?.id&&spec.styleVersion===s.p.style?.version;
+  const design=c.soundDesign||{};
+  const sound=sameStyle?'<details><summary>动作音效</summary>'+check('motion-sound-on','在动作落点加入音效',design.enabled??Boolean(spec.soundEvents?.length))+field('声音素材',select('motion-sound-id',[['','按风格事件'],...(spec.soundResources||[]).map(r=>[r.id,r.name])],design.resourceId||''))+
+    (design.assetId?'<small>保留本片自选音频</small>':'')+'</details>':'';
+  return sound+'<div class="form-grid">'+props+'</div>'+ (cues.length?'<fieldset><legend>出场时刻（片段内）</legend>'+cues.map((at,i)=>field((spec.id==='source-label'?'切换 ':'第 '+(i+1)+' 步 ')+(spec.id==='source-label'?(i+1):'')+' <output id="cue-read-'+i+'">'+at+' 帧</output>',
     input('cue-'+i,at,'range','data-cue="'+i+'" min="0" max="'+(c.duration-1)+'" step="1" '+(i===0?'disabled':'')))).join('')+
     (spec.id==='source-label'?btn('add-cue','增加切换')+(cues.length>1?btn('drop-cue','移除末次切换'):''):'')+'</fieldset>':'')+
     '<details><summary>动效位置和尺寸</summary>'+rectFields('motion-rect',g,true)+'</details>';
+}
+function shakeRow(effect,index){
+  const fields=[['offsetFrames','动作落点（帧）',0],['duration','时长（帧）',7],['strength','强度',.35],['speed','频率（Hz）',6],
+    ['zoom','画面放大',1.015],['rotation','旋转幅度（度）',.1],['breathe','缩放起伏',0]];
+  return '<fieldset data-shake="'+index+'" data-phase="'+Number(effect.phaseFrames||0)+'"><legend>动作震动</legend><div class="form-grid">'+
+    fields.map(([key,label,fallback])=>field(label,input('shake-'+index+'-'+key,effect[key]??fallback,'number','step="any"'))).join('')+
+    '</div>'+btn('remove-shake','移除该效果','',String(index))+'</fieldset>';
+}
+function shakeInspector(c){
+  return '<details><summary>画面震动</summary><div id="picture-shakes">'+(c.pictureEffects||[]).map(shakeRow).join('')+'</div>'+
+    btn('add-shake','在播放头加震屏','',c.id)+'</details>';
+}
+function readShakes(){
+  return [...el('picture-shakes').querySelectorAll('[data-shake]')].map(row=>{
+    const effect={type:'camera-shake'},phase=Number(row.dataset.phase);
+    if(phase)effect.phaseFrames=phase;
+    for(const key of ['offsetFrames','duration','strength','speed','zoom','rotation','breathe'])
+      effect[key]=Number(val('shake-'+row.dataset.shake+'-'+key));
+    return effect;
+  });
 }
 const rectKeys=['x','y','width','height'];
 function rectFields(prefix,r,center=false){
@@ -133,7 +157,7 @@ function drawEdit(){
   const chosen=clips.find(c=>c.id===s.clip);
   el('view').innerHTML=`<div class="edit-layout"><div class="stack"><div class="monitor"><div class="screen">${source?(latest||first.kind==='video'?`<video id="player" controls playsinline preload="metadata" src="${source}"></video>`:`<img src="${source}" alt="素材预览">`):`<div class="empty"><p>预览画面</p>${btn('tab','添加素材','','assets')}</div>`}</div>
   <div class="monitor-foot">${btn('draft','查看当前草稿')}<span>${latest?cutLabel(latest)+' · v'+latest.revision+(latest.revision===p.revision?'':' · 有新改动'):first?'素材预览':'工程预览'}</span><span class="mono">${p.profile.width} × ${p.profile.height} · ${fps} fps</span></div></div>
-  <section class="card timeline"><div class="timeline-header"><h2>时间线</h2><span class="mono">${clock(total/fps)} · v${p.revision}</span></div><div class="actions">${select('new-component',s.components.map(c=>[c.id,c.name]))}${btn('add-component','插入动效')}${clips.length?field('选择片段',select('clip-picker',[['','选择时间线片段'],...clips.map(c=>[c.id,tracks[c.track]+' · '+clock(c.start/fps)+' · '+clipTitle(c)])],s.clip)):''}</div><div class="ruler"><span></span><div>${[0,.25,.5,.75,1].map(x=>'<span>'+clock(total*x/fps)+'</span>').join('')}</div></div>
+  <section class="card timeline"><div class="timeline-header"><h2>时间线</h2><span class="mono">${clock(total/fps)} · v${p.revision}</span></div><div class="actions">${select('new-component',[...s.components].sort((a,b)=>Number(b.styleId===p.style?.id)-Number(a.styleId===p.style?.id)).map(c=>[c.id,(c.styleId==='henry-hot-news'?'热点 · ':'科普 · ')+c.name]))}${btn('add-component','插入动效')}${clips.length?field('选择片段',select('clip-picker',[['','选择时间线片段'],...clips.map(c=>[c.id,tracks[c.track]+' · '+clock(c.start/fps)+' · '+clipTitle(c)])],s.clip)):''}</div><div class="ruler"><span></span><div>${[0,.25,.5,.75,1].map(x=>'<span>'+clock(total*x/fps)+'</span>').join('')}</div></div>
   ${Object.entries(tracks).map(([k,v])=>`<div class="lane"><span>${v}</span><div class="lane-body" data-frames="${total}">${clips.filter(c=>c.track===k).map(c=>`<button class="clip ${k} ${s.clip===c.id?'focus':''} ${c.locked?'lock':''}" data-clip="${esc(c.id)}" title="${esc(clipTitle(c))}" style="left:${100*c.start/total}%;width:${100*c.duration/total}%">${c.locked?'⌑ ':''}${esc(clipTitle(c))}</button>`).join('')}</div></div>`).join('')}
   </section><div id="inspect">${inspector(chosen)}</div></div>
   <aside class="card director"><div class="hrow space"><h2>剪辑对话</h2></div>
@@ -157,7 +181,7 @@ function inspector(c){
   ${c.motion?componentFields(c):['caption','graphic'].includes(c.track)?field('文字',area('clip-text',c.text,2)):''}
   ${c.shape==='polygon'?field('轮廓顶点（图层内 x、y，范围 0–1）',area('clip-points',JSON.stringify(c.geometry.points),3)):''}
   ${!c.motion&&['caption','graphic'].includes(c.track)?`<details><summary>图层位置与关键帧</summary><div class="three">${field('水平位置 0–1',input('clip-x',c.geometry?.x??.5,'number','step=".01"'))}${field('垂直位置 0–1',input('clip-y',c.geometry?.y??.5,'number','step=".01"'))}${field('字号（像素）',input('clip-font',c.style?.fontSize||48,'number','min="1"'))}</div>${field('关键帧（帧、位置、缩放、透明度及顺时针角度 rotation）',area('clip-keys',JSON.stringify(c.keyframes||[]),2))}</details>`:''}
-  ${c.track==='video'?`${viewportFields(c)}${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照']],c.transition?.type==='wipe-right'?'wipe-right':'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>`:''}<div class="actions">${(c.track==='video'||(c.track==='graphic'&&!c.motion))?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${c.motion?btn('save-preview-cue','保存并预览落点','',c.id):''}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
+  ${c.track==='video'?`${viewportFields(c)}${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照'],['whip-pan','热点 · 甩镜'],['organic-dissolve','热点 · 纹理溶解']],['wipe-right','whip-pan','organic-dissolve'].includes(c.transition?.type)?c.transition.type:'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>${shakeInspector(c)}`:''}<div class="actions">${(c.track==='video'||(c.track==='graphic'&&!c.motion))?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${c.motion?btn('save-preview-cue','保存并预览落点','',c.id):''}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
 }
 async function edit(commands){
   const previous=s.p, result=await proj('/edits',{baseRevision:previous.revision,commands});
@@ -370,6 +394,13 @@ async function runAction(act,id){
    const clip={id:crypto.randomUUID(),assetId:asset.id,track:'video',start:c.start,duration,sourceIn:0,gain:0,fit:'cover',viewport:{x:.5,y:0,width:.5,height:1}};
    await edit([{op:'update',id,changes:{fit:'cover',viewport:{x:0,y:0,width:.5,height:1}}},{op:'add',clip}]);return pickClip(clip.id);
  }
+ case 'add-shake':{
+   const c=p.timeline.clips.find(c=>c.id===id),offsetFrames=Math.max(0,Math.min(c.duration-1,Math.round((el('player')?.currentTime||0)*frameRate())-c.start));
+   const box=el('picture-shakes'),rows=[...box.querySelectorAll('[data-shake]')],index=Math.max(-1,...rows.map(r=>Number(r.dataset.shake)))+1;
+   if(rows.length>=16)throw Error('每个镜头最多可放 16 个震屏。');
+   box.insertAdjacentHTML('beforeend',shakeRow({offsetFrames,duration:Math.min(c.duration-offsetFrames,Math.max(1,Math.round(frameRate()*7/30)))},index));return;
+ }
+ case 'remove-shake':{el('picture-shakes').querySelector('[data-shake="'+Number(id)+'"]')?.remove();return;}
  case 'save-clip':{
   const c=p.timeline.clips.find(c=>c.id===id),f=frameRate();
   const changes={start:Math.round(Number(val('clip-at'))*f),sourceIn:Math.round(Number(val('clip-in'))*f),duration:Math.round(Number(val('clip-len'))*f),speed:Number(val('clip-speed')),gain:Number(val('clip-gain'))};
@@ -380,7 +411,17 @@ async function runAction(act,id){
       props[f.key]=f.type==='number'?Number(node.value):f.type==='boolean'?node.checked:node.value;
     }
     const cueFrames=Array.from(document.querySelectorAll('[data-cue]'),n=>Number(n.value));
-    return edit([{op:'update',id,changes:{start:changes.start,duration:changes.duration,geometry:readRect('motion-rect'),motion:{...c.motion,props,cueFrames}}}]);
+    const sound=el('motion-sound-on'),soundDesign={...c.soundDesign};
+    if(sound){
+      const defaultEnabled=Boolean(spec.soundEvents?.length),selected=val('motion-sound-id');
+      if(sound.checked!==defaultEnabled||soundDesign.enabled!=null)soundDesign.enabled=sound.checked;
+      if(selected!==String(soundDesign.resourceId||'')){
+        if(selected)soundDesign.resourceId=selected;else delete soundDesign.resourceId;
+        delete soundDesign.assetId;
+      }
+    }
+    return edit([{op:'update',id,changes:{start:changes.start,duration:changes.duration,geometry:readRect('motion-rect'),
+      ...(sound?{soundDesign}:{}),motion:{...c.motion,props,cueFrames}}}]);
   }
   if(['caption','graphic'].includes(c.track)){
     changes.text=val('clip-text');changes.geometry={...c.geometry,x:Number(val('clip-x')),y:Number(val('clip-y'))};
@@ -392,7 +433,8 @@ async function runAction(act,id){
     const point=key=>Object.fromEntries(['x','y','zoom'].map(k=>[k,Number(val('view-'+key+'-'+k))]));
     if(el('clip-framing').checked)changes.framing={from:point('from'),to:point('to')};
     else if(c.framing)changes.framing=null;
-    changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));const type=val('clip-transition');if(n!==(c.transition?.duration||0)||(n&&type!==(c.transition?.type==='wipe-right'?'wipe-right':'fade')))changes.transition=n?{type,duration:n}:null;}
+    if(el('picture-shakes')&&(c.pictureEffects||el('picture-shakes').children.length))changes.pictureEffects=readShakes();
+    changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));const type=val('clip-transition');if(n!==(c.transition?.duration||0)||(n&&type!==(['wipe-right','whip-pan','organic-dissolve'].includes(c.transition?.type)?c.transition.type:'fade')))changes.transition=n?{type,duration:n}:null;}
   return edit([{op:'update',id,changes}]);}
  case 'fact-source':await proj('/facts/'+Number(id)+'/open',{});return;
  case 'fact-shot':{

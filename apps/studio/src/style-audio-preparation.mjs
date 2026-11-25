@@ -67,12 +67,12 @@ export async function resolveProductionAudio(deps, project, {signal,message,voic
     }
     const reference=p.assets.find(a=>a.id===p.settings.voiceReferenceAssetId);
     const linked=selected==='clone'&&p.settings.voiceConsent===true&&reference?.sha256;
-    const matched=linked && (preferred ? known.some(v=>v.id===confirmed) : Boolean(confirmed));
+    const matched=!policy.voice.preset && linked && (preferred ? known.some(v=>v.id===confirmed) : Boolean(confirmed));
     if(voiceIntent==='style' && !matched && !['import','original'].includes(selected) && !(selected==='preset' && p.settings.presetVoice==='dylan')) {
       p=await deps.store.configure(id,p.revision,{settings:{voiceSelection:'style',voiceMode:'preset',presetVoice:'dylan'}});
       selected=p.settings.voiceMode;
     }
-    const status=voiceIntent==='user'?'user-selected':voiceIntent!=='preview'&&matched?'matched':'preview-only';
+    const status=voiceIntent==='user'?'user-selected':voiceIntent!=='preview'&&(matched||policy.voice.preset&&selected==='preset'&&p.settings.presetVoice===policy.voice.preset)?'matched':'preview-only';
     voice={status,selection:voiceIntent,preferredName:preferred,speed:policy.voice.speed,mode:selected,preset:selected==='preset'?(p.settings.presetVoice||'dylan'):null,
       voiceId:linked?(p.settings.voiceId||confirmed||reference.id):null,referenceHash:selected==='clone'?(linked||null):null,
       reason:status==='preview-only'?(ambiguity?'同名音色有多个，请在个人音色库指定本期使用的一个。':

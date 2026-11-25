@@ -1,6 +1,9 @@
 import {publicationFields} from './presentation.mjs';
 import {requestedDurationRange,validateDuration} from './duration.mjs';
-import {dedicatedVoiceReference} from './style-audio.mjs';
+import {validatePictureEffects,splitPictureEffects} from './news-effects.mjs';
+import {syncMotionSounds} from './motion-sound-binding.mjs';
+import {validateSoundDesign} from './style-sounds.mjs';
+import {dedicatedVoiceReference,henryV8,audioSelection} from './style-audio.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID, createHash } from 'node:crypto';
 import { createReadStream, mkdirSync, writeFileSync, renameSync, rmSync } from 'node:fs';
@@ -47,6 +50,8 @@ export function validateClip(clip,p) {
     if(!a || (clip.track==='video' ? !['image','video'].includes(a.kind) : a.kind==='image'||a.hasAudio===false)) throw fault('轨道与所选素材不匹配。');
     if(a.kind!=='image' && (clip.sourceIn??0)+clip.duration*speed>Math.ceil(a.duration*p.profile.fps)+1) throw fault('剪辑超出原片的可用窗口。');
   } else if (!clip.motion && (typeof clip.text!=='string'||clip.text.length>4000)) throw fault('文字图层内容无效。');
+  if(clip.pictureEffects!=null){try{validatePictureEffects(clip.pictureEffects,clip);}catch(e){throw fault(e.message);}}
+  if(clip.soundDesign!=null){try{validateSoundDesign(clip.soundDesign,p);}catch(e){throw fault(e.message);}}
   if(clip.motion!=null) validateMotionClip(clip,p.profile);
   if(clip.geometry)for(const key of ['x','y','width','height'])if(clip.geometry[key]!=null&&!Number.isFinite(clip.geometry[key]))throw fault('图层坐标无效。');
   if(clip.framing!=null && (clip.track!=='video' || !validFraming(clip.framing)))throw fault('画面取景中心须在原素材内，放大倍率须为 1–4。');
@@ -66,11 +71,14 @@ export function validateClip(clip,p) {
     if(!Number.isSafeInteger(clip.stackOrigin.offsetFrames)||clip.stackOrigin.offsetFrames<0||clip.stackOrigin.offsetFrames>p.profile.fps*86400)throw fault('片段分割时钟无效。');
   }
 }
-function newSettings(mode, supplied={}) {
+function newSettings(mode, supplied={},style) {
   const s={voiceMode:mode==='interview'?'original':'system',shareFrames:false,shareTranscript:true,cloudEnabled:false,cloudBudget:0,publishPackage:false,...supplied};
   try {validateDuration(s);} catch(error){throw fault(error.message);}
   if(s.finalReviewMaxTurns!=null && ![0,1].includes(s.finalReviewMaxTurns))throw fault('独立终审次数可选 0 或 1。');
   if(s.confirmSequence!=null&&typeof s.confirmSequence!=='boolean')throw fault('审稿方式无效。');
+  if(henryV8(style) && mode!=='interview' && audioSelection({mode,settings:s},'voice')==='style'){
+    s.voiceMode='preset';s.presetVoice='dylan';s.voiceSelection='style';
+  }
   if(s.autoReview!==undefined && typeof s.autoReview!=='boolean')throw fault('自动回看设置无效。');
   if(s.sourceScope!==undefined && !['project','search'].includes(s.sourceScope))throw fault('素材范围无效。');
   if(!['system','clone','preset','original','import'].includes(s.voiceMode))throw fault('声音方式无效。');
@@ -97,6 +105,7 @@ function* expandSplits(commands,project) {
     }
     const left={duration:head},right={...clip,id:cmd.newId,start:cmd.atFrame,duration:clip.duration-head,transition:null,stackOrigin};
     if(project.assets.find(a=>a.id===clip.assetId)?.kind!=='image')right.sourceIn=(clip.sourceIn||0)+Math.round(head*(clip.speed||1));
+    if(clip.pictureEffects?.length)[left.pictureEffects,right.pictureEffects]=splitPictureEffects(clip.pictureEffects,head);
     const camera=clip.framing;
     if(camera){
       const target=camera.to||camera.from;
@@ -155,7 +164,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     const id=randomUUID(), dirs=paths(id);
     for(const dir of Object.values(dirs))mkdirSync(dir,{recursive:true,mode:0o700});
     const p={schema:1,id,title:text(data.title||'未命名工程',160),mode:data.mode,brief:text(data.brief),script:text(data.script,160000),
-      profile:profileOf(data.profile), settings:newSettings(data.mode,{autoReview:true,...requestedDurationRange(data.brief),...data.settings}),style:data.style||{id:'neutral',version:1},
+      profile:profileOf(data.profile), settings:newSettings(data.mode,{autoReview:true,...requestedDurationRange(data.brief),...data.settings},data.style),style:data.style||{id:'neutral',version:1},
       revision:1,assets:[],timeline:{clips:[]},createdAt:now(),updatedAt:now()};
     return transaction(()=>persist(p,true));
   }
@@ -184,7 +193,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
   function apply(id,baseRevision,commands,actor='user',sceneMeta) {
     if(!Number.isInteger(baseRevision)||!Array.isArray(commands)||!commands.length||commands.length>10000)throw fault('请提供起始版本和剪辑指令。');
     return mutate(id,baseRevision,p=>{
-      const clips=p.timeline.clips;
+      const clips=p.timeline.clips, before=clips.map(c=>({...c}));
       for(const cmd of expandSplits(commands,p)){
         const found=clips.findIndex(c=>c.id===(cmd.id??cmd.clip?.id));
         const before=clips[found];
@@ -205,6 +214,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
         if(cmd.op==='add')clips.push(candidate);else clips[found]=candidate;
       }
       if(sceneMeta)Object.assign(p,copy(sceneMeta));
+      syncMotionSounds(p,before,commands,paths(id).assets,actor);
       clips.sort((a,b)=>a.start-b.start||tracks.indexOf(a.track)-tracks.indexOf(b.track)||a.id.localeCompare(b.id));
     });
   }
@@ -232,12 +242,12 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
         if(!Array.isArray(changes.sourceAnchors)||changes.sourceAnchors.some(a=>!p.assets.some(asset=>asset.id===a.assetId&&a.sourceFrame<=Math.ceil(asset.duration*p.profile.fps))||!Number.isSafeInteger(a.sourceFrame)||a.sourceFrame<0||!String(a.label||'').trim()))throw fault('动作标记必须绑定可用原片内的帧。');
         p.sourceAnchors=copy(changes.sourceAnchors);
       }
-      if(changes.settings){
-        const previous=p.settings;p.settings=newSettings(p.mode,{...previous,...changes.settings});
+      if(changes.settings||changes.style){
+        const previous=p.settings;p.settings=newSettings(p.mode,{...previous,...changes.settings},p.style);
         if(p.settings.voiceReferenceAssetId!==previous.voiceReferenceAssetId){
           const a=p.assets.find(a=>a.id===p.settings.voiceReferenceAssetId);
           p.settings.referenceHash=a?.sha256||null;
-          if(!changes.settings.voiceLibraryId)p.settings.voiceLibraryId=null;
+          if(!changes.settings?.voiceLibraryId)p.settings.voiceLibraryId=null;
           p.settings.voiceId=undefined;
         }
       }

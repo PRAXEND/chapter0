@@ -1,37 +1,48 @@
 import {motionCues,defaultMotionGeometry} from '../www/motion-clock.js';
 export {motionCues,defaultMotionGeometry};
-// These versioned presets refer only to the six JSX files shipped with the Henry pack.
+import {motionSoundEvents,soundResources,supportsSound} from './style-sounds.mjs';
+import {motionSources} from './motion-source-files.mjs';
 import {readFileSync} from 'node:fs';
 
-const pack = new URL('../../../user-packs/henry-video-styles/reproduction/technical-explainer/motion-graphics.json', import.meta.url);
-const originals = JSON.parse(readFileSync(pack, 'utf8'));
+const packRoot = new URL('../../../user-packs/henry-video-styles/reproduction/',import.meta.url);
+const originals = Object.fromEntries([...new Set(motionSources.map(s=>s.folder))].map(folder=>[folder,
+  JSON.parse(readFileSync(new URL(folder+'/motion-graphics.json',packRoot),'utf8'))]));
+// Frame landmarks and original placements are in the pack's 1920×1080, 30-fps coordinates.
 const definitions = [
-  ['impact-title', '动词强调', 70, 65],
-  ['source-label', '来源标识', 110, 12, [0]],
-  ['process-rail', '阶段路径', 260, 70, [0,150,270]],
-  ['staggered-explanation', '三步跟随', 70, 210, [0,18,36]],
-  ['fragment-title', '纵条聚字', 80, 120],
-  ['comparison-guide', '分屏标识', 0, 235],
+  ['动词强调',70,65], ['来源标识',110,12,[0]], ['阶段路径',260,70,[0,150,270]],
+  ['三步跟随',70,210,[0,18,36]], ['纵条聚字',80,120], ['分屏标识',0,235],
+  ['动作冲击线',530,300,[0]], ['事实光扫揭示',140,145,[0,10]],
+  ['机制大字与环绕字',800,150,[0,65,161]], ['情绪弹字与错位裂字',1040,125,[0,10]],
+  ['台面四角投影',1240,725,[0]], ['轻量来源角标',1265,20,[]], ['方向拖影重点词',250,160,[0]],
 ];
 const labels = {font:'字体', label:'眉题', title:'标题', size:'字号', white:'文字颜色', cyan:'强调颜色',
   transparentBackground:'透明底', a:'第一句', b:'第二句', c:'第三句', lab:'来源一', hardware:'来源二',
-  left:'左侧标识', right:'右侧标识', second:'第二步参考帧', third:'第三步参考帧'};
-export const motionCatalog = definitions.map(([id,name,left,top,referenceCues=[]],i) => {
-  const original = originals[i];
-  const {width,height} = original.dimensions;
-  const fields = original.editableProperties.map(({key,type,defaultValue}) => ({key,type,defaultValue,label:labels[key]}));
-  return {id,index:i+1,name,version:1,width,height,referenceCues,referenceDuration:Math.round(original.durationMs*.03),fields,
+  left:'左侧标识', right:'右侧标识', second:'第二步参考帧', third:'第三步参考帧',
+  color:'文字颜色',accent:'强调色',subtitle:'副标题',ink:'描边色',kicker:'眉题',titleA:'第一段标题',titleB:'第二段标题',
+  titleC:'第三段标题',subA:'第一段解释',subB:'第二段解释',subC:'第三段解释',orbit:'环绕词（用 · 分隔）',
+  actionA:'动作一',actionB:'动作二',actionC:'动作三',note:'备注',text:'文字',emphasis:'首个强调字符序号',
+  count:'强调字符数',crack:'裂字',tilt:'倾角（度）',glow:'光晕色'};
+export const motionCatalog = motionSources.map((source,i) => {
+  const [name,left,top,referenceCues=[]]=definitions[i];
+  const original=originals[source.folder][Number(source.file.slice(3,5))-1];
+  const {width,height}=original.dimensions;
+  const fields=original.editableProperties.map(({key,type,defaultValue})=>({key,type,defaultValue,label:labels[key]||key}));
+  return {...source,sourceId:original.id,index:i+1,name,version:1,width,height,referenceCues,
+    referenceDuration:Math.round(original.durationMs*.03),fields,
+    soundEvents:(motionSoundEvents[source.id]||[]).map(([resourceId,cue])=>({cue,resourceId})),
+    soundResources:soundResources.filter(s=>supportsSound({id:source.styleId,version:source.styleVersion},s.id)).map(s=>({id:s.id,name:s.name})),
+    fontFallback:fields.some(f=>f.defaultValue==='Xinqingnian Ti')?'Noto Sans SC':undefined,
     geometry:{x:(left+width/2)/1920,y:(top+height/2)/1080,width:width/1920,height:height/1080}};
 });
 const byId = new Map(motionCatalog.map(c => [c.id,c]));
 const object = value => value && typeof value==='object' && !Array.isArray(value);
 const fail = message => {throw Object.assign(new Error(message),{status:422});};
 
-export function componentClip({id,componentId,start,duration,props={},cueFrames,geometry},profile) {
+export function componentClip({id,componentId,start,duration,props={},cueFrames,geometry,soundDesign},profile) {
   const component=byId.get(componentId);
   if(!component) fail('该组件尚未注册。');
   const clip={id,track:'graphic',text:'',start,duration,sourceIn:0,speed:1,gain:1,
-    geometry:geometry??defaultMotionGeometry(component,profile),motion:{version:component.version,componentId,props,...(cueFrames?{cueFrames}:{})}};
+    ...(soundDesign?{soundDesign}:{}),geometry:geometry??defaultMotionGeometry(component,profile),motion:{version:component.version,componentId,props,...(cueFrames?{cueFrames}:{})}};
   validateMotionClip(clip,profile);
   return clip;
 }
@@ -47,7 +58,7 @@ export function validateMotionClip(clip, profile) {
   for (const [key,value] of Object.entries(m.props??{})) {
     const field = component.fields.find(f=>f.key===key);
     if (!field) fail('未知的组件参数：'+key);
-    const valid = field.type==='number' ? Number.isFinite(value) && value>=0 && value<=(key==='size'?320:86400*30)
+    const valid = field.type==='number' ? Number.isFinite(value) && value>=(key==='tilt'?-180:0) && value<=(key==='size'?320:key==='tilt'?180:86400*30) && (!['emphasis','count'].includes(key)||Number.isSafeInteger(value))
       : field.type==='boolean' ? typeof value==='boolean'
       : field.type==='color' ? typeof value==='string' && /^#(?:[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value)
       : typeof value==='string' && value.length<=(field.type==='font'?120:500);
@@ -86,6 +97,15 @@ export function motionSample(clip,profile,absoluteFrame) {
     // The JSX selects one of two source identities using fixed Atlas time ranges.
     // Alternate those identities at this project's cues instead of leaking the Atlas cuts.
     frame=cues.findLastIndex(at=>elapsed>=at)%2===1 ? 1302 : 0;
+  }
+  if(c.folder==='hot-news' && !['hot-source-label','hot-directional-word'].includes(c.id)){
+    // Fixed-30-fps originals contain hard-coded entrances and exits. Tie their authored
+    // landmarks to project cues, including the final exit when the clip is shortened.
+    const marks=c.referenceCues, i=Math.max(0,cues.findLastIndex(at=>elapsed>=at));
+    const from=cues[i]??0,to=cues[i+1]??Math.max(from+1,clip.duration-1);
+    const start=marks[i]??0,end=marks[i+1]??c.referenceDuration-1;
+    frame=start+(end-start)*Math.min(1,Math.max(0,(elapsed-from)/(to-from)));
+    duration=c.referenceDuration;
   }
   return {id:c.id,index:c.index,props,frame,duration,width:c.width,height:c.height};
 }

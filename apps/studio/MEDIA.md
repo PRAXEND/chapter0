@@ -67,7 +67,13 @@ node scripts/field-trials.mjs "$HOME/Movies/Video Studio/盲评工作台/researc
 
 从源码运行时，第一次渲染使用系统 Command Line Tools 编译随仓 Swift 文件。发行包直接使用内置程序。按工程隔离的动效帧默认存放在媒体缓存的 `motion-frames-v1` 子目录，也可用 `VIDEO_STUDIO_MOTION_CACHE` 指定位置。组件、原生渲染代码或系统版本变化时，工作台使用新指纹重建。单个项目的缓存可在关闭渲染后清理，再次渲染会自动生成。
 
-修改风格包原版 JSX 时，先检查组件所需的元素与样式。在有 TypeScript 的开发机上运行 `node scripts/compile-motion-jsx.mjs /绝对路径/typescript`，连同源码一起提交生成模块。发行构建逐一比对原文件指纹。运行 `node --test test/motion-render.test.mjs` 可复验六个真实组件的透明输出、出场时间、逐像素定位、字幕层级、取消恢复和窗口对位。指定 `VIDEO_STUDIO_MOTION_TEST_OUTPUT` 可保留 MP4 和测量记录。
+技术科普 v8 的六个 JSX 与热点 v8 的七个 JSX 按目录、归档资产编号与指纹识别。热点原件请求新青年体；系统未装该字族时，内容进程使用内置的 Noto Sans SC。桌面投影归档中的小数曾被替换为匿名编号，编译器从同版归档四个角点恢复透视矩阵。震屏、甩镜、纹理溶解在本地基于源画面执行，编辑器原有专有着色器没有独立版本记录，视觉效果属于参数化本地实现。
+
+两个版本选用正式本机 Dylan，QA 核对生成音频、预置名、模型版本、权重指纹、成片采样与实际变速。热点原配乐按同一归档的器乐生成记录（Mureka 9）与 SHA-256 核对。原音效使用随用户风格包一起归档的作品，以包的文件指纹及来源记录为依据；第三方素材的独立再分发权沿用原来源。两套原曲的使用记录分别见[风格包](../../user-packs/henry-video-styles/README.md)、[生成音乐使用条款](https://chatcut.io/docs/usage-policy)。
+
+编辑器按工程帧将音效原件的冲击点对齐组件出场或画面动作，保留被裁掉的片头源偏移。来源角标默认静音。同一底片与花字的共同动作只触发一次，同一音效文件在工程内按 SHA-256 去重。移动图层或落点时修改发生在同一 SQLite 版本事务中。独立移动音效即解除关联，单独删除的音效会记录在图层上。
+
+修改风格包原版 JSX 时，先检查组件所需的元素与样式。在有 TypeScript 的开发机上运行 `node scripts/compile-motion-jsx.mjs /绝对路径/typescript`，连同源码一起提交生成模块。发行构建逐一比对原文件指纹。运行 `node --test test/motion-render.test.mjs` 可复验原六个科普组件的透明输出、出场时间、逐像素定位、字幕层级、取消恢复和窗口对位。指定 `VIDEO_STUDIO_MOTION_TEST_OUTPUT` 可保留 MP4 和测量记录。运行 `node --test test/henry-v8-assets.test.mjs` 可在不生成视频的条件下复验双风格、声音选项、绑定和三种热点画面效果。
 
 
 Noto Sans SC 使用 Google Fonts 固定发行的原始可变 TTF，文件 17,772,300 字节，SHA-256 为 `a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da`。发行包将完整 SIL Open Font License 1.1 存入 `Resources/licenses/Noto-Sans-SC-OFL.txt`。工作台在本机核对字节，将字体装入绘制页面的 WebKit 内容进程，等待字重范围就绪后才渲染。字体指纹参与缓存，升级应用后会重绘旧字形。复验命令同时检查中文实际栅格、字重和导出的文字像素。[Google Fonts 固定字体版本](https://github.com/google/fonts/tree/a85815a42757630ce188fdad368c2dfc444d4773/ofl/notosanssc) · [原版许可](https://github.com/google/fonts/blob/a85815a42757630ce188fdad368c2dfc444d4773/ofl/notosanssc/OFL.txt)

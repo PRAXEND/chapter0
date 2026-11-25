@@ -1,5 +1,6 @@
 import {fileURLToPath} from 'node:url';
 import {portraitLayout,portraitScript,portraitGraph,portraitEnding} from './presentation.mjs';
+import {shakeFilter,newsTransition} from './news-effects.mjs';
 import {activeStyleMusicCredit} from './style-audio.mjs';
 import { stat, mkdir, writeFile, rename, link, unlink, symlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -118,13 +119,16 @@ function buildVisualInput(clip, span, asset, profile, index) {
   const square = clip.viewport && asset.pixelAspect && asset.pixelAspect !== 1 ?
     `scale=${Math.max(2, 2 * Math.round(asset.width * asset.pixelAspect / 2))}:${asset.height},setsar=1,` : '';
   const view = clip.framing ? framingFilter(clip, asset, profile, span.start) : square + size;
-  const chain = `[${index}:v:0]setpts=(PTS-STARTPTS)/${rounded(rate)},fps=${fps},tpad=stop_mode=clone:stop=-1,trim=start_frame=${skip}:end_frame=${skip + span.duration},setpts=N/(${fps}*TB),${view},setsar=1,format=yuv420p[v${index}]`;
+  const fx=shakeFilter(clip,span.start,profile);
+  const chain = `[${index}:v:0]setpts=(PTS-STARTPTS)/${rounded(rate)},fps=${fps},tpad=stop_mode=clone:stop=-1,trim=start_frame=${skip}:end_frame=${skip + span.duration},setpts=N/(${fps}*TB),${view}${fx?','+fx:''},setsar=1,format=yuv420p[v${index}]`;
   return { args, chain };
 }
 
 function blendFilter(clip, start) {
   const fade = transitionEnvelope(clip);
   const weight = `min(1,(N+${start-clip.start+fade.offset})/${fade.total})`;
+  const native=newsTransition(clip.transition.type,`clip((N-1+${start-clip.start+fade.offset})/${Math.max(1,fade.total-1)},0,1)`);
+  if(native)return native;
   const expression = clip.transition.type === 'wipe-right' ? `if(lt(X,W*(${weight})),A,B)` : `A*(${weight})+B*(1-${weight})`;
   return `blend=all_expr='${expression}':shortest=1`;
 }

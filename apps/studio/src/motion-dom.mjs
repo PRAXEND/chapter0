@@ -14,7 +14,7 @@ function css(style){
     const raw=typeof value==='number'&&!unitless.has(property)&&value!==0?value+'px':String(value);
     // A model-supplied font name is one CSS property, never a declaration list or a resource.
     if(/[;{}<>\u0000-\u001f]/.test(raw)||/url\s*\(/i.test(raw)) return '';
-    return key+':'+raw;
+    return key+':'+(property==='fontFamily' && raw==='Xinqingnian Ti' ? '"Xinqingnian Ti","Noto Sans SC","PingFang SC",sans-serif' : raw);
   }).filter(Boolean).join(';');
 }
 export function serialize(node){

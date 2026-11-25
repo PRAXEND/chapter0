@@ -1,3 +1,4 @@
+import {presetId,presetRevision,presetFiles} from './qwen-preset.mjs';
 import {styleAudioPolicy,audioSelection} from './style-audio.mjs';
 import {measureMusicMix,isMusicBed,verifyMusicExcerpt} from './music-evidence.mjs';
 
@@ -31,11 +32,15 @@ async function assessVoice(project,policy,receipt,selection,options) {
     const clone=s.mode==='clone'&&expectedReference&&s.referenceHash===expectedReference&&(!voiceId||s.voiceId===voiceId)&&
       reference?.source?.consent===true&&(!settings.referenceHash||settings.referenceHash===expectedReference)&&
       (!settings.voiceLibraryId||reference.source.sourceVoice===settings.voiceLibraryId)&&(!s.generatedHash||s.generatedHash===actual);
+    const preset=s.mode==='preset'||s.voiceMode==='preset';
+    const chosenPreset=Boolean(preset && actual && s.preset===(settings.presetVoice||'dylan') && s.generatedHash===actual &&
+      s.model===presetId && s.modelRevision===presetRevision && s.modelSha256===presetFiles['model.safetensors'][1]);
+    const stylePreset=selection==='style' && chosenPreset && settings.voiceMode==='preset' && s.preset===policy.preset &&
+      receipt?.voice?.status==='matched' && receipt.voice.preset===policy.preset;
     const own=selection==='user'&&(settings.voiceMode==='import'&&(!settings.narrationAssetId||settings.narrationAssetId===asset?.id)||
       original&&(clip.track==='video'||!s.mode)||settings.voiceMode==='system'&&s.mode==='system'||
-      settings.voiceMode==='preset'&&(s.mode==='preset'||s.voiceMode==='preset')||settings.voiceMode==='clone'&&clone);
+      settings.voiceMode==='preset'&&chosenPreset||settings.voiceMode==='clone'&&clone);
     const matched=Boolean(clone&&receipt?.voice?.status==='matched'&&receipt.voice.referenceHash===expectedReference);
-    const preset=s.mode==='preset'||s.voiceMode==='preset'||s.preset;
     const rate=Number(s.speechRate),raw=s.baseSha256&&project.assets.find(a=>a.sha256===s.baseSha256);
     const rawVerified=raw&&await options.verifiedHash(raw),base=raw?rawVerified&&await options.actualDuration(raw):Number(s.baseDuration);
     const measured=Number(s.measuredSeconds),duration=actual&&Number.isFinite(rate)?await options.actualDuration(asset):null;
@@ -47,7 +52,7 @@ async function assessVoice(project,policy,receipt,selection,options) {
     const speedVerified=paceMeasured&&Math.abs(effectiveRate-policy.speed)<=.035;
     summary.sources.push({clipId:clip.id,assetId:clip.assetId,fromFrame:clip.start,toFrame:endOf(clip),sha256:actual||null,
       mode:s.mode||s.voiceMode||(original?'original':settings.voiceMode),voiceId:s.voiceId||s.speaker||s.preset||null,referenceHash:s.referenceHash||null,model:s.model||null,
-      identity:own?'user-selected':matched?'matched':s.mode==='system'?'system-default':preset?'preset-preview':'unverified',sourceInMix:inMix,
+      identity:own?'user-selected':matched||stylePreset?'matched':s.mode==='system'?'system-default':preset?'preset-preview':'unverified',sourceInMix:inMix,
       matchedWindows:windows.length,effectiveRate,renderedRatio,paceMeasured,speedVerified,
       paceEvidence:paceMeasured?(rawVerified?'baseline-and-final-files':'generation-duration-and-final-file'):'unverified'});
   }
@@ -170,7 +175,7 @@ export async function reviewStyleAudio(project,style,options) {
   if(!policy||project.style&&(style.id!==project.style.id||Number(style.version)!==Number(project.style.version)))return null;
   if(policy.music){
     const resource=options.styleMusicResource;
-    const declared=style.audioBlueprint?.music?.sha256||style.reproduction_blueprint?.audio?.music?.sha256;
+    const declared=policy.music.sha256||style.audioBlueprint?.music?.sha256||style.reproduction_blueprint?.audio?.music?.sha256;
     policy.music.sha256=resource?.verified===true&&resource.available===true?resource.sha256:declared||null;
   }
   const saved=project.styleAudio,receipt=saved?.styleId===style.id&&Number(saved.styleVersion)===Number(style.version)?saved:null;

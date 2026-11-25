@@ -1,3 +1,5 @@
+import {newsEffects} from './news-effects.mjs';
+import {motionCatalog} from './motion-components.mjs';
 import {createHash, randomUUID} from 'node:crypto';
 import {createReadStream,constants} from 'node:fs';
 import {copyFile, link, mkdir, mkdtemp, open, readFile, readdir, realpath, rename, rm, stat, writeFile} from 'node:fs/promises';
@@ -83,14 +85,14 @@ function parseStyle(spec) {
     const rows=references.filter(r=>r.kind==='video' && (r.locator?.startsWith('resource:media/benchmarks/') || r.id===spec.baselineId));
     if(rows.length===1) baseline=rows[0];
   }
-  const components=(blueprint.components||bundle.motion_graphics||[]).map(c=>({id:c.id,name:c.name||c.id,role:c.role||c.name,editable:c.editable||c.editableProperties||[],
+  const components=(blueprint.components||bundle.motion_graphics||[]).map(c=>({id:motionCatalog.find(m=>m.styleId===spec.id&&m.styleVersion===spec.version&&m.sourceId===c.id)?.id||c.id,name:c.name||c.id,role:c.role||c.name,editable:c.editable||c.editableProperties||[],
     parameters:Object.fromEntries(Object.entries(c).filter(([k,v])=>!['id','name','role','editable','editableProperties'].includes(k)&&(typeof v==='number'||Array.isArray(v)&&v.length<=8&&v.every(Number.isFinite))))}));
   const templateIds=spec.templateIds??(spec.id==='henry-hot-news'?['action-result']:spec.id==='henry-technical-explainer'?['step-reveal']:[]);
   return {id:spec.id,name:spec.name,version:spec.version,description:spec.description||'',adaptation:spec.adaptation||'',rules:spec.rules||[],
     recipeSections:Object.keys(recipeSections(spec)),audioBlueprint:blueprint.audio||undefined,storyboardContract:spec.storyboard_contract||spec.storyboardContract||undefined,
     requirements:spec.material_requirements||[],knownExceptions:spec.knownExceptions||[],unknownDimensions:spec.unknown_dimensions||[],
     executionPlan:templateIds.includes('step-reveal')?scienceExecutionPlan(blueprint,spec):undefined,
-    references,baseline,components,measurements:spec.measurements||[],effectRecipes:blueprint.effect_recipes||[],templates:templateIds.filter(id=>id in templateNames).map(id=>({id,name:templateNames[id]})),preferences:spec.preferences||[]};
+    references,baseline,components,measurements:spec.measurements||[],effectRecipes:spec.id==='henry-hot-news'&&spec.version===8?newsEffects:blueprint.effect_recipes||[],templates:templateIds.filter(id=>id in templateNames).map(id=>({id,name:templateNames[id]})),preferences:spec.preferences||[]};
 }
 
 export function createStyleLibrary(dataRoot, options={}) {
@@ -209,6 +211,16 @@ export function createStyleLibrary(dataRoot, options={}) {
     const reg=await registry(), row=select(reg,id,version);
     for (const pack of new Set([row.pack,...reg.packRoots].filter(Boolean))) {
       const list=await optionalJson(path.join(pack,'resources.json'));
+      if (id==='henry-hot-news' && version===8 && music.originalAssetId==='ref-b2d81b025693') {
+        const original=row.spec.reproduction_bundle?.media?.find(m=>m.id===music.originalAssetId);
+        const file=list?.files?.find(f=>f.sha256===music.sha256 && 'resource:'+f.path===music.url &&
+          f.asset_aliases?.includes(original?.id) && f.original_name===original?.name);
+        if(file && original.generation_provenance?.generationType==='instrumental' && original.generation_provenance?.model==='mureka-9'){
+          const verified=await verifiedReference({...row,pack},{id:original.id,kind:'audio',title:music.title,locator:music.url,sha256:file.sha256},reg.packRoots);
+          if(verified.available && verified.verified)return verified;
+        }
+        continue;
+      }
       const match=list?.files?.find(f=>f.source_url===music.url && f.author===music.author &&
         f.license===music.license && f.license_url===music.licenseUrl && digestPattern.test(f.sha256) &&
         typeof f.path==='string' && path.basename(f.path,path.extname(f.path)).toLowerCase()===music.title.toLowerCase());

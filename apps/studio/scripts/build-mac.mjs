@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
+import {motionSources} from '../src/motion-source-files.mjs';
 import {sourceHashes} from '../src/motion-jsx.generated.mjs';
 import {verifyMotionFont} from '../src/motion-font.mjs';
 import {bundleStyles} from './bundle-styles.mjs';
@@ -36,9 +37,9 @@ try{
   const legacy=path.join('plugins','video-studio','workbench','media.mjs');
   await clone(path.join(repo,legacy),path.join(resources,legacy));
   await bundleStyles(repo,resources);
-  const motionPack=path.join(resources,'user-packs','henry-video-styles','reproduction','technical-explainer');
+  const motionPack=path.join(resources,'user-packs','henry-video-styles','reproduction');
   for(const [i,hash] of sourceHashes.entries()){
-    const name='mg-'+String(i+1).padStart(2,'0')+'.jsx';
+    const {folder,file}=motionSources[i];const name=path.join(folder,file);
     if(createHash('sha256').update(await readFile(path.join(motionPack,name))).digest('hex')!==hash)
       throw Error(name+' 源码已变更，请审阅后重新编译发行组件。');
   }
