@@ -1,3 +1,4 @@
+import {dedicatedVoiceReference} from './style-audio.mjs';
 // Only the named archive sound effects can be materialized by an edit transaction.
 // Neither a project string nor a tool argument can supply an arbitrary file path.
 import {createHash} from 'node:crypto';
@@ -61,7 +62,7 @@ export function validateSoundDesign(design,project) {
   if(design==null)return;
   if(typeof design!=='object'||Array.isArray(design)||Object.keys(design).some(k=>!['enabled','resourceId','assetId','gainDb','suppressed'].includes(k))||
     design.enabled!=null && typeof design.enabled!=='boolean'||design.resourceId!=null && !supportsSound(project.style,design.resourceId)||
-    design.assetId!=null && !project.assets.some(a=>a.id===design.assetId&&a.kind==='audio'&&a.hasAudio!==false)||
+    design.assetId!=null && !project.assets.some(a=>a.id===design.assetId&&a.kind==='audio'&&a.hasAudio!==false&&!dedicatedVoiceReference(a))||
     design.gainDb!=null && (!Number.isFinite(design.gainDb)||design.gainDb>12||design.gainDb< -96)||
     design.suppressed!=null && (!Array.isArray(design.suppressed)||design.suppressed.length>64||!design.suppressed.every(v=>typeof v==='string'&&v.length<100)))throw Error('动作音效的资源、音量或事件无效');
 }

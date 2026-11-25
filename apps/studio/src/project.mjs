@@ -79,6 +79,7 @@ function newSettings(mode, supplied={},style) {
   if(henryV8(style) && mode!=='interview' && audioSelection({mode,settings:s},'voice')==='style'){
     s.voiceMode='preset';s.presetVoice='dylan';s.voiceSelection='style';
   }
+  if(s.sceneSound!=null&&typeof s.sceneSound!=='boolean')throw fault('本期动作音效开关无效。');
   if(s.autoReview!==undefined && typeof s.autoReview!=='boolean')throw fault('自动回看设置无效。');
   if(s.sourceScope!==undefined && !['project','search'].includes(s.sourceScope))throw fault('素材范围无效。');
   if(!['system','clone','preset','original','import'].includes(s.voiceMode))throw fault('声音方式无效。');
@@ -244,6 +245,10 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
       }
       if(changes.settings||changes.style){
         const previous=p.settings;p.settings=newSettings(p.mode,{...previous,...changes.settings},p.style);
+        if(changes.settings?.sceneSound!==undefined && p.settings.sceneSound!==previous.sceneSound){
+          syncMotionSounds(p,p.timeline.clips.map(c=>({...c})),[],paths(id).assets,'user',true);
+          p.timeline.clips.sort((a,b)=>a.start-b.start||tracks.indexOf(a.track)-tracks.indexOf(b.track)||a.id.localeCompare(b.id));
+        }
         if(p.settings.voiceReferenceAssetId!==previous.voiceReferenceAssetId){
           const a=p.assets.find(a=>a.id===p.settings.voiceReferenceAssetId);
           p.settings.referenceHash=a?.sha256||null;

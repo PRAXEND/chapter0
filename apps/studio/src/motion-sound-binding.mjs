@@ -6,8 +6,8 @@ const stableId=(owner,key)=>'sfx-'+createHash('sha256').update(JSON.stringify([o
 const conflict=()=>{throw Object.assign(Error('关联音效已锁定，先解锁或保留当前落点。'),{status:409});};
 function eventsFor(owner,project){
   const design=owner.soundDesign||{},fps=project.profile.fps,style=project.style;
-  if(!style||style.version!==8||design.enabled===false||project.settings?.sceneSounds===false||
-     project.mode==='interview'&&design.enabled!==true)return [];
+  if(!style||style.version!==8||design.enabled===false||project.settings?.sceneSound===false||
+     project.mode==='interview'&&design.enabled!==true&&project.settings?.sceneSound!==true)return [];
   const spec=motionCatalog.find(s=>s.id===owner.motion?.componentId);
   const events=[];
   const event=(key,id,offset,role)=>{
@@ -23,7 +23,7 @@ function eventsFor(owner,project){
   }
   if(owner.track==='video'&&style.id==='henry-hot-news'){
     for(const [i,fx] of (owner.pictureEffects||[]).entries())if(fx.type==='camera-shake'&&!fx.phaseFrames)
-      event('shake-'+i,'synthetic-pop',fx.offsetFrames,'action-sound');
+      event('shake-'+i,'synthetic-pop',fx.offsetFrames??0,'action-sound');
   }
   if(owner.track==='video'&&owner.transition?.duration>0&&!owner.transition.offsetFrames &&
     ['whip-pan','organic-dissolve','wipe-right','crossfade','dissolve','fade'].includes(owner.transition.type)){
@@ -34,7 +34,7 @@ function eventsFor(owner,project){
 const relevant=c=>JSON.stringify([c.start,c.duration,c.motion,c.pictureEffects,c.transition,c.soundDesign,c.hidden,c.muted,c.enabled]);
 const enabled=c=>!c.muted&&!c.hidden&&c.enabled!==false;
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-export function syncMotionSounds(project,before,commands,assetDirectory,actor) {
+export function syncMotionSounds(project,before,commands,assetDirectory,actor,reconcileAll=false) {
   const clips=project.timeline.clips,previous=new Map(before.map(c=>[c.id,c]));
   const owners=new Map(clips.filter(c=>c.motion||c.pictureEffects||c.transition||c.soundDesign).map(c=>[c.id,c]));
   const touched=new Set(commands.filter(c=>c.op!=='lock').map(c=>c.id??c.clip?.id));
@@ -45,22 +45,39 @@ export function syncMotionSounds(project,before,commands,assetDirectory,actor) {
     if(owner && !current && touched.has(old.id) && !touched.has(ownerId)){
       owner.soundDesign={...owner.soundDesign,suppressed:[...new Set([...(owner.soundDesign?.suppressed||[]),key])]};
     }
+    const audioChange=commands.findLast(cmd=>cmd.op==='update' && cmd.id===old.id)?.changes;
+    if(current?.soundBinding && typeof audioChange?.muted==='boolean'){
+      current.soundBinding={...current.soundBinding,userMuted:audioChange.muted};
+    }
     if(current && touched.has(old.id) && !touched.has(ownerId) && (current.start!==old.start||current.assetId!==old.assetId||current.sourceIn!==old.sourceIn||current.duration!==old.duration)){
       // A hand-trimmed or independently moved sound becomes ordinary editable project audio.
       if(owner)owner.soundDesign={...owner.soundDesign,suppressed:[...new Set([...(owner.soundDesign?.suppressed||[]),key])]};
       delete current.soundBinding;
     }
   }
-  const changedOwners=new Set([...owners].filter(([id,c])=>touched.has(id)&&(!previous.has(id)||relevant(c)!==relevant(previous.get(id)))).map(([id])=>id));
-  for(const old of boundBefore)if(!owners.has(old.soundBinding.ownerId)||touched.has(old.soundBinding.ownerId))changedOwners.add(old.soundBinding.ownerId);
+  const changedOwners=new Set([...owners].filter(([id,c])=>reconcileAll||touched.has(id)&&(!previous.has(id)||relevant(c)!==relevant(previous.get(id)))).map(([id])=>id));
+  for(const old of boundBefore)if(reconcileAll||!owners.has(old.soundBinding.ownerId)||touched.has(old.soundBinding.ownerId))changedOwners.add(old.soundBinding.ownerId);
   if(!changedOwners.size)return;
-  const plans=new Map();
-  // Prefer an authored graphic cue when a shot shake marks exactly the same impact.
+  const plans=new Map(),claimed=new Map(),collision=e=>e.anchorFrame+'|'+(e.owner.soundDesign?.assetId||e.resourceId);
+  // Prefer the graphic at a shared impact; if it is removed, the remaining shake takes over.
+  const affectedImpacts=new Set();
+  for(const id of changedOwners){
+    const old=previous.get(id);
+    if(old)for(const e of eventsFor(old,project))affectedImpacts.add(collision(e));
+  }
   for(const owner of [...owners.values()].sort((a,b)=>Number(Boolean(b.motion))-Number(Boolean(a.motion)))){
     for(const e of eventsFor(owner,project)){
-      if([...plans.values()].some(o=>o.owner.id!==owner.id&&o.anchorFrame===e.anchorFrame&&o.resourceId===e.resourceId&&enabled(o.owner)&&enabled(owner)))continue;
+      const key=collision(e);
+      if(changedOwners.has(owner.id))affectedImpacts.add(key);
+      if(enabled(owner)&&claimed.has(key))continue;
+      if(enabled(owner))claimed.set(key,owner.id);
       plans.set(stableId(owner.id,e.key),e);
     }
+  }
+  for(const key of affectedImpacts)if(claimed.has(key))changedOwners.add(claimed.get(key));
+  for(const old of boundBefore){
+    const binding=old.soundBinding;
+    if(affectedImpacts.has(old.actionFrame+'|'+(owners.get(binding.ownerId)?.soundDesign?.assetId||binding.resourceId)))changedOwners.add(binding.ownerId);
   }
   for(const old of clips.filter(c=>c.soundBinding)){
     if(!changedOwners.has(old.soundBinding.ownerId)||plans.has(old.id))continue;
@@ -86,9 +103,9 @@ export function syncMotionSounds(project,before,commands,assetDirectory,actor) {
     const keepGain=old && old.soundBinding.defaultGain!=null && old.gain!==old.soundBinding.defaultGain;
     const clip={...old,id,track:'music',role:'sfx',templateRole:e.role,assetId:asset.id,start,duration,sourceIn,speed:1,
       gain:keepGain?old.gain:gain,locked:old?.locked??false,actionFrame:e.anchorFrame,styleId:project.style.id,styleVersion:8,
-      soundBinding:{ownerId:e.owner.id,key:e.key,resourceId:e.resourceId,defaultGain:gain},
+      soundBinding:{...old?.soundBinding,ownerId:e.owner.id,key:e.key,resourceId:e.resourceId,defaultGain:gain},
       ...(old?.enabled!==undefined?{enabled:old.enabled}:{}),
-      hidden:Boolean(e.owner.hidden||e.owner.enabled===false),muted:Boolean(e.owner.muted||old?.muted&&previous.get(e.owner.id)?.muted!==true)};
+      hidden:Boolean(e.owner.hidden||e.owner.enabled===false),muted:Boolean(e.owner.muted||old?.soundBinding?.userMuted)};
     if(old?.locked && !same(old,clip))conflict();
     if(actor!=='user' && clips.some(c=>c.locked && c.track==='music' && !c.soundBinding && c.start<start+duration && start<c.start+c.duration))conflict();
     if(old)clips[clips.indexOf(old)]=clip;else clips.push(clip);

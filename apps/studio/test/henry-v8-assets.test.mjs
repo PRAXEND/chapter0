@@ -75,6 +75,30 @@ test('project edits align archived effects to exact cue frames and preserve user
   const quiet=graphic('staggered-explanation','silent',0,90,{soundDesign:{enabled:false}});
   edit([{op:'add',clip:quiet}]);assert.equal(active().length,0);
 });
+test('the project sound switch, a single shared picture/graphic impact, and dedicated voice files obey project controls',async t=>{
+  const {root,store}=await workspace(t);
+  let p=store.create({mode:'script',style:hot,profile,settings:{sceneSound:false}});
+  const file=path.join(root,'picture.ppm');await writeFile(file,'static file fixture');
+  const picture=await store.addAsset(p.id,file);
+  const speech=path.join(root,'reference.wav');await writeFile(speech,'private reference fixture');
+  const voice=await store.addAsset(p.id,speech,{role:'voice-reference',consent:true});
+  p=store.get(p.id);
+  const edit=(commands)=>p=store.apply(p.id,p.revision,commands,'user');
+  const sounds=()=>p.timeline.clips.filter(c=>c.soundBinding);
+  const shot={track:'video',id:'shot',assetId:picture.id,start:5,duration:40,pictureEffects:[{type:'camera-shake',duration:7}]};
+  const overlay=graphic('hot-impact-lines','lines',5,18);
+  edit([{op:'add',clip:shot},{op:'add',clip:overlay}]);
+  assert.equal(sounds().length,0);
+  p=store.configure(p.id,p.revision,{settings:{sceneSound:true}});
+  assert.equal(sounds().length,1);assert.equal(sounds()[0].soundBinding.ownerId,'lines');
+  assert.throws(()=>edit([{op:'update',id:'lines',changes:{soundDesign:{assetId:voice.id}}}]),/音效/);
+  edit([{op:'remove',id:'lines'}]);assert.equal(sounds().length,1);
+  assert.equal(sounds()[0].soundBinding.ownerId,'shot');assert.equal(sounds()[0].actionFrame,5);
+  edit([{op:'update',id:sounds()[0].id,changes:{muted:true}}]);
+  edit([{op:'update',id:'shot',changes:{start:9}}]);assert.equal(sounds()[0].muted,true);
+  p=store.configure(p.id,p.revision,{settings:{sceneSound:false}});
+  assert.equal(sounds().length,0);
+});
 test('both pinned styles choose Dylan as their production voice, verify provenance, protect an explicit selection and find their exact original music',async t=>{
   const deps=await workspace(t);
   for(const style of [hot,tech]){

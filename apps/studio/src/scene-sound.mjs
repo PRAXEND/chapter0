@@ -26,7 +26,7 @@ function synthesized(template) {
 
 export async function compileSceneWithSound(styles,store,project,scene) {
   const clips=styles.compileScene(scene,project.profile),template=scene.template||clips[0]?.template,preset=presets[template];
-  const quiet=scene.soundEnabled===false||scene.soundGain===0||project.mode==='interview'&&scene.soundEnabled!==true;
+  const quiet=project.settings?.sceneSound===false||scene.soundEnabled===false||scene.soundGain===0||project.mode==='interview'&&scene.soundEnabled!==true;
   const anchor=project.assets.find(a=>a.id===scene.anchorAssetId);
   const fps=project.profile.fps;
   if(!clips.length||!preset||quiet||anchor?.kind!=='video'||!Number.isSafeInteger(scene.anchorSourceFrame)||scene.anchorSourceFrame<0||scene.anchorSourceFrame>=Math.ceil(anchor.duration*fps)) return {clips,baseRevision:project.revision};
