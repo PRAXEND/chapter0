@@ -1,5 +1,7 @@
 # 任务记录
 
+- [两套 v8 风格的独立工作台与安装版验收](T-20261126-v8-parity.md)
+
 - [Codex 从空时间线首剪并回看冻结成片](T-20261125-codex-self-review.md)
 
 - [技术科普 v8 的原版组件与本地合成](T-20261124-executable-motion.md)
