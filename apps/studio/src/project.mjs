@@ -181,7 +181,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
       }).assets.find(a=>a.sha256===sha256);
     }finally{await unlink(temp).catch(()=>{});}
   }
-  function apply(id,baseRevision,commands,actor='user') {
+  function apply(id,baseRevision,commands,actor='user',sceneMeta) {
     if(!Number.isInteger(baseRevision)||!Array.isArray(commands)||!commands.length||commands.length>10000)throw fault('请提供起始版本和剪辑指令。');
     return mutate(id,baseRevision,p=>{
       const clips=p.timeline.clips;
@@ -204,8 +204,13 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
         if(actor!=='user'&&clips.some(c=>c.locked&&c.track===candidate.track&&spans(c,candidate)&&overlapOnStage(c,candidate,p.profile)))throw fault('本次修改会覆盖已锁定的轨道区间。',409);
         if(cmd.op==='add')clips.push(candidate);else clips[found]=candidate;
       }
+      if(sceneMeta)Object.assign(p,copy(sceneMeta));
       clips.sort((a,b)=>a.start-b.start||tracks.indexOf(a.track)-tracks.indexOf(b.track)||a.id.localeCompare(b.id));
     });
+  }
+  function applySceneEdit(id,baseRevision,commands,metadata,actor='codex'){
+    if(!metadata||Object.keys(metadata).some(k=>!['storyboard','facts','directorNotes','styleAudio'].includes(k)))throw fault('分镜事务元数据无效。');
+    return apply(id,baseRevision,commands,actor,metadata);
   }
   const immutable=new Set(['id','schema','profile','title','mode','settings','timeline','assets','style','script','brief','revision','createdAt','updatedAt','__proto__','constructor','prototype']);
   function setMeta(id,patch){
@@ -282,5 +287,5 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
       return transaction(()=>persist(p,true));
     }catch(e){rmSync(dirs.directory,{recursive:true,force:true});throw e;}
   }
-  return {root,db,paths,get,list,create,addAsset,apply,setMeta,configure,revision,snapshot,importSnapshot,saveJob,saveCutPair,getJob,listJobs,close:()=>db.close()};
+  return {root,db,paths,get,list,create,addAsset,apply:(id,base,commands,actor)=>apply(id,base,commands,actor),applySceneEdit,setMeta,configure,revision,snapshot,importSnapshot,saveJob,saveCutPair,getJob,listJobs,close:()=>db.close()};
 }

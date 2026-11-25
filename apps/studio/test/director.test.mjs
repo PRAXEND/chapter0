@@ -960,3 +960,66 @@ test('first-cut JSX uses this shot’s observed action frames at the actual proj
   assert.equal(c.start,10);assert.deepEqual(c.motion.cueFrames,[0,15,40]);
   await assert.rejects(applyScenes(deps,p,[{...beat,motionComponent:{...beat.motionComponent,cueFrames:[0,1,2]}}]),/只指定/);
 });
+
+for(const [styleId,template] of [['henry-hot-news','action-result'],['henry-technical-explainer','step-reveal']]){
+  test(styleId+' uses reference, sources and current draft together, extends a trial and rewrites the whole spoken structure during review',async t=>{
+    const settings={shareFrames:true,shareTranscript:true,voiceMode:'system',voiceSelection:'user',musicMode:'none',
+      sourceScope:'project',autoReview:false,durationMinSeconds:2,durationMaxSeconds:8};
+    const {p,deps,counts}=await fixture(t,{settings,style:{id:styleId,version:8}});
+    const baseline={id:'benchmark',kind:'video',duration:6,path:'/private/baseline',available:true,sha256:'baseline-hash'};
+    deps.styleLibrary.get=async()=>({...p.style,templates:[{id:template}],baseline,references:[baseline],
+      storyboardContract:{core_rule_ids:['cut-important'],planning_guidance:'依本期证据处理'},recipeSections:['timing'],
+      rules:[{id:'cut-important',instruction:'确认原片中发生了变化。',check:'按动作起落判断。'}]});
+    deps.styleLibrary.readDirectorSection=async(_id,_v,section)=>({section,text:'可按原片调整的节拍'});
+    deps.drafts={open:async(project,from)=>({name:'stub-'+project.revision,fromFrame:from})};
+    deps.media.frameAt=async(file,seconds,dest)=>writeFile(dest,'fixture:'+file+':'+seconds);
+    let calls=0;
+    deps.client={account:async()=>({connected:true}),thread:async()=> 'single-thread',close(){},
+      runTurn:async({onStart,tool,prompt,images})=>{
+        await onStart('round-'+ ++calls);
+        const call=(name,args={})=>tool({tool:name,arguments:args});
+        const ctx=async()=>JSON.parse((await call('studio_context')).contentItems[0].text);
+        const sequence=(operation,lines,opts={})=>call('studio_sequence',{baseRevision:p.revision,operation,
+          beats:lines.map(narration=>({assetId:picture.id,narration})),...opts});
+        assert.ok(images.some(i=>i.frame.source==='asset')&&images.some(i=>i.frame.source==='style'));
+        assert.match(prompt,/确认原片中发生了变化/);
+        assert.equal((await ctx()).style.rules[0].check,'按动作起落判断。');
+        assert.match((await call('studio_style',{section:'timing'})).contentItems[0].text,/节拍/);
+        await assert.rejects(call('studio_find',{query:'no network'}),/固定/);
+        if(calls===1){
+          await sequence('replace-all',['第一句试剪'],{intent:'trial'});
+          const sampled=await call('studio_review_cut',{baseRevision:p.revision});
+          assert.ok(sampled.contentItems.some(i=>i.type==='inputImage'));
+          return '已有试剪，继续';
+        }
+        if(calls===2){
+          await sequence('append',['第二句','第三句']);
+          const firstClip=p.timeline.clips.find(c=>c.track==='video'&&c.start===0);
+          firstClip.locked=true;
+          await assert.rejects(sequence('replace-all',['不能改锁']),/锁定/);
+          await sequence('replace-range',['合并后重新说'],{fromFrame:50,toFrame:150});
+          assert.ok(p.timeline.clips.find(c=>c.id===firstClip.id).locked);
+          p.timeline.clips.find(c=>c.id===firstClip.id).locked=false;
+          await assert.rejects(call('studio_edit',{baseRevision:p.revision-1,commandsJson:'[]'}),/版本/);
+          await call('studio_cut_ready',{baseRevision:p.revision});
+          return '首版齐了';
+        }
+        assert.equal(calls,3);
+        assert.ok(images.some(i=>i.frame.source==='timeline'));
+        await sequence('replace-all',['重新开场','已核对的结果。']);
+        const voice=p.timeline.clips.find(c=>c.track==='narration'&&c.start===50);
+        await call('studio_narrate',{baseRevision:p.revision,clipId:voice.id,text:'复查之后说清楚结果。'});
+        const read=await call('studio_review_cut',{baseRevision:p.revision});
+        const samples=JSON.parse(read.contentItems[0].text).samples;
+        await call('studio_visual_review',{baseRevision:p.revision,checks:samples.map(f=>({frame:f.frame,stage:f.stage,observation:'试件保留在画面中央。',needsFix:false}))});
+        const timing=(await ctx()).timing;
+        assert.equal(timing.seconds,4);assert.equal(timing.withinRequestedRange,true);
+        return '已复查当前版';
+      }};
+    const d=createDirector(deps);t.after(()=>d.close());
+    const result=await d.run(p.id,{kind:'produce',jobId:'continuous-test'});
+    assert.equal(calls,3);assert.equal(p.visualDirection.status,'reviewed');assert.equal(result.changed,true);
+    assert.ok(p.timeline.clips.some(c=>c.track==='caption'&&c.text.includes('复查之后')));
+    assert.ok(counts().syntheses>=6);assert.equal(p.storyboard.length,2);
+  });
+}

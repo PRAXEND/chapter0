@@ -1,4 +1,5 @@
 import {replacementClock,replacementEdits} from './ripple.mjs';
+import {sequenceRange,compileSequenceEdit} from './sequence-edit.mjs';
 import {componentClip,defaultMotionGeometry,motionCatalog} from './motion-components.mjs';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -351,10 +352,10 @@ export async function applyScenes(
   deps,
   project,
   beats,
-  { signal, observed = new Set(), observedText = new Map(), onEvent, visualFrames = [], localDraft = false } = {}
+  { signal, observed = new Set(), observedText = new Map(), onEvent, visualFrames = [], localDraft = false, placement } = {}
 ) {
-  if (!Array.isArray(beats) || beats.length === 0 || beats.length > 400) throw new Error('分镜应含 1 到 400 段。');
-  if (project.timeline.clips.some((c) => c.locked)) throw new Error('工程含锁定片段，请使用局部修改。');
+  const range=sequenceRange(project,placement);
+  if (!Array.isArray(beats) || (!beats.length && range.mode!=='replace-range') || beats.length>400) throw Error('分镜最多 400 段。空分镜只能用来移除已指定的整段。');
   const expected = sceneIdentity(project);
   const mode = voiceMode(project);
   const fps = project.profile.fps;
@@ -374,7 +375,7 @@ export async function applyScenes(
   const voiceRows = imported ? await transcriptFor(deps, project, imported, signal) : null;
   if (
     mode === 'import' &&
-    project.mode !== 'interview' &&
+    project.mode !== 'interview' && range.mode==='replace-all' &&
     (!voiceRows || beats.length !== voiceRows.length || beats.some((b, i) => b.utteranceId !== voiceRows[i].id))
   ) {
     throw new Error('导入的完整旁白须按原顺序覆盖所有转录语句，保留录音中的停顿。');
@@ -433,16 +434,19 @@ export async function applyScenes(
     } else if (mode === 'import') {
       utterance = voiceRows?.find((row) => row.id === beat.utteranceId);
       if (!utterance) throw new Error('导入录音的每个镜头须绑定一个有效的录音语句。');
-      const until = voiceRows[i + 1]?.start ?? imported.duration;
-      duration = Math.round(until * fps) - cursor;
+      const rowIndex=voiceRows.indexOf(utterance);
+      const until=voiceRows[rowIndex+1]?.start??imported.duration;
+      const inputStart=range.mode==='replace-all'?cursor:Math.round(utterance.start*fps);
+      duration=Math.round(until*fps)-inputStart;
       if (duration < 1) throw new Error('导入旁白的转录时码无法按工程帧率排列。');
-      captionStart = Math.round(utterance.start * fps);
+      captionStart = range.mode==='replace-all'?Math.round(utterance.start*fps):cursor;
       captionDuration = Math.max(
         1,
-        Math.min(Math.round(until * fps), Math.round(utterance.end * fps)) - captionStart
+        Math.min(Math.round(until * fps), Math.round(utterance.end * fps)) - Math.round(utterance.start*fps)
       );
       words = utterance.text;
       voice = imported;
+      if(range.mode!=='replace-all')clips.push(make('narration',i,{assetId:imported.id,sourceIn:inputStart,start:cursor,duration}));
     } else if ((['system','clone','preset'].includes(mode)) && !(localDraft && beat.sourceOnly)) {
       if (!words || words.length > 650) throw new Error('单段旁白需包含 1 到 650 字。');
       voice = await recordedNarration(deps, await deps.store.get(project.id), words, signal);
@@ -476,6 +480,8 @@ export async function applyScenes(
         sourceIn,
         gain: voice || (localDraft && beat.sourceOnly && mode !== 'original') ? 0 : 1,
         ...(beat.framing ? { framing: beat.framing } : {}),
+        ...(beat.viewport?{viewport:beat.viewport}:{}),...(beat.transition?{transition:beat.transition}:{}),
+        ...(beat.pictureEffects?{pictureEffects:beat.pictureEffects}:{}),...(beat.soundDesign?{soundDesign:beat.soundDesign}:{}),
       })
     );
     if (visible < duration) {
@@ -674,8 +680,10 @@ export async function applyScenes(
       const span=durationSeconds===undefined ? visible-offset : Math.round(durationSeconds*fps);
       if(!Number.isSafeInteger(offset)||!Number.isSafeInteger(span)||offset<0||span<1||offset+span>visible)
         throw Error('组件的出场或退场超出该镜头的可见时段。');
-      clips.push(componentClip({id:'scene-'+i+'-motion'+(layer?'-'+layer:''),componentId,props,geometry,cueFrames,
-        start:cursor+offset,duration:span},project.profile));
+      const overlay=componentClip({id:'scene-'+i+'-motion'+(layer?'-'+layer:''),componentId,props,geometry,cueFrames,
+        start:cursor+offset,duration:span},project.profile);
+      if(motionPlan.soundDesign)overlay.soundDesign=motionPlan.soundDesign;
+      clips.push(overlay);
     }
     board.push({
       assetId: asset.id,
@@ -715,7 +723,7 @@ export async function applyScenes(
     cursor += duration;
     onEvent?.({ type: 'progress', message: '已编排 ' + (i + 1) + ' / ' + beats.length + ' 段' });
   }
-  if (imported && project.mode !== 'interview')
+  if (imported && project.mode !== 'interview' && range.mode==='replace-all')
     clips.push(
       make('narration', 'recording', {
         assetId: imported.id,
@@ -819,13 +827,16 @@ export async function applyScenes(
   const latest = await deps.store.get(project.id);
   if (sceneIdentity(latest) !== expected)
     throw new Error('制作期间工程已修改，分镜尚未覆盖时间线，请按当前版本重试。');
-  const commands = [
-    ...latest.timeline.clips.map((c) => ({ op: 'remove', id: c.id })),
-    ...clips.map((clip) => ({ op: 'add', clip })),
-  ];
-  const updated = await deps.store.apply(project.id, latest.revision, commands, 'codex');
-  const finalNotes = durationNotes(updated, notes);
-  await deps.store.setMeta(project.id, { storyboard: board, facts, directorNotes: finalNotes,
-    ...(project.styleAudio ? { styleAudio:{...project.styleAudio,music:mixReceipt} } : {}) });
-  return { project: updated, notes: finalNotes };
+  const edit=compileSequenceEdit(latest,range,{clips,board,facts,notes,frames:cursor});
+  const finalNotes=durationNotes({...latest,timeline:{clips:edit.clips}},edit.notes);
+  const metadata={storyboard:edit.storyboard,facts:edit.facts,directorNotes:finalNotes,
+    ...(project.styleAudio?{styleAudio:{...project.styleAudio,music:mixReceipt}}:{})};
+  let updated;
+  if(deps.store.applySceneEdit){
+    updated=await deps.store.applySceneEdit(project.id,latest.revision,edit.commands,metadata);
+  }else{
+    updated=await deps.store.apply(project.id,latest.revision,edit.commands,'codex');
+    await deps.store.setMeta(project.id,metadata);
+  }
+  return {project:updated,notes:finalNotes};
 }

@@ -7,6 +7,7 @@ import {homedir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {measureReference} from './reference-learning.mjs';
+import {recipeSections,stylePage} from './director-style.mjs';
 import {readPortableStyle,writePortableStyle,specDigest} from './style-portable.mjs';
 import {compileVisualSteps,scienceExecutionPlan} from './visual-steps.mjs';
 
@@ -86,7 +87,7 @@ function parseStyle(spec) {
     parameters:Object.fromEntries(Object.entries(c).filter(([k,v])=>!['id','name','role','editable','editableProperties'].includes(k)&&(typeof v==='number'||Array.isArray(v)&&v.length<=8&&v.every(Number.isFinite))))}));
   const templateIds=spec.templateIds??(spec.id==='henry-hot-news'?['action-result']:spec.id==='henry-technical-explainer'?['step-reveal']:[]);
   return {id:spec.id,name:spec.name,version:spec.version,description:spec.description||'',adaptation:spec.adaptation||'',rules:spec.rules||[],
-    audioBlueprint:blueprint.audio||undefined,storyboardContract:spec.storyboard_contract||spec.storyboardContract||undefined,
+    recipeSections:Object.keys(recipeSections(spec)),audioBlueprint:blueprint.audio||undefined,storyboardContract:spec.storyboard_contract||spec.storyboardContract||undefined,
     requirements:spec.material_requirements||[],knownExceptions:spec.knownExceptions||[],unknownDimensions:spec.unknown_dimensions||[],
     executionPlan:templateIds.includes('step-reveal')?scienceExecutionPlan(blueprint,spec):undefined,
     references,baseline,components,measurements:spec.measurements||[],effectRecipes:blueprint.effect_recipes||[],templates:templateIds.filter(id=>id in templateNames).map(id=>({id,name:templateNames[id]})),preferences:spec.preferences||[]};
@@ -213,6 +214,10 @@ export function createStyleLibrary(dataRoot, options={}) {
       if (file.available) return file;
     }
     return null;
+  }
+  async function readDirectorSection(id,version,name,offset=0) {
+    const row=select(await registry(),id,version);
+    return stylePage(recipeSections(row.spec),name,offset);
   }
   async function get(id,version) {
     const reg=await registry(), row=select(reg,id,version), style=parseStyle(row.spec);
@@ -364,7 +369,7 @@ export function createStyleLibrary(dataRoot, options={}) {
     }
     return {id:spec.id,version:spec.version,sha256:manifest.sha256};
   }
-  return {list,get,getReference,getMusicResource,savePreference,learn,captureReference,compileScene,exportPortable,restorePortable};
+  return {list,get,getReference,getMusicResource,readDirectorSection,savePreference,learn,captureReference,compileScene,exportPortable,restorePortable};
 }
 
 function oppositeSubject(subject) {

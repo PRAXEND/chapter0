@@ -9,7 +9,7 @@ export const stages = ['problem', 'detail', 'mechanism', 'verification'];
 export function requiresFourStages(project) {
   const explicit=project.settings?.visualRequirements?.fourStages;
   if(typeof explicit==='boolean')return explicit;
-  if(project.settings?.autoReview!==true)return true;
+  // A/B inspection is a delivery choice. Only an editorial requirement prescribes this order.
   return String(project.brief||'').split(/[，。；;\n]/u).some(clause=>
     !/(?:不必|不要|不要求|无需|不用|不限定|不用套|do not|no need)/i.test(clause)&&
     /(?:按|依次|使用|必须|四个阶段都|四阶段都).{0,16}(?:四(?:个)?阶段)|(?:require|use|follow).{0,12}four stages/i.test(clause));
@@ -136,7 +136,7 @@ export function motionCoverage(p, sourceFrames, policy, queries = [], reason = '
   return { policy, queries, windows, videoFrames, stillFrames, witnessedFrames, totalFrames, gap };
 }
 
-export function checkVisualPlan(beats, project, frames) {
+export function checkVisualPlan(beats, project, frames, {complete=true}={}) {
   if (!Array.isArray(beats) || !beats.length) throw Error('请提交本片的真实分镜。');
   const seen = [];
   for (const beat of beats) {
@@ -191,7 +191,7 @@ export function checkVisualPlan(beats, project, frames) {
       seen.push(step.stage);
     }
   }
-  if(!requiresFourStages(project))return;
+  if(!complete||!requiresFourStages(project))return;
   let at = 0;
   for (const stage of seen) if (stage === stages[at]) at++;
   if (at !== stages.length)
@@ -272,6 +272,7 @@ export async function readVisualFrame(deps, project, requested, signal) {
       stage: requested.stage,
       ...(requested.claimOnset ? { claimOnset: true } : {}),
       revision: project.revision,
+      timelineHash:shotFingerprint(project),
     };
   } else throw Error('未知画面来源。');
   const dir = await mkdtemp(path.join(cache, 'evidence-'));
