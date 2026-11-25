@@ -461,3 +461,93 @@ test('durable B final review writes its report beside the frozen candidate witho
     'completed',
   );
 });
+
+test('the news director receives a separate action/result comparison and can inspect real footage without a science motion score', async (t) => {
+  const f = await fixture(t);
+  const hot = {
+    ...f.style,
+    id: 'henry-hot-news',
+    rules: [{ id: 'visible-hook', instruction: '先看发生的事。' }],
+  };
+  f.project.style = { id: hot.id, version: hot.version, sha256: hot.sha256 };
+  f.change(f.project);
+  f.qa.evidence.visual = {
+    sourceWindows: [{ kind: 'video', assetId: 'a', clipId: 'v', fromFrame: 0, toFrame: 99 }],
+    motion: [],
+  };
+  assert.equal(finalReviewApplies(f.job, f.project, hot), true);
+  f.client.runTurn = async (args) => {
+    assert.match(args.prompt, /行动发展/);
+    assert.doesNotMatch(args.prompt, /explanation（/);
+    await args.onStart('T');
+    return reply(f.state.samples).replace('"dimension":"explanation"', '"dimension":"action"');
+  };
+  const r = await f.run({ style: hot });
+  assert.equal(r.status, 'completed');
+  assert.equal(r.style.form, 'action-result');
+  assert.equal(r.comparisons[1].dimension, 'action');
+  assert.equal(r.motionWindows[0].measuredMotion, false);
+  assert.equal(applyFinalReview(f.qa, r).evidence.visual.motionCoverage, undefined);
+});
+
+test('a carried source ROI uses both frozen portrait footage windows and rejects an old outer-canvas witness', async () => {
+  const { current, previous, measurement, options, pixels } = witnessFixture();
+  for (const p of [current, previous.snapshot]) p.profile = { ...profile, width: 1080, height: 1920 };
+  assert.deepEqual(await refreshMotionWitnesses(current, previous, measurement, options), []);
+  previous.qa.evidence.visual.footageStage = { x: 0, y: 656, width: 1080, height: 608 };
+  const requested = [];
+  const refreshed = await refreshMotionWitnesses(current, previous, measurement, {
+    ...options,
+    readFrame: async (file, s, w, h, rect) => {
+      requested.push([file, rect]);
+      assert.ok(rect.y >= 656 && rect.y + rect.height <= 1264);
+      return pixels(s, w, h);
+    },
+  });
+  assert.equal(refreshed.length, 1);
+  assert.equal(requested.length, 6);
+  assert.equal(refreshed[0].samples[0].region.y, 747);
+});
+
+test('a replaced MP4 cannot reuse the cached completed verdict or be automatically delivered', async (t) => {
+  const f = await fixture(t);
+  assert.equal((await f.run()).status, 'completed');
+  await writeFile(f.video, 'replaced after reviewer finished');
+  const persisted = await f.run();
+  assert.equal(persisted.reason, 'candidate-integrity');
+  assert.equal(applyFinalReview(f.qa, persisted).status, 'repair');
+  assert.equal(f.calls.filter((c) => c.type === 'turn').length, 1);
+});
+
+test('new bounded observations update only the motion rule, leaving definite unrelated defects intact', () => {
+  const m = { assetId: 'a', fromFrame: 0, toFrame: 79, result: 'changing-footage' };
+  const qa = {
+    issues: [
+      { id: 'style-video-first', severity: 'minor', message: '动作有待确认' },
+      { id: 'damage', severity: 'major', message: '已核实的独立缺陷' },
+    ],
+    evidence: {
+      visual: {
+        motion: [m],
+        motionCoverage: { totalFrames: 100, changingFrames: 80, informativeFrames: 25 },
+        styleExecution: {
+          ruleId: 'video-first',
+          motionStatus: 'unverified',
+          informativeWindows: [{ assetId: 'a', fromFrame: 0, toFrame: 24 }],
+        },
+      },
+    },
+  };
+  const report = applyFinalReview(qa, {
+    status: 'completed',
+    comparisons: [],
+    motionWindows: [{ assetId: 'a', fromFrame: 20, toFrame: 58, measuredMotion: true }],
+  });
+  assert.equal(report.evidence.visual.motionCoverage.informativeFrames, 59);
+  assert.equal(report.evidence.visual.styleExecution.motionStatus, 'met');
+  assert.deepEqual(
+    report.issues.map((i) => i.id),
+    ['damage'],
+  );
+  assert.equal(report.status, 'repair');
+});

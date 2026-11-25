@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { projectSourceRegion, validRegion } from './visual-steps.mjs';
 import { sceneChange } from './motion-windows.mjs';
+import { reviewStage } from './review-stage.mjs';
 import { visibleWindows } from './framing.mjs';
 
 const active = (c) => !c.hidden && c.enabled !== false;
@@ -16,7 +17,7 @@ function shots(p) {
       .filter((c) => active(c) && c.track === 'video')
       .sort((a, b) => a.start - b.start)
       .map((clip) => ({ clip, asset: assets.get(clip.assetId) })),
-    p.profile,
+    reviewStage(p).profile,
   );
 }
 function clipsAt(p, frame) {
@@ -137,6 +138,11 @@ export async function refreshMotionWitnesses(
   )
     return [];
   if ((await hashFile(previous.files.video)) !== qa.artifactSha256) return [];
+  const oldStage = reviewStage(old),
+    newStage = reviewStage(project);
+  // A pre-layout report which sampled the outer portrait cannot authenticate an action on the inner stage.
+  if (oldStage.viewport && JSON.stringify(prior.footageStage) !== JSON.stringify(oldStage.viewport))
+    return [];
   const before = shots(old),
     now = shots(project),
     fps = project.profile.fps,
@@ -239,9 +245,11 @@ export async function refreshMotionWitnesses(
           JSON.stringify(clipsAt(old, oldFrame)) !== JSON.stringify(clipsAt(project, frame))
         )
           break;
-        const oldRect = cropRegion(s.region, past.shot, old.profile, oldFrame),
-          newRect = cropRegion(s.region, current.shot, project.profile, frame);
-        if (s.region && (!oldRect || !newRect)) break;
+        const oldInner = cropRegion(s.region, past.shot, oldStage.profile, oldFrame),
+          newInner = cropRegion(s.region, current.shot, newStage.profile, frame);
+        if (s.region && (!oldInner || !newInner)) break;
+        const oldRect = oldStage.rect(oldInner),
+          newRect = newStage.rect(newInner);
         const k = JSON.stringify([oldFrame, frame, oldRect, newRect]);
         if (!checks.has(k)) {
           const width = 128,

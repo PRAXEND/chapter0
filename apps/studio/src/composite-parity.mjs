@@ -1,6 +1,7 @@
 import path from 'node:path';
 import {motionCatalog,motionCues,defaultMotionGeometry} from './motion-components.mjs';
 import {graphicKeys,splitGraphicKeys} from './graphic-keys.mjs';
+import {reviewStage} from './review-stage.mjs';
 import {decodePixels} from './visual-review.mjs';
 
 const whole={x:0,y:0,width:1,height:1};
@@ -45,7 +46,8 @@ function samplesForClip(c,profile){
 
 // Round-robin covers different layers before sampling a second event on the same layer.
 export function compositionSamples(p,limit=12){
-  const groups=p.timeline.clips.map(c=>samplesForClip(c,p.profile)).filter(g=>g.length);
+  const stage=reviewStage(p);
+  const groups=p.timeline.clips.map(c=>samplesForClip(c,stage.profile)).filter(g=>g.length);
   const samples=[];
   for(let i=0;groups.some(g=>g.length>i)&&samples.length<limit;i++){
     for(let n=0;n<Math.min(groups.length,limit);n++){
@@ -53,7 +55,7 @@ export function compositionSamples(p,limit=12){
       if(g[i]&&samples.length<limit)samples.push(g[i]);
     }
   }
-  return samples.sort((a,b)=>a.frame-b.frame);
+  return samples.map(s=>({...s,bounds:stage.bounds(s.bounds),...(s.points&&{points:s.points.map(([x,y])=>stage.point(x,y))})})).sort((a,b)=>a.frame-b.frame);
 }
 function inPolygon(x,y,points){
   let inside=false;

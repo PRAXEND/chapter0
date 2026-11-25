@@ -6,8 +6,7 @@ import {styleAudioPolicy} from './style-audio.mjs';
 import { randomUUID } from 'node:crypto';
 import { portableProject, publishDelivery } from "./library.mjs";
 import { fault } from './project.mjs';
-import {applyFinalReview,finalReviewApplies,finalReviewSkeleton,finalReviewSkip} from './independent-review.mjs';
-import {usesVisualStages} from './director-visual.mjs';
+import {applyFinalReview,finalReviewApplies,finalReviewSkeleton,finalReviewSkip,supportsFinalReview} from './independent-review.mjs';
 import {cutFeedback} from './cut-feedback.mjs';
 const stamp=()=>new Date().toISOString();
 const activeStates=['queued','running','pausing'];
@@ -124,7 +123,7 @@ export function createQueue({store, director, media, reviewProject, finalReviewe
         const state=qa.candidatePlayable?await finalReviewer({job:j,project:p,style:styleSpec,checkpoint:j.finalReviewState,signal,persist:state=>change(id,{finalReviewState:state})}):{...finalReviewSkeleton(j,p,styleSpec),status:'skipped',reason:'no-playable-candidate'};
         signal.throwIfAborted();
         change(id,{finalReviewState:state});qa=applyFinalReview(qa,state);
-      }else if(j.kind==='produce'&&j.input.engine==='codex'&&usesVisualStages(styleSpec||p.style)){
+      }else if(j.kind==='produce'&&j.input.engine==='codex'&&supportsFinalReview(styleSpec||p.style)){
         const skip=finalReviewSkip(store.get(projectId),p);
         if(skip)qa=applyFinalReview(qa,{...finalReviewSkeleton({...j,qa},p,styleSpec),status:'skipped',reason:skip});
       }
