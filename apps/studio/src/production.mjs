@@ -1,4 +1,5 @@
-import {portraitLayout} from './presentation.mjs';
+import {contentStage} from '../www/motion-clock.js';
+import {hasV8Presentation,portraitLayout} from './presentation.mjs';
 import {holdSequence,checkProposal,waitingForSequence} from './sequence-approval.mjs';
 import {continuousStyle,publicStyleValue,stylePage} from './director-style.mjs';
 import {componentClip,motionCatalog,defaultMotionGeometry} from './motion-components.mjs';
@@ -469,10 +470,10 @@ async function context(deps, project, selection) {
     transcript: rows,
     utteranceCounts: Object.fromEntries(transcripts.map(([id, list]) => [id, list.length])),
     style: selectedStyle(s),
-    motionComponents: motionCatalog.map(c=>({id:c.id,name:c.name,version:c.version,
-      recommended:(c.styleId===s?.id&&c.styleVersion===s?.version)||(s?.components||[]).some(x=>x.id===c.id),geometry:defaultMotionGeometry(c,project.profile),
+    motionComponents: motionCatalog.filter(c=>!hasV8Presentation(project)||c.styleId===project.style.id).map(c=>({id:c.id,name:c.name,version:c.version,
+      recommended:(c.styleId===s?.id&&c.styleVersion===s?.version)||(s?.components||[]).some(x=>x.id===c.id),geometry:defaultMotionGeometry(c,contentStage(project.profile,project.style)),
       params:c.fields.filter(f=>!['second','third'].includes(f.key)).map(f=>({key:f.key,type:f.type,label:f.label})),
-      cueFramesAt30fps:c.referenceCues})),
+      soundEvents:c.soundEvents,soundResources:c.soundResources,cueFramesAt30fps:c.referenceCues})),
 
     review: last
       ? {
@@ -1467,7 +1468,7 @@ export function createDirector(deps) {
         const same=old?.motion.componentId===componentId;
         const clip=componentClip({id:old?.id||randomUUID(),componentId,start,duration,
           props:{...(same?old.motion.props:{}),...args.props},cueFrames:args.cueFrames??(same?old.motion.cueFrames:undefined),
-          geometry:args.geometry??(same?old.geometry:undefined)},current.profile);
+          geometry:args.geometry??(same?old.geometry:undefined)},contentStage(current.profile,current.style));
         if(args.soundDesign!==undefined)clip.soundDesign=args.soundDesign;
         const command=old?{op:'update',id:old.id,changes:{motion:clip.motion,start,duration,geometry:clip.geometry,...(args.soundDesign!==undefined?{soundDesign:args.soundDesign}:{})}}:{op:'add',clip};
         const applied=await store.apply(id,current.revision,[command],'codex');

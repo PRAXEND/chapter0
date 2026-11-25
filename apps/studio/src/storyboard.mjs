@@ -1,3 +1,4 @@
+import {contentStage} from '../www/motion-clock.js';
 import {replacementClock,replacementEdits} from './ripple.mjs';
 import {sequenceRange,compileSequenceEdit} from './sequence-edit.mjs';
 import {componentClip,defaultMotionGeometry,motionCatalog} from './motion-components.mjs';
@@ -608,7 +609,7 @@ export async function applyScenes(
           style.components?.some(c=>c.id==='process-rail')){
         const texts=chips.map(c=>c.text);
         motionPlans.push({componentId:'process-rail',props:{a:texts[0],b:texts[1],c:texts[2]},cueSource:'visualSteps',
-          geometry:{...defaultMotionGeometry(motionCatalog.find(c=>c.id==='process-rail'),project.profile),y:chips[0].geometry.y}});
+          geometry:{...defaultMotionGeometry(motionCatalog.find(c=>c.id==='process-rail'),contentStage(project.profile,project.style)),y:chips[0].geometry.y}});
       }
       for (const [j, shape] of shapes.entries()){
         if(shape.templateRole==='process-rail' && motionPlans.some(plan=>plan.componentId==='process-rail'))continue;
@@ -681,7 +682,7 @@ export async function applyScenes(
       if(!Number.isSafeInteger(offset)||!Number.isSafeInteger(span)||offset<0||span<1||offset+span>visible)
         throw Error('组件的出场或退场超出该镜头的可见时段。');
       const overlay=componentClip({id:'scene-'+i+'-motion'+(layer?'-'+layer:''),componentId,props,geometry,cueFrames,
-        start:cursor+offset,duration:span},project.profile);
+        start:cursor+offset,duration:span},contentStage(project.profile,project.style));
       if(motionPlan.soundDesign)overlay.soundDesign=motionPlan.soundDesign;
       clips.push(overlay);
     }

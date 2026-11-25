@@ -908,7 +908,9 @@ test('the director can place a native JSX beat on first cut and revise its secon
     async runTurn({onStart,tool}){
       await onStart('turn');
       const call=async(name,args)=>JSON.parse((await tool({tool:name,arguments:args})).contentItems[0].text);
-      assert.equal((await call('studio_context',{})).motionComponents.length,6);
+      const tools=(await call('studio_context',{})).motionComponents;
+      assert.equal(tools.length,13);
+      assert.ok(tools.some(c=>c.id==='staggered-explanation')&&tools.some(c=>c.id==='hot-impact-lines'));
       await call('studio_sequence',{baseRevision:p.revision,beats:[{assetId:'picture',narration:'沿着刻度移动。',
         motionComponent:{componentId:'staggered-explanation',props:{a:'起点',b:'读数',c:'归零'},cueFrames:[0,10,20]}}]});
       const first=p.timeline.clips.find(c=>c.motion),rev=p.revision;

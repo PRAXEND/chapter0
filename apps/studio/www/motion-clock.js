@@ -14,3 +14,9 @@ export function defaultMotionGeometry(spec,{width,height}){
   const scale=Math.min(width/1920,height/1080);
   return {...spec.geometry,width:spec.width*scale/width,height:spec.height*scale/height};
 }
+
+export function contentStage(profile,style) {
+  const portrait=profile.height>profile.width && Number(style?.version)===8 &&
+    ['henry-hot-news','henry-technical-explainer'].includes(style?.id);
+  return portrait?{...profile,height:2*Math.round(304*profile.width/1080)}:profile;
+}

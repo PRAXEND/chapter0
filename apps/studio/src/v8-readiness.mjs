@@ -4,7 +4,7 @@ const counts={'henry-hot-news':7,'henry-technical-explainer':6};
 export function v8Readiness(style,catalog=motionCatalog){
   if(!hasV8Presentation({style}))return null;
   const declared=[...new Set(style.components.map(c=>c.id))];
-  const executable=new Set(catalog.filter(c=>!c.styleId||c.styleId===style.id).map(c=>c.id));
+  const executable=new Set(catalog.filter(c=>c.styleId===style.id && c.styleVersion===style.version).map(c=>c.id));
   const missing=declared.filter(id=>!executable.has(id)),problems=[];
   const expected=counts[style.id];
   if(declared.length!==expected)problems.push('风格只声明了 '+declared.length+' / '+expected+' 个原动效');

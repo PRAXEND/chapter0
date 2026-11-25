@@ -1,10 +1,11 @@
+import {contentStage} from '../www/motion-clock.js';
 import {assText,assClock,createAss} from './text-tracks.mjs';
 
 export const hasV8Presentation = p => Number(p.style?.version) === 8 && ['henry-hot-news','henry-technical-explainer'].includes(p.style.id);
 export function portraitLayout(p) {
   if (!hasV8Presentation(p) || p.profile.height <= p.profile.width) return null;
   const {width,height}=p.profile, s=width/1080;
-  const contentHeight=2*Math.round(304*s);
+  const contentHeight=contentStage(p.profile,p.style).height;
   return {id:'customer-portrait-v3',contentHeight,top:Math.round((height-contentHeight)/2),
     titleBottom:height/2-(316+7.8)*s,captionTop:height/2+321*s,titleSize:92*s,captionSize:54*s};
 }

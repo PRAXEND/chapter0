@@ -1,4 +1,4 @@
-import {motionCues,defaultMotionGeometry} from './motion-clock.js';
+import {motionCues,defaultMotionGeometry,contentStage} from './motion-clock.js';
 const el=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const urlPart=encodeURIComponent;
@@ -105,7 +105,7 @@ function componentFields(c){
     if(f.type==='boolean')return check(key,f.label,value);
     return field(f.label,input(key,value,f.type==='number'?'number':'text'));
   }).join('');
-  const g=c.geometry??defaultMotionGeometry(spec,s.p.profile);
+  const g=c.geometry??defaultMotionGeometry(spec,contentStage(s.p.profile,s.p.style));
   const sameStyle=spec.styleId===s.p.style?.id&&spec.styleVersion===s.p.style?.version;
   const design=c.soundDesign||{};
   const sound=sameStyle?'<details><summary>动作音效</summary>'+check('motion-sound-on','在动作落点加入音效',design.enabled??Boolean(spec.soundEvents?.length))+field('声音素材',select('motion-sound-id',[['','按风格事件'],...(spec.soundResources||[]).map(r=>[r.id,r.name])],design.resourceId||''))+
@@ -279,8 +279,9 @@ function pictureEvidence(qa){
 function independentEvidence(qa){
  const r=qa.evidence?.independentReview;
  if(!r)return '';
+ const reason={'budget-disabled':'本工程关闭了独立终审','frames-disabled':'本工程没有授权分享帧','auto-review-disabled':'自动回看已关闭',superseded:'工程已有较新编辑','permission-changed':'工程分享授权已改变','candidate-integrity':'候选文件指纹与回执不符','reference-changed':'基准片版本已经改变','reference-unavailable':'基准片当前不可读取','source-changed':'原片已改变','time-budget-exhausted':'已到本轮时间上限','ambiguous-turn-receipt':'上次终审的回执尚不能确认','receipt-mismatch':'回执不属于当前候选'};
  const state={completed:'已完成',skipped:'已跳过',unavailable:'待复核'};
- return '<div class="entry"><div><strong>独立终审 · '+esc(state[r.status]||r.status)+'</strong><p>'+esc(r.reason||'')+'</p>'+((r.comparisons||[]).map(c=>'<small>'+esc(c.observation||c.description||c.message||'')+'</small>').join(' '))+'</div></div>';
+ return '<div class="entry"><div><strong>独立终审 · '+esc(state[r.status]||r.status)+'</strong><p>'+esc(reason[r.reason]||r.reason||'')+'</p>'+((r.comparisons||[]).map(c=>'<small>'+esc([Number.isFinite(c.fromFrame)?clock(c.fromFrame/(qa.frameRate||frameRate())):'',c.observation,c.comparison].filter(Boolean).join(' · '))+'</small>').join(' '))+'</div></div>';
 }
 function parityEvidence(qa){
  const p=qa.evidence?.compositeParity;
@@ -374,7 +375,7 @@ async function runAction(act,id){
    const spec=componentById(val('new-component')),shot=p.timeline.clips.find(c=>c.id===s.clip&&c.track==='video');
    const start=shot?.start??Math.round((el('player')?.currentTime||0)*frameRate()),duration=shot?.duration??frameRate()*4;
    const props=Object.fromEntries(spec.fields.filter(f=>f.type==='text').map(f=>[f.key,newText[f.key]??p.title]));
-   const clip={id:crypto.randomUUID(),track:'graphic',start,duration,geometry:defaultMotionGeometry(spec,p.profile),
+   const clip={id:crypto.randomUUID(),track:'graphic',start,duration,geometry:defaultMotionGeometry(spec,contentStage(p.profile,p.style)),
      motion:{componentId:spec.id,version:spec.version,props,cueFrames:motionCues(spec,duration,frameRate())}};
    await edit([{op:'add',clip}]);return pickClip(clip.id);
  }
