@@ -20,7 +20,7 @@ import {createStore,defaultRoot,fault} from './project.mjs';
 import {createQueue} from './jobs.mjs';
 import {timelinePlayback} from './timeline-playback.mjs';
 import {draftPreviews} from './draft-preview.mjs';
-import {selectedStyle} from './style-catalog.mjs';
+import {currentStyle,selectedStyle} from './style-catalog.mjs';
 import {compileSceneWithSound} from './scene-sound.mjs';
 import {legacyLibrary} from './library.mjs';
 import {createMusic} from './music.mjs';
@@ -75,6 +75,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
     transcribeForReview:audio.transcribe,
     comparePreview:(p,options)=>compareCompositions(p,{...options,drafts,cache:store.paths(p.id).cache}),
     async prepare(project,{signal,onProgress,kind,message}){
+      if(['produce','revise'].includes(kind)&&!currentStyle(project.style))throw fault('请先在风格库为此历史工程选用当前风格，再继续自动剪辑。');
       if(kind==='produce'&&styles.get){
         const ready=v8Readiness(await styles.get(project.style.id,project.style.version));
         if(ready&&!ready.ready)throw fault('此风格尚未就绪：'+ready.problems.join('，'),409);
