@@ -7,7 +7,7 @@ import os from 'node:os';
 import {createStore} from '../src/project.mjs';
 import {draftPreviews} from '../src/draft-preview.mjs';
 import {timelinePlayback} from '../src/timeline-playback.mjs';
-import {playbackIdentity} from '../src/playback-identity.mjs';
+import {playbackIdentity,pictureIdentity} from '../src/playback-identity.mjs';
 import {startStudio} from '../src/server.mjs';
 import {createTimelinePlayer} from '../www/timeline-player.js';
 
@@ -67,6 +67,18 @@ test('HTTP selects an identical frozen cut, handles byte ranges and refuses it a
   assert.deepEqual([first.fromFrame,first.toFrame,next.fromFrame,next.toFrame,last.fromFrame,last.toFrame],[149,299,149,299,299,337]);
   assert.equal(records.filter(r=>r.window).length,2);
   assert.equal((await (await api(route(changed,179))).json()).source,'window');
+});
+test('a voice-only edit can reuse the frozen picture until a changed layer or end clock alters the image',()=>{
+  const shot={id:'shot',track:'video',assetId:'camera',start:0,duration:100};
+  const voice={id:'voice',track:'narration',assetId:'sound',start:10,duration:40};
+  const project=clips=>({profile,assets:[{id:'camera',sha256:hash('camera')},{id:'sound',sha256:hash('sound')}],timeline:{clips}});
+  const before=project([shot,voice]),after=project([shot,{...voice,start:12}]);
+  assert.notEqual(playbackIdentity(before),playbackIdentity(after));
+  assert.equal(pictureIdentity(before),pictureIdentity(after));
+  assert.notEqual(pictureIdentity(before),pictureIdentity(project([shot,{...voice,start:95,muted:true}])));
+  assert.notEqual(pictureIdentity(before),pictureIdentity(project([{...shot,sourceIn:1},voice])));
+  assert.notEqual(pictureIdentity(before),pictureIdentity({...after,assets:[{id:'camera',sha256:hash('other')}]}));
+  assert.equal(pictureIdentity({...before,assets:[]}),null);
 });
 test('requests share their exact frame, cancel a superseded worker and reject a completed result on an old revision',async t=>{
   const {p,store,media,records}=await fixture(t),drafts=draftPreviews(store,media),service=timelinePlayback(store,media,drafts);

@@ -2,7 +2,7 @@ import path from 'node:path';
 import {realpath,stat} from 'node:fs/promises';
 import {fault} from './project.mjs';
 import {draftPrefix} from './draft-preview.mjs';
-import {playbackIdentity,timelineFrames} from './playback-identity.mjs';
+import {playbackIdentity,pictureIdentity,timelineFrames} from './playback-identity.mjs';
 
 const jobFile=/^cut-([a-zA-Z0-9_-]{1,128})\.mp4$/;
 const draftFile=/^([a-f0-9]{16})-(\d+)-(\d+)-(\d+)\.(jpg|mp4)$/;
@@ -45,17 +45,23 @@ export function timelinePlayback(store,media,drafts){
     const identity=playbackIdentity(p);
     const jobs=store.listJobs(p.id).filter(j=>j.status==='done'&&j.files?.video)
       .sort((a,b)=>Number(a.kind==='preview')-Number(b.kind==='preview'));
-    let descriptor;
+    let descriptor,frozenPicture,pictureKey;
     for(const job of jobs){
       try{
         if(await matchingCut(p,job,identity,signal)){
           descriptor={source:'cut',name:'cut-'+job.id+'.mp4',fromFrame:0,toFrame:length};break;
         }
+        if(!frozenPicture){
+          const snapshot=job.snapshot||store.revision(p.id,job.revision);
+          pictureKey??=pictureIdentity(p);
+          if(pictureKey&&snapshot&&pictureIdentity(snapshot)===pictureKey)
+            frozenPicture=await matchingCut(snapshot,job,playbackIdentity(snapshot),signal);
+        }
       }catch{signal?.throwIfAborted();}
     }
     if(!descriptor){
       const still=mode==='still',existing=still&&await drafts.cachedSegment(p,frame);
-      const file=existing||await (still?drafts.still:drafts.segment)(p,frame,signal);
+      const file=existing||await (still?drafts.still:drafts.segment)(p,frame,signal,frozenPicture);
       descriptor={source:still&&!existing?'frame':'window',...file};
     }
     current(store,p,revision);signal?.throwIfAborted();

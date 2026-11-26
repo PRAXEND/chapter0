@@ -9,7 +9,7 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { once } from 'node:events';
 import { promisify } from 'node:util';
 import { createSrt, createAss } from '../src/text-tracks.mjs';
-import { renderProject, mediaCapabilities, probeMedia, frameAt, fileHash } from '../src/media.mjs';
+import { renderProject, renderPreviewWindow, mediaCapabilities, probeMedia, frameAt, fileHash } from '../src/media.mjs';
 import { ffBase, mediaSlot, run } from '../src/media-runtime.mjs';
 import { createMusicBed } from '../src/audio.mjs';
 
@@ -115,10 +115,23 @@ test('render two cuts and a dissolve, measure pixels, mix audio, read subtitles 
   assert.equal(trim.frames, 19);
   assert.equal((await probeMedia(trim.videoPath)).frames, 19);
   assert.equal(await readFile(trim.srtPath, 'utf8'), '1\n00:00:00,000 --> 00:00:00,200\n渐变\n\n2\n00:00:00,400 --> 00:00:00,633\n进入下一幕\n');
+  const adjusted={...project,timeline:{clips:clips.map(c=>c.track==='narration'?{...c,muted:true}:c)}};
+  const options={directory:dir,window:{fromFrame:49,toFrame:68}};
+  const fromPicture=path.join(dir,'current-mix.mp4'),composed=path.join(dir,'current-composed.mp4');
+  await renderPreviewWindow(adjusted,{...options,output:fromPicture,frozenPicture:output});
+  await renderPreviewWindow(adjusted,{...options,output:composed});
+  const pcm=async file=>(await exec(caps.ffmpeg,[...ffBase,'-i',file,'-map','0:a:0','-f','s16le','pipe:1'],{encoding:'buffer'})).stdout;
+  assert.deepEqual(await pcm(fromPicture),await pcm(composed));
+  assert.equal((await probeMedia(fromPicture)).frames,19);
+  assert.equal(await readFile(fromPicture.replace('.mp4','.srt'),'utf8'),await readFile(composed.replace('.mp4','.srt'),'utf8'));
   async function pixels(file, frame) {
     const { stdout } = await exec(caps.ffmpeg, [...ffBase, '-i', file, '-an', '-vf', `select=eq(n\\,${frame})`, '-frames:v', '1', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1'], { encoding: 'buffer' });
     return stdout;
   }
+  const expectedStart=await pixels(output,options.window.fromFrame);
+  const actualStart=await pixels(fromPicture,0);
+  assert.equal(actualStart.length,expectedStart.length);
+  assert.ok(actualStart.reduce((sum,n,i)=>sum+Math.abs(n-expectedStart[i]),0)/actualStart.length<2);
   let priorX = -Infinity;
   for (const frame of [0, 4, 10, 18]) {
     const [original, excerpt] = await Promise.all([pixels(output, window.fromFrame + frame), pixels(trim.videoPath, frame)]);

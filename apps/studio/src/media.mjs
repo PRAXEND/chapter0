@@ -357,10 +357,10 @@ export function renderProject(project, options) {
 // The playback service serializes these short intervals separately from full exports.
 export function renderPreviewWindow(project,options){
   if(!options.window||options.window.toFrame-options.window.fromFrame>6*project.profile.fps)throw Error('播放预览须为六秒内的工程区间');
-  return render(project,{...options,preview:true});
+  return render(project,{...options,preview:true},options.frozenPicture);
 }
 
-async function render(project, { directory, output, preview = false, window, signal, onProgress = () => {} }) {
+async function render(project, { directory, output, preview = false, window, signal, onProgress = () => {} }, frozenPicture) {
   if (!path.isAbsolute(output) || path.extname(output).toLowerCase() !== '.mp4') throw new Error('导出目标须为 MP4 的绝对路径');
   const { width, height, fps, clips, length: projectLength } = validate(project);
   const { fromFrame, toFrame } = window ?? { fromFrame: 0, toFrame: projectLength };
@@ -368,7 +368,7 @@ async function render(project, { directory, output, preview = false, window, sig
   const length = toFrame - fromFrame;
   const layout=portraitLayout(project);
   const profile = {width,height:layout?.contentHeight||height,fps};
-  const spans = pictureSpans(clips, projectLength, fromFrame, toFrame, profile);
+  const spans = frozenPicture?[]:pictureSpans(clips, projectLength, fromFrame, toFrame, profile);
   // Start the 320 ms ducking release before the sample and keep limiter lookahead at its end.
   const mixStart = Math.max(0, fromFrame - 3 * fps), mixEnd = Math.min(projectLength, toFrame + fps);
   const audible = clips.filter(c => ['video', 'narration', 'music'].includes(c.track) && c.start < mixEnd && c.start + c.duration > mixStart && (c.gain ?? 1) > 0 && !c.muted);
@@ -384,18 +384,23 @@ async function render(project, { directory, output, preview = false, window, sig
       await renderSpan(span, media, profile, ffmpeg, path.join(work, `span-${i}.mp4`), signal);
     }
     onProgress(0.45);
-    const picture = await assemblePicture(spans, work, profile, ffmpeg, melt, signal);
+    const picture = frozenPicture || await assemblePicture(spans, work, profile, ffmpeg, melt, signal);
     onProgress(0.6);
     const mix = await renderMix(audible, media, work, fps, mixStart, mixEnd, ffmpeg, signal, layout && portraitEnding(projectLength,fps));
-    const {layers,motion,filters,map}=await pictureLayers(project,{work,directory,profile,layout,fromFrame,toFrame,projectLength,clips,signal});
+    // A verified frozen picture may supply only video. Always rebuild the mix and its ducking
+    // from this revision. The playback route has matched every visible layer and the end clock.
+    const {layers,motion,filters,map}=frozenPicture
+      ? {layers:clips.filter(c=>c.track==='caption'),filters:[],map:'0:v:0'}
+      : await pictureLayers(project,{work,directory,profile,layout,fromFrame,toFrame,projectLength,clips,signal});
     await writeFile(path.join(work,'captions.srt'),createSrt(layers,fps,{fromFrame,toFrame}));
     const final=path.join(work,'final.mp4');
-    const encoding = layout || layers.length ? ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', preview ? 'ultrafast' : 'veryfast', '-crf', preview ? '22' : '18', '-threads', '2'] : ['-c:v', 'copy'];
+    const encoding = frozenPicture || layout || layers.length ? ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', preview ? 'ultrafast' : 'veryfast', '-crf', preview ? '22' : '18', '-threads', '2'] : ['-c:v', 'copy'];
     const sampleAt = frame => Math.round(frame * 48000 / fps);
     const mixWindow = window ? ['-af', `atrim=start_sample=${sampleAt(fromFrame) - sampleAt(mixStart)}:end_sample=${sampleAt(toFrame) - sampleAt(mixStart)},asetpts=PTS-STARTPTS`] : [];
     onProgress(0.76);
     const trackCredit=activeStyleMusicCredit(project);
-    await run(ffmpeg, [...ffBase, ...inputArgs(picture), ...inputArgs(mix), ...(motion?.inputs ?? []), ...filters, '-map', map, '-map', '1:a:0', ...encoding, ...mixWindow, ...(trackCredit?['-metadata','comment='+trackCredit.line]:[]), '-c:a', 'aac', '-ar', '48000', '-b:a', '192k', '-movflags', '+faststart', '-t', rounded(length / fps), final], { cwd: work, signal });
+    const seek=frozenPicture&&fromFrame?['-ss',rounded(Math.max(0,fromFrame/fps-0.000001))]:[];
+    await run(ffmpeg, [...ffBase, ...seek, ...inputArgs(picture), ...inputArgs(mix), ...(motion?.inputs ?? []), ...filters, '-map', map, '-map', '1:a:0', ...encoding, ...mixWindow, ...(trackCredit?['-metadata','comment='+trackCredit.line]:[]), '-c:a', 'aac', '-ar', '48000', '-b:a', '192k', '-movflags', '+faststart', '-t', rounded(length / fps), final], { cwd: work, signal });
     const info = await probeMedia(final, { signal });
     if (!info.hasAudio || info.width !== width || info.height !== height || Math.abs(info.duration - length / fps) > 1 / fps || (info.frames && info.frames !== length)) throw new Error('导出结果与工程的帧数或规格不符');
     const sha256 = await fileHash(final);

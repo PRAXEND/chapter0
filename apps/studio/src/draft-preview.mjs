@@ -83,7 +83,7 @@ export function draftPreviews(store,media){
     }
     return best;
   }
-  async function request(project,frame,mode,signal){
+  async function request(project,frame,mode,signal,frozenPicture){
     signal?.throwIfAborted();
     if(!Number.isSafeInteger(frame)||frame<0)throw fault('请选择有效的预览帧。');
     const length=timelineFrames(project);
@@ -101,8 +101,17 @@ export function draftPreviews(store,media){
     const toFrame=Math.min(length,still?frame+1:fromFrame+span);
     const name=(await draftPrefix(project))+fromFrame+'-'+toFrame+(still?'.jpg':'.mp4');
     const directory=store.paths(project.id).cache,folder=path.join(directory,'drafts'),output=path.join(folder,name);
-    await share(output,(signal)=>still?media.renderProjectFrame(project,{directory,output,frame,signal}):
-      (mode==='window'&&media.renderPreviewWindow||media.renderProject)(project,{directory,output,preview:true,window:{fromFrame,toFrame},signal}),signal);
+    await share(output,async signal=>{
+      if(still){
+        if(frozenPicture&&media.frameAt){
+          const seconds=Math.max(0,frame/project.profile.fps-0.000001);
+          return media.frameAt(frozenPicture,seconds,output,{signal,maxWidth:960});
+        }
+        return media.renderProjectFrame(project,{directory,output,frame,signal});
+      }
+      const render=mode==='window'&&media.renderPreviewWindow||media.renderProject;
+      return render(project,{directory,output,preview:true,window:{fromFrame,toFrame},signal,frozenPicture});
+    },signal);
     signal?.throwIfAborted();await trim(folder);
     return {name,revision:project.revision,fromFrame,toFrame};
   }
@@ -110,5 +119,5 @@ export function draftPreviews(store,media){
     closed=true;const pending=[...active.values()];for(const e of pending)e.controller.abort();
     await Promise.allSettled([...pending.map(e=>e.work),stillQueue,windowQueue]);
   }
-  return {cachedSegment,open:(p,f=0,s)=>request(p,f,'draft',s),still:(p,f,s)=>request(p,f,'still',s),segment:(p,f,s)=>request(p,f,'window',s),close};
+  return {cachedSegment,open:(p,f=0,s)=>request(p,f,'draft',s),still:(p,f,s,picture)=>request(p,f,'still',s,picture),segment:(p,f,s,picture)=>request(p,f,'window',s,picture),close};
 }
