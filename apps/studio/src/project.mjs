@@ -1,6 +1,9 @@
 import {publicationFields,portraitLayout,portraitTitleProblem} from './presentation.mjs';
 import {requestedDurationRange,validateDuration} from './duration.mjs';
-import {validatePictureEffects,splitPictureEffects} from './news-effects.mjs';
+import {validatePictureEffects} from './news-effects.mjs';
+import {timelineCommands,validateSampleWindow} from './clip-edit.mjs';
+import {createEditHistory} from './edit-history.mjs';
+import {isDeepStrictEqual} from 'node:util';
 import {syncMotionSounds} from './motion-sound-binding.mjs';
 import {validateSoundDesign} from './style-sounds.mjs';
 import {dedicatedVoiceReference,henryV8,audioSelection} from './style-audio.mjs';
@@ -11,10 +14,9 @@ import { copyFile, link, mkdir, realpath, stat, unlink } from 'node:fs/promises'
 import { constants } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {validFraming,transitionEnvelope} from './framing.mjs';
+import {validFraming} from './framing.mjs';
 import {polygonPath} from './polygon.mjs';
 import {validateMotionClip} from './motion-components.mjs';
-import {splitGraphicKeys} from './graphic-keys.mjs';
 import {viewportRect,overlapOnStage} from './viewport.mjs';
 
 export const defaultRoot = () => process.env.STUDIO_DATA_ROOT || path.join(os.homedir(),'Library','Application Support','Video Studio','standalone');
@@ -38,10 +40,12 @@ function profileOf(p = {}) {
 export function validateClip(clip,p) {
   checkId(clip.id);
   if (!tracks.includes(clip.track)) throw fault('未知轨道。');
-  for(const key of ['start','duration','sourceIn']) {
-    const value=clip[key] ?? (key==='sourceIn' ? 0 : NaN);
+  for(const key of ['start','duration']) {
+    const value=clip[key];
     if(!Number.isSafeInteger(value)||value < (key==='duration'?1:0)) throw fault('剪辑位置和长度必须使用有效的整数帧。');
   }
+  if(!Number.isFinite(clip.sourceIn??0)||(clip.sourceIn??0)<0)throw fault('原片入点须为非负的有效帧位置。');
+  validateSampleWindow(clip,p);
   if(clip.start+clip.duration>p.profile.fps*86400)throw fault('时间线超出一天。');
   const speed=clip.speed??1, gain=clip.gain??1;
   if(!Number.isFinite(speed)||speed<0.125||speed>8||!Number.isFinite(gain)||gain<0||gain>16)throw fault('速率或音量无效。');
@@ -91,39 +95,7 @@ function newSettings(mode, supplied={},style) {
   for(const field of ['voiceReferenceAssetId','narrationAssetId','musicAssetId'])if(s[field])checkId(s[field]);
   return s;
 }
-function* expandSplits(commands,project) {
-  for(const cmd of commands){
-    if(cmd.op!=='split'){yield cmd;continue;}
-    const clip=project.timeline.clips.find(c=>c.id===cmd.id);
-    const head=cmd.atFrame-clip?.start;
-    if (!['video','graphic'].includes(clip?.track) || !Number.isSafeInteger(head) || head<1 || head>=clip.duration) throw fault('请选择画面或图形片段内的分割帧。');
-    checkId(cmd.newId);
-    const stackOrigin={id:clip.stackOrigin?.id||clip.id,offsetFrames:(clip.stackOrigin?.offsetFrames||0)+head};
-    if (clip.track === 'graphic') {
-      if (clip.motion) throw fault('此原版组件有独立动画时钟，请保留完整片段或调整出入点。');
-      const [beforeKeys, afterKeys] = splitGraphicKeys(clip, head);
-      yield {op:'update',id:clip.id,changes:{duration:head,keyframes:beforeKeys}};
-      yield {op:'add',clip:{...clip,id:cmd.newId,start:cmd.atFrame,duration:clip.duration-head,keyframes:afterKeys,stackOrigin}};
-      continue;
-    }
-    const left={duration:head},right={...clip,id:cmd.newId,start:cmd.atFrame,duration:clip.duration-head,transition:null,stackOrigin};
-    if(project.assets.find(a=>a.id===clip.assetId)?.kind!=='image')right.sourceIn=(clip.sourceIn||0)+Math.round(head*(clip.speed||1));
-    if(clip.pictureEffects?.length)[left.pictureEffects,right.pictureEffects]=splitPictureEffects(clip.pictureEffects,head);
-    const camera=clip.framing;
-    if(camera){
-      const target=camera.to||camera.from;
-      const pointAt=frame=>Object.fromEntries(['x','y','zoom'].map(k=>[k,camera.from[k]+(target[k]-camera.from[k])*frame/(clip.duration-1)]));
-      left.framing={from:camera.from,to:pointAt(head-1)};right.framing={from:pointAt(head),to:target};
-    }
-    const fade=transitionEnvelope(clip);
-    if(head<fade.duration){
-      left.transition={...clip.transition,duration:head,totalFrames:fade.total,offsetFrames:fade.offset};
-      right.transition={...clip.transition,duration:fade.duration-head,totalFrames:fade.total,offsetFrames:fade.offset+head};
-    }
-    yield {op:'update',id:clip.id,changes:left};
-    yield {op:'add',clip:right};
-  }
-}
+const sortClips=clips=>clips.sort((a,b)=>a.start-b.start||tracks.indexOf(a.track)-tracks.indexOf(b.track)||a.id.localeCompare(b.id));
 export function createStore(root=defaultRoot(),{probeMedia}={}) {
   root=path.resolve(root);
   mkdirSync(root,{recursive:true,mode:0o700});
@@ -133,6 +105,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     CREATE TABLE IF NOT EXISTS history (project TEXT, revision INTEGER, body TEXT NOT NULL, PRIMARY KEY(project,revision));
     CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, project TEXT NOT NULL, body TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS project_jobs ON jobs(project);`);
+  const journal=createEditHistory(db,{revision,validateClip,sortClips});
   function paths(id) {
     const directory=path.join(root,'projects',checkId(id));
     return {directory,assets:path.join(directory,'assets'),cache:path.join(directory,'cache'),outputs:path.join(directory,'outputs')};
@@ -142,8 +115,8 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     if(!row)throw fault('找不到该工程。',404);
     return JSON.parse(row.body);
   }
-  function transaction(f) {
-    db.exec('BEGIN IMMEDIATE');
+  function transaction(f,reading=false) {
+    db.exec(reading?'BEGIN':'BEGIN IMMEDIATE');
     try{const v=f();db.exec('COMMIT');return v;}catch(e){db.exec('ROLLBACK');throw e;}
   }
   function persist(p,versioned) {
@@ -196,8 +169,10 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
   function apply(id,baseRevision,commands,actor='user',sceneMeta) {
     if(!Number.isInteger(baseRevision)||!Array.isArray(commands)||!commands.length||commands.length>10000)throw fault('请提供起始版本和剪辑指令。');
     return mutate(id,baseRevision,p=>{
-      const clips=p.timeline.clips, before=clips.map(c=>({...c}));
-      for(const cmd of expandSplits(commands,p)){
+      const clips=p.timeline.clips, before=copy(clips), expanded=[];
+      for(const cmd of timelineCommands(commands,p)){
+        if(!cmd||typeof cmd!=='object')throw fault('剪辑指令无效。');
+        expanded.push(cmd);
         const found=clips.findIndex(c=>c.id===(cmd.id??cmd.clip?.id));
         const before=clips[found];
         if(cmd.op==='lock'){
@@ -209,17 +184,39 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
         if(before?.locked)throw fault('该片段已锁定。',409);
         if(cmd.op==='remove'){clips.splice(found,1);continue;}
         if(!['add','update'].includes(cmd.op))throw fault('未知剪辑指令。');
+        if(cmd.op==='update'&&(!cmd.changes||typeof cmd.changes!=='object'||Array.isArray(cmd.changes)))throw fault('请提供要修改的片段属性。');
         if(cmd.op==='update'&&(cmd.changes?.id!==undefined||cmd.changes?.locked!==undefined))throw fault('编号和锁定状态须单独修改。');
         const candidate=cmd.op==='add'?{...copy(cmd.clip),locked:false}:{...before,...copy(cmd.changes)};
+        if(before?.sampleWindow && cmd.op==='update' && !Object.hasOwn(cmd.changes,'sampleWindow') &&
+          (['assetId','sourceIn','speed'].some(k=>before[k]!==candidate[k]) || before.sampleWindow.offsetFrames+candidate.duration>before.sampleWindow.durationFrames))
+          delete candidate.sampleWindow;
+        if(typeof candidate.muted!=='undefined'&&typeof candidate.muted!=='boolean')throw fault('静音状态须为开或关。');
+        if(candidate.fit!=null&&candidate.fit!==before?.fit&&!['cover','contain'].includes(candidate.fit))throw fault('画面适配方式无效。');
         validateClip(candidate,p);
+        if(actor==='user'){
+          const a=p.assets.find(a=>a.id===candidate.assetId);
+          const out=c=>(c.sourceIn??0)+c.duration*(c.speed??1);
+          // Older edits allowed a one-frame rounding margin. They remain movable and repairable,
+          // but fresh manual trims and inserts cannot run beyond the end of a real source.
+          if(a&&a.kind!=='image'&&(!before||before.assetId!==a.id||out(candidate)>out(before)+1e-7) &&
+            out(candidate)>Math.ceil(a.duration*p.profile.fps-1e-8)+1e-7)throw fault('剪辑超出原片的可用窗口。');
+        }
         if(actor!=='user' && candidate.assetId!==before?.assetId && dedicatedVoiceReference(p.assets.find(a=>a.id===candidate.assetId)))throw fault('专用音色参考不能被自动加入本片剪辑。',409);
         if(actor!=='user'&&clips.some(c=>c.locked&&c.track===candidate.track&&spans(c,candidate)&&overlapOnStage(c,candidate,p.profile)))throw fault('本次修改会覆盖已锁定的轨道区间。',409);
         if(cmd.op==='add')clips.push(candidate);else clips[found]=candidate;
       }
       if(sceneMeta)Object.assign(p,copy(sceneMeta));
-      syncMotionSounds(p,before,commands,paths(id).assets,actor);
-      clips.sort((a,b)=>a.start-b.start||tracks.indexOf(a.track)-tracks.indexOf(b.track)||a.id.localeCompare(b.id));
+      syncMotionSounds(p,before,expanded,paths(id).assets,actor);
+      sortClips(clips);
+      if(actor==='user'){
+        if(!isDeepStrictEqual(before,clips))journal.record(p,commands);
+        else if(!sceneMeta)return false;
+      }
     });
+  }
+  function playHistory(id,base,forward){
+    if(!Number.isSafeInteger(base))throw conflicts();
+    return mutate(id,base,p=>{journal.apply(p,forward);});
   }
   function applySceneEdit(id,baseRevision,commands,metadata,actor='codex'){
     if(!metadata||Object.keys(metadata).some(k=>!['storyboard','facts','directorNotes','styleAudio','pendingSequence','sequenceApproval'].includes(k)))throw fault('分镜事务元数据无效。');
@@ -306,5 +303,5 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
       return transaction(()=>persist(p,true));
     }catch(e){rmSync(dirs.directory,{recursive:true,force:true});throw e;}
   }
-  return {root,db,paths,get,list,create,addAsset,apply:(id,base,commands,actor)=>apply(id,base,commands,actor),applySceneEdit,setMeta,configure,revision,snapshot,importSnapshot,saveJob,saveCutPair,getJob,listJobs,close:()=>db.close()};
+  return {root,db,paths,get,list,create,addAsset,history:id=>transaction(()=>journal.state(get(id)),true),undo:(id,base)=>playHistory(id,base,false),redo:(id,base)=>playHistory(id,base,true),apply:(id,base,commands,actor)=>apply(id,base,commands,actor),applySceneEdit,setMeta,configure,revision,snapshot,importSnapshot,saveJob,saveCutPair,getJob,listJobs,close:()=>db.close()};
 }

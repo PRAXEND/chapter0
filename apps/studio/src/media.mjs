@@ -9,6 +9,7 @@ import path from 'node:path';
 import { createAss, createSrt } from './text-tracks.mjs';
 import { framingFilter, transitionEnvelope } from './framing.mjs';
 import { viewportRect,compositionOrder } from './viewport.mjs';
+import { sampleClock,validateSampleWindow } from './clip-edit.mjs';
 import { ffBase, inputArgs, mediaSlot, mediaTool, requiredTool, run, scratch } from './media-runtime.mjs';
 
 export { mediaTool };
@@ -66,12 +67,13 @@ function validate(project) {
   if (![width, height].every(v => Number.isInteger(v) && v >= 16 && v <= 8192 && v % 2 === 0) || !(Number.isInteger(fps) && fps >= 1 && fps <= 60)) throw new Error('工程尺寸须为偶数，帧率范围为 1–60');
   const clips = (project.timeline?.clips ?? []).filter(c => !c.hidden && c.enabled !== false);
   for (const c of clips) {
+    validateSampleWindow(c,project);
     if (c.viewport != null) {
       if (c.track !== 'video') throw Error('只有视频轨道使用分屏窗口。');
       viewportRect(c.viewport, project.profile);
     }
     if (!['video', 'narration', 'music', 'caption', 'graphic'].includes(c.track) || !Number.isInteger(c.start) || c.start < 0 || !Number.isInteger(c.duration) || c.duration < 1) throw new Error('时间线包含无效片段');
-    if (!Number.isInteger(c.sourceIn ?? 0) || (c.sourceIn ?? 0) < 0 || !Number.isFinite(c.speed ?? 1) || (c.speed ?? 1) < 0.125 || (c.speed ?? 1) > 8 || !Number.isFinite(c.gain ?? 1) || (c.gain ?? 1) < 0 || (c.gain ?? 1) > 16) throw new Error('片段源区间、速率或音量无效');
+    if (!Number.isFinite(c.sourceIn ?? 0) || (c.sourceIn ?? 0) < 0 || !Number.isFinite(c.speed ?? 1) || (c.speed ?? 1) < 0.125 || (c.speed ?? 1) > 8 || !Number.isFinite(c.gain ?? 1) || (c.gain ?? 1) < 0 || (c.gain ?? 1) > 16) throw new Error('片段源区间、速率或音量无效');
   }
   const length = clips.reduce((end, c) => Math.max(end, c.start + c.duration), 0);
   if (!length) throw new Error('请先在时间线上加入素材');
@@ -110,9 +112,10 @@ function buildVisualInput(clip, span, asset, profile, index) {
   const { width, height, fps } = profile;
   const rate = clip.speed ?? 1;
   // Retimed and variable-rate footage must keep the same fps sampling phase as the full span.
-  const anchor = asset.kind === 'image' || (rate === 1 && asset.frameRate === fps) ? span.start : clip.start;
+  const clock = sampleClock(clip);
+  const anchor = asset.kind === 'image' || (rate === 1 && asset.frameRate === fps) ? span.start : clock.start;
   const skip = span.start - anchor;
-  const source = ((clip.sourceIn ?? 0) + (anchor - clip.start) * rate) / fps;
+  const source = (clock.sourceIn + (anchor - clock.start) * rate) / fps;
   const args = asset.kind === 'image' ? ['-loop', '1', '-framerate', String(fps), ...inputArgs(asset.path)] : ['-ss', rounded(source), ...inputArgs(asset.path)];
   const cover = clip.fit === 'cover';
   const size = cover ? `scale=${width}:${height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${width}:${height}` : `scale=${width}:${height}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black`;
@@ -227,12 +230,13 @@ async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, sign
     if (end <= first) continue;
     const asset = media.get(c.assetId);
     const rate = c.speed ?? 1;
-    const skip = sampleAt(first) - sampleAt(c.start);
+    const clock = sampleClock(c);
+    const skip = sampleAt(first) - sampleAt(clock.start);
     const count = sampleAt(end) - sampleAt(first);
     // Keep atempo's phase for retimed dialogue. Ordinary audio can seek directly.
     const seek = rate === 1 ? skip : 0;
-    const source = (c.sourceIn ?? 0) / fps + seek / 48000;
-    const duration = rate * c.duration / fps - seek / 48000;
+    const source = clock.sourceIn / fps + seek / 48000;
+    const duration = rate * clock.duration / fps - seek / 48000;
     const out = path.join(work, `sound-${index}.wav`);
     const filter = [`atrim=duration=${rounded(duration)}`, 'asetpts=PTS-STARTPTS', 'aresample=48000', ...tempo(rate), `volume=${rounded(c.gain ?? 1)}`, 'apad', `atrim=start_sample=${skip - seek}:end_sample=${skip - seek + count}`, 'asetpts=PTS-STARTPTS'].join(',');
     // Fade only background music, on the project clock and before the final black hold.

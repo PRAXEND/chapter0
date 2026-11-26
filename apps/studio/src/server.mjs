@@ -180,6 +180,11 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
         if(!action&&method==='GET')return json(res,disclose(p));
         if(action==='configure'&&method==='POST'){const b=await readJson(req);if(b.changes.style)b.changes.style=await pinnedStyle(styles,b.changes.style);return json(res,disclose(store.configure(id,b.baseRevision,b.changes)));}
         if(action==='edits'&&method==='POST'){const b=await readJson(req);return json(res,disclose(store.apply(id,b.baseRevision,b.commands,'user')));}
+        if(action==='history'&&!part&&method==='GET')return json(res,store.history(id));
+        if((action==='undo'||action==='redo')&&!part&&method==='POST'){
+          const b=await readJson(req);
+          return json(res,disclose(store[action](id,b.baseRevision)));
+        }
         if(action==='draft'&&!part&&method==='POST'){
           const b=await readJson(req);const d=await drafts.open(p,b.fromFrame??0);
           return json(res,{...d,url:'/api/projects/'+id+'/draft/'+d.name});

@@ -41,6 +41,14 @@ Node 服务只监听环回地址。命令行启动时会显示一次性本地入
 
 SQLite 保存当前工程、不可变编辑版本和任务。素材按 SHA-256 导入工程目录。用户与 Codex 共用带 baseRevision 的原子剪辑命令。每个任务冻结创作证据和时间线，渲染时发生的新修改属于下一版。临时输出与正式交付分开保存；审片证据关联实际 MP4/SRT 指纹。新资料库通过 OS 支持的数据库锁协调单写入服务。项目设置和密钥各自管理，ElevenLabs 密钥仅用于当前进程。原创配乐先登记服务商回执与曲目编号，并用已有本地文件指纹恢复结果。服务商音乐生成历史尚未开放 API，无法辨认的账单需由用户核实。[ElevenLabs 历史接口](https://elevenlabs.io/docs/api-reference/history/list)
 
+时间线的手工操作按提交批次写入本工程的撤销记录。工作台重新打开后可接着撤销、重做。每次回退产生新版本，恢复本次涉及的片段属性，保留此后的素材、设置、任务和其他剪辑。后续改动与本次涉及的源窗口或属性冲突时，工作台保留当前版本并指出片段。开始新的手工编辑会清除已撤销操作的重做记录。打开便携工程会建立新的工程和撤销记录，升级前的工程从首次新编辑开始记录。
+
+`POST /api/projects/:id/edits` 接收 `{baseRevision,commands}`。移动使用 `{op:"move",id,start}`。裁切使用 `{op:"trim",id,edge:"start"|"end",atFrame}`，结束帧不计入区间。分割使用 `{op:"split",id,atFrame,newId}`。同轨波纹删除使用 `{op:"ripple-remove",id}`，同轨后方片段向前移动，已绑定的音效跟随所属图层。同轨重叠或遇锁会取消整批修改。完整 JSX 组件保留自身时钟，可移动或用组件参数另行编排出场时间。
+
+录像和音轨使用 `{op:"speed",id,speed}` 调整到 0.125 至 8 倍。工作台保留源入点和出点，把时长取为可用的最近整帧，再返回实际速率。工程起点、时长和裁切位置均为整数帧。变速后分割得到的原片入点可含小数，采样窗口随工程保存。取景、画面适配、音量、静音等继续通过 `update.changes` 编辑。
+
+`GET /api/projects/:id/history` 返回版本、可执行状态、操作名及冲突原因。向同一工程的 `/undo` 或 `/redo` 提交 `{baseRevision}`，即可取得新版本工程。旧版本、已改变的同一属性和锁冲突均返回 HTTP 409。运行 `node --test apps/studio/test/timeline-edit.test.mjs apps/studio/test/project.test.mjs` 可复验持久记录、来源时钟、锁与并发。
+
 媒体适配器和模型准备见 scripts/prepare-media.mjs。已授权的公开技术样片可用 scripts/media-proof.mjs 复做，scripts/open-proof-project.mjs 可将该样片导入独立工程、以真实 Codex 重写一处字幕并校验其余编辑对象。研究使用的前台配对条件见 test/foreground-comparison.md。
 
 ### 在现有素材内制作和回看首版

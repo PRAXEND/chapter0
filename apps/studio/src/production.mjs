@@ -461,6 +461,7 @@ async function context(deps, project, selection) {
       source: publicSource(a.source),
     })),
     timeline: { clips: project.timeline.clips.map((c) => projectClip(c, shared)) },
+    editOperations:'studio_edit also accepts move(id,start), trim(id,edge:"start"|"end",atFrame), split(id,atFrame,newId), speed(id,speed), and ripple-remove(id). Use absolute project frames and an exclusive end. Speed keeps both source endpoints. A same-track ripple refuses overlapping or locked pieces. Move intact JSX components or edit their cues with studio_component.',
     storyboard:(project.storyboard||[]).map(b=>({videoClipId:b.videoClipId,assetId:b.assetId,start:b.start,duration:b.duration,
       sourceStart:b.sourceStart,sourceEnd:b.sourceEnd,speechGroup:b.speechGroup,claimUrl:urlForModel(b.claimUrl),
       ...(shared&&b.continuity?{continuity:trim(b.continuity)}:{})})),
@@ -497,7 +498,7 @@ function allowedCommands(commands, p) {
   if (!Array.isArray(commands) || !commands.length || commands.length > 600)
     throw new Error('局部编辑命令数量无效。');
   for (const cmd of commands) {
-    if (!['add', 'update', 'remove', 'split'].includes(cmd?.op))
+    if (!['add', 'update', 'remove', 'split', 'trim', 'move', 'speed', 'ripple-remove'].includes(cmd?.op))
       throw new Error('Codex 不能修改工程权限或解锁用户的编辑。');
     const data = cmd.op === 'add' ? cmd.clip : cmd.changes;
     if (
