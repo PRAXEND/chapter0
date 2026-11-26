@@ -7,7 +7,7 @@ import path from 'node:path';
 import {createStore,validateClip} from '../src/project.mjs';
 import {probeMedia,renderProject,renderProjectFrame,renderPreviewWindow} from '../src/media.mjs';
 import {requiredTool,ffBase} from '../src/media-runtime.mjs';
-import {validateTimeMap,setTimeMap,sourceAt,localAtSource,focusKeys,blendKeys,defaultMask} from '../www/clip-automation.js';
+import {validateTimeMap,setTimeMap,sourceAt,localAtSource,timeKeys,focusKeys,blendKeys,defaultMask} from '../www/clip-automation.js';
 import {visiblePanes} from '../src/viewport.mjs';
 import {pictureIdentity} from '../src/playback-identity.mjs';
 
@@ -41,6 +41,9 @@ test('source map, sampling clock and independently editable camera keys survive 
     const before=blendKeys(focusKeys(mapped),absolute),after=blendKeys(focusKeys(half),f);
     for(const key of ['x','y','zoom'])assert.ok(Math.abs(before[key]-after[key])<1e-8);
   }
+  const altered=timeKeys(right);altered[1]={...altered[1],sourceFrame:altered[1].sourceFrame+2};
+  const withNewKey={...right,...setTimeMap(right,altered)};validateTimeMap(withNewKey,a,profile.fps);
+  for(let f=-21;f<=0;f++)assert.equal(sourceAt(withNewKey,f),sourceAt(mapped,f+21),'re-edit preserves hidden source handles');
   p=store.undo(p.id,p.revision);assert.deepEqual(p.timeline.clips,[mapped]);
   p=store.redo(p.id,p.revision);assert.deepEqual(p.timeline.clips,[left,right]);
   apply([{op:'trim',id:'right',edge:'start',atFrame:34}]);let tail=p.timeline.clips[1];assert.equal(tail.timeMap.offsetFrames,24);

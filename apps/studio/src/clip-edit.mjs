@@ -101,7 +101,9 @@ function changeSpeed(clip,requested,project) {
   // at minimum/maximum rate, then report the attainable rate in the project.
   const duration=Math.max(1,Math.ceil(span/8-1e-10),Math.min(Math.floor(span/.125+1e-10),Math.round(span/requested)));
   if(duration===clip.duration&&!clip.timeMap)return null;
-  const speed=span/duration,changes={duration,speed,sampleWindow:null,...(clip.timeMap&&{timeMap:null})};
+  const speed=span/duration;
+  const flat=clip.timeMap&&duration===clip.duration?setTimeMap(clip,null):{sampleWindow:null,...(clip.timeMap&&{timeMap:null})};
+  const changes={duration,speed,...flat};
   const local=n=>Math.round(n*duration/clip.duration);
   if(clip.framing?.keys?.length){
     const scaled=focusKeys(clip).map(k=>({...k,frame:Math.round(k.frame*(duration-1)/Math.max(1,clip.duration-1))}));

@@ -36,7 +36,8 @@ export function validateTimeMap(clip,asset,fps){
   if(clip.timeMap==null)return;
   const {points,offsetFrames=0}=clip.timeMap;
   check(Object.keys(clip.timeMap).every(k=>['points','offsetFrames'].includes(k))&&clip.track==='video'&&asset?.kind==='video'&&!clip.sampleWindow,'时间曲线适用于录像，使用独立的原片采样时钟。');
-  check(Array.isArray(points)&&points.length>=2&&points.length<=64,'时间曲线须有 2–64 个锚点。');
+  check(Array.isArray(points)&&points.length>=2&&points.length<=256,'曲线保存的源区间无效或超出 256 个历史锚点。');
+  check(points.filter(p=>p?.frame>offsetFrames&&p.frame<offsetFrames+clip.duration).length<=62,'可见曲线最多有 64 个锚点。');
   for(const [i,p] of points.entries()){
     check(p&&Object.keys(p).every(k=>['frame','sourceFrame'].includes(k))&&Number.isSafeInteger(p.frame)&&p.frame>=0&&p.frame<=fps*86400&&Number.isFinite(p.sourceFrame)&&p.sourceFrame>=0,
       '曲线横轴是整数工程帧，纵轴是非负原片帧。');
@@ -53,10 +54,21 @@ export function validateTimeMap(clip,asset,fps){
 }
 export function setTimeMap(clip,points){
   const span=sourceAt(clip,clip.duration)-(clip.sourceIn??0);
-  if(points==null)return {timeMap:null,sampleWindow:null,speed:span/clip.duration};
+  if(points==null){
+    const runs=curveRuns(clip),clock=runs.length===1?runs[0].sampleWindow:null;
+    return {timeMap:null,sampleWindow:clock&&(clock.offsetFrames||clock.durationFrames!==clip.duration)?clock:null,speed:span/clip.duration};
+  }
   check(Array.isArray(points)&&points.length>=2&&points.length<=64&&points.every(p=>p&&typeof p==='object')&&points.at(-1)?.frame===clip.duration&&Math.abs(points.at(-1).sourceFrame-span)<epsilon*Math.max(1,span),
     '时间曲线须保留片段时长和原片首尾。');
-  return {timeMap:{points:points.map(p=>({frame:p.frame,sourceFrame:p.sourceFrame}))},speed:span/clip.duration,sampleWindow:null};
+  const old=clip.timeMap??(clip.sampleWindow&&{offsetFrames:clip.sampleWindow.offsetFrames,
+    points:[{frame:0,sourceFrame:0},{frame:clip.sampleWindow.durationFrames,sourceFrame:clip.sampleWindow.durationFrames*(clip.speed??1)}]});
+  const offset=old?.offsetFrames??0,end=offset+clip.duration;
+  const distance=old?sourceDistance(old.points,offset):0;
+  const visible=points.map(p=>({frame:p.frame+offset,sourceFrame:p.sourceFrame+distance}));
+  // Preserve trimmed handles, including the exact source picture/audio sampling phase
+  // before the visible window. A later extension can recover those original key points.
+  const full=old?[...old.points.filter(p=>p.frame<offset),...visible,...old.points.filter(p=>p.frame>end)]:visible;
+  return {timeMap:{points:full,...(offset&&{offsetFrames:offset})},speed:span/clip.duration,sampleWindow:null};
 }
 export function timeSection(clip,from,to){
   const curve=clip.timeMap,oldOffset=curve.offsetFrames??0;
@@ -80,9 +92,20 @@ export function curveRuns(clip){
   const curve=clip.timeMap;
   if(!curve)return [clip];
   const offset=curve.offsetFrames??0,base=clip.start-offset,source=(clip.sourceIn??0)-sourceDistance(curve.points,offset);
+  const points=[];
+  for(const p of curve.points){
+    const a=points.at(-2),b=points.at(-1);
+    // A collinear editable marker changes no timing; restarting fps/atempo there
+    // would alter fractional-rate pictures and make an audible seam.
+    if(a){
+      const expected=a.sourceFrame+(p.sourceFrame-a.sourceFrame)*(b.frame-a.frame)/(p.frame-a.frame);
+      if(Math.abs(expected-b.sourceFrame)<=Number.EPSILON*8*Math.max(1,p.sourceFrame))points.pop();
+    }
+    points.push(p);
+  }
   const runs=[];
-  for(let i=1;i<curve.points.length;i++){
-    const a=curve.points[i-1],b=curve.points[i],start=Math.max(clip.start,base+a.frame),end=Math.min(clip.start+clip.duration,base+b.frame);
+  for(let i=1;i<points.length;i++){
+    const a=points[i-1],b=points[i],start=Math.max(clip.start,base+a.frame),end=Math.min(clip.start+clip.duration,base+b.frame);
     if(end<=start)continue;
     const skip=start-base-a.frame,speed=slope(a,b);
     runs.push({...clip,timeMap:null,start,duration:end-start,speed,sourceIn:clean(source+a.sourceFrame+skip*speed),

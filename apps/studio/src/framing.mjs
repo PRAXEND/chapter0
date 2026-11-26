@@ -8,7 +8,7 @@ export function validFraming(framing,duration=Infinity) {
   }
   return Boolean(validPoint(framing?.from) && (framing.to == null || validPoint(framing.to)) &&
     (framing.keys==null || Array.isArray(framing.keys)&&framing.keys.length<=30&&framing.keys.every((p,i,keys)=>
-      validPoint(p)&&Number.isSafeInteger(p.frame)&&p.frame>0&&p.frame<duration-1&&(!i||keys[i-1].frame<p.frame))));
+      validPoint(p)&&Object.keys(p).every(k=>['frame','x','y','zoom'].includes(k))&&Number.isSafeInteger(p.frame)&&p.frame>0&&p.frame<duration-1&&(!i||keys[i-1].frame<p.frame))));
 }
 
 export function transitionEnvelope(clip) {

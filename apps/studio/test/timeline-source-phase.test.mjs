@@ -81,3 +81,35 @@ test('existing Atlas footage: the time curve plays three distinct source rates, 
   assert.equal(mapped.pictures.length,48);assert.equal(mapped.sound.length,76800*2*4);
   t.diagnostic('Atlas 0.5× / 1.5× / 0.5×; 48 frame hashes and 76,800 stereo sample pairs match both the authored source strips and the split cut.');
 });
+
+test('straight time anchors on a trimmed Atlas clip preserve the original stream and its hidden handles',async t=>{
+  const file=await referenceFile(),ffmpeg=await mediaTool('ffmpeg');
+  if(!file||!ffmpeg||!await mediaTool('ffprobe'))return t.skip('需要 Atlas 基准片及 FFmpeg');
+  const {curveRuns,setTimeMap,timeKeys}=await import('../www/clip-automation.js');
+  const asset={id:'source',path:file,...await probeMedia(file)},profile={width:160,height:90,fps:30};
+  const c={id:'a',track:'video',assetId:asset.id,start:0,duration:60,sourceIn:240,speed:1.25};
+  const project={assets:[asset],profile,timeline:{clips:[c]}};
+  const [,rhs]=[...timelineCommands([{op:'split',id:'a',newId:'right',atFrame:17}],project)];
+  const right=rhs.clip,points=timeKeys(right);
+  points.splice(1,0,{frame:11,sourceFrame:13.75});
+  const marked={...right,...setTimeMap(right,points)};
+  function decoded(clip){
+    const pics=[],samples=[];
+    for(const part of curveRuns(clip)){
+      const {chain,args}=buildVisualInput(clip,{start:part.start,duration:part.duration},asset,profile,0);
+      const hashes=execFileSync(ffmpeg,[...ffBase,...args,'-filter_complex',chain,'-map','[v0]','-an','-f','framemd5','pipe:1'],{encoding:'utf8'});
+      pics.push(...hashes.split('\n').filter(l=>l.startsWith('0,')).map(l=>l.split(',').at(-1).trim()));
+      const {source,filter}=audioDecode(part,30,part.start,part.start+part.duration);
+      samples.push(execFileSync(ffmpeg,[...ffBase,'-ss',String(Number(source.toFixed(7))),...inputArgs(file),'-map','0:a:0','-vn','-af',filter,'-ar','48000','-ac','2','-c:a','pcm_f32le','-f','f32le','pipe:1'],{maxBuffer:2_000_000}));
+    }
+    return {pics,samples:Buffer.concat(samples)};
+  }
+  const baseline=decoded(right);
+  for(const item of [marked,{...marked,...setTimeMap(marked,null)}]){
+    const derived=decoded(item);assert.deepEqual(derived.pics,baseline.pics);
+    assert.ok(derived.samples.equals(baseline.samples),'adding an unchanged anchor cannot restart atempo');
+  }
+  assert.equal(marked.timeMap.offsetFrames,17);
+  assert.ok(marked.timeMap.points.some(k=>k.frame===28),'the editable interior anchor remains in the document');
+  t.diagnostic('43 Atlas picture hashes and 68,800 stereo sample pairs match before adding a collinear anchor, with the anchor, and after clearing it.');
+});
