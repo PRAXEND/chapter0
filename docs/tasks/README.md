@@ -1,5 +1,7 @@
 # 任务记录
 
+- [Mac 工作台的双风格目录、操作帮助与高级剪辑](T-20261127-workbench-usability.md)
+
 - [Mac 工作台的剪辑时间线与后台会话](T-20261127-timeline-session.md)
 - [工作台后台会话隔离核验](T-20261127-background-codex-sessions.md)
 
