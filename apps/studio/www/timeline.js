@@ -237,7 +237,8 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     if(id==='paste'){
       const copied=structuredClone(view.clipboard),origin=Math.min(...copied.map(k=>k.start)),mapping=new Map(copied.map(k=>[k.id,crypto.randomUUID()]));
       for(const k of copied){
-        k.id=mapping.get(k.id);k.start+=view.frame-origin;k.locked=false;delete k.stackOrigin;delete k.soundBinding;
+        k.id=mapping.get(k.id);if(Number.isFinite(k.actionFrame))k.actionFrame+=view.frame-origin;
+        k.start+=view.frame-origin;k.locked=false;delete k.stackOrigin;delete k.soundBinding;
         if(k.speechGroup)k.speechGroup=mapping.get(k.speechGroup)||k.id;
       }
       view.ids=copied.map(k=>k.id);return action('paste',copied);

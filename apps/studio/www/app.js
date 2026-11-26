@@ -447,7 +447,10 @@ async function runAction(act,id){
  case 'remove-shake':{el('picture-shakes').querySelector('[data-shake="'+Number(id)+'"]')?.remove();return;}
  case 'save-clip':{
   const c=p.timeline.clips.find(c=>c.id===id),f=frameRate();
-  const changes={start:Math.round(Number(val('clip-at'))*f),sourceIn:Math.round(Number(val('clip-in'))*f),duration:Math.round(Number(val('clip-len'))*f),speed:Number(val('clip-speed')),gain:Number(val('clip-gain'))};
+  const changes={start:Math.round(Number(val('clip-at'))*f),duration:Math.round(Number(val('clip-len'))*f)};
+  const edited=key=>{const n=el('clip-'+key);return n&&Number(n.value)!==Number(n.defaultValue);};
+  if(edited('in'))changes.sourceIn=Number((Number(val('clip-in'))*f).toFixed(8));
+  if(edited('gain'))changes.gain=Number(val('clip-gain'));
   if(c.motion){
     const spec=componentById(c.motion.componentId),props={...c.motion.props};
     for(const f of spec.fields.filter(f=>!['second','third'].includes(f.key))){
@@ -468,9 +471,10 @@ async function runAction(act,id){
       ...(sound?{soundDesign}:{}),motion:{...c.motion,props,cueFrames}}}]);
   }
   const asset=p.assets.find(a=>a.id===c.assetId);
-  const speedChange=asset&&asset.kind!=='image'&&changes.speed!==(c.speed??1);
-  const newSpeed=changes.speed;
-  if(speedChange){delete changes.speed;if(changes.duration===c.duration)delete changes.duration;}
+  const speedChange=asset&&asset.kind!=='image'&&edited('speed');
+  const newSpeed=Number(val('clip-speed'));
+  if(!edited('len'))delete changes.duration;
+  if(!edited('at'))delete changes.start;
   if(['caption','graphic'].includes(c.track)){
     changes.text=val('clip-text');changes.geometry={...c.geometry,x:Number(val('clip-x')),y:Number(val('clip-y'))};
     if(c.shape==='polygon')changes.geometry.points=JSON.parse(val('clip-points'));
@@ -483,7 +487,10 @@ async function runAction(act,id){
     else if(c.framing)changes.framing=null;
     if(el('picture-shakes')&&(c.pictureEffects||el('picture-shakes').children.length))changes.pictureEffects=readShakes();
     changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));const type=val('clip-transition');if(n!==(c.transition?.duration||0)||(n&&type!==(['wipe-right','whip-pan','organic-dissolve'].includes(c.transition?.type)?c.transition.type:'fade')))changes.transition=n?{type,duration:n}:null;}
-  return edit([{op:'update',id,changes},...(speedChange?[{op:'speed',id,speed:newSpeed}]:[])]);}
+  const commands=speedChange?[{op:'speed',id,speed:newSpeed}]:[];
+  if(Object.keys(changes).length)commands.push({op:'update',id,changes});
+  if(commands.length)return edit(commands);
+  return;}
  case 'fact-source':await proj('/facts/'+Number(id)+'/open',{});return;
  case 'fact-shot':{
     const f=p.facts?.[Number(id)],asset=p.assets.find(a=>a.id===f?.assetId);
@@ -496,7 +503,7 @@ async function runAction(act,id){
     const c=p.timeline.clips.find(c=>c.id===id),asset=p.assets.find(a=>a.id===c?.assetId);
     if(!asset)throw Error('找不到此片段的原素材。');
     const fromFrame=c.sourceIn||0;
-    return previewOriginal(asset,{fromFrame,toFrame:fromFrame+Math.round(c.duration*(c.speed||1))});
+    return previewOriginal(asset,{fromFrame,toFrame:fromFrame+c.duration*(c.speed||1)});
  }
  case 'insert-caption':{
    const clip={id:crypto.randomUUID(),track:'caption',start:playhead(),duration:frameRate()*2,text:'新字幕'};
