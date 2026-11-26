@@ -108,7 +108,7 @@ function pictureSpans(clips, length, fromFrame, toFrame, profile) {
 const rounded = n => String(Number(n.toFixed(7)));
 const videoEncode = ['-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'ultrafast', '-crf', '16', '-threads', '2'];
 
-function buildVisualInput(clip, span, asset, profile, index) {
+export function buildVisualInput(clip, span, asset, profile, index) {
   const { width, height, fps } = profile;
   const rate = clip.speed ?? 1;
   // Retimed and variable-rate footage must keep the same fps sampling phase as the full span.
@@ -221,6 +221,19 @@ function tempo(rate) {
   return filters;
 }
 
+export function audioDecode(clip,fps,first,end) {
+  const sampleAt=frame=>Math.round(frame*48000/fps);
+  const rate=clip.speed??1,clock=sampleClock(clip);
+  const skip=sampleAt(first)-sampleAt(clock.start),count=sampleAt(end)-sampleAt(first);
+  // Keep atempo's phase for retimed dialogue. Ordinary audio can seek directly.
+  const seek=rate===1?skip:0;
+  const source=clock.sourceIn/fps+seek/48000;
+  const duration=rate*clock.duration/fps-seek/48000;
+  const filter=[`atrim=duration=${rounded(duration)}`,'asetpts=PTS-STARTPTS','aresample=48000',...tempo(rate),
+    `volume=${rounded(clip.gain??1)}`,'apad',`atrim=start_sample=${skip-seek}:end_sample=${skip-seek+count}`,'asetpts=PTS-STARTPTS'].join(',');
+  return {source,filter};
+}
+
 async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, signal, ending) {
   const audioClips = clips.filter(c => ['video', 'narration', 'music'].includes(c.track) && media.get(c.assetId)?.hasAudio && (c.gain ?? 1) > 0 && !c.muted);
   const buses = { voice: [], music: [], fixed: [] };
@@ -229,16 +242,8 @@ async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, sign
     const first = Math.max(c.start, mixStart), end = Math.min(c.start + c.duration, mixEnd);
     if (end <= first) continue;
     const asset = media.get(c.assetId);
-    const rate = c.speed ?? 1;
-    const clock = sampleClock(c);
-    const skip = sampleAt(first) - sampleAt(clock.start);
-    const count = sampleAt(end) - sampleAt(first);
-    // Keep atempo's phase for retimed dialogue. Ordinary audio can seek directly.
-    const seek = rate === 1 ? skip : 0;
-    const source = clock.sourceIn / fps + seek / 48000;
-    const duration = rate * clock.duration / fps - seek / 48000;
+    const {source,filter}=audioDecode(c,fps,first,end);
     const out = path.join(work, `sound-${index}.wav`);
-    const filter = [`atrim=duration=${rounded(duration)}`, 'asetpts=PTS-STARTPTS', 'aresample=48000', ...tempo(rate), `volume=${rounded(c.gain ?? 1)}`, 'apad', `atrim=start_sample=${skip - seek}:end_sample=${skip - seek + count}`, 'asetpts=PTS-STARTPTS'].join(',');
     // Fade only background music, on the project clock and before the final black hold.
     const bed=c.track==='music'&&c.role!=='sfx';
     const gainEnvelope=ending&&bed?',volume='+ "'clip(("+ending.black+"/"+fps+"-t-"+first+"/"+fps+")/("+Math.max(1,ending.black-ending.musicFade)+"/"+fps+"),0,1)':eval=frame" : '';

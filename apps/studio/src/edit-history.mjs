@@ -52,7 +52,8 @@ export function createEditHistory(db,{revision,validateClip,sortClips}){
     const locked=p.timeline.clips.filter(c=>c.locked&&!changes.has(c.id));
     for(const [id,clip] of changes){
       if(!clip){live.delete(id);continue;}
-      if(clip.soundBinding&&(p.settings?.sceneSound===false||clip.styleId!==p.style?.id||clip.styleVersion!==p.style?.version))
+      if(clip.soundBinding&&(p.settings?.sceneSound===false||clip.styleId&&clip.styleId!==p.style?.id||
+        clip.styleVersion!=null&&clip.styleVersion!==p.style?.version))
         throw conflict('恢复音效将与当前工程的声音或风格设置冲突。');
       // New or moved locks on overlapping media take precedence over an old edit.
       for(const other of locked){

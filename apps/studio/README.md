@@ -47,7 +47,7 @@ SQLite 保存当前工程、不可变编辑版本和任务。素材按 SHA-256 �
 
 录像和音轨使用 `{op:"speed",id,speed}` 调整到 0.125 至 8 倍。工作台保留源入点和出点，把时长取为可用的最近整帧，再返回实际速率。工程起点、时长和裁切位置均为整数帧。变速后分割得到的原片入点可含小数，采样窗口随工程保存。取景、画面适配、音量、静音等继续通过 `update.changes` 编辑。
 
-`GET /api/projects/:id/history` 返回版本、可执行状态、操作名及冲突原因。向同一工程的 `/undo` 或 `/redo` 提交 `{baseRevision}`，即可取得新版本工程。旧版本、已改变的同一属性和锁冲突均返回 HTTP 409。运行 `node --test apps/studio/test/timeline-edit.test.mjs apps/studio/test/project.test.mjs` 可复验持久记录、来源时钟、锁与并发。
+`GET /api/projects/:id/history` 返回版本、可执行状态、操作名及冲突原因。向同一工程的 `/undo` 或 `/redo` 提交 `{baseRevision}`，即可取得新版本工程。旧版本、已改变的同一属性和锁冲突均返回 HTTP 409。运行 `node --test apps/studio/test/timeline-edit.test.mjs apps/studio/test/project.test.mjs` 可复验持久记录、来源时钟、锁与并发。本机已有 Atlas 基准片时，运行 `node --test apps/studio/test/timeline-source-phase.test.mjs` 会把一段 1.25 倍速镜头分成两段，比较正式滤镜输出的 44 个画面校验值和 70,400 对立体声采样。所有比较在内存中进行。
 
 媒体适配器和模型准备见 scripts/prepare-media.mjs。已授权的公开技术样片可用 scripts/media-proof.mjs 复做，scripts/open-proof-project.mjs 可将该样片导入独立工程、以真实 Codex 重写一处字幕并校验其余编辑对象。研究使用的前台配对条件见 test/foreground-comparison.md。
 

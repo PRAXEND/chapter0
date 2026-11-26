@@ -8,6 +8,7 @@ import {sampleClock} from '../src/clip-edit.mjs';
 import {graphicKeys} from '../src/graphic-keys.mjs';
 import {componentClip} from '../src/motion-components.mjs';
 import {startStudio} from '../src/server.mjs';
+import {createDirector} from '../src/production.mjs';
 
 async function fixture(t,style){
   const root=await mkdtemp(path.join(os.tmpdir(),'studio-timeline-'));
@@ -102,11 +103,17 @@ test('source boundaries, crop/volume controls and extending both edges of a real
   assert.equal(clip(p,'bed').sourceIn,0);assert.equal(clip(p,'bed').duration,150);assert.equal(clip(p,'v').muted,true);
   assert.equal(clip(p,'v').framing.from.zoom,2);
   assert.throws(()=>f.edit([{op:'trim',id:'bed',edge:'end',atFrame:151}]),/原片/);
+  assert.throws(()=>f.edit([{op:'trim',id:'bed',edge:'end',atFrame:151}],'codex'),/原片/);
   assert.throws(()=>f.edit([{op:'update',id:'v',changes:{fit:'wrong'}}]),{status:422});
   assert.throws(()=>f.edit([{op:'update',id:'v',changes:{muted:'false'}}]),{status:422});
   p=f.edit([{op:'update',id:'bed',changes:{track:'narration',gain:0}}]);
   assert.equal(clip(p,'bed').gain,0);assert.equal(clip(p,'bed').track,'narration');
   assert.throws(()=>f.edit([{op:'update',id:'bed',changes:{track:'video'}}]),/素材/);
+  // Previous versions could allocate one last rounding frame. An old cut
+  // may still be split without increasing that pre-existing source window.
+  f.edit([add({id:'legacy',track:'video',assetId:v.id,start:200,sourceIn:0,duration:151})],'codex');
+  p=f.edit([{op:'split',id:'legacy',newId:'legacy-tail',atFrame:233}]);
+  assert.equal(clip(p,'legacy-tail').sourceIn+clip(p,'legacy-tail').duration,151);
 });
 
 test('captions and native graphic slices retain animated boundaries; JSX rejects time cuts without restarting cues',async t=>{
@@ -122,7 +129,7 @@ test('captions and native graphic slices retain animated boundaries; JSX rejects
   p=f.edit([{op:'trim',id:'sub',edge:'start',atFrame:31},{op:'split',id:'sub',atFrame:33,newId:'sub-right'}]);
   assert.equal(clip(p,'sub-right').text,'sub');
   for(const command of [{op:'trim',edge:'end',atFrame:100},{op:'split',atFrame:90,newId:'bad'},{op:'speed',speed:2}])
-    assert.throws(()=>f.edit([{id:'jsx',...command}]),/JSX/);
+    assert.throws(()=>f.edit([{id:'jsx',...command}]),/JSX.+独立动画时钟/);
   assert.equal(clip(f.edit([{op:'move',id:'jsx',start:93}]),'jsx').duration,55);
 });
 
@@ -148,6 +155,10 @@ test('same-track ripple deletion moves only following clips and their bound even
   p=f.redo();assert.equal(clip(p,cue.id).start,28);
   p=f.edit([add({id:'audio-cut',track:'music',assetId:a.id,start:0,duration:10})]);
   p=f.edit([{op:'ripple-remove',id:'audio-cut'}]);assert.equal(clip(p,cue.id).start,28);assert.equal(clip(p,'bed').start,80);
+  p=f.edit([{op:'remove',id:'owner'}]);
+  f.store.configure(f.p.id,p.revision,{settings:{sceneSound:false}});
+  assert.throws(()=>f.undo(),/当前工程的声音/);
+  assert.equal(clip(f.store.get(f.p.id),cue.id),undefined);
 });
 
 test('normal authenticated API rejects stale or missing revisions and keeps durable edit state per project',async t=>{
@@ -170,4 +181,30 @@ test('normal authenticated API rejects stale or missing revisions and keeps dura
   const redo=await (await api(uri+'/redo',{baseRevision:4})).json();assert.equal(redo.revision,5);assert.equal(redo.timeline.clips.length,2);
   const other=await (await api('',{mode:'topic'})).json();assert.equal((await (await api('/'+other.id+'/history')).json()).canUndo,false);
   assert.equal((await fetch(origin+'/api/projects'+uri+'/undo',{method:'POST'})).status,403);
+});
+
+test('the Codex studio_edit tool uses the same timing commands and cannot unlock or bypass a user cut',async t=>{
+  const f=await fixture(t),v=await f.asset('mov');
+  f.store.configure(f.p.id,f.store.get(f.p.id).revision,{settings:{voiceMode:'original',musicEnabled:false,sourceScope:'project'}});
+  const p=f.edit([add({id:'take',track:'video',assetId:v.id,start:5,sourceIn:4,duration:30}),
+    add(caption('protected',50)),{op:'lock',id:'protected',locked:true}]);
+  const label=f.store.history(p.id).undoLabel;
+  const client={account:async()=>({connected:true}),thread:async()=>'local-test-thread',close(){},
+    async runTurn({onStart,tool}){
+      await onStart('test-turn');
+      const ctx=JSON.parse((await tool({tool:'studio_context',arguments:{}})).contentItems[0].text);
+      assert.match(ctx.editOperations,/ripple-remove/);
+      const edit=commands=>tool({tool:'studio_edit',arguments:{baseRevision:ctx.revision,commandsJson:JSON.stringify(commands)}});
+      await assert.rejects(edit([{op:'move',id:'protected',start:51}]),/锁定/);
+      await assert.rejects(edit([{op:'lock',id:'protected',locked:false}]),/解锁/);
+      await edit([{op:'move',id:'take',start:7},{op:'trim',id:'take',edge:'start',atFrame:9},
+        {op:'speed',id:'take',speed:2},{op:'split',id:'take',atFrame:15,newId:'tail'},{op:'ripple-remove',id:'take'}]);
+      return '保留后半段。';
+    }};
+  const director=createDirector({store:f.store,client,media:{},audio:{},styleLibrary:{get:async()=>({id:'neutral',templates:[],references:[]})}});
+  try{await director.run(p.id,{kind:'revise'});}finally{director.close();}
+  const result=f.store.get(p.id);
+  assert.equal(clip(result,'take'),undefined);assert.equal(clip(result,'tail').start,9);
+  assert.equal(clip(result,'tail').sourceIn,18);assert.equal(clip(result,'protected').locked,true);
+  assert.equal(f.store.history(p.id).undoLabel,label);
 });

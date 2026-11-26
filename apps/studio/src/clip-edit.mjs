@@ -48,8 +48,11 @@ function croppedEffects(effects,from,to) {
 function section(clip,from,to,project) {
   const changes={duration:to-from};
   if(from!==0)changes.start=clip.start+from;
-  if(mediaClip(clip,project)){
+  const asset=mediaClip(clip,project);
+  if(asset){
     const rate=clip.speed??1, previousOffset=clip.sampleWindow?.offsetFrames??0;
+    const availableEnd=Math.ceil(asset.duration*project.profile.fps-1e-8);
+    if(to>clip.duration && (clip.sourceIn??0)+to*rate>availableEnd+1e-7)fail('裁切终点超出原片的可用窗口。');
     const offset=Math.max(0,from+previousOffset);
     const extraHead=Math.max(0,-from-previousOffset);
     const available=(clip.sampleWindow?.durationFrames??clip.duration)+extraHead;
@@ -124,7 +127,7 @@ export function* timelineCommands(commands,project) {
       for(const c of later)yield move(c,c.start-clip.duration);
       continue;
     }
-    if(clip.motion)fail('原版 JSX 组件使用完整的出场与音效时钟。可移动整个组件，或在组件参数中调整出场帧。');
+    if(clip.motion)fail('原版 JSX 组件使用独立动画时钟，出场、退场和音效都跟随完整片段。可移动整个组件，或在组件参数中调整出场帧。');
     if(cmd.op==='speed'){
       const change=changeSpeed(clip,cmd.speed,project);
       if(change)yield change;

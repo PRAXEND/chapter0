@@ -169,7 +169,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
   function apply(id,baseRevision,commands,actor='user',sceneMeta) {
     if(!Number.isInteger(baseRevision)||!Array.isArray(commands)||!commands.length||commands.length>10000)throw fault('请提供起始版本和剪辑指令。');
     return mutate(id,baseRevision,p=>{
-      const clips=p.timeline.clips, before=copy(clips), expanded=[];
+      const clips=p.timeline.clips, before=copy(clips), expanded=[], direct=new Set(commands);
       for(const cmd of timelineCommands(commands,p)){
         if(!cmd||typeof cmd!=='object')throw fault('剪辑指令无效。');
         expanded.push(cmd);
@@ -190,10 +190,10 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
         if(before?.sampleWindow && cmd.op==='update' && !Object.hasOwn(cmd.changes,'sampleWindow') &&
           (['assetId','sourceIn','speed'].some(k=>before[k]!==candidate[k]) || before.sampleWindow.offsetFrames+candidate.duration>before.sampleWindow.durationFrames))
           delete candidate.sampleWindow;
-        if(typeof candidate.muted!=='undefined'&&typeof candidate.muted!=='boolean')throw fault('静音状态须为开或关。');
+        if(candidate.muted!==before?.muted&&candidate.muted!==undefined&&typeof candidate.muted!=='boolean')throw fault('静音状态须为开或关。');
         if(candidate.fit!=null&&candidate.fit!==before?.fit&&!['cover','contain'].includes(candidate.fit))throw fault('画面适配方式无效。');
         validateClip(candidate,p);
-        if(actor==='user'){
+        if(actor==='user'&&direct.has(cmd)){
           const a=p.assets.find(a=>a.id===candidate.assetId);
           const out=c=>(c.sourceIn??0)+c.duration*(c.speed??1);
           // Older edits allowed a one-frame rounding margin. They remain movable and repairable,
