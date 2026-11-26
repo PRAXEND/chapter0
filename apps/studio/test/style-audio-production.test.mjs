@@ -28,13 +28,18 @@ async function fixture(t,real=false){
   const music=path.join(home,'soundtrack.wav');await wav(music);
   const sha256=await fileHash(music);
   const styles={get:async()=>wish,getMusicResource:async()=>({verified:true,available:true,path:music,sha256})};
-  return {home,store,styles,music,sha256};
+  const archivedProject=async data=>{
+    const file=path.join(home,'archived-project.json');
+    await writeFile(file,JSON.stringify({schema:1,title:'历史工程',brief:'',script:'',assets:[],timeline:{clips:[]},...data}));
+    return store.importSnapshot(file);
+  };
+  return {home,store,styles,music,sha256,archivedProject};
 }
 
 test('unbound style uses a named local audition; matching consent and explicit project choices win',async t=>{
-  const {home,store,styles,sha256}=await fixture(t);
+  const {home,store,styles,sha256,archivedProject}=await fixture(t);
   const deps={store,styleLibrary:styles};
-  const p=store.create({mode:'script',style:{id:wish.id,version:wish.version},settings:{cloudEnabled:false,cloudBudget:0}});
+  const p=await archivedProject({mode:'script',style:{id:wish.id,version:wish.version},settings:{cloudEnabled:false,cloudBudget:0}});
   let ready=await resolveProductionAudio(deps,p);
   assert.equal(ready.settings.voiceMode,'preset');assert.equal(ready.settings.presetVoice,'dylan');
   assert.equal(ready.styleAudio.voice.status,'preview-only');assert.equal(ready.styleAudio.voice.referenceHash,null);
@@ -43,7 +48,7 @@ test('unbound style uses a named local audition; matching consent and explicit p
   const archived=await resolveProductionAudio({...deps,styleLibrary:{...styles,getMusicResource:async()=>null}},ready);
   assert.equal(archived.styleAudio.music.assetId,ready.styleAudio.music.assetId);
   assert.equal(archived.styleAudio.music.status,'alternative');assert.equal(archived.styleAudio.music.sourceStart,1);
-  const audition=store.create({mode:'script',style:p.style});
+  const audition=await archivedProject({mode:'script',style:p.style});
   const prepared=await resolveProductionAudio(deps,audition,{voiceOnly:true});
   assert.equal(prepared.settings.presetVoice,'dylan');assert.equal(prepared.assets.length,0);
   const voices=voiceLibrary(store),sample=path.join(home,'approved.wav');await wav(sample,{frequency:330});
@@ -51,12 +56,12 @@ test('unbound style uses a named local audition; matching consent and explicit p
   ready=await resolveProductionAudio(deps,store.get(p.id));
   assert.equal(ready.settings.voiceMode,'clone');assert.equal(ready.settings.voiceLibraryId,entry.id);
   assert.equal(ready.styleAudio.voice.status,'matched');assert.equal(ready.styleAudio.voice.referenceHash,reference.sha256);
-  const fresh=store.create({mode:'script',style:p.style,brief:'本期不需要背景音乐。请用系统中文配音。'});
+  const fresh=await archivedProject({mode:'script',style:p.style,brief:'本期不需要背景音乐。请用系统中文配音。'});
   const user=await resolveProductionAudio(deps,fresh);
   assert.equal(user.settings.voiceMode,'system');assert.equal(user.styleAudio.voice.status,'user-selected');
   assert.equal(user.settings.musicMode,'none');assert.equal(user.styleAudio.music.status,'user-selected');
   assert.equal(user.settings.cloudEnabled,false);assert.equal(user.settings.cloudBudget,0);
-  const scoped=store.create({mode:'script',style:p.style,brief:'开头不要配乐，第二段继续用原曲。这一句保留同期声。'});
+  const scoped=await archivedProject({mode:'script',style:p.style,brief:'开头不要配乐，第二段继续用原曲。这一句保留同期声。'});
   const musical=await resolveProductionAudio(deps,scoped);
   assert.equal(musical.styleAudio.music.status,'matched');assert.equal(musical.settings.voiceMode,'clone');
   const all=await resolveProductionAudio(deps,musical,{message:'全片不要配乐。'});
@@ -66,8 +71,8 @@ test('unbound style uses a named local audition; matching consent and explicit p
 
 test('local production applies one pitch-preserving speed change, aligns final speech, and measures a fixed licensed bed',async t=>{
   if(!await mediaTool('ffmpeg'))return t.skip('FFmpeg unavailable');
-  const {home,store,styles,sha256}=await fixture(t,true);
-  const p=store.create({mode:'script',title:'信号灯',script:'红色信号亮起。',style:{id:wish.id,version:2},profile:{width:160,height:90,fps:24}});
+  const {home,store,styles,sha256,archivedProject}=await fixture(t,true);
+  const p=await archivedProject({mode:'script',title:'信号灯',script:'红色信号亮起。',style:{id:wish.id,version:2},profile:{width:160,height:90,fps:24}});
   const pic=path.join(home,'signal.ppm');await writeFile(pic,Buffer.concat([Buffer.from('P6\n32 24\n255\n'),Buffer.alloc(32*24*3,50)]));
   await store.addAsset(p.id,pic);
   const measured=[];
@@ -89,8 +94,8 @@ test('local production applies one pitch-preserving speed change, aligns final s
 });
 
 test('an automatically imported voice reference video is excluded from editorial frames and agent-inserted clips',async t=>{
-  const {home,store,styles}=await fixture(t);
-  const p=store.create({mode:'script',style:{id:wish.id,version:2},settings:{shareFrames:true}});
+  const {home,store,styles,archivedProject}=await fixture(t);
+  const p=await archivedProject({mode:'script',style:{id:wish.id,version:2},settings:{shareFrames:true}});
   const src=path.join(home,'voice-sample.mp4');await writeFile(src,'dedicated voice reference fixture');
   const a=await store.addAsset(p.id,src,{role:'voice-reference',sourceVoice:'enrolled-sample',consent:true});
   const project=store.get(p.id), deps={store,styleLibrary:styles,media:{frameAt(){throw Error('unexpected frame request');}}};

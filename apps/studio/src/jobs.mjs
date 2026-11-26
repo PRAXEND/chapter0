@@ -48,6 +48,7 @@ export function createQueue({store, director, media, reviewProject, finalReviewe
       }
     }
     if(['produce','revise'].includes(kind)){
+      if(!currentStyle(p.style))throw fault('此工程使用历史风格。继续自动剪辑前，请在风格库选择当前风格并点击“用于本工程”。');
       const engine=input.engine??(p.settings.engine==='local'?'local':'codex');
       if(!['local','codex'].includes(engine))throw fault('创作引擎无效。');
       input={...input,engine};

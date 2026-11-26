@@ -5,7 +5,8 @@ import {pipeline} from 'node:stream/promises';
 import {Readable} from 'node:stream';
 import os from 'node:os';
 import {currentStyles} from '../src/style-catalog.mjs';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
+import {specDigest} from '../src/style-portable.mjs';
 import path from 'node:path';
 import {fileHash} from '../../../plugins/video-studio/workbench/media.mjs';
 
@@ -34,7 +35,16 @@ export async function bundleStyles(repo,destination) {
     const body=raw.subarray(end+1,end+1+Number(length));cursor=end+2+Number(length);
     const out=path.join(destination,file.name);await mkdir(path.dirname(out),{recursive:true});
     const pointer=body.length<256&&/^version https:\/\/git-lfs.github.com\/spec\/v1\noid sha256:([0-9a-f]{64})\nsize (\d+)\n?$/.exec(body.toString());
-    if(!pointer){await writeFile(out,body);continue;}
+    const relative=file.name.slice(prefix.length);
+    if(!pointer){
+      if(relative!=='checksums.json'&&createHash('sha256').update(body).digest('hex')!==index.files[relative])throw Error('风格发行文件指纹不符 '+file.name);
+      if(wanted.includes(relative)){
+        const spec=JSON.parse(body),pin=currentStyles.find(p=>'styles/'+p.id+'-v'+p.version+'.json'===relative);
+        if(spec.id!==pin.id||spec.version!==pin.version||specDigest(spec)!==pin.sha256)throw Error('风格规格与登记的版本不同 '+file.name);
+      }
+      await writeFile(out,body);continue;
+    }
+    if(index.files[relative]!==pointer[1])throw Error('风格媒体与发行目录指纹不同 '+file.name);
     const [,digest,bytes]=pointer;const object=path.join(gitDir,'lfs/objects',digest.slice(0,2),digest.slice(2,4),digest);
     const cache=path.join(os.homedir(),'Library/Caches/VideoStudioBuild/published-media',digest);
     const candidates=[cache,object,...new Set([...worktrees,repo].map(tree=>path.join(tree,file.name)))];

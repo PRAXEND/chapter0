@@ -1,62 +1,74 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdir,mkdtemp,readFile,rm,symlink,writeFile} from 'node:fs/promises';
+import {copyFile,mkdir,mkdtemp,readFile,rm,symlink,writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {createStyleLibrary,fileSha256} from '../src/style.mjs';
+import {createStore} from '../src/project.mjs';
+import {createQueue} from '../src/jobs.mjs';
+import {specDigest} from '../src/style-portable.mjs';
+import {portableProject} from '../src/library.mjs';
 
-test('a portable personal style survives a clean library, protects an existing version, and rejects changed or escaping media',async t=>{
-  const root=await mkdtemp(path.join(os.tmpdir(),'studio-style-transfer-'));t.after(()=>rm(root,{recursive:true,force:true}));
-  const options={packsRoot:path.join(root,'none'),legacyHome:false,media:{probeMedia:async()=>({kind:'image',width:1,height:1,duration:0})}};
-  const from=createStyleLibrary(path.join(root,'from'),options),to=createStyleLibrary(path.join(root,'to'),options);
-  const image=path.join(root,'picture.png');await writeFile(image,Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg==','base64'));
-  const ref=await from.captureReference(image,{id:'frame',kind:'image'});
-  const one=await from.learn({id:'my-observation',name:'观察',script:'先看帧。',references:[ref]});
-  const dir=path.join(root,'archive'),selector=await from.exportPortable(one,dir);
-  assert.equal(selector.sha256,one.sha256);assert.deepEqual(await from.exportPortable(one,dir),selector);
-  const index=JSON.parse(await readFile(path.join(dir,'style/manifest.json'))),asset=path.join(dir,'style',index.references[0].path);
-  assert.equal(index.references[0].path,'media/'+ref.sha256+'.png');assert.equal(index.references[0].status,'included');
-  const results=await Promise.all([to.restorePortable(selector,dir),to.restorePortable(selector,dir)]);assert.equal(results[0].sha256,selector.sha256);
-  const copy=await to.get(one.id,1);assert.equal(copy.sha256,one.sha256);assert.deepEqual(copy.rules,one.rules);
-  const reloaded=await to.getReference(one.id,1,ref.id);assert.equal(await fileSha256(reloaded.path),ref.sha256);
-  const later=await to.savePreference({id:one.id,version:1,instruction:'拉长半秒'});assert.equal(later.version,2);
-  const conflict=createStyleLibrary(path.join(root,'conflict'),options);
-  const different=await conflict.learn({id:one.id,name:'其他风格',script:'另一条原稿。'});
-  await assert.rejects(conflict.restorePortable(selector,dir),/同编号/);assert.equal((await conflict.get(one.id,1)).sha256,different.sha256);
-  await writeFile(asset,'mutated');await assert.rejects(to.restorePortable(selector,dir),/指纹/);
-  await rm(asset);await symlink(image,asset);await assert.rejects(to.restorePortable(selector,dir),/越界/);
+async function fixture(t) {
+  const root=await mkdtemp(path.join(os.tmpdir(),'studio-archive-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const source=path.join(root,'source'),target=path.join(root,'target'),a=createStyleLibrary(source),b=createStyleLibrary(target);
+  const mediaDir=path.join(source,'style-library/media'),versionDir=path.join(source,'style-library/versions/my-observation/2');
+  await mkdir(mediaDir,{recursive:true});await mkdir(versionDir,{recursive:true});
+  const pic=path.join(root,'original.png');await writeFile(pic,Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg==','base64'));
+  const hash=await fileSha256(pic);await copyFile(pic,path.join(mediaDir,hash+'.png'));
+  const pin={id:'my-observation',version:2,name:'试验风格'};
+  const spec={...pin,rules:[],references:[{id:'frame',kind:'image',title:'观察片段',locator:'library:'+hash+'.png',sha256:hash}]};
+  const specFile=path.join(versionDir,'style.json');await writeFile(specFile,JSON.stringify(spec));
+  const box=path.join(root,'archive');const selector=await a.exportPortable({...pin,sha256:specDigest(spec),manifest:'style/manifest.json'},box);
+  const input=path.join(box,'project.vstudio.json');const p={schema:1,mode:'interview',title:'以前的采访',spec:'',style:{...pin,...selector},
+    profile:{fps:25,width:1280,height:720},assets:[],timeline:{clips:[{id:'archived-caption',track:'caption',start:0,duration:25,text:'一句旧字幕'}]}};
+  await writeFile(input,JSON.stringify(p));return {root,source,target,a,b,pin,p,hash,box,selector,input,pic,specFile};
+}
+
+test('a retired style and its private reference travel only with the editable project, including a second export and reopen',async t=>{
+  const f=await fixture(t),before=await fileSha256(f.specFile),store=createStore(f.target);t.after(()=>store.close());
+  const imported=await store.importSnapshot(f.input,f.b);
+  const queue=createQueue({store});assert.throws(()=>queue.enqueue(imported.id,'produce'),/历史风格/);
+  assert.deepEqual(store.listJobs(imported.id),[]);await queue.close();
+  assert.deepEqual(imported.style,f.p.style);assert.deepEqual(imported.timeline,f.p.timeline);assert.equal(imported.settings.voiceMode,'original');
+  const privateMedia=path.join(store.paths(imported.id).directory,'style/media',f.hash+'.png');
+  assert.equal(await fileSha256(privateMedia),f.hash);
+  assert.ok(!(await f.b.list()).some(s=>s.id===f.pin.id));await assert.rejects(f.b.get(f.pin.id,2),/退出/);
+  await assert.rejects(readFile(path.join(f.target,'style-library/versions/my-observation/2/style.json')),e=>e.code==='ENOENT');
+  const edited=store.apply(imported.id,imported.revision,[{op:'update',id:'archived-caption',changes:{text:'编辑旧字幕'}}]);
+  const out=await portableProject(edited,path.join(f.root,'again'),f.b);const reopened=await store.importSnapshot(out,f.b);
+  assert.equal(reopened.timeline.clips[0].text,'编辑旧字幕');assert.equal(reopened.style.sha256,f.selector.sha256);
+  assert.equal(await fileSha256(f.specFile),before);
 });
 
-test('a privately registered pack retains its exact resource locators; bundled assets use the local installed copy',async t=>{
-  const root=await mkdtemp(path.join(os.tmpdir(),'studio-pack-transfer-'));t.after(()=>rm(root,{recursive:true,force:true}));
-  const packages=path.join(root,'packages'),pack=path.join(packages,'personal-pack'),media=path.join(pack,'media/benchmarks');
-  await mkdir(media,{recursive:true});const clip=path.join(media,'benchmark.mp4');await writeFile(clip,'reference bytes');
-  const spec={id:'private-method',version:7,name:'私有方法',reproduction_bundle:{baseline:{path:'resource:media/benchmarks/benchmark.mp4',sha256:await fileSha256(clip)}}};
-  await writeFile(path.join(pack,'spec.json'),JSON.stringify(spec));await writeFile(path.join(pack,'manifest.json'),JSON.stringify({styles:['spec.json']}));
-  const options={legacyHome:false,packsRoot:path.join(root,'none')};
-  const ext=createStyleLibrary(path.join(root,'first'),{...options,packRoots:[pack]}),clean=createStyleLibrary(path.join(root,'second'),options);
-  const archive=path.join(root,'private-project'),selector=await ext.exportPortable(spec,archive);
-  const imported=await clean.restorePortable(selector,archive);const one=await clean.get(imported.id,7);
-  assert.deepEqual(JSON.parse(await readFile(path.join(archive,'style/spec.json'))),spec);assert.equal(one.baseline.verified,true);
-  const next=await clean.savePreference({id:spec.id,version:7,instruction:'以事件为准'});assert.equal(next.baseline.verified,true);
-  const builtin=createStyleLibrary(path.join(root,'as-builtin'),{legacyHome:false,packsRoot:packages}),shipped=path.join(root,'bundled-project');
-  const packaged=await builtin.exportPortable(spec,shipped),file=JSON.parse(await readFile(path.join(shipped,'style/manifest.json')));assert.equal(file.references[0].status,'bundled');
-  const another=createStyleLibrary(path.join(root,'fresh-mac'),{legacyHome:false,packsRoot:packages});assert.equal((await another.restorePortable(packaged,shipped)).sha256,packaged.sha256);
-  const bare=createStyleLibrary(path.join(root,'no-pack'),options);await assert.rejects(bare.restorePortable(packaged,shipped),/发行包缺少/);
+test('retired archives reject changed bytes, traversing links and selectors with the wrong digest before they become projects',async t=>{
+  const f=await fixture(t),store=createStore(f.target);t.after(()=>store.close());
+  const asset=path.join(f.box,'style/media',f.hash+'.png');
+  await writeFile(asset,'altered');await assert.rejects(store.importSnapshot(f.input,f.b),/指纹/);
+  await rm(asset);await symlink(f.pic,asset);await assert.rejects(store.importSnapshot(f.input,f.b),/越界/);
+  await rm(asset);await copyFile(f.pic,asset);await writeFile(f.input,JSON.stringify({...f.p,style:{...f.p.style,sha256:'0'.repeat(64)}}));
+  await assert.rejects(store.importSnapshot(f.input,f.b),/不一致/);assert.equal(store.list().length,0);
 });
 
-test('legacy installed pack paths and modern relative paths identify the same frozen style',async t=>{
-  const root=await mkdtemp(path.join(os.tmpdir(),'style-pack-path-'));t.after(()=>rm(root,{recursive:true,force:true}));
-  const old=path.join(root,'legacy'),shipped=path.join(root,'installed'),pkg=path.join(shipped,'my-pack'),directory=path.join(root,'output');
-  const ext=path.join(old,'user-packs','my-pack','2'),evidence='evidence/notes.txt';
-  for(const home of [ext,pkg]){await mkdir(path.join(home,'evidence'),{recursive:true});await writeFile(path.join(home,evidence),'可验证的参考');}
-  const fingerprint=await fileSha256(path.join(ext,evidence));
-  const version=prefix=>({id:'portable-method',name:'方法',version:4,distribution:{pack:'my-pack@2',resources:prefix+'resources.json',text_evidence:[prefix+evidence]},references:[{id:'notes',kind:'script',title:'规则',locator:prefix+evidence,sha256:fingerprint}]});
-  const legacy=version(ext+'/'),source=version('pack:');const loc=path.join(old,'styles',legacy.id,'4');await mkdir(loc,{recursive:true});await writeFile(path.join(loc,'style.json'),JSON.stringify(legacy));
-  await writeFile(path.join(pkg,'spec.json'),JSON.stringify(source));await writeFile(path.join(pkg,'manifest.json'),JSON.stringify({styles:['spec.json']}));
-  const a=createStyleLibrary(path.join(root,'a'),{legacyHome:old,packsRoot:shipped}),b=createStyleLibrary(path.join(root,'b'),{legacyHome:false,packsRoot:shipped});
-  assert.equal((await a.get(legacy.id,4)).sha256,(await b.get(legacy.id,4)).sha256);
-  const pointer=await a.exportPortable(legacy,directory);const restored=await b.restorePortable(pointer,directory);assert.equal(pointer.sha256,restored.sha256);
-  const verified=await b.getReference(source.id,4,'notes');assert.equal(verified.verified,true);
-  assert.deepEqual(JSON.parse(await readFile(path.join(directory,'style/spec.json'))),legacy);
+test('current portable specs must match the shipped release and an older snapshot with no separate style file stays editable',async t=>{
+  const f=await fixture(t);
+  const published=await f.b.get('henry-hot-news',8),dir=path.join(f.root,'current');
+  const pin=await f.b.exportPortable(published,dir);
+  assert.equal((await f.a.restorePortable(pin,dir)).sha256,published.sha256);
+  const legacy={id:'neutral',version:1,name:'自然剪辑'},dest=path.join(f.root,'old-no-spec');
+  await mkdir(dest);await writeFile(path.join(dest,'project.vstudio.json'),JSON.stringify({...f.p,style:legacy}));
+  const store=createStore(f.target);t.after(()=>store.close());const old=await store.importSnapshot(path.join(dest,'project.vstudio.json'),f.b);
+  const out=await portableProject(old,path.join(f.root,'copy-no-spec'),f.b);assert.deepEqual(JSON.parse(await readFile(out,'utf8')).style,legacy);
+  await assert.rejects(readFile(path.join(path.dirname(out),'style','manifest.json')),e=>e.code==='ENOENT');
+});
+
+test('importing a historical selector alone cannot borrow a same-named private reference from this computer',async t=>{
+  const f=await fixture(t),sourceStore=createStore(f.source);t.after(()=>sourceStore.close());
+  for(const claimed of [f.pin,{...f.pin,sha256:f.selector.sha256}]) {
+    await writeFile(f.input,JSON.stringify({...f.p,style:claimed}));
+    const loaded=await sourceStore.importSnapshot(f.input,f.a),dest=path.join(f.root,'public-'+loaded.id);
+    await portableProject(loaded,dest,f.a);
+    assert.deepEqual(JSON.parse(await readFile(path.join(dest,'project.vstudio.json'),'utf8')).style,claimed);
+    await assert.rejects(readFile(path.join(dest,'style/manifest.json')),e=>e.code==='ENOENT');
+  }
 });

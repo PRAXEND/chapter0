@@ -90,14 +90,16 @@ export function createStyleLibrary(dataRoot, options={}) {
   const packDir=path.resolve(options.packsRoot||process.env.VIDEO_STUDIO_BUILTIN_PACKS||builtInPacks);
   const verifiedHashes=new Map();
   async function registry() {
-    const pack=path.join(packDir,'henry-video-styles'),manifest=await optionalJson(path.join(pack,'manifest.json'));
+    // One unreadable shipped spec leaves its own selector unavailable. It cannot replace or block its peer.
+    const shippedJson=file=>optionalJson(file).catch(()=>null);
+    const pack=path.join(packDir,'henry-video-styles'),manifest=await shippedJson(path.join(pack,'manifest.json'));
     const result=new Map(),bundledResources=new Map();
     if(manifest?.id==='henry-video-styles' && Array.isArray(manifest.styles)) {
       for(const pin of currentStyles) {
         const name='styles/'+pin.id+'-v'+pin.version+'.json';
         if(!manifest.styles.includes(name))continue;
         const file=await checkedFile(pack,name);
-        const spec=file&&await optionalJson(file);
+        const spec=file&&await shippedJson(file);
         if(!spec||spec.id!==pin.id||spec.version!==pin.version||specDigest(spec)!==pin.sha256)continue;
         result.set(pin.id,{spec,origin:'pack',pack});
         for(const ref of parseStyle(spec).references) {
@@ -230,6 +232,7 @@ export function createStyleLibrary(dataRoot, options={}) {
       }
       // Historic installations placed a project's pinned private spec in a shared archive.
       // Read only its exact key on export. A snapshot without that archive stays editable.
+      if(selector.manifest!=='style/manifest.json'||!digestPattern.test(selector.sha256||''))return retired;
       const relative=path.join('versions',selector.id,String(selector.version),'style.json');
       const file=await checkedFile(storage,relative),spec=file&&await optionalJson(file);
       if(!spec)return retired;

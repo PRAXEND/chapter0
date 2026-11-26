@@ -102,7 +102,7 @@ async function workbench(t, { actualMedia = false, direction, review, rendering,
   }
   async function create(settings={}, lock=false) {
     const p=await request('/api/projects',{title:'Queue regression',mode:'script',profile:{width:192,height:108,fps:18},
-      settings:{shareFrames:true,shareTranscript:false,voiceMode:'original',...settings}});
+      settings:{shareFrames:true,shareTranscript:false,voiceMode:'original',finalReviewMaxTurns:0,...settings}});
     const route='/api/projects/'+p.id;
     const upload=await fetch(origin+route+'/assets',{method:'POST',headers:{origin,cookie,'x-file-name':'neutral.ppm'},body:still});
     assert.equal(upload.status,201);

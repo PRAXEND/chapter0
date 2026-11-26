@@ -82,7 +82,11 @@ class DeliveryRequirements(unittest.TestCase):
         self.assertIn('music_fit',self.check())
     def test_old_import_kept_intact_while_all_active_shawn_snapshots_omit_fixed_speaker(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ,{'VIDEO_STUDIO_HOME':tmp}):
-            user_packs.install(ROOT/'user-packs/shawn-style-fusion/manifest.json')
+            from test_styles import StyleTests
+            spec = StyleTests().spec()
+            spec['id'] = 'shawn-archived-example'
+            spec['rules'][0].update(id='project-audio', instruction='使用大壹音色朗读。')
+            styles.register(spec)
             for item in styles.catalog():
                 source=Path(item['skill_path'])
                 before=source.read_bytes()

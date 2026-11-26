@@ -36,7 +36,7 @@ test('a split inside a dissolve keeps the focus, source frame and opacity of bot
     transition:{type:'dissolve',duration:18},framing:{from:{x:.2,y:.5,zoom:1},to:{x:.8,y:.5,zoom:4}}};
   let doc=store.apply(p.id,store.get(p.id).revision,[{op:'add',clip:c}]);
   doc=store.apply(p.id,doc.revision,[{op:'split',id:'detail',atFrame:16,newId:'tail'}]);
-  const [head,tail]=doc.timeline.clips;
+  const head=doc.timeline.clips.find(c=>c.id==='detail'),tail=doc.timeline.clips.find(c=>c.id==='tail');
   assert.deepEqual(head.transition,{type:'dissolve',duration:10,totalFrames:18,offsetFrames:0});
   assert.deepEqual(tail.transition,{type:'dissolve',duration:8,totalFrames:18,offsetFrames:10});
   assert.equal(tail.sourceIn,30);assert.equal(tail.framing.from.zoom,2);assert.equal(head.framing.to.zoom,1.9);
