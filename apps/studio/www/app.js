@@ -98,18 +98,18 @@ function newPage(fresh=true){
   renderNav();el('current-title').textContent='新建工程';el('top-actions').innerHTML=btn('import-folder','打开工程文件夹');
   const f=s.form;
   el('content').innerHTML=`<section class="page new-page">${pageHeading('新建工程','选一种起点，再告诉 Codex 这条片要讲什么。','new')}
-  <div class="modes">${Object.entries(modeLabels).map(([k,v],n)=>`<button data-act="mode" data-id="${k}" class="mode ${s.mode===k?'chosen':''}"><span aria-hidden="true" class="mode-icon mode-${k}"></span><strong>${v}</strong><small>${['找来源、写稿并组接画面','按原稿匹配镜头与旁白','保留同期声，按原句精剪'][n]}</small></button>`).join('')}</div>
+  <p id="creation-progress" role="status" class="help" hidden>正在创建工程并导入所选素材…</p><fieldset id="new-project-fields" aria-label="新建工程参数"><div class="modes">${Object.entries(modeLabels).map(([k,v],n)=>`<button data-act="mode" data-id="${k}" class="mode ${s.mode===k?'chosen':''}"><span aria-hidden="true" class="mode-icon mode-${k}"></span><strong>${v}</strong><small>${['找来源、写稿并组接画面','按原稿匹配镜头与旁白','保留同期声，按原句精剪'][n]}</small></button>`).join('')}</div>
   <div class="card">${field('工程名称',input('new-title',f.title,'text','placeholder="例如，岛上的第一场雨" maxlength="160"'))}
   ${field(s.mode==='topic'?'选题与制作要求':'制作要求',area('brief',f.brief,3,s.mode==='interview'?'保留哪些观点，想剪成多长？':'想让观众看懂什么？'))}
   ${s.mode==='script'?field('脚本',area('script',f.script,5,'粘贴准备好的旁白或分镜稿')):''}
   ${s.mode==='topic'?'<details class="fold"><summary>素材来源</summary>'+field('素材范围',select('new-source-scope',[['search','检索和使用工程素材'],['project','仅使用工程已有素材']],f.sourceScope||'search'))+field('出处网页（每行一个，可选）',area('new-facts',f.factUrls,2))+field('可用的媒体文件直链（可选）',area('new-urls',f.sourceUrls,2))+'</details>':''}
-  <div class="form-grid basic-specs">${field('画幅',select('ratio',[['16:9','16:9 横屏'],['9:16','9:16 竖屏'],['1:1','1:1 方形']],f.ratio||'16:9'))}${field('风格',select('new-style',styleOptions(),f.style||styleOptions()[0]?.[0]))}${field('目标片长（秒，可留空）',input('new-duration',f.targetDuration||'','number','min="1"'))}</div>
+  <div class="form-grid basic-specs">${field('画幅',select('ratio',[['16:9','16:9 横屏'],['9:16','9:16 竖屏'],['1:1','1:1 方形']],f.ratio||'16:9'))}${field('风格',select('new-style',styleOptions(),f.style||styleOptions().find(row=>!row[2])?.[0]))}${field('目标片长（秒，可留空）',input('new-duration',f.targetDuration||'','number','min="1"'))}</div>
   <details class="fold"><summary>片长范围、旁白与字幕</summary><div class="form-grid">${field('最短片长（秒）',input('new-min',f.minimum||'','number','min=".01" step="any"'))}${field('最大片长（秒）',input('new-max',f.maximum||'','number','min=".01" step="any"'))}</div>
   ${s.voices.length?field('本期音色',select('new-voice',[['','跟随所选风格'],...s.voices.map(v=>[v.id,v.name])],f.voice||'')):''}
   ${field('字幕',select('new-captions',[['burned-in','画面字幕和 SRT'],['sidecar','只导出 SRT']],f.captionDisplay||'burned-in'))}</details><div class="outline">${field(s.mode==='interview'?'原片':'本地素材',fileInput('new-files'))}<small id="selected-files">${s.newFiles.length?esc(s.newFiles.map(f=>f.name).join('、')):'支持视频、音频和图片，可在工程中继续添加。'}</small></div>
   <details class="fold"><summary>制作确认与画面分享</summary>${check('new-confirm-sequence','制作前由我确认正式分镜与台词',f.confirmSequence===true)}<fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格、草稿与成片帧（含画面上的字幕）',f.shareFrames===true)}${check('new-auto-review','分享画面时自动回看首版，保留两版',f.autoReview!==false)}${check('new-final-review','允许独立终审使用 1 个 Codex 回合',f.finalReview!==false)}<p id="review-mode" class="help"></p></fieldset></details>
   <div class="actions">${btn('create','仅创建工程')}${btn('create-run','创建并开始制作','primary')}</div></div>
-  <input type="file" id="folder-picker" webkitdirectory multiple hidden></section>`;reviewMode();mounted();
+  </fieldset><input type="file" id="folder-picker" webkitdirectory multiple hidden></section>`;reviewMode();mounted();
 }
 function reviewMode(){
   const node=el('review-mode');if(!node)return;

@@ -103,3 +103,6 @@ body.screening-room{display:block;background:#edf2f9;color:#23324b;font:14px var
 button[aria-disabled="true"]{color:#536176;background:#e4eaf1;border-color:#cbd5e1;box-shadow:none;cursor:help}
 .timeline button[aria-disabled="true"]{color:#b0bed2;background:#283346;border-color:#455164}
 button[aria-busy="true"]{cursor:progress;box-shadow:inset 0 -2px #627eb3}
+
+#new-project-fields{border:0;margin:0;padding:0;min-width:0}
+#creation-progress{color:#354a81;font-weight:600}

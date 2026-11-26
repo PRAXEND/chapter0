@@ -25,7 +25,7 @@ try{
  ok('新建三个入口、独立分享设置、脚本和来源草稿、时长校验');
  const createHold=hold((url,opts)=>url==='/api/projects'&&opts?.method==='POST');let posts=0;
  observe=(url,opts)=>{if(url==='/api/projects'&&opts?.method==='POST')posts++;};
- click('create');click('create-run');await createHold.started;truth(posts===1,'create duplicate');createHold.release();
+ click('create');click('create-run');await createHold.started;truth(posts===1,'create duplicate');truth(el('new-title').matches(':disabled')&&!el('creation-progress').hidden,'submitted inputs frozen');truth(!document.querySelector('[data-guide=new]').matches(':disabled'),'help still available');createHold.release();
  await wait(()=>el('instruction'));const ps=await request('/api/projects');truth(ps.length===1,'single project');const a=ps[0].id;
  truth((await request('/api/projects/'+a+'/jobs')).length===0,'create did not run');observe=null;
  ok('两个新建按钮并发只建一个工程');

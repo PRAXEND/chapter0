@@ -138,6 +138,11 @@ export function syncControls({doc,project:p,jobs=[],selected,gate,scope,files=[]
     else if(node.dataset.stateOff){node.disabled=false;node.title=node.dataset.originalTitle||'';delete node.dataset.stateOff;delete node.dataset.originalTitle;}
   };
   const page=by('content'),clip=p?.timeline.clips.find(c=>c.id===selected);
+  const createFields=by('new-project-fields');
+  if(createFields){
+    const creating=gate.has('new','create');
+    createFields.disabled=creating;by('creation-progress').hidden=!creating;
+  }
   const d=dependencies({frames:on(p?'share-frames':'new-share-frames'),review:on(p?'auto-review':'new-auto-review'),scope:v(p?'set-scope':'new-source-scope'),voice:v('voice-mode'),music:v('music-mode'),cloud:on('cloud'),viewport:on('use-viewport'),framing:on('clip-framing'),sound:on('motion-sound-on')});
   for(const [id,why] of Object.entries({[p?'auto-review':'new-auto-review']:d.autoReview,[p?'final-review':'new-final-review']:d.finalReview,'new-urls':d.sourceUrls,'new-facts':d.sourceUrls,narration:d.narration,bgm:d.bgm,budget:d.budget,'motion-sound-id':d.sound,'scene-sound-asset':on('scene-sound')?'':'启用场景音效后可选声音来源。'}))native(by(id),why);
   for(const n of doc.querySelectorAll('[id^="viewport-"]'))native(n,d.viewport);
@@ -183,7 +188,9 @@ export function syncControls({doc,project:p,jobs=[],selected,gate,scope,files=[]
     'add-component':!v('new-component')?'先选择动效组件。':'',
     'cloud-key':!v('cloud-key')?'输入本次连接的密钥。':''
   };
-  if(!p){reasons.create||=durationProblem(v('new-min'),v('new-max'),v('new-duration'));reasons['create-run']=reasons.create||(mode==='interview'&&!files.some(f=>/^(audio|video)\//.test(f.type)||/\.(mp4|mov|m4v|mkv|webm|wav|aif|aiff|mp3|m4a|flac)$/i.test(f.name))?'选择可转录的视频或录音，或先仅创建工程。':'');}
+  if(!p){const menu=by('new-style');
+    if(menu&&(!menu.value||menu.selectedOptions[0]?.disabled))reasons.create='先选择可用的风格，或恢复本机风格资源。';
+    reasons.create||=durationProblem(v('new-min'),v('new-max'),v('new-duration'));reasons['create-run']=reasons.create||(mode==='interview'&&!files.some(f=>/^(audio|video)\//.test(f.type)||/\.(mp4|mov|m4v|mkv|webm|wav|aif|aiff|mp3|m4a|flac)$/i.test(f.name))?'选择可转录的视频或录音，或先仅创建工程。':'');}
   if(clip?.locked)for(const op of ['save-clip','save-preview-cue','split-clip','remove','clip-mute','add-cue','drop-cue','add-shake','remove-shake','pair-shots'])reasons[op]=lock;
   if(clip&&!clip.locked){
     const numbers=['clip-at','clip-len','clip-in','clip-speed','clip-gain','clip-font'];

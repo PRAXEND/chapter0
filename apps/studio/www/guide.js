@@ -65,7 +65,7 @@ function inventoryView(){
     if(el.matches('[data-clip]'))seen.add('timeline-clip');
     const key=doc.label+'|'+doc.description;if(seen.has(key))continue;seen.add(key);
     const div=node('div'),dt=node('dt',doc.label),dd=node('dd',doc.description);
-    const reason=(el.disabled||el.getAttribute('aria-disabled')==='true')&&(el.dataset.disabledReason||el.title||'此状态下暂不可用');
+    const reason=(el.matches(':disabled')||el.getAttribute('aria-disabled')==='true')&&(el.dataset.controlReason||el.title||(el.closest('#new-project-fields:disabled')?'正在创建工程并导入素材。':'此状态下暂不可用'));
     if(reason)dd.append(node('small',' · '+reason));
     const locate=node('button','定位');locate.className='guide-locate';locate.type='button';locate.addEventListener('click',()=>{
       returnTo=null;panel.close();if(!el.isConnected)return;
