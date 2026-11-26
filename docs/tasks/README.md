@@ -1,5 +1,8 @@
 # 任务记录
 
+- [Mac 工作台的剪辑时间线与后台会话](T-20261127-timeline-session.md)
+- [工作台后台会话隔离核验](T-20261127-background-codex-sessions.md)
+
 - [两套 v8 风格的独立工作台与安装版验收](T-20261126-v8-parity.md)
 
 - [Codex 从空时间线首剪并回看冻结成片](T-20261125-codex-self-review.md)
