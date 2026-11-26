@@ -2,7 +2,7 @@ import {isDeepStrictEqual as same} from 'node:util';
 import {overlapOnStage} from './viewport.mjs';
 
 const titles={add:'添加片段',update:'修改片段',remove:'删除片段',lock:'锁定片段',move:'移动片段',split:'分割片段',
-  trim:'裁切片段',speed:'调整倍速','ripple-remove':'同轨波纹删除'};
+  trim:'裁切片段',speed:'调整倍速','time-map':'调整时间曲线','ripple-remove':'同轨波纹删除'};
 const conflict=message=>Object.assign(new Error(message),{status:409});
 const byId=clips=>new Map(clips.map(c=>[c.id,c]));
 const overlaps=(a,b,profile)=>a.track===b.track&&a.start<b.start+b.duration&&b.start<a.start+a.duration&&overlapOnStage(a,b,profile);

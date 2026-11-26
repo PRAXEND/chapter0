@@ -1,3 +1,4 @@
+import {exposedMaskRegions} from './clip-mask.mjs';
 // Normalized stage coordinates use a top-left origin. Snap adjoining boundaries
 // together on the output's 4:2:0 chroma grid so two halves never leave a seam.
 export function viewportRect(viewport, profile) {
@@ -56,6 +57,7 @@ function uncovered(area, mask) {
 // Work down through the stack. Keep the actual exposed parts of a backdrop
 // so movement or a source in a different pane cannot be credited to this shot.
 export function visiblePanes(shots, profile) {
+  if(shots.some(s=>s.clip.mask))return exposedMaskRegions(shots,profile,normalizedViewport);
   const result=[], covered=[];
   for (const shot of [...shots].reverse()) {
     const rect=normalizedViewport(shot.clip.viewport,profile);

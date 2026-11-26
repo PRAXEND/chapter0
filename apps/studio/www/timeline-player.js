@@ -204,6 +204,7 @@ export function createTimelinePlayer({project:initial,jobs=[],video,onFrame=()=>
     Object.assign(video.style,{display:saved[0].display,visibility:saved[0].visibility});video.controls=saved[0].controls;
   }
   setProject(initial,jobs,initialFrame);
-  return {setProject,seek,play,pause,toggle:()=>playing?pause():play(),step:delta=>seek(position+delta),destroy,
+  const currentImage=f=>!dead&&f===displayedFrame?(visible==='image'?images[imageFront]:visible==='video'?videos[front]:null):null;
+  return {currentImage,setProject,seek,play,pause,toggle:()=>playing?pause():play(),step:delta=>seek(position+delta),destroy,
     get frame(){return position;},get displayedFrame(){return displayedFrame;},get length(){return length;},get playing(){return playing;}};
 }

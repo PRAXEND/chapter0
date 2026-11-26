@@ -1,3 +1,4 @@
+import {sourceAt,localAtSource} from './clip-automation.js';
 // Project frames are the only timeline unit. Pixel geometry is local to the current gesture.
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const escape=s=>String(s??'').replace(/[&<>"']/g,k=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[k]));
@@ -108,7 +109,7 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
       box.replaceChildren();
       for(let i=0;i<count;i++){
         const img=document.createElement('img');
-        const ms=Math.round(((c.sourceIn||0)+(i+.5)/count*c.duration*(c.speed||1))/fps*1000);
+        const ms=Math.round(sourceAt(c,(i+.5)/count*c.duration)/fps*1000);
         img.loading='lazy';img.draggable=false;img.alt='';img.src=endpoint+'/thumb?ms='+(asset.kind==='image'?0:ms);box.append(img);
       }
     }else if(asset.hasAudio&&['music','narration'].includes(c.track)){
@@ -184,14 +185,14 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     if(over)scroll.scrollLeft+=clamp(over,-24,24);
     if(!g.c)scrub(g.lastX,true);
     else if(!g.locked&&!g.toggle){
-      const c=g.c,stop=c.start+c.duration,asset=assets.get(c.assetId),speed=c.speed||1;
+      const c=g.c,stop=c.start+c.duration,asset=assets.get(c.assetId);
       const delta=(g.lastX-g.x+scroll.scrollLeft-g.initialScroll)/scale;
       let origin=c.start,min=c.start-Math.min(...g.group.map(k=>k.start)),max=86400*fps-Math.max(...g.group.map(k=>k.start+k.duration-c.start));
       let offsets=g.group.flatMap(k=>[k.start-c.start,k.start+k.duration-c.start]);
       if(g.edge){
         offsets=[0];const media=asset&&asset.kind!=='image';
-        if(g.edge==='start'){min=media?Math.max(0,c.start-Math.floor((c.sourceIn||0)/speed)):0;max=stop-1;}
-        else{origin=stop;min=c.start+1;max=media?c.start+Math.floor((Math.ceil(asset.duration*fps)-(c.sourceIn||0))/speed):86400*fps;}
+        if(g.edge==='start'){min=media?Math.max(0,c.start+Math.ceil(localAtSource(c,0)-1e-8)):0;max=stop-1;}
+        else{origin=stop;min=c.start+1;max=media?c.start+Math.floor(localAtSource(c,Math.ceil(asset.duration*fps))+1e-8):86400*fps;}
       }
       const result=snapPosition(origin+delta,offsets,view.snap&&!g.alt?g.targets:[],8/scale,min,max,g.snap);g.snap=result;g.result=result.value;
       const start=g.edge==='end'?c.start:result.value,duration=g.edge==='end'?result.value-c.start:g.edge==='start'?stop-start:c.duration;

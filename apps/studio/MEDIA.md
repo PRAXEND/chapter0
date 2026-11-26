@@ -89,3 +89,17 @@ Noto Sans SC 使用 Google Fonts 固定发行的原始可变 TTF，文件 17,772
 服务入口 `GET /api/projects/:id/playback?revision=N&frame=F&mode=still|play` 返回 `source, fromFrame, toFrame, frame, fps, length, url, revision`。客户端按半开区间解释端点。 `createTimelinePlayer({project,jobs,video,onFrame,onState,frame})` 返回 `seek(frame,{scrub})`、`step(delta)`、`play()`、`pause()`、`toggle()`、`setProject()`、`destroy()`。页面退出、换工程或替换视频节点时调用 `destroy()`，取消当前请求并停止两个媒体元素。
 
 在 `apps/studio` 下运行 `node --test test/timeline-playback.test.mjs` 验证版本、指纹、跳帧、取消及跨段时钟。Mac 上可运行 `node scripts/verify-timeline-player.mjs /本机/工程/project.vstudio.json /本机/已有成片.mp4`，在独立临时资料库复核真实 WKWebView 的本机点击、连续播放及按帧回查。提供同一工程的 12 秒以上素材与成片。稀疏开发检出若使用外置风格参考，可通过 `VIDEO_STUDIO_BUILTIN_PACKS` 指向安装包中的 `Resources/user-packs`。命令只读取原件，并在临时目录生成播放代理。
+
+## 蒙版、镜头关键帧与时间曲线
+
+在片段检查器打开「高级剪辑」。矩形或椭圆蒙版以本片段取景后的画面为坐标，可拖动中心、拉伸大小、反选或羽化。放在另一段画面上可透出下层，分屏时各窗口独立。蒙版形状在同一片段期间固定。
+
+「镜头取景关键帧」可在播放头处增加焦点，拖动原图中的中心，再设 1–4 倍放大。「图层关键帧」可编辑原生字幕和图形的位置、缩放、透明度及顺时针旋转。首尾和中间关键帧间线性插值，点帧号可以跳到相应位置。主动调整 v8 竖版字幕时可把字幕移到实拍上，清除动画会恢复风格的字幕位置。侧车字幕只导出 SRT。原版 JSX 的出场点仍由组件参数控制。
+
+录像的「时间曲线」横轴是片段经过的整数帧，纵轴是从入点起经过的原片帧。拖锚点、输入数值或选「先慢后快」「先快后慢」可改变各段速度，同时保留入点、出点与总时长。每段为 0.125–8 倍恒速，原声使用同一分段时钟保音高。曲线可用 2–64 个锚点，支持向前播放。单独音轨保留既有恒速工具。
+
+面板以「应用到时间线」一次提交，可撤销。重新选择片段时保留未应用修改，片段内容同时发生变化时会显示冲突。Codex 可用 `studio_edit` 修改 `mask`、`framing.keys` 和原生 `keyframes`，或提交 `{op:"time-map",id,points:[{frame,sourceFrame},...]}`。曲线从 (0,0) 延伸至 (片段时长,原片帧数)，空的 `points:null` 恢复恒速。
+
+运行 `node --test apps/studio/test/clip-automation.test.mjs apps/studio/test/timeline-source-phase.test.mjs apps/studio/test/timeline-edit.test.mjs`。本机 Atlas 原片按 0.5×、1.5×、0.5× 重定时后，在第二段内部分割，48 个真实画面校验值与 76,800 对双声道采样逐一相同。测试同时核对全片、分窗和精确静帧的遮罩反选与羽化像素，以及 v8 独立字幕的位置。
+
+系统 WebKit 手势可用 `node apps/studio/scripts/verify-clip-inspector.mjs "/路径/原片.mp4" "/可选的验证输出目录"` 复验。脚本创建隔离工程，拖动中间时间锚点、调整蒙版羽化、切换片段找回未应用的取景草稿，再在原生图形的第 24 帧写入 120 度旋转。保存后使用正常媒体链生成两秒的有声预览和精确静帧。输入录像至少两秒。

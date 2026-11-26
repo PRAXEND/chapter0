@@ -8,6 +8,8 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { createAss, createSrt } from './text-tracks.mjs';
 import { framingFilter, transitionEnvelope } from './framing.mjs';
+import {curveRuns,validateTimeMap,validateMask} from '../www/clip-automation.js';
+import {writeMask} from './clip-mask.mjs';
 import { viewportRect,compositionOrder } from './viewport.mjs';
 import { sampleClock,validateSampleWindow } from './clip-edit.mjs';
 import { ffBase, inputArgs, mediaSlot, mediaTool, requiredTool, run, scratch } from './media-runtime.mjs';
@@ -68,6 +70,8 @@ function validate(project) {
   const clips = (project.timeline?.clips ?? []).filter(c => !c.hidden && c.enabled !== false);
   for (const c of clips) {
     validateSampleWindow(c,project);
+    if(c.timeMap!=null)validateTimeMap(c,project.assets.find(a=>a.id===c.assetId),fps);
+    if(c.mask!=null){if(c.track!=='video')throw Error('蒙版只能用于视频轨道。');validateMask(c.mask);}
     if (c.viewport != null) {
       if (c.track !== 'video') throw Error('只有视频轨道使用分屏窗口。');
       viewportRect(c.viewport, project.profile);
@@ -85,6 +89,7 @@ function pictureSpans(clips, length, fromFrame, toFrame, profile) {
   const cuts = new Set([0, length]);
   for (const c of video) {
     cuts.add(c.start); cuts.add(c.start + c.duration);
+    if(c.timeMap)for(const part of curveRuns(c))cuts.add(part.start);
     const transitionFrames = transitionEnvelope(c).duration;
     if (transitionFrames) cuts.add(c.start + transitionFrames);
   }
@@ -97,11 +102,11 @@ function pictureSpans(clips, length, fromFrame, toFrame, profile) {
     // traditional two-shot transition path when the visible stack has no panes.
     const opaqueBase = active.findLastIndex(c => {
       const rect = viewportRect(c.viewport, profile);
-      return rect.width === profile.width && rect.height === profile.height && start - c.start >= transitionEnvelope(c).duration;
+      return !c.mask && rect.width === profile.width && rect.height === profile.height && start - c.start >= transitionEnvelope(c).duration;
     });
     const layers = active.slice(Math.max(0, opaqueBase));
     return [{ origin, start, duration: end - start, top: active.at(-1), under: active.at(-2),
-      ...(layers.some(c => c.viewport) && { layers }) }];
+      ...(layers.some(c => c.viewport || c.mask) && { layers }) }];
   });
 }
 
@@ -110,9 +115,10 @@ const videoEncode = ['-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset',
 
 export function buildVisualInput(clip, span, asset, profile, index) {
   const { width, height, fps } = profile;
-  const rate = clip.speed ?? 1;
+  const sampled=clip.timeMap?curveRuns(clip).find(c=>c.start<=span.start&&span.start<c.start+c.duration):clip;
+  const rate = sampled.speed ?? 1;
   // Retimed and variable-rate footage must keep the same fps sampling phase as the full span.
-  const clock = sampleClock(clip);
+  const clock = sampleClock(sampled);
   const anchor = asset.kind === 'image' || (rate === 1 && asset.frameRate === fps) ? span.start : clock.start;
   const skip = span.start - anchor;
   const source = (clock.sourceIn + (anchor - clock.start) * rate) / fps;
@@ -136,8 +142,9 @@ function blendFilter(clip, start) {
   return `blend=all_expr='${expression}':shortest=1`;
 }
 
-function composePanes(span, media, profile) {
-  const args = [], chains = [];
+async function composePanes(span, media, profile,work,signal) {
+  const args = [], chains = [], mattes=[];
+  let maskCount=0;
   let picture = null;
   for (const [i, clip] of span.layers.entries()) {
     const rect = viewportRect(clip.viewport, profile);
@@ -147,13 +154,13 @@ function composePanes(span, media, profile) {
     args.push(...input);
     chains.push(chain);
     let source = 'v' + i;
-    if (!picture && (fade || !full)) {
+    if (!picture && (fade || !full || clip.mask)) {
       chains.push(`color=c=black:s=${profile.width}x${profile.height}:r=${profile.fps},format=yuv420p[canvas]`);
       picture = 'canvas';
     }
     if (fade) {
       let under = picture;
-      if (!full) {
+      if (!full || clip.mask) {
         chains.push(`[${picture}]split[back${i}][part${i}]`,
           `[part${i}]crop=${rect.width}:${rect.height}:${rect.x}:${rect.y}[under${i}]`);
         picture = 'back' + i;
@@ -162,20 +169,28 @@ function composePanes(span, media, profile) {
       chains.push(`[${source}][${under}]${blendFilter(clip,span.start)}[fade${i}]`);
       source = 'fade' + i;
     }
-    if (full) picture = source;
+    if(clip.mask){
+      const matte=await writeMask(clip.mask,rect.width,rect.height,work,signal);
+      const index=span.layers.length+maskCount++;
+      mattes.push(...inputArgs(matte));
+      // Hold the static gray frame for the entire foreground stream.
+      chains.push('['+source+']['+index+':v]alphamerge[cut'+i+']');
+      source='cut'+i;
+    }
+    if (full && !clip.mask) picture = source;
     else {
       chains.push(`[${picture}][${source}]overlay=x=${rect.x}:y=${rect.y}:shortest=1[stage${i}]`);
       picture = 'stage' + i;
     }
   }
-  return [...args, '-filter_complex', chains.join(';'), '-map', `[${picture}]`];
+  return [...args,...mattes, '-filter_complex', chains.join(';'), '-map', `[${picture}]`];
 }
 
 async function renderSpan(span, media, profile, ffmpeg, target, signal, still=false) {
   const { width, height, fps } = profile;
   const lavfi = ['-f', 'lavfi', '-i', `color=c=black:s=${width}x${height}:r=${fps}`];
   const out = still?['-frames:v','1','-threads','1','-c:v','png',target]:['-frames:v', String(span.duration), ...videoEncode, target];
-  if (span.layers) return run(ffmpeg, [...ffBase, ...composePanes(span, media, profile), ...out], {signal});
+  if (span.layers) return run(ffmpeg, [...ffBase, ...await composePanes(span, media, profile,path.dirname(target),signal), ...out], {signal});
   if (!span.top) return run(ffmpeg, [...ffBase, ...lavfi, ...out], { signal });
   const top = span.top;
   const fade = transitionEnvelope(top);
@@ -238,7 +253,7 @@ async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, sign
   const audioClips = clips.filter(c => ['video', 'narration', 'music'].includes(c.track) && media.get(c.assetId)?.hasAudio && (c.gain ?? 1) > 0 && !c.muted);
   const buses = { voice: [], music: [], fixed: [] };
   const sampleAt = frame => Math.round(frame * 48000 / fps);
-  for (const [index, c] of audioClips.entries()) {
+  for (const [index, c] of audioClips.flatMap(curveRuns).entries()) {
     const first = Math.max(c.start, mixStart), end = Math.min(c.start + c.duration, mixEnd);
     if (end <= first) continue;
     const asset = media.get(c.assetId);
@@ -306,6 +321,8 @@ async function pictureLayers(project,{work,directory,profile,layout,fromFrame,to
   const fps=profile.fps;
   const layers = clips.filter(c => ['caption', 'graphic'].includes(c.track) && c.start < toFrame && c.start + c.duration > fromFrame);
   const stageLayers=layout||project.settings?.captionDisplay==='sidecar'?layers.filter(c=>c.track!=='caption'):layers;
+  const freeCaptions=layout&&project.settings?.captionDisplay!=='sidecar'&&layers.filter(c=>c.track==='caption'&&c.portraitPlacement==='free');
+  if(freeCaptions?.length)await writeFile(path.join(work,'placed-captions.ass'),createAss(freeCaptions,project.profile));
   if (layout) {
     await symlink(fileURLToPath(new URL('./fonts',import.meta.url)),path.join(work,'fonts'));
     await writeFile(path.join(work,'portrait.ass'),portraitScript(project,layout,fromFrame,toFrame,projectLength));
@@ -321,7 +338,7 @@ async function pictureLayers(project,{work,directory,profile,layout,fromFrame,to
   if(layout){
     const base=motion?.map || (stageLayers.length?'[vstage]':'[0:v]');
     const before=motion?.filter || (stageLayers.length?'[0:v]'+overlay+'[vstage]':'');
-    filters=['-filter_complex',[before,portraitGraph(project,layout,base,fromFrame,projectLength,toFrame)].filter(Boolean).join(';')];
+    filters=['-filter_complex',[before,portraitGraph(project,layout,base,fromFrame,projectLength,toFrame,Boolean(freeCaptions?.length))].filter(Boolean).join(';')];
     map='[outportrait]';
   }
   return {layers,motion,filters,map};

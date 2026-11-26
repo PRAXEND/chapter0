@@ -1,3 +1,4 @@
+import {sourceAt} from '../www/clip-automation.js';
 // Timeline intervals in this report are half-open. Source intervals use seconds on the identified original.
 import {compositionOrder, visiblePanes, normalizedViewport} from './viewport.mjs';
 import {transitionEnvelope} from './framing.mjs';
@@ -68,10 +69,10 @@ function shown(activeShots,profile,at){
   if(!activeShots.length)return [];
   const lastOpaque=activeShots.findLastIndex(({clip})=>{
     const r=normalizedViewport(clip.viewport,profile);
-    return r.width===1&&r.height===1&&!fading(clip);
+    return !clip.mask&&r.width===1&&r.height===1&&!fading(clip);
   });
   const stack=activeShots.slice(Math.max(0,lastOpaque));
-  if(!stack.some(s=>s.clip.viewport))return (fading(stack.at(-1).clip)?stack.slice(-2):stack.slice(-1)).map(shot=>({shot}));
+  if(!stack.some(s=>s.clip.viewport||s.clip.mask))return (fading(stack.at(-1).clip)?stack.slice(-2):stack.slice(-1)).map(shot=>({shot}));
   if(!stack.some(s=>fading(s.clip)))return visiblePanes(stack,profile);
   return stack.flatMap((shot,i)=>{
     const covers=stack.slice(i+1).filter(s=>!fading(s.clip));
@@ -110,7 +111,7 @@ function pictureTiming(clips,assets,profile,frames){
   }
   const windows=[...exposures.values()].flat().sort((a,b)=>a.fromFrame-b.fromFrame);
   for(const w of windows)if(w.kind==='video'){
-    const seconds=f=>((w.clip.sourceIn??0)+(f-w.clip.start)*(w.clip.speed??1))/profile.fps;
+    const seconds=f=>sourceAt(w.clip,f-w.clip.start)/profile.fps;
     w.sourceFrom=seconds(w.fromFrame);w.sourceTo=seconds(w.toFrame);
   }
   for(const gap of gaps)gap.overlays=Object.keys(counts(clips.filter(c=>['graphic','caption'].includes(c.track)&&c.start<gap.toFrame&&end(c)>gap.fromFrame).map(c=>c.track)));

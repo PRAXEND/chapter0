@@ -15,6 +15,7 @@ import { copyFile, link, mkdir, realpath, stat, unlink } from 'node:fs/promises'
 import { constants } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import {validateMask,validateTimeMap} from '../www/clip-automation.js';
 import {validFraming} from './framing.mjs';
 import {polygonPath} from './polygon.mjs';
 import {validateMotionClip} from './motion-components.mjs';
@@ -47,6 +48,9 @@ export function validateClip(clip,p) {
   }
   if(!Number.isFinite(clip.sourceIn??0)||(clip.sourceIn??0)<0)throw fault('原片入点须为非负的有效帧位置。');
   validateSampleWindow(clip,p);
+  if(clip.timeMap!=null)validateTimeMap(clip,p.assets.find(a=>a.id===clip.assetId),p.profile.fps);
+  if(clip.portraitPlacement!=null&&(clip.track!=='caption'||clip.portraitPlacement!=='free'))throw fault('竖版独立字幕位置只适用于字幕轨。');
+  if(clip.mask!=null){if(clip.track!=='video')throw fault('蒙版只能用于视频轨道。');validateMask(clip.mask);}
   if(clip.start+clip.duration>p.profile.fps*86400)throw fault('时间线超出一天。');
   const speed=clip.speed??1, gain=clip.gain??1;
   if(!Number.isFinite(speed)||speed<0.125||speed>8||!Number.isFinite(gain)||gain<0||gain>16)throw fault('速率或音量无效。');
@@ -59,7 +63,7 @@ export function validateClip(clip,p) {
   if(clip.soundDesign!=null){try{validateSoundDesign(clip.soundDesign,p);}catch(e){throw fault(e.message);}}
   if(clip.motion!=null) validateMotionClip(clip,p.profile);
   if(clip.geometry)for(const key of ['x','y','width','height'])if(clip.geometry[key]!=null&&!Number.isFinite(clip.geometry[key]))throw fault('图层坐标无效。');
-  if(clip.framing!=null && (clip.track!=='video' || !validFraming(clip.framing)))throw fault('画面取景中心须在原素材内，放大倍率须为 1–4。');
+  if(clip.framing!=null && (clip.track!=='video' || !validFraming(clip.framing,clip.duration)))throw fault('画面取景中心须在原素材内，放大倍率须为 1–4。');
   if (clip.viewport != null) {
     if (clip.track !== 'video') throw fault('只有视频轨道使用分屏窗口。');
     try { viewportRect(clip.viewport, p.profile); } catch (error) { throw fault(error.message); }

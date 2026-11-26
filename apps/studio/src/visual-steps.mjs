@@ -1,3 +1,4 @@
+import {focusKeys,blendKeys} from '../www/clip-automation.js';
 import {randomUUID} from 'node:crypto';
 import {viewportRect} from './viewport.mjs';
 
@@ -24,7 +25,8 @@ export function projectSourceRegion(region, view, profile, atFrame) {
     const from=view.framing?.from||{x:.5,y:.5,zoom:1}, to=view.framing?.to||from;
     if(![from,to].every(k=>inUnit(k.x)&&inUnit(k.y)&&Number.isFinite(k.zoom)&&k.zoom>=1&&k.zoom<=4)) return null;
     const f=bounded((atFrame-(view.start??0))/Math.max(1,(view.duration??1)-1),0,1);
-    const value=k=>from[k]+(to[k]-from[k])*f;
+    const key=view.framing?.keys?.length&&blendKeys(focusKeys(view),atFrame-(view.start??0));
+    const value=k=>key?key[k]:from[k]+(to[k]-from[k])*f;
     const viewW=Math.min(1,T/A)/value('zoom'), viewH=Math.min(1,A/T)/value('zoom');
     const x=bounded(value('x')-viewW/2,0,1-viewW), y=bounded(value('y')-viewH/2,0,1-viewH);
     left=(region.x-x)/viewW;top=(region.y-y)/viewH;width=region.width/viewW;height=region.height/viewH;

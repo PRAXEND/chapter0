@@ -198,7 +198,11 @@ test('the Codex studio_edit tool uses the same timing commands and cannot unlock
       const edit=commands=>tool({tool:'studio_edit',arguments:{baseRevision:ctx.revision,commandsJson:JSON.stringify(commands)}});
       await assert.rejects(edit([{op:'move',id:'protected',start:51}]),/锁定/);
       await assert.rejects(edit([{op:'lock',id:'protected',locked:false}]),/解锁/);
-      await edit([{op:'move',id:'take',start:7},{op:'trim',id:'take',edge:'start',atFrame:9},
+      assert.match(ctx.editOperations,/time-map/);
+      await assert.rejects(edit([{op:'time-map',id:'protected',points:null}]),/锁定/);
+      await edit([{op:'update',id:'take',changes:{mask:{shape:'ellipse',x:.4,y:.6,width:.5,height:.3,feather:.04,invert:true}}},
+        {op:'time-map',id:'take',points:[{frame:0,sourceFrame:0},{frame:15,sourceFrame:10},{frame:30,sourceFrame:30}]},
+        {op:'time-map',id:'take',points:null},{op:'move',id:'take',start:7},{op:'trim',id:'take',edge:'start',atFrame:9},
         {op:'speed',id:'take',speed:2},{op:'split',id:'take',atFrame:15,newId:'tail'},{op:'ripple-remove',id:'take'}]);
       return '保留后半段。';
     }};
@@ -206,7 +210,7 @@ test('the Codex studio_edit tool uses the same timing commands and cannot unlock
   try{await director.run(p.id,{kind:'revise'});}finally{director.close();}
   const result=f.store.get(p.id);
   assert.equal(clip(result,'take'),undefined);assert.equal(clip(result,'tail').start,9);
-  assert.equal(clip(result,'tail').sourceIn,18);assert.equal(clip(result,'protected').locked,true);
+  assert.equal(clip(result,'tail').mask.invert,true);assert.equal(clip(result,'tail').sourceIn,18);assert.equal(clip(result,'protected').locked,true);
   assert.equal(f.store.history(p.id).undoLabel,label);
 });
 

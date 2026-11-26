@@ -1,3 +1,4 @@
+import {timeKeys,validateTimeMap,focusKeys,framingFor} from '../www/clip-automation.js';
 // Map project time while keeping relative cut points inside the rewritten sentence.
 export function replacementClock(start, oldFrames, newFrames) {
   return frame => frame <= start ? frame : frame >= start + oldFrames ? frame + newFrames - oldFrames :
@@ -27,6 +28,16 @@ export function replacementEdits(project, voice, group, frames) {
       if (clip.track === 'music' && asset && (clip.sourceIn || 0) + duration * (clip.speed || 1) > Math.ceil(asset.duration * project.profile.fps) + 1)
         throw Error('配乐「' + clip.id + '」已到源文件末尾，请为新增时长选择音乐区间。');
       const local = f => Math.min(duration, Math.max(0, at(clip.start + f) - start));
+      if(clip.timeMap){
+        // Keep source positions under the same project-time mapping as the rewritten sentence.
+        const points=timeKeys(clip).map(k=>({...k,frame:local(k.frame)}));
+        const curve={points};validateTimeMap({...clip,duration,speed:update.speed,timeMap:curve},asset,project.profile.fps);
+        update.timeMap=curve;
+      }
+      if(clip.framing?.keys?.length){
+        const pairs=focusKeys(clip).map(k=>({...k,frame:Math.min(duration-1,local(k.frame))}));
+        update.framing=framingFor([...new Map(pairs.map(k=>[k.frame,k])).values()],duration);
+      }
       if (clip.keyframes) update.keyframes = clip.keyframes.map(k => ({...k,frame:local(k.frame)}));
       if (clip.motion?.cueFrames) {
         const cues = clip.motion.cueFrames.map(f => Math.min(duration - 1, local(f)));
