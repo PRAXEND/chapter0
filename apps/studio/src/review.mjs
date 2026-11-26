@@ -1,3 +1,4 @@
+import {localAtSource} from '../www/clip-automation.js';
 import {portraitFindings} from './presentation.mjs';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
@@ -120,7 +121,7 @@ function timelineChecks(project,findings) {
     let actual=cue.actionFrame;
     if(cue.anchorAssetId && Number.isInteger(cue.anchorSourceFrame)) {
       const candidates=visible.filter(c=>c.assetId===cue.anchorAssetId && cue.anchorSourceFrame>=(c.sourceIn||0) && cue.anchorSourceFrame<(c.sourceIn||0)+c.duration*(c.speed||1));
-      const spans=candidates.map(c=>c.start+Math.round((cue.anchorSourceFrame-(c.sourceIn||0))/(c.speed||1)));
+      const spans=candidates.map(c=>c.start+Math.round(localAtSource(c,cue.anchorSourceFrame)));
       if(!spans.length) {findings.push(issue(cue.id+'-anchor','unknown','锚定动作已被剪出视频','重新选择动作和可见镜头。',cue.start,cue.start+cue.duration-1));continue;}
       actual=spans.reduce((a,b)=>Math.abs(a-cue.start)<Math.abs(b-cue.start)?a:b);
     }
@@ -376,7 +377,7 @@ export function deterministicRepairs(project,report) {
     if(!cue || cue.locked || !cue.anchorAssetId || !Number.isSafeInteger(cue.anchorSourceFrame)) continue;
     const sources=clips.filter(c=>c.track==='video'&&isActive(c)&&c.assetId===cue.anchorAssetId && cue.anchorSourceFrame>=(c.sourceIn||0)&&cue.anchorSourceFrame<(c.sourceIn||0)+c.duration*(c.speed||1));
     if(sources.length!==1) continue;
-    const shot=sources[0], anchor=shot.start+Math.round((cue.anchorSourceFrame-(shot.sourceIn||0))/(shot.speed||1));
+    const shot=sources[0], anchor=shot.start+Math.round(localAtSource(shot,cue.anchorSourceFrame));
     const duration=cue.start+cue.duration-anchor;
     if(duration<Math.max(3,Math.round(project.profile.fps*.28))||clips.some(c=>c.locked&&c.track===cue.track&&c.start<anchor+duration&&anchor<c.start+c.duration)) continue;
     repairs.push({kind:'edit',reason:item.message,baseRevision:project.revision,commands:[{op:'update',id:cue.id,changes:{start:anchor,actionFrame:anchor,duration}}]});

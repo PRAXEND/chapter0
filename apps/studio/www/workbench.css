@@ -99,3 +99,7 @@ body.screening-room{display:block;background:#edf2f9;color:#23324b;font:14px var
 .screening-room label,.screening-room small,.screening-room .hint {color:#415472}.screening-room .row,.screening-room .sample{border-color:#cbd6e4}.screening-room #range[hidden]{display:none}.screening-room .guide-search{margin:0 0 0 auto}
 .guide-zoom {display:block;padding:0;border:0;background:transparent;width:100%;border-radius:0;cursor:zoom-in}
 .guide-figure.expanded .guide-zoom {cursor:zoom-out}.guide-figure.expanded img {max-height:none}
+
+button[aria-disabled="true"]{color:#536176;background:#e4eaf1;border-color:#cbd5e1;box-shadow:none;cursor:help}
+.timeline button[aria-disabled="true"]{color:#b0bed2;background:#283346;border-color:#455164}
+button[aria-busy="true"]{cursor:progress;box-shadow:inset 0 -2px #627eb3}

@@ -1,3 +1,4 @@
+import {timeSection,setTimeMap,sourceAt,remapFocus,focusKeys,framingFor} from '../www/clip-automation.js';
 import {splitGraphicKeys} from './graphic-keys.mjs';
 import {transitionEnvelope,validFraming} from './framing.mjs';
 
@@ -49,7 +50,9 @@ function section(clip,from,to,project) {
   const changes={duration:to-from};
   if(from!==0)changes.start=clip.start+from;
   const asset=mediaClip(clip,project);
-  if(asset){
+  if(clip.timeMap){
+    Object.assign(changes,timeSection(clip,from,to));
+  }else if(asset){
     const rate=clip.speed??1, previousOffset=clip.sampleWindow?.offsetFrames??0;
     const availableEnd=Math.ceil(asset.duration*project.profile.fps-1e-8);
     if(to>clip.duration && (clip.sourceIn??0)+to*rate>availableEnd+1e-7)fail('裁切终点超出原片的可用窗口。');
@@ -66,7 +69,9 @@ function section(clip,from,to,project) {
   }
   if(clip.keyframes?.length)changes.keyframes=keysWithin(clip,from,to);
   if(clip.pictureEffects?.length)changes.pictureEffects=croppedEffects(clip.pictureEffects,from,to);
-  if(clip.framing?.to){
+  if(clip.framing?.keys?.length){
+    changes.framing=remapFocus(clip,from,to);
+  }else if(clip.framing?.to){
     const {from:a,to:b}=clip.framing;
     const point=at=>Object.fromEntries(['x','y','zoom'].map(k=>[k,a[k]+(clip.duration===1?0:(b[k]-a[k])*at/(clip.duration-1))]));
     changes.framing={from:point(from),to:point(to-1)};
@@ -91,13 +96,17 @@ function move(clip,start) {
 function changeSpeed(clip,requested,project) {
   if(!mediaClip(clip,project))fail('倍速适用于录影片段与音轨。');
   if(!Number.isFinite(requested)||requested<.125||requested>8)fail('倍速范围为 0.125–8。');
-  const span=clip.duration*(clip.speed??1);
+  const span=sourceAt(clip,clip.duration)-(clip.sourceIn??0);
   // The output clock has integer frames. Keep BOTH source endpoints, including
   // at minimum/maximum rate, then report the attainable rate in the project.
   const duration=Math.max(1,Math.ceil(span/8-1e-10),Math.min(Math.floor(span/.125+1e-10),Math.round(span/requested)));
-  if(duration===clip.duration)return null;
-  const speed=span/duration,changes={duration,speed,sampleWindow:null};
+  if(duration===clip.duration&&!clip.timeMap)return null;
+  const speed=span/duration,changes={duration,speed,sampleWindow:null,...(clip.timeMap&&{timeMap:null})};
   const local=n=>Math.round(n*duration/clip.duration);
+  if(clip.framing?.keys?.length){
+    const scaled=focusKeys(clip).map(k=>({...k,frame:Math.round(k.frame*(duration-1)/Math.max(1,clip.duration-1))}));
+    changes.framing=framingFor([...new Map(scaled.map(k=>[k.frame,k])).values()],duration);
+  }
   if(clip.keyframes?.length)changes.keyframes=clip.keyframes.map(k=>({...k,frame:local(k.frame)}));
   if(clip.pictureEffects?.length)changes.pictureEffects=clip.pictureEffects.map(f=>{
     const start=Math.min(duration-1,local(f.offsetFrames??0)),end=local((f.offsetFrames??0)+f.duration);
@@ -112,7 +121,7 @@ function changeSpeed(clip,requested,project) {
 // Expanded lazily: a later command can trim a piece created earlier in the same transaction.
 export function* timelineCommands(commands,project) {
   for(const cmd of commands){
-    if(!['split','trim','move','speed','ripple-remove'].includes(cmd?.op)){yield cmd;continue;}
+    if(!['split','trim','move','speed','time-map','ripple-remove'].includes(cmd?.op)){yield cmd;continue;}
     const clips=project.timeline.clips,clip=clips.find(c=>c.id===cmd.id);
     if(!clip)fail('片段已改变，请重新读取工程。',409);
     if(clip.locked)fail('该片段已锁定。',409);
@@ -128,6 +137,11 @@ export function* timelineCommands(commands,project) {
       continue;
     }
     if(clip.motion)fail('原版 JSX 组件使用独立动画时钟，出场、退场和音效都跟随完整片段。可移动整个组件，或在组件参数中调整出场帧。');
+    if(cmd.op==='time-map'){
+      if(clip.track!=='video'||mediaClip(clip,project)?.kind!=='video')fail('时间曲线需要录像素材。');
+      if(cmd.points!==null||clip.timeMap)yield {op:'update',id:clip.id,changes:setTimeMap(clip,cmd.points)};
+      continue;
+    }
     if(cmd.op==='speed'){
       const change=changeSpeed(clip,cmd.speed,project);
       if(change)yield change;

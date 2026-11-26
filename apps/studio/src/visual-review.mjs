@@ -1,3 +1,4 @@
+import {sourceAt,localAtSource} from '../www/clip-automation.js';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {projectSourceRegion,validRegion} from './visual-steps.mjs';
@@ -187,7 +188,7 @@ export async function measureMotion(project,windows,ffmpeg,signal,videoPath,{sta
     const exposed=regions?.reduce((a,b)=>a.width*a.height>=b.width*b.height?a:b);
     const crop=stage.rect(exposed?viewportRect(exposed,stage.profile):null);
     if(!asset.path||to-from<fps*.35)continue;
-    const d=to-from, at=(f)=>((clip.sourceIn||0)+(from-clip.start+f)*(clip.speed||1))/fps;
+    const d=to-from, at=(f)=>sourceAt(clip,from-clip.start+f)/fps;
     const fractions=[.22,.47,.72],times=fractions.map(u=>at(d*u));
     try {
       const compare=async(file,timestamps,rect)=>{
@@ -323,7 +324,7 @@ async function motionReview(project,windows,evidence,policy,checks,hashFile,rene
         if(!known.has(key)){
           const w=windows.find(w=>w.shot.asset?.id===a.id&&(!m.clipId||m.clipId===w.shot.clip.id)&&(!item.clipId||item.clipId===w.shot.clip.id)&&w.from<=m.fromFrame&&w.to>=m.toFrame),clip=w?.shot.clip;
           if(!clip||clip.id!==item.clipId||clip.start!==item.timelineFrom||clip.duration!==item.timelineFrames)continue;
-          const projected=t=>clip.start+(t*fps-(clip.sourceIn||0))/(clip.speed||1);
+          const projected=t=>clip.start+localAtSource(clip,t*fps);
           const from=Math.max(m.fromFrame,Math.ceil(projected(item.sourceStart))),to=Math.min(m.toFrame,Math.ceil(projected(item.sourceEnd))-1);
           if(to<from)continue;
           verified.push({assetId:a.id,fromFrame:from,toFrame:to,observation:item.observation});known.add(key);
@@ -379,7 +380,7 @@ async function closingFrameMatch(ffmpeg,videoPath,shot,profile,frame,signal,regi
   const full=projectSourceRegion({x:0,y:0,width:1,height:1},view,profile,frame);
   if(!full)return {frame,matched:null};
   const size=88,w=96,h=Math.max(20,Math.round(w*profile.height/profile.width));
-  const sourceSeconds=asset.kind==='image'?0:((clip.sourceIn||0)+(frame-clip.start)*(clip.speed||1))/profile.fps;
+  const sourceSeconds=asset.kind==='image'?0:sourceAt(clip,frame-clip.start)/profile.fps;
   const src=await decodePixels(ffmpeg,asset.path,asset.kind==='image'?null:sourceSeconds,size,size,signal),out=await readOutput(frame,w,h);
   const origin=boxRect(full),pairs=[];
   for(let y=2;y<h-2;y+=2)for(let x=2;x<w-2;x+=2){

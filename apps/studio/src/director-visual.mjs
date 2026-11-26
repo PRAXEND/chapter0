@@ -1,3 +1,4 @@
+import {localAtSource} from '../www/clip-automation.js';
 import {portraitLayout,headline} from './presentation.mjs';
 import {continuousStyle} from './director-style.mjs';
 import { createHash } from 'node:crypto';
@@ -113,7 +114,7 @@ export function motionCoverage(p, sourceFrames, policy, queries = [], reason = '
   for (let i = 0; i < edges.length - 1; i++) {
     const active = clips.filter((c) => c.start <= edges[i] && c.start + c.duration > edges[i]);
     if (!active.length) continue;
-    const visible = active.some(c=>c.viewport)
+    const visible = active.some(c=>c.viewport||c.mask)
       ? visiblePanes(active.map(clip=>({clip})),p.profile).map(pane=>pane.shot.clip) : [active.at(-1)];
     const n = edges[i + 1] - edges[i];
     if (visible.some(c=>assets.get(c.assetId)?.kind==='video')) videoFrames += n;
@@ -324,7 +325,7 @@ export function currentReviewWindows(p) {
       if (s.assetHash && s.assetHash !== a?.sha256) continue;
       const at =
         a?.kind === 'video' && Number.isFinite(s.sourceFrame)
-          ? pic.start + Math.round((s.sourceFrame - (pic.sourceIn || 0)) / (pic.speed || 1))
+          ? pic.start + Math.round(localAtSource(pic,s.sourceFrame))
           : pic.start + Math.round(((s.atFrame - beat.start) * pic.duration) / Math.max(1, beat.duration));
       if (at >= pic.start && at < pic.start + pic.duration)
         local.push({ stage: s.stage, atFrame: at, picture: pic.id });

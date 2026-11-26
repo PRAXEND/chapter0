@@ -1,11 +1,14 @@
+import {focusKeys} from '../www/clip-automation.js';
 import {visiblePanes,compositionOrder} from './viewport.mjs';
 // Coordinates refer to the displayed source before any cut, including its display rotation.
-export function validFraming(framing) {
+export function validFraming(framing,duration=Infinity) {
   function validPoint(point) {
     return point && [point.x, point.y].every(n => Number.isFinite(n) && n >= 0 && n <= 1) &&
       Number.isFinite(point.zoom) && point.zoom >= 1 && point.zoom <= 4;
   }
-  return Boolean(validPoint(framing?.from) && (framing.to == null || validPoint(framing.to)));
+  return Boolean(validPoint(framing?.from) && (framing.to == null || validPoint(framing.to)) &&
+    (framing.keys==null || Array.isArray(framing.keys)&&framing.keys.length<=30&&framing.keys.every((p,i,keys)=>
+      validPoint(p)&&Number.isSafeInteger(p.frame)&&p.frame>0&&p.frame<duration-1&&(!i||keys[i-1].frame<p.frame))));
 }
 
 export function transitionEnvelope(clip) {
@@ -17,7 +20,7 @@ export function transitionEnvelope(clip) {
 }
 
 export function framingFilter(clip, asset, profile, first) {
-  if (!validFraming(clip.framing)) throw new Error('取景中心须在原图内，放大倍率须为 1–4。');
+  if (!validFraming(clip.framing,clip.duration)) throw new Error('取景中心须在原图内，放大倍率须为 1–4。');
   const {from, to = from} = clip.framing;
   const {width, height, fps} = profile;
   const squareWidth = Math.max(2, 2 * Math.round(asset.width * (asset.pixelAspect || 1) / 2));
@@ -26,6 +29,16 @@ export function framingFilter(clip, asset, profile, first) {
   const cropH = Math.min(sourceHeight, Math.max(2, 2 * Math.floor(squareWidth * height / width / 2)));
   const num = n => String(Number(n.toFixed(8)));
   function coord(key, counter) {
+    if(clip.framing.keys?.length){
+      const keys=focusKeys(clip),counterAt='('+counter+'+'+(first-clip.start)+')';
+      let value=num(keys.at(-1)[key]);
+      for(let i=keys.length-1;i>0;i--){
+        const a=keys[i-1],b=keys[i];
+        const part=a[key]===b[key]?num(a[key]):'('+num(a[key])+'+'+num(b[key]-a[key])+'*('+counterAt+'-'+a.frame+')/'+(b.frame-a.frame)+')';
+        value='if(lt('+counterAt+','+b.frame+'),'+part+','+value+')';
+      }
+      return value;
+    }
     if (!to || from[key] === to[key] || clip.duration === 1) return num(from[key]);
     return `(${num(from[key])}+${num(to[key] - from[key])}*(${counter}+${first - clip.start})/${clip.duration - 1})`;
   }
@@ -50,7 +63,7 @@ export function visibleWindows(shots, profile) {
   for (let i = 0; i + 1 < edges.length; i++) {
     const from = edges[i], to = edges[i+1] - 1;
     const active = shots.filter(({clip}) => clip.start <= from && clip.start + clip.duration > from);
-    if (active.some(s=>s.clip.viewport)) {
+    if (active.some(s=>s.clip.viewport||s.clip.mask)) {
       for (const pane of visiblePanes(active,profile)) windows.push({from,to,...pane});
       continue;
     }

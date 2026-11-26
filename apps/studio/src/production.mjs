@@ -230,7 +230,7 @@ const tools = [
   ),
   tool(
     'studio_edit',
-    'Edit unlocked picture cuts, overlays and sound on the current revision. Commands: {op:"update",id,changes}, {op:"split",id,atFrame,newId}, {op:"add",clip}, {op:"remove",id}. start/duration/sourceIn/atFrame use project frames. An assetId and sourceIn change replaces a shot; graphic/caption edits can move, re-time, hide or remove an overlay.',
+    'Edit unlocked picture cuts, overlays and sound on the current revision. Commands: {op:"update",id,changes}, {op:"split",id,atFrame,newId}, {op:"add",clip}, {op:"remove",id}. start/duration/sourceIn/atFrame use project frames. An assetId and sourceIn change replaces a shot; graphic/caption edits can move, re-time, hide or remove an overlay. Read studio_context.editOperations for masks, multi-point framing, keyframes, and time-map anchors.',
     {
       baseRevision: int,
       commandsJson: str,
@@ -386,7 +386,7 @@ const clipFields = [
   'actionFrame',
   'anchorSourceFrame',
   'anchorAssetId',
-  'viewport',
+  'viewport','mask','timeMap','portraitPlacement',
   'pictureEffects','soundDesign',
   'motion',
   'framing',
@@ -461,7 +461,7 @@ async function context(deps, project, selection) {
       source: publicSource(a.source),
     })),
     timeline: { clips: project.timeline.clips.map((c) => projectClip(c, shared)) },
-    editOperations:'studio_edit also accepts move(id,start), trim(id,edge:"start"|"end",atFrame), split(id,atFrame,newId), speed(id,speed), and ripple-remove(id). Use absolute project frames and an exclusive end. Speed keeps both source endpoints. A same-track ripple refuses overlapping or locked pieces. Move intact JSX components or edit their cues with studio_component.',
+    editOperations:'studio_edit also accepts move(id,start), trim(id,edge:"start"|"end",atFrame), split(id,atFrame,newId), speed(id,speed), and ripple-remove(id). Use time-map(id, points:[{frame,sourceFrame}]) on video to preserve both endpoints while varying speed. Points are relative to the visible cut, from (0,0) to (duration, visible source span); consecutive slopes must be 0.125–8. Set points:null for constant speed. Video mask={shape:rectangle|ellipse,x,y,width,height,feather,invert}, normalized relative to its own pane, x/y center. For a multi-point camera move use framing={from:{x,y,zoom},to:{x,y,zoom},keys:[{frame,x,y,zoom}]} with interior local frames. Unlocked native text/graphic keyframes accept frame,x,y,scale,opacity,rotation. Use portraitPlacement:free to explicitly position a v8 portrait caption. Move/split use absolute project frames and an exclusive end. Speed keeps both source endpoints. A same-track ripple refuses overlapping or locked pieces. Move intact JSX components or edit their cues with studio_component.',
     storyboard:(project.storyboard||[]).map(b=>({videoClipId:b.videoClipId,assetId:b.assetId,start:b.start,duration:b.duration,
       sourceStart:b.sourceStart,sourceEnd:b.sourceEnd,speechGroup:b.speechGroup,claimUrl:urlForModel(b.claimUrl),
       ...(shared&&b.continuity?{continuity:trim(b.continuity)}:{})})),
@@ -498,7 +498,7 @@ function allowedCommands(commands, p) {
   if (!Array.isArray(commands) || !commands.length || commands.length > 600)
     throw new Error('局部编辑命令数量无效。');
   for (const cmd of commands) {
-    if (!['add', 'update', 'remove', 'split', 'trim', 'move', 'speed', 'ripple-remove'].includes(cmd?.op))
+    if (!['add', 'update', 'remove', 'split', 'trim', 'move', 'speed', 'time-map', 'ripple-remove'].includes(cmd?.op))
       throw new Error('Codex 不能修改工程权限或解锁用户的编辑。');
     const data = cmd.op === 'add' ? cmd.clip : cmd.changes;
     if (
@@ -527,6 +527,7 @@ function allowedCommands(commands, p) {
     const existing = p.timeline.clips.find((c) => c.id === cmd.id);
     if (existing?.locked) throw new Error('片段被用户锁定。');
     if(!data)continue;
+    if(Object.hasOwn(data,'timeMap'))throw Error('使用 time-map 指令设置时间曲线，工作台会保留其源窗口。');
     if(['graphic','caption'].includes(data.track||existing?.track)){
       const before=existing?.geometry||{},isCaption=(data.track||existing?.track)==='caption';
       const positioned=data.geometry||Object.hasOwn(data,'x')||Object.hasOwn(data,'y');

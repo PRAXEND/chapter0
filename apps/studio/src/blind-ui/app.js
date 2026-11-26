@@ -10,7 +10,8 @@ function updateControls(){
   const rows=[...el('samples').querySelectorAll('.sample')],pair=el('kind').value==='pair';
   const complete=rows.length&&rows.every(r=>r.querySelector('.source')?.value&&(!pair||r.querySelector('.comparison')?.value&&r.querySelector('.comparison').value!==r.querySelector('.source').value)&&(!r.querySelector('.expected')||r.querySelector('.expected').value.trim()));
   el('create').disabled=loading||!el('title').value.trim()||!complete;
-  el('create').title=complete?'':'先填完整样本，配对时选择不同候选。';
+  el('create').title=!el('title').value.trim()?'先填写研究名称。':complete?'':'先填完整样本，配对时选择不同候选。';
+  el('begin').title=el('reviewer').value.trim()?'':'先输入本次使用的审片人代号。';
   el('begin').disabled=loading||!el('reviewer').value.trim();
   const decision=el('decision').value,range=session?.kind==='gate'&&decision==='redo';
   el('ballot').querySelector('button.primary').disabled=loading||!viewer||viewer!==el('reviewer').value.trim()||!decision||!el('observation').value.trim()||(range&&(!el('from').value||!el('to').value||Number(el('to').value)<=Number(el('from').value)));
@@ -115,7 +116,7 @@ el('begin').onclick=run(loadSession);
 el('reviewer').addEventListener('input',()=>{if(viewer&&el('reviewer').value.trim()!==viewer){rememberBallot();viewer='';active=null;session=null;show('screen',false);el('movies').replaceChildren();}});
 document.addEventListener('input',e=>{if(!e.target.closest('#guide-dialog'))updateControls();});
 document.addEventListener('change',e=>{if(!e.target.closest('#guide-dialog'))updateControls();});
-for(const which of ['from','to']) el('mark-'+which).onclick=()=>{const movie=el('movies').querySelector('video');if(movie) el(which).value=movie.currentTime.toFixed(3);};
+for(const which of ['from','to']) el('mark-'+which).onclick=()=>{const movie=el('movies').querySelector('video');if(movie){el(which).value=movie.currentTime.toFixed(3);updateControls();}};
 el('ballot').onsubmit=run(async()=>{
   const dims=Object.fromEntries([...el('dimensions').querySelectorAll('input')].map(i=>[i.dataset.dimension,i.value]));
   if(!viewer||viewer!==el('reviewer').value.trim()||!active)throw Error('请先以当前审片人身份开始看片。');

@@ -28,7 +28,14 @@ final class Probe: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     }
     func userContentController(_ controller:WKUserContentController,didReceive message:WKScriptMessage){
         guard let m=message.body as? [String:Any] else{return}
-        if m["click"] != nil {
+        if let points=m["drag"] as? [[Double]], points.count>=2 && points.allSatisfy({$0.count==2}) {
+            let now=ProcessInfo.processInfo.systemUptime
+            for (i,xy) in points.enumerated() {
+                let pos=NSPoint(x:xy[0],y:window.contentView!.bounds.height-xy[1])
+                let type:NSEvent.EventType = i==0 ? .leftMouseDown : (i==points.count-1 ? .leftMouseUp : .leftMouseDragged)
+                if let event=NSEvent.mouseEvent(with:type,location:pos,modifierFlags:[],timestamp:now+Double(i)*0.016,windowNumber:window.windowNumber,context:nil,eventNumber:i,clickCount:1,pressure:1){window.sendEvent(event)}
+            }
+        } else if m["click"] != nil {
             let p=NSPoint(x:50,y:window.contentView!.bounds.height-35)
             let now=ProcessInfo.processInfo.systemUptime
             for type:NSEvent.EventType in [.leftMouseDown,.leftMouseUp] {

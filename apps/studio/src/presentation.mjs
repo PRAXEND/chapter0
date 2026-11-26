@@ -96,7 +96,7 @@ export function portraitScript(project,layout,from,to,total) {
   const {title,emphasis}=headline(project);
   const rows=balancedRows(title,10.55);
   lines.push(event(3,0,total,fps,typeLine({text:coloredTitle(rows,emphasis),x:width/2,y:layout.titleBottom,size:layout.titleSize})));
-  for(const c of project.timeline.clips.filter(c=>project.settings?.captionDisplay!=='sidecar'&&c.track==='caption'&&c.enabled!==false&&!c.hidden&&c.start<to&&c.start+c.duration>from)){
+  for(const c of project.timeline.clips.filter(c=>project.settings?.captionDisplay!=='sidecar'&&c.track==='caption'&&c.portraitPlacement!=='free'&&c.enabled!==false&&!c.hidden&&c.start<to&&c.start+c.duration>from)){
     const rows=balancedRows(c.text,18);
     lines.push(event(4,c.start,c.start+c.duration,fps,typeLine({text:rows.map(assText).join('\\N'),align:5,x:width/2,y:layout.captionTop+(rows.length===1?34:67.5)*s,size:layout.captionSize,weight:600})));
   }
@@ -106,11 +106,12 @@ export function portraitEnding(total,fps) {
   const black=Math.max(0,total-Math.round(.6*fps)),fade=Math.max(0,black-Math.round(1.2*fps));
   return {black,fade,musicFade:Math.max(0,black-Math.round(1.4*fps))};
 }
-export function portraitGraph(project,layout,base,from,total,to=total) {
+export function portraitGraph(project,layout,base,from,total,to=total,freeCaptions=false) {
   const {width,height,fps}=project.profile,{black,fade}=portraitEnding(total,fps);
   const clock='settb=1/'+fps+',setpts=N+'+from;
-  const stage='color=c=0x030405:s='+width+'x'+height+':r='+fps+','+clock+
+  let stage='color=c=0x030405:s='+width+'x'+height+':r='+fps+','+clock+
     ',ass=portrait.ass:fontsdir=fonts,setpts=N[paper];[paper]'+base+'overlay=x=0:y='+layout.top+':shortest=1';
+  if(freeCaptions)stage+=','+clock+',ass=placed-captions.ass:fontsdir=fonts,setpts=N';
   const duration=Math.max(1,black-fade), firstTint=fade+1, fullBlack=fade+duration;
   const fill='drawbox=c=black:t=fill';
   if(to<=firstTint)return stage+'[outportrait]';
