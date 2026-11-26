@@ -19,7 +19,7 @@ import {createStore,defaultRoot,fault} from './project.mjs';
 import {createQueue} from './jobs.mjs';
 import {timelinePlayback} from './timeline-playback.mjs';
 import {draftPreviews} from './draft-preview.mjs';
-import {capturePreference} from './style-preference.mjs';
+import {selectedStyle} from './style-catalog.mjs';
 import {compileSceneWithSound} from './scene-sound.mjs';
 import {legacyLibrary} from './library.mjs';
 import {createMusic} from './music.mjs';
@@ -140,8 +140,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       if(kind==='music'&&id==='connection'&&method==='POST')return json(res,music.connect((await readJson(req)).key));
       if(kind==='styles'){
         if(method==='GET'&&!id)return json(res,await styles.list());
-        if(method==='POST'&&id==='learn')return json(res,await styles.learn(await readJson(req)),201);
-        if(method==='POST'&&id==='preferences')return json(res,await capturePreference(styles,store,await readJson(req)),201);
+        if(method==='POST'&&['learn','preferences'].includes(id))throw fault('制作风格目录只读。',410);
         if(method==='GET'&&id&&action&&part==='references'){
           const ref=await styles.getReference(id,action,leaf);if(!ref?.path||ref.verified===false)throw fault('参考文件尚未核验。',404);return await streamFile(req,res,ref.path);
         }
@@ -178,11 +177,11 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       }
       if(kind==='projects'){
         if(!id&&method==='GET')return json(res,store.list());
-        if(!id&&method==='POST'){const b=await readJson(req);if(b.style)b.style=await pinnedStyle(styles,b.style);return json(res,disclose(store.create(b)),201);}
+        if(!id&&method==='POST'){const b=await readJson(req);b.style=await pinnedStyle(styles,b.style);return json(res,disclose(store.create(b)),201);}
         if(!id)throw fault('缺少工程编号。');
         const p=store.get(id);
         if(!action&&method==='GET')return json(res,disclose(p));
-        if(action==='configure'&&method==='POST'){const b=await readJson(req);if(b.changes.style)b.changes.style=await pinnedStyle(styles,b.changes.style);return json(res,disclose(store.configure(id,b.baseRevision,b.changes)));}
+        if(action==='configure'&&method==='POST'){const b=await readJson(req);if('style' in b.changes)b.changes.style=await pinnedStyle(styles,b.changes.style);return json(res,disclose(store.configure(id,b.baseRevision,b.changes)));}
         if(action==='edits'&&method==='POST'){const b=await readJson(req);return json(res,disclose(store.apply(id,b.baseRevision,b.commands,'user')));}
         if(action==='history'&&!part&&method==='GET')return json(res,store.history(id));
         if((action==='undo'||action==='redo')&&!part&&method==='POST'){
@@ -225,14 +224,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
         if(action==='jobs'&&method==='POST'){const {kind,...input}=await readJson(req);return json(res,exposeJob(queue.enqueue(id,kind,input)),202);}
         if(action==='transcript'&&method==='POST'){const b=await readJson(req);if(!(await audio.audioCapabilities()).transcription){const {prepareMedia}=await import('../scripts/prepare-media.mjs');await prepareMedia('speech',{});}return json(res,await director.transcribe(id,{assetId:b.assetId}));}
         if(action==='restore-sentence'&&method==='POST'){const b=await readJson(req);await director.restoreUtterance(id,b);return json(res,disclose(store.get(id)));}
-        if(action==='learn-style'&&method==='POST'){
-          const b=await readJson(req),a=p.assets.find(a=>a.id===b.assetId);
-          if(b.assetId&&!a)throw fault('参考素材不在本工程。');
-          const references=a?[await styles.captureReference(await contained(a.path,store.paths(id).assets),{kind:a.kind,title:a.name})]:[];
-          const observations=a&&b.observation?.trim()?[{dimension:a.kind==='audio'?'audio':'visual',instruction:b.observation.trim(),evidence:'reference',basis:'user_direction'}]:[];
-          const s=await styles.learn({id:'personal-'+randomUUID(),name:b.name,script:b.script||'',observations,references,templateIds:['action-result','step-reveal'].includes(b.templateId)?[b.templateId]:[],knownExceptions:b.exception?.trim()?[String(b.exception).trim().slice(0,2000)]:[]});
-          return json(res,s,201);
-        }
+        if(action==='learn-style'&&method==='POST')throw fault('制作风格目录只读。',410);
         if(action==='scene'&&method==='POST'){const b=await readJson(req);
           if(b.baseRevision!==p.revision)throw fault('时间线已更新，请重新选择入点。',409);
           const style=await styles.get(p.style.id,p.style.version);
@@ -301,7 +293,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   authority='127.0.0.1:'+server.address().port;queue.recover();
   return {url:'http://'+authority+'/open/'+token,store,queue,async close(){if(stopped)return;stopped=true;const done=new Promise(r=>server.close(r));server.closeIdleConnections();const installer=installChild;const settled=installer?once(installer,'close').catch(()=>{}):Promise.resolve();installer?.kill('SIGTERM');await Promise.all([settled,queue.close(),drafts.close()]);await director.close?.();await done;store.close();await release();}};
 }
-async function pinnedStyle(styles,selector){const s=await styles.get(selector.id,selector.version);return {id:s.id,name:s.name,version:s.version};}
+async function pinnedStyle(styles,selector){const pin=selectedStyle(selector);await styles.get(pin.id,pin.version);return pin;}
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
   const channelFile=process.env.VIDEO_STUDIO_RESOURCE_DIR && path.join(process.env.VIDEO_STUDIO_RESOURCE_DIR,'quality-channel');
   const quality=channelFile && !process.env.STUDIO_DATA_ROOT && (await readFile(channelFile,'utf8').catch(()=>'' )).trim()==='quality';

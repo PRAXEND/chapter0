@@ -4,6 +4,7 @@ import {constants,createWriteStream} from 'node:fs';
 import {pipeline} from 'node:stream/promises';
 import {Readable} from 'node:stream';
 import os from 'node:os';
+import {currentStyles} from '../src/style-catalog.mjs';
 import {randomUUID} from 'node:crypto';
 import path from 'node:path';
 import {fileHash} from '../../../plugins/video-studio/workbench/media.mjs';
@@ -12,10 +13,19 @@ import {fileHash} from '../../../plugins/video-studio/workbench/media.mjs';
 // materialize each published object by its exact digest, even on a fresh installation.
 export async function bundleStyles(repo,destination) {
   const git=(args,input)=>execFileSync('git',args,{cwd:repo,input,maxBuffer:32*1024**2});
-  const files=git(['ls-tree','-rz','HEAD','--','user-packs']).toString().split('\0').filter(Boolean).map(row=>{
+  const prefix='user-packs/henry-video-styles/';
+  const index=JSON.parse(git(['show','HEAD:'+prefix+'checksums.json']));
+  const manifest=JSON.parse(git(['show','HEAD:'+prefix+'manifest.json']));
+  const wanted=currentStyles.map(p=>'styles/'+p.id+'-v'+p.version+'.json');
+  if(manifest.id!=='henry-video-styles'||!Array.isArray(manifest.styles)||manifest.styles.length!==wanted.length||
+    wanted.some(name=>!manifest.styles.includes(name))||Object.keys(index.files).some(n=>
+      n.startsWith('styles/')&&!wanted.includes(n)||/^manifest.*\.json$/.test(n)&&n!=='manifest.json'))throw Error('风格发行包目录与当前两套风格不符');
+  const required=new Set(['checksums.json',...Object.keys(index.files)].map(n=>prefix+n));
+  const files=git(['ls-tree','-rz','HEAD','--',prefix]).toString().split('\0').filter(Boolean).map(row=>{
     const [meta,name]=row.split('\t');const [mode,type,oid]=meta.split(' ');if(type!=='blob'||mode==='120000')throw Error('风格包中有无效文件 '+name);
     return {name,oid};
-  });
+  }).filter(file=>required.has(file.name));
+  if(files.length!==required.size)throw Error('风格发行包缺少校验清单中的文件');
   const raw=git(['cat-file','--batch'],files.map(f=>f.oid).join('\n')+'\n');let cursor=0;
   const gitDir=path.resolve(repo,git(['rev-parse','--git-common-dir']).toString().trim());
   const worktrees=process.env.STUDIO_PACK_CHECKOUT?[path.resolve(process.env.STUDIO_PACK_CHECKOUT)]:[];
