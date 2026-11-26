@@ -18,29 +18,28 @@ function waitFor(element,events,ready,signal){
 }
 const timeFrame=(seconds,fps)=>Math.floor(seconds*fps+0.00005);
 export function createTimelinePlayer({project:initial,jobs=[],video,onFrame=()=>{},onState=()=>{},frame:initialFrame=0,request=fetch}){
-  const doc=video.ownerDocument,host=video.parentElement,buffer=doc.createElement('video'),still=doc.createElement('img');
+  const doc=video.ownerDocument,host=video.parentElement,buffer=doc.createElement('video'),images=[doc.createElement('img'),doc.createElement('img')];
   const videos=[video,buffer],saved=videos.map(v=>({controls:v.controls,display:v.style.display,visibility:v.style.visibility}));
   buffer.className=video.className;
   for(const v of videos){v.playsInline=true;v.preload='auto';v.controls=false;}
-  still.alt='当前工程帧';still.draggable=false;
-  Object.assign(still.style,{width:'100%',height:'100%',objectFit:'contain',display:'none'});
-  buffer.style.display='none';host.append(buffer,still);
+  for(const img of images){img.alt='当前工程帧';img.draggable=false;Object.assign(img.style,{width:'100%',height:'100%',objectFit:'contain',display:'none'});}
+  buffer.style.display='none';host.append(buffer,...images);
   let p=null,length=0,position=0,playing=false,status='empty',source=null,error=null,dead=false;
   let epoch=0,task=new AbortController(),front=0,timer=0,tick=null,readyNext=null,ended=false,full=null,jobStamp='';
-  let slots=[null,null],known=new Map(),lastSeekAt=0;
-  const state=()=>({status,playing,source,error,frame:position,length});
+  let slots=[null,null],known=new Map(),lastSeekAt=0,scrubbing=null,displayedFrame=null,visible=null,imageFront=0;
+  const state=()=>({status,playing,source,error,frame:position,displayedFrame,length});
   function notify(next,origin=source,failure=null){status=next;source=origin;error=failure;onState(state());}
   function mark(next){next=Math.min(Math.max(0,next),Math.max(0,length-1));if(position!==next){position=next;onFrame(position);}}
-  function present(index){still.style.display='none';videos.forEach((v,i)=>{v.style.display=i===index?'':'none';v.style.visibility=i===index?'visible':'hidden';});}
-  function blank(){still.style.display='none';for(const v of videos)v.style.visibility='hidden';}
+  function present(index){visible='video';for(const img of images)img.style.display='none';videos.forEach((v,i)=>{v.style.display=i===index?'':'none';v.style.visibility=i===index?'visible':'hidden';});}
+  function blank(){visible=null;displayedFrame=null;for(const img of images)img.style.display='none';for(const v of videos)v.style.visibility='hidden';}
   function stopTick(){if(tick!==null){videos[front].cancelVideoFrameCallback?.(tick);tick=null;}}
   function invalidate(){
-    epoch++;task.abort(aborted());task=new AbortController();clearTimeout(timer);timer=0;
+    scrubbing=null;epoch++;task.abort(aborted());task=new AbortController();clearTimeout(timer);timer=0;
     stopTick();readyNext=null;for(const v of videos)v.pause();
     return epoch;
   }
   const alive=(n)=>!dead&&n===epoch;
-  function handle(e,n){if(!alive(n)||e?.name==='AbortError')return;playing=false;blank();notify('error',null,e?.message||'预览读取失败。');}
+  function handle(e,n){if(!alive(n)||e?.name==='AbortError')return;playing=false;notify('error',source,e?.message||'预览读取失败。');}
   async function describe(f,mode,signal){
     if(matches(full,f))return full;
     const cached=[...known.values()].find(d=>matches(d,f)&&(mode==='still'||d.toFrame-f>=Math.min(2*d.fps,length-f)));if(cached)return cached;
@@ -67,35 +66,59 @@ export function createTimelinePlayer({project:initial,jobs=[],video,onFrame=()=>
     await waitFor(v,['seeked','loadeddata','canplay','timeupdate'],()=>!v.seeking&&v.readyState>=2&&Math.abs(v.currentTime-time)<.5/d.fps,signal);
     return v;
   }
+  function mayPresent(f,n){
+    if(!alive(n))return false;
+    // A same-gesture sample can catch up with the finger. A late sample from the
+    // outgoing direction must not replace a frame which is already closer.
+    return !scrubbing||position===f||displayedFrame==null||Math.abs(position-f)<Math.abs(position-displayedFrame);
+  }
   async function showFrame(f,n){
     const signal=task.signal;lastSeekAt=Date.now();
     try{
-      const d=await describe(f,'still',signal);if(!alive(n))return;
+      const d=await describe(f,'still',signal);if(!mayPresent(f,n))return;
       if(d.source==='frame'){
-        if(still.getAttribute('src')!==d.url)still.src=d.url;
-        await waitFor(still,['load'],()=>still.complete&&still.naturalWidth>0,signal);
-        if(!alive(n))return;
+        const next=visible==='image'?1-imageFront:imageFront,img=images[next];
+        if(img.getAttribute('src')!==d.url)img.src=d.url;
+        await waitFor(img,['load'],()=>img.complete&&img.naturalWidth>0,signal);
+        if(!mayPresent(f,n))return;
         for(const v of videos)v.style.display='none';
-        still.style.display='';
+        imageFront=next;visible='image';
+        images.forEach((x,i)=>{x.style.display=i===imageFront?'':'none';});
       }else{
-        if(slots[1-front]?.url===d.url)front=1-front;
-        await loadVideo(front,d,f,true,signal);if(!alive(n))return;present(front);
+        // Seek offscreen so WebKit cannot paint a black decoder surface or an old
+        // seek while reading a different GOP or moving between windows.
+        const index=visible==='video'?1-front:slots[front]?.url===d.url?front:slots[1-front]?.url===d.url?1-front:front;
+        await loadVideo(index,d,f,true,signal);if(!mayPresent(f,n))return;
+        front=index;present(front);
       }
-      notify('paused',d.source);
-    }catch(e){handle(e,n);}
+      displayedFrame=f;notify(scrubbing?'scrubbing':'paused',d.source);
+    }catch(e){if(!scrubbing||position===f)handle(e,n);}
+  }
+  function pump(gesture){
+    if(scrubbing!==gesture||gesture.busy||timer||gesture.latest==null)return;
+    timer=setTimeout(async()=>{
+      timer=0;if(scrubbing!==gesture)return;
+      const f=gesture.latest;gesture.latest=null;gesture.busy=true;
+      if(f!==displayedFrame)await showFrame(f,gesture.epoch);
+      gesture.busy=false;pump(gesture);
+    },Math.max(0,55-(Date.now()-lastSeekAt)));
   }
   function seek(raw,{scrub=false}={}){
     if(dead||!p||!length)return;
     const f=Math.max(0,Math.min(length-1,Math.round(raw)));if(!Number.isFinite(f))return;
-    if(!playing&&f===position&&(status==='paused'||status==='ended')&&source)return;
-    const n=invalidate();playing=false;ended=false;mark(f);blank();notify('loading',null);
-    if(scrub){timer=setTimeout(()=>{timer=0;showFrame(f,n);},Math.max(0,65-(Date.now()-lastSeekAt)));}
-    else return showFrame(f,n);
+    ended=false;
+    if(scrub){
+      if(!scrubbing){const n=invalidate();playing=false;scrubbing={epoch:n,latest:null,busy:false};notify('scrubbing',source);}
+      mark(f);scrubbing.latest=f;pump(scrubbing);return;
+    }
+    const n=invalidate();playing=false;mark(f);
+    if(f===displayedFrame&&visible){notify('paused',source);return;}
+    notify('loading',source);return showFrame(f,n);
   }
   function updateTime(index,seconds){
     if(!playing||status!=='playing'||index!==front)return;
     const d=slots[index];if(!d)return;
-    mark(Math.min(d.toFrame-1,d.fromFrame+timeFrame(seconds,d.fps)));
+    displayedFrame=Math.min(d.toFrame-1,d.fromFrame+timeFrame(seconds,d.fps));mark(displayedFrame);
   }
   function clock(index,n){
     const v=videos[index];if(!v.requestVideoFrameCallback)return;
@@ -114,7 +137,7 @@ export function createTimelinePlayer({project:initial,jobs=[],video,onFrame=()=>
   async function run(index,d,f,n){
     if(!alive(n)||!playing)return;
     if(front!==index){videos[index].muted=videos[front].muted;videos[index].volume=videos[front].volume;videos[index].playbackRate=videos[front].playbackRate;}
-    front=index;present(front);mark(f);source=d.source;
+    front=index;present(front);displayedFrame=f;mark(f);source=d.source;
     await videos[front].play();
     if(!alive(n)||!playing)return;
     notify('playing',d.source);clock(front,n);
@@ -127,7 +150,7 @@ export function createTimelinePlayer({project:initial,jobs=[],video,onFrame=()=>
     playing=true;notify('loading',source);
     try{
       const d=await describe(f,'play',signal);if(!alive(n))return;
-      const index=slots[1-front]?.url===d.url?1-front:front;
+      const index=slots[front]?.url===d.url?front:slots[1-front]?.url===d.url?1-front:visible==='video'?1-front:front;
       await loadVideo(index,d,f,false,signal);
       await run(index,d,f,n);
     }catch(e){handle(e,n);}
@@ -143,7 +166,7 @@ export function createTimelinePlayer({project:initial,jobs=[],video,onFrame=()=>
     if(dead||!playing||index!==front||status!=='playing')return;
     const n=epoch,d=slots[index];
     stopTick();
-    if(d.toFrame>=length){playing=false;ended=true;mark(length-1);notify('ended',d.source);return;}
+    if(d.toFrame>=length){playing=false;ended=true;displayedFrame=length-1;mark(length-1);notify('ended',d.source);return;}
     notify('buffering',d.source);
     try{
       const result=await (readyNext||prepareNext(d,n).then(value=>({value})));
@@ -163,7 +186,7 @@ export function createTimelinePlayer({project:initial,jobs=[],video,onFrame=()=>
     v.addEventListener('ended',end);v.addEventListener('timeupdate',time);
     return ()=>{v.removeEventListener('ended',end);v.removeEventListener('timeupdate',time);};
   });
-  function clearSources(){for(const v of videos){v.pause();v.removeAttribute('src');v.load();}slots=[null,null];still.removeAttribute('src');known.clear();full=null;}
+  function clearSources(){for(const v of videos){v.pause();v.removeAttribute('src');v.load();}slots=[null,null];for(const img of images)img.removeAttribute('src');known.clear();full=null;}
   function setProject(next,nextJobs=[],frame){
     if(dead)return;
     const stamp=nextJobs.filter(j=>j.status==='done'&&(Array.isArray(j.files)?j.files.includes('video'):j.files?.video)).map(j=>j.id).join('/');
@@ -177,10 +200,10 @@ export function createTimelinePlayer({project:initial,jobs=[],video,onFrame=()=>
   }
   function destroy(){
     if(dead)return;
-    dead=true;invalidate();listeners.forEach(fn=>fn());clearSources();buffer.remove();still.remove();
+    dead=true;invalidate();listeners.forEach(fn=>fn());clearSources();buffer.remove();for(const img of images)img.remove();
     Object.assign(video.style,{display:saved[0].display,visibility:saved[0].visibility});video.controls=saved[0].controls;
   }
   setProject(initial,jobs,initialFrame);
   return {setProject,seek,play,pause,toggle:()=>playing?pause():play(),step:delta=>seek(position+delta),destroy,
-    get frame(){return position;},get length(){return length;},get playing(){return playing;}};
+    get frame(){return position;},get displayedFrame(){return displayedFrame;},get length(){return length;},get playing(){return playing;}};
 }

@@ -82,8 +82,8 @@ Noto Sans SC 使用 Google Fonts 固定发行的原始可变 TTF，文件 17,772
 
 监视器使用工程整数帧作为播放头。工作台先匹配冻结工程的画幅、有效轨道、源文件指纹、字幕显示方式与竖版标题，再核对已导出 MP4 的实际尺寸、帧数、时长和文件指纹。新版本只改锁定或导入未上轨素材时可复用原成片。修订后旧预览地址返回 HTTP 409。
 
-没有相符的成片时，暂停或拖动复用已缓存区间，或在本机通过同一套取景、叠化、ASS、JSX 和竖版合成渲染所选的单张 JPEG。连续播放使用带混音的六秒内分段，双播放器预载下一段。接近冷缓存分段末尾时，直接从当前帧创建播放段。机器负载或第一次绘制复杂 JSX 可能带来等待，已有匹配导出时可在同一媒体文件内定位。
+没有相符的成片时，暂停或拖动复用已缓存区间，或在本机通过同一套取景、叠化、ASS、JSX 和竖版合成渲染所选的单张 JPEG。连续拖动时分别记录指针目标与当前可见帧，只执行一个解码并保留最新待定位帧。两套画面缓冲在新帧就绪后交换，换版本立即清空。连续播放使用带混音的六秒内分段，双播放器预载下一段。接近冷缓存分段末尾时，直接从当前帧创建播放段。机器负载或第一次绘制复杂 JSX 可能带来等待，已有匹配导出时可在同一媒体文件内定位。
 
 服务入口 `GET /api/projects/:id/playback?revision=N&frame=F&mode=still|play` 返回 `source, fromFrame, toFrame, frame, fps, length, url, revision`。客户端按半开区间解释端点。 `createTimelinePlayer({project,jobs,video,onFrame,onState,frame})` 返回 `seek(frame,{scrub})`、`step(delta)`、`play()`、`pause()`、`toggle()`、`setProject()`、`destroy()`。页面退出、换工程或替换视频节点时调用 `destroy()`，取消当前请求并停止两个媒体元素。
 
-在 `apps/studio` 下运行 `node --test test/timeline-playback.test.mjs` 验证版本、指纹、跳帧、取消及跨段时钟。Mac 上可运行 `node scripts/verify-timeline-player.mjs /本机/工程/project.vstudio.json /本机/已有成片.mp4`，在独立临时资料库复核真实 WKWebView 的本机点击、连续播放及按帧回查。提供同一工程的 12 秒以上素材与成片；该命令只读取原件，并在临时目录生成播放代理。
+在 `apps/studio` 下运行 `node --test test/timeline-playback.test.mjs` 验证版本、指纹、跳帧、取消及跨段时钟。Mac 上可运行 `node scripts/verify-timeline-player.mjs /本机/工程/project.vstudio.json /本机/已有成片.mp4`，在独立临时资料库复核真实 WKWebView 的本机点击、连续播放及按帧回查。提供同一工程的 12 秒以上素材与成片。稀疏开发检出若使用外置风格参考，可通过 `VIDEO_STUDIO_BUILTIN_PACKS` 指向安装包中的 `Resources/user-packs`。命令只读取原件，并在临时目录生成播放代理。

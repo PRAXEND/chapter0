@@ -115,12 +115,39 @@ test('controller uses project frame time through a window seam, ignores stale dr
   try{
     await wait(()=>states.at(-1)?.status==='paused');
     const outdated=player.seek(19);await player.seek(148);await outdated;
-    assert.equal(states.at(-1).frame,148);assert.equal(children[2].src,'/media-2-148.jpg');
+    assert.equal(states.at(-1).frame,148);assert.equal(children.find(c=>c.tag==='img'&&c.style.display!=='none').src,'/media-2-148.jpg');
     await player.play();await wait(()=>calls.some(c=>c.f===150));assert.equal(player.playing,true);
     children[0].dispatchEvent(new Event('ended'));await wait(()=>states.at(-1)?.status==='playing'&&states.at(-1).frame===150);
     children[1].currentTime=.2;children[1].dispatchEvent(new Event('timeupdate'));assert.equal(player.frame,155);
     await player.pause();await player.step(-1);assert.equal(player.frame,154);
     player.setProject({...p,revision:3});await wait(()=>states.at(-1)?.source==='frame'&&states.at(-1).status==='paused');
-    assert.equal(children[2].src,'/media-3-154.jpg');assert.ok(framesSeen.includes(150));
+    assert.equal(children.find(c=>c.tag==='img'&&c.style.display!=='none').src,'/media-3-154.jpg');assert.ok(framesSeen.includes(150));
+  }finally{player.destroy();}
+});
+test('slow cold scrubbing shows intermediate samples without a blank, drops reversed targets and clears immediately on an edit',async()=>{
+  const {video,children}=testVideoHost();
+  const p={id:'scrub',revision:1,profile,timeline:{clips:[{start:0,duration:frames}]}};
+  const samples=[],started=[],states=[];
+  const request=async raw=>{
+    const q=new URL(raw,'http://localhost').searchParams,f=Number(q.get('frame')),revision=Number(q.get('revision'));started.push(f);
+    await delay(70);
+    return {ok:true,json:async()=>({source:'frame',url:'/still-'+revision+'-'+f+'.jpg',fromFrame:f,toFrame:f+1,frame:f,revision,fps,length:frames})};
+  };
+  const player=createTimelinePlayer({project:p,video,request,onState:s=>{
+    states.push(s);
+    if(s.status==='scrubbing'&&s.displayedFrame!=null&&samples.at(-1)!==s.displayedFrame)samples.push(s.displayedFrame);
+  }}),shown=()=>children.find(c=>c.tag==='img'&&c.style.display!=='none'&&c.naturalWidth>0);
+  const wait=async done=>{for(let i=0;i<130&&!done();i++)await delay(3);assert.ok(done());};
+  try{
+    await wait(()=>states.at(-1)?.status==='paused');
+    for(let f=10;f<=80;f+=2){player.seek(f,{scrub:true});assert.ok(shown());await delay(9);}
+    await player.seek(81);assert.equal(player.displayedFrame,81);
+    assert.ok(samples.filter(f=>f>0&&f<80).length>=3,JSON.stringify(samples));
+    assert.ok(started.length<16,'queued every transient target');
+    player.seek(140,{scrub:true});await wait(()=>started.includes(140));
+    player.seek(48,{scrub:true});await wait(()=>player.displayedFrame===48);
+    assert.ok(!samples.includes(140),'reversed stale sample was painted');
+    player.setProject({...p,revision:2});assert.equal(player.displayedFrame,null);assert.equal(shown(),undefined);
+    await wait(()=>states.at(-1)?.status==='paused');assert.equal(shown().src,'/still-2-48.jpg');
   }finally{player.destroy();}
 });

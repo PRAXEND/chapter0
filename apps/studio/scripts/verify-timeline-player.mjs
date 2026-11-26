@@ -18,7 +18,7 @@ const [projectFile,existingCut]=process.argv.slice(2);
 if(!projectFile||!existingCut)throw Error('用法：node scripts/verify-timeline-player.mjs 原工程.vstudio.json 对应的成片.mp4');
 const exec=promisify(execFile);
 const root=await mkdtemp(path.join(os.tmpdir(),'vs-player-webkit-'));
-const app=await startStudio({root});
+let app=await startStudio({root});
 try{
   const p=await app.store.importSnapshot(path.resolve(projectFile),createStyleLibrary(root));
   const count=timelineFrames(p),fps=p.profile.fps,info=await probeMedia(path.resolve(existingCut));
@@ -69,13 +69,57 @@ try{
   await mkdir(dir,{recursive:true});const cut=path.join(dir,'video.mp4');await copyFile(existingCut,cut,constants.COPYFILE_FICLONE);
   app.store.saveJob({id:'acceptance-export',projectId:p.id,kind:'render',status:'done',revision:p.revision,snapshot:p,
     files:{video:cut},qa:{artifactSha256:await fileHash(cut),candidatePlayable:true}});
+  // A second launch uses the completed cut and observes the actual visible WK video
+  // frame during a sustained drag. Replacing the project version must clear both buffers.
+  await app.close();app=await startStudio({root});
+  await writeFile(script,`
+    const report=v=>webkit.messageHandlers.transport.postMessage(v);
+    try{
+      const {createTimelinePlayer}=await import('/timeline-player.js');
+      const p=await (await fetch('/api/projects/'+projectId)).json(),box=document.createElement('div'),video=document.createElement('video');
+      Object.assign(box.style,{position:'fixed',inset:'0',zIndex:9999,background:'#111'});box.append(video);document.body.append(box);
+      let state={},player,samples=[],wrong=[],blankTicks=0,blackPictureTicks=0,watch=false; const canvas=document.createElement('canvas');canvas.width=8;canvas.height=6;const ctx=canvas.getContext('2d',{willReadFrequently:true});
+      const isVisible=e=>getComputedStyle(e).display!=='none'&&getComputedStyle(e).visibility!=='hidden'&&(e.tagName==='VIDEO'?e.readyState>=2:e.naturalWidth>0);
+      const visible=()=>[...box.querySelectorAll('video,img')].find(isVisible);
+      const inspect=()=>{if(!watch)return;const front=visible();if(!front)blankTicks++;else{ctx.drawImage(front,0,0,8,6);const rgba=ctx.getImageData(0,0,8,6).data;if(!rgba.some((v,i)=>i%4!==3&&v>14))blackPictureTicks++;}requestAnimationFrame(inspect);};
+      player=createTimelinePlayer({project:p,video,onState:s=>{
+        state=s;
+        if(watch&&s.status==='scrubbing'&&s.displayedFrame!=null){
+          const active=visible();
+          if(active?.tagName==='VIDEO'){
+            const actual=Math.floor(active.currentTime*p.profile.fps+0.00005);
+            if(actual!==s.displayedFrame)wrong.push([s.displayedFrame,actual]);
+            if(samples.at(-1)!==actual)samples.push(actual);
+          }
+        }
+      }});
+      const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+      const wait=async fn=>{const start=performance.now();while(!fn()){if(state.status==='error'||performance.now()-start>10000)throw Error(state.error||'预览未就绪');await sleep(12);}};
+      await wait(()=>state.status==='paused'&&state.source==='cut');
+      watch=true;requestAnimationFrame(inspect);
+      for(let f=12;f<=116;f+=2){player.seek(f,{scrub:true});await sleep(18);}
+      await player.seek(118);watch=false;
+      if(state.displayedFrame!==118||samples.filter(f=>f>12&&f<116).length<3||blankTicks||wrong.length)throw Error(JSON.stringify({samples,blankTicks,wrong,state}));
+      const edited=await (await fetch('/api/projects/'+projectId+'/edits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({baseRevision:p.revision,
+        commands:[{op:'add',clip:{id:'drag-revision-check',track:'caption',text:'编辑后的帧',start:115,duration:11}}]})})).json();
+      player.setProject(edited);
+      if(visible()||player.displayedFrame!==null)throw Error('旧版本画面仍然可见');
+      await wait(()=>state.status==='paused'&&state.source==='frame');
+      player.destroy();report({samples,blankTicks,blackPictureTicks,wrongFrames:wrong.length,landed:118,revisionCleared:true});
+    }catch(e){report({error:String(e),stack:e.stack});}
+  `.replaceAll('projectId',JSON.stringify(p.id)));
+  const repeated=await exec(helper,[app.url,script],{timeout:35000}).catch(e=>{throw Error(e.stdout||e.stderr||'系统 WebView 未完成拖动验证');});
+  const drag=JSON.parse(repeated.stdout);
+  assert.equal(drag.blankTicks,0);
   const {timelinePlayback}=await import('../src/timeline-playback.mjs'),{draftPreviews}=await import('../src/draft-preview.mjs'),media=await import('../src/media.mjs');
   const drafts=draftPreviews(app.store,media),playback=timelinePlayback(app.store,media,drafts);
   try{
-    const reused=await playback.describe(p,{revision:p.revision,frame:at,mode:'play'});
-    assert.equal(reused.source,'cut');assert.equal(await playback.file(p,reused.name,{revision:p.revision,identity:new URL(reused.url,'http://localhost').searchParams.get('identity')}),await realpath(cut));
-    const edit=app.store.apply(p.id,p.revision,[{op:'add',clip:{id:'only-in-this-verification',track:'caption',text:'帧定位',start:at,duration:9}}]);
+    const pinned=app.store.get(p.id);
+    const clean=app.store.apply(p.id,pinned.revision,[{op:'remove',id:'drag-revision-check'}]);
+    const reused=await playback.describe(clean,{revision:clean.revision,frame:at,mode:'play'});
+    assert.equal(reused.source,'cut');assert.equal(await playback.file(clean,reused.name,{revision:clean.revision,identity:new URL(reused.url,'http://localhost').searchParams.get('identity')}),await realpath(cut));
+    const edit=app.store.apply(p.id,clean.revision,[{op:'add',clip:{id:'only-in-this-verification',track:'caption',text:'帧定位',start:at,duration:9}}]);
     const fresh=await playback.describe(edit,{revision:edit.revision,frame:at,mode:'still'});assert.equal(fresh.source,'frame');
-    console.log(JSON.stringify({profile:p.profile,frames:count,scrubFrame:at,meanRGBError:Number(meanError.toFixed(3)),fullCut:reused.source,afterEdit:fresh.source,browser},null,2));
+    console.log(JSON.stringify({profile:p.profile,frames:count,scrubFrame:at,meanRGBError:Number(meanError.toFixed(3)),fullCut:reused.source,afterEdit:fresh.source,browser,drag},null,2));
   }finally{await drafts.close();}
 }finally{await app.close();await rm(root,{recursive:true,force:true});}
