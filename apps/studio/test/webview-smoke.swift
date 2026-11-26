@@ -52,7 +52,45 @@ final class Smoke: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
             click('[data-act="tab"][data-id="settings"]');await wait(()=>document.querySelector('#voice-mode'));
             document.querySelector('#set-title').value='已保存的剪辑工程';click('[data-act="settings-save"]');
             await wait(()=>document.querySelector('#current-title').textContent==='已保存的剪辑工程');
-            click('[data-act="tab"][data-id="edit"]');await wait(()=>document.querySelector('.timeline'));window.webkit.messageHandlers.proof.postMessage('ok');
+            click('[data-act="tab"][data-id="edit"]');await wait(()=>document.querySelector('.timeline'));
+            const project=async()=>(await fetch('/api/projects/'+p.id)).json();
+            const before=await project();
+            const created=await fetch('/api/projects/'+p.id+'/edits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({baseRevision:before.revision,commands:[
+              {op:'add',clip:{id:'drag-me',track:'caption',text:'拖动样本',start:150,duration:40}},
+              {op:'add',clip:{id:'snap-stop',track:'caption',text:'吸附切点',start:230,duration:20}}]})});
+            if(!created.ok)throw Error(await created.text());
+            click('#projects button');await wait(()=>document.querySelector('[data-clip="drag-me"]'));
+            const sample=()=>document.querySelector('[data-clip="drag-me"]');
+            const getClip=async()=>(await project()).timeline.clips.find(c=>c.id==='drag-me');
+            const gesture=async(node,x,y,to,check)=>{
+              const fire=(target,type,at)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,button:0,buttons:type==='pointerup'?0:1,pointerId:8,clientX:at,clientY:y}));
+              fire(node,'pointerdown',x);fire(node,'pointermove',to);await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+              if(check)await check();fire(node,'pointerup',to);
+            };
+            const ruler=document.querySelector('.tl-ruler'),edge=ruler.getBoundingClientRect(),scale=parseFloat(sample().style.width)/40;
+            await gesture(ruler,edge.left+60*scale,edge.top+5,edge.left+170*scale);
+            await wait(()=>document.querySelector('.tl-time').value==='00:00:05:20');
+            const rect=sample().getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
+            await gesture(sample(),x,y,x+39*scale,async()=>{
+              if(Math.abs(parseFloat(sample().style.left)-190*scale)>1||document.querySelector('.tl-guide').hidden)throw Error('拖动时没有实时吸附');
+              if((await getClip()).start!==150)throw Error('拖动过程中意外写入工程');
+            });
+            await wait(()=>document.querySelector('.timeline-header small')?.textContent==='v'+(before.revision+2));
+            if((await getClip()).start!==190)throw Error('片尾未对齐下一片段');
+            click('[data-tl="snap"]');
+            const handle=sample().querySelector('[data-edge="start"]'),box=handle.getBoundingClientRect();
+            await gesture(handle,box.left+2,box.top+8,box.left+2+5*scale);
+            await wait(()=>document.querySelector('.timeline-header small')?.textContent==='v'+(before.revision+3));
+            const trim=await getClip();if(trim.start!==195||trim.duration!==35)throw Error('左侧修剪没有保持出点');
+            await wait(()=>!document.querySelector('[data-tl="undo"]').disabled);click('[data-tl="undo"]');
+            await wait(()=>document.querySelector('.timeline-header small')?.textContent==='v'+(before.revision+4));if((await getClip()).duration!==40)throw Error('撤销失败');
+            await wait(()=>!document.querySelector('[data-tl="redo"]').disabled);click('[data-tl="redo"]');
+            await wait(()=>document.querySelector('.timeline-header small')?.textContent==='v'+(before.revision+5));if((await getClip()).duration!==35)throw Error('重做失败');
+            const tc=document.querySelector('.tl-time');tc.focus();tc.value='210';tc.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+            await wait(()=>document.querySelector('.tl-time').value==='00:00:07:00');
+            click('[data-tl="split"]');await wait(()=>document.querySelector('.timeline-header small')?.textContent==='v'+(before.revision+6));
+            if((await getClip()).duration!==15)throw Error('分割未使用全片播放头');
+            window.webkit.messageHandlers.proof.postMessage('ok');
           }catch(e){window.webkit.messageHandlers.proof.postMessage(String(e));}
         })()
         """#
@@ -62,7 +100,7 @@ final class Smoke: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         guard let status=message.body as? String,status=="ok" else {fputs("WKWebView: \(message.body)\n",stderr);exit(3)}
         view.takeSnapshot(with: nil) { image,error in
             guard let image=image,let tiff=image.tiffRepresentation,let bitmap=NSBitmapImageRep(data:tiff),let png=bitmap.representation(using:.png,properties:[:]) else {exit(4)}
-            do{try png.write(to:URL(fileURLWithPath:self.output));print("WKWebView: create, navigate, edit, lock, JSX text and cue slider, settings, snapshot passed");exit(0)}catch{exit(5)}
+            do{try png.write(to:URL(fileURLWithPath:self.output));print("WKWebView: create, edit, lock, JSX, snap drag, trim, undo/redo, timecode and split passed");exit(0)}catch{exit(5)}
         }
     }
 }

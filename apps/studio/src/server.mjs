@@ -31,6 +31,8 @@ import {reviewProject} from './review.mjs';
 import {streamFile,saveUpload,downloadPublic,contained} from '../../../plugins/video-studio/workbench/media.mjs';
 
 const here=path.dirname(fileURLToPath(import.meta.url));
+import {trackArtwork} from './track-art.mjs';
+
 const web=path.resolve(here,'../www');
 const json=(res,obj,status=200)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(obj));};
 async function readJson(req){
@@ -57,6 +59,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   const release=owner?await nativeOwner(root):async()=>{};
   const store=createStore(root,{probeMedia:dependencies.probeMedia||media.probeMedia});
   const styles=dependencies.styles||createStyleLibrary(root);
+  const artwork=trackArtwork();
   const shortlist=sourceSelection(store,dependencies.sourceSelection);
   const drafts=draftPreviews(store,dependencies.media||media);
   const director=dependencies.director||createDirector({store,styleLibrary:styles,media,audio,drafts});
@@ -107,8 +110,8 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       }
       if(parts[0]!=='api'){
         const name=url.pathname==='/'?'index.html':url.pathname.slice(1);
-        if(!['index.html','app.js','motion-clock.js','studio.css'].includes(name)||method!=='GET')throw fault('页面不存在。',404);
-        res.setHeader('Content-Type',{'index.html':'text/html; charset=utf-8','motion-clock.js':'text/javascript; charset=utf-8','app.js':'text/javascript; charset=utf-8','studio.css':'text/css; charset=utf-8'}[name]);
+        if(!['index.html','app.js','motion-clock.js','timeline.js','studio.css','timeline.css'].includes(name)||method!=='GET')throw fault('页面不存在。',404);
+        res.setHeader('Content-Type',{'index.html':'text/html; charset=utf-8','motion-clock.js':'text/javascript; charset=utf-8','app.js':'text/javascript; charset=utf-8','timeline.js':'text/javascript; charset=utf-8','timeline.css':'text/css; charset=utf-8','studio.css':'text/css; charset=utf-8'}[name]);
         res.setHeader('Cache-Control','no-store');return res.end(await readFile(path.join(web,name)));
       }
       const [,kind,id,action,part,leaf]=parts;
@@ -223,6 +226,11 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
         if(action==='cloud-music'&&method==='POST')return json(res,await music.compose(id,await readJson(req)),201);
         if(action==='music-receipt'&&part&&method==='GET')return json(res,await music.check(id,part));
         if(action==='reconcile-music'&&method==='POST')return json(res,disclose(music.reconcile(id,await readJson(req))));
+        if(action==='assets'&&part&&['thumb','waveform'].includes(leaf)&&method==='GET'){
+          const asset=p.assets.find(a=>a.id===part);if(!asset)throw fault('素材不存在。',404);
+          const file=await artwork(store.paths(id).cache,asset,leaf,Number(url.searchParams.get('ms')||0));
+          return await streamFile(req,res,file);
+        }
         if(action==='assets'&&part&&['GET','HEAD'].includes(method)){
           const a=p.assets.find(a=>a.id===part);if(!a)throw fault('素材不存在。',404);return await streamFile(req,res,await contained(a.path,store.paths(id).assets));
         }
