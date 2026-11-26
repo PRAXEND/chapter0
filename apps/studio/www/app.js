@@ -15,9 +15,9 @@ const btn=(act,label,cls='',id='')=>`<button type="button" data-act="${esc(act)}
 const field=(label,control)=>`<label class="field">${label}${control}</label>`;
 const input=(id,value='',kind='text',extra='')=>`<input id="${id}" type="${kind}" value="${esc(value)}" ${extra}>`;
 const area=(id,value='',rows=3,ph='')=>`<textarea id="${id}" rows="${rows}" placeholder="${esc(ph)}">${esc(value)}</textarea>`;
-const select=(id,rows,chosen)=>`<select id="${id}">${rows.map(([v,l,unavailable])=>`<option ${unavailable?'disabled':''} value="${esc(v)}" ${String(v)===String(chosen)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+const select=(id,rows,chosen,label)=>`<select id="${id}"${label?' aria-label="'+esc(label)+'"':''}>${rows.map(([v,l,unavailable])=>`<option ${unavailable?'disabled':''} value="${esc(v)}" ${String(v)===String(chosen)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
 const check=(id,label,selected)=>`<label class="check"><input id="${id}" type="checkbox" ${selected?'checked':''}>${esc(label)}</label>`;
-const fileInput=(id,multiple=true)=>`<input id="${id}" type="file" accept="video/*,audio/*,image/*" ${multiple?'multiple':''}>`;
+const fileInput=(id,multiple=true)=>`<input id="${id}" type="file" ${id==='asset-upload'?'aria-label="选择本地素材"':''} accept="video/*,audio/*,image/*" ${multiple?'multiple':''}>`;
 const val=id=>el(id)?.value||'';
 const tracks={video:'画面',narration:'人声',music:'配乐',caption:'字幕',graphic:'动效'};
 const modeLabels={topic:'从选题开始',script:'脚本与素材',interview:'精剪原片'};
@@ -270,8 +270,8 @@ function drawEdit(){
   <div id="activity">${activity(active||s.jobs[0])}</div></aside>
   <section class="timeline" aria-label="工程时间线"></section>
   <div class="insert-tools"><details><summary>插入素材、字幕与动效</summary><div class="actions">
-  ${select('insert-asset',p.assets.map(a=>[a.id,a.name]))}${btn('insert-asset','在播放头插入素材')}
-  ${btn('insert-caption','插入字幕')}${select('new-component',[...s.components].sort((a,b)=>Number(b.styleId===p.style?.id)-Number(a.styleId===p.style?.id)).map(c=>[c.id,(c.styleId==='henry-hot-news'?'热点 · ':'科普 · ')+c.name]))}${btn('add-component','插入动效')}
+  ${select('insert-asset',p.assets.map(a=>[a.id,a.name]),undefined,'选择要插入的素材')}${btn('insert-asset','在播放头插入素材')}
+  ${btn('insert-caption','插入字幕')}${select('new-component',[...s.components].sort((a,b)=>Number(b.styleId===p.style?.id)-Number(a.styleId===p.style?.id)).map(c=>[c.id,(c.styleId==='henry-hot-news'?'热点 · ':'科普 · ')+c.name]),undefined,'选择动效组件')}${btn('add-component','插入动效')}
   </div></details>${clips.length?field('选中片段',select('clip-picker',[['','选择时间线片段'],...clips.map(c=>[c.id,tracks[c.track]+' · '+clock(c.start/fps)+' · '+clipTitle(c)])],s.clip)):''}</div>
   <div id="inspect">${inspector(chosen)}</div></div>`;
   const onError=e=>{notice(e?.message||String(e));if(e?.status===409&&s.p?.id===p.id)reload().catch(e=>notice(e.message));};
