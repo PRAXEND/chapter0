@@ -181,7 +181,7 @@ function mountAdvanced(p,clip){
   if(!clip)return;
   advanced=mountClipInspector({element:el('clip-automation'),project:p,clip,frame:playhead(),
     commit:commands=>{if(s.p?.id!==p.id||s.clip!==clip.id)throw Error('选区已改变，请重新选择要编辑的片段。');return edit(commands,p.revision);},
-    seek:frame=>transport?.seek(frame)});
+    seek:frame=>transport?.seek(frame),getFrameSurface:f=>transport?.currentImage(f)});
 }
 function drawEdit(){
   const p=s.p,clips=p.timeline.clips,fps=p.profile.fps;
@@ -211,6 +211,7 @@ function drawEdit(){
   transport=createTimelinePlayer({project:p,jobs:s.jobs,video:el('player'),frame:editorView.frame,
     onFrame:f=>{timeline?.frame(f,true);advanced?.setFrame(f);},onState:state=>{
       timeline?.setPlaying(state.playing);
+      if(state.displayedFrame!=null)advanced?.setFrame(state.displayedFrame);
       const node=el('monitor-status');
       if(node)node.textContent=state.error?.message||state.error||(state.status==='loading'?'正在准备当前帧…':state.status==='buffering'?'正在准备下一段…':clips.length?'工程预览 · v'+p.revision:'工程预览');
     }});
