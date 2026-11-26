@@ -37,7 +37,11 @@ final class Smoke: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
             for(const topic of versions){click('#guide-nav [data-topic="'+topic+'"]');await wait(()=>document.querySelector('#guide-body img')?.naturalWidth>0);}
             const search=document.querySelector('#guide-search');search.value='吸附';search.dispatchEvent(new Event('input',{bubbles:true}));click('.guide-hit');
             await wait(()=>document.querySelector('.guide-match'));
-            click('.guide-inventory');await wait(()=>document.querySelector('.guide-locate'));click('#guide-close');
+            click('.guide-inventory');await wait(()=>document.querySelector('.guide-locate'));
+            const target=[...document.querySelectorAll('#guide-body dt')].find(row=>row.firstChild.textContent.includes('最短片长'));
+            if(!target)throw Error('当前控件列表缺少最短片长');
+            target.querySelector('.guide-locate').click();
+            await wait(()=>!document.querySelector('#guide-dialog').open&&document.activeElement.id==='new-min'&&document.querySelector('#new-min').closest('details').open);
             if(brief.value!=='一段保留同期声的本机剪辑')throw Error('查看帮助后制作要求发生变化');
             click('[data-act="create"]');
             await wait(()=>document.querySelector('[data-act="tab"][data-id="assets"]'));click('[data-act="tab"][data-id="assets"]');
