@@ -20,13 +20,15 @@ test('closing the app stops the preparation worker and releases its cache lock',
   const dir = await mkdtemp(path.join(os.tmpdir(), 'studio-stop-install-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const fake = path.join(dir, 'python');
-  await writeFile(fake, '#!' + process.execPath + '\n' +
+  const worker = path.join(dir, 'worker.cjs');
+  await writeFile(fake, '#!/bin/sh\nexec "$STUDIO_TEST_NODE" "$STUDIO_TEST_WORKER" "$@"\n', { mode: 0o755 });
+  await writeFile(worker,
     'const fs=require("node:fs"); process.on("SIGTERM",()=>{fs.writeFileSync(process.env.STAGE_MARKER,"stopped");process.exit(0)});' +
-    'fs.writeFileSync(process.env.STAGE_MARKER,String(process.pid));setInterval(()=>{},1000);', { mode: 0o755 });
+    'fs.writeFileSync(process.env.STAGE_MARKER,String(process.pid));setInterval(()=>{},1000);');
   for (const [interrupt, expected] of [['SIGTERM', 143], ['SIGINT', 130]]) {
     const marker = path.join(dir, interrupt);
     const cli = spawn(process.execPath, [fileURLToPath(new URL('../scripts/prepare-media.mjs', import.meta.url)), 'clone'], {
-      env: { ...process.env, VIDEO_STUDIO_MEDIA_HOME: dir, VIDEO_STUDIO_MLX_PYTHON: fake, STAGE_MARKER: marker }, stdio: 'ignore'
+      env: { ...process.env, VIDEO_STUDIO_MEDIA_HOME: dir, VIDEO_STUDIO_MLX_PYTHON: fake, STAGE_MARKER: marker, STUDIO_TEST_NODE: process.execPath, STUDIO_TEST_WORKER: worker }, stdio: 'ignore'
     });
     const closed = once(cli, 'close');
     try {
