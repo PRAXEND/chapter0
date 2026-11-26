@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'plugins/video-studio/scripts'))
 import user_packs
 
-PACKS = ('shawn-robotics', 'shawn-style-fusion', 'henry-video-styles')
+PACKS = ('henry-video-styles',)
 
 
 def expected(root=ROOT):

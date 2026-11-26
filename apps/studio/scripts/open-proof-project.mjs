@@ -10,7 +10,7 @@ try {
   const projects=store.list().map(row=>store.get(row.id));
   let p=projects.find(row=>row.mediaProof===sourceRoot)||projects.find(row=>row.title===seed.title&&!row.timeline.clips.length&&row.assets.some(a=>a.sha256===seed.assets[0].sha256));
   if(!p || !p.timeline.clips.length){
-    p ||= store.create({mode:'script',title:seed.title,brief:seed.brief,profile:seed.profile,style:{id:'neutral',version:1},settings:{voiceMode:'clone',voiceConsent:true,publishPackage:true}});
+    p ||= store.create({mode:'script',title:seed.title,brief:seed.brief,profile:seed.profile,settings:{voiceSelection:'user',voiceMode:'clone',voiceConsent:true,publishPackage:true}});
     store.setMeta(p.id,{mediaProof:sourceRoot});
     const ids=new Map();
     for(const a of seed.assets){

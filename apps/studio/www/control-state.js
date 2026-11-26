@@ -179,8 +179,6 @@ export function syncControls({doc,project:p,jobs=[],selected,gate,scope,files=[]
     'pick-assets':!by('source-choices')?.querySelector('input[id^="pick-"]:checked')?'先勾选要导入的素材。':'',
     'pin-style':p?.style?.id===style?.id&&p?.style?.version===style?.version?'工程已采用此版本。':'',
     'add-scene':!style||style.id!==p?.style?.id||style.version!==p.style.version?'先将这个风格版本用于工程。':!v('scene-template')?'该风格没有可加入的场景模板。':!(Number(v('scene-duration'))>0)||Number(v('scene-action'))<0||Number(v('scene-action'))>=Number(v('scene-duration'))?'事件落点须在场景时长内。':'',
-    'learn':!v('learn-name')||!v('learn-script')&&!v('learn-media')?'填写风格名称，并提供脚本、参考素材，或同时提供两者。':'',
-    'preference':!v('preference')?'写下以后也要保留的调整。':'',
     'insert-asset':!v('insert-asset')?'先导入或选择一份素材。':'',
     'add-component':!v('new-component')?'先选择动效组件。':'',
     'cloud-key':!v('cloud-key')?'输入本次连接的密钥。':''

@@ -17,7 +17,10 @@ export async function portableProject(project,target,styles) {
       a.path='assets/'+name;
     }
     delete out.threadId;delete out.directorThreadStore;delete out.previousDirectorThreads;delete out.directorState;
-    if(styles&&out.style)out.style={...out.style,...await styles.exportPortable(out.style,temp)};
+    if(styles&&out.style){
+      const {manifest:oldManifest,...pin}=out.style;
+      out.style={...pin,...await styles.exportPortable(out.style,temp,{projectId:project.id})};
+    }
     await writeFile(path.join(temp,'project.vstudio.json'),JSON.stringify(out,null,2),{mode:0o600});
     try{await rename(temp,target);}catch(error){if(!['ENOTEMPTY','EEXIST'].includes(error.code))throw error;}
     return path.join(target,'project.vstudio.json');

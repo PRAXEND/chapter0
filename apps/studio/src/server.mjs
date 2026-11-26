@@ -1,3 +1,4 @@
+import {sourceAt} from '../www/clip-automation.js';
 import {v8Readiness} from './v8-readiness.mjs';
 import {sourceSelection} from './source-selection.mjs';
 import {compareCompositions} from './composite-parity.mjs';
@@ -19,7 +20,7 @@ import {createStore,defaultRoot,fault} from './project.mjs';
 import {createQueue} from './jobs.mjs';
 import {timelinePlayback} from './timeline-playback.mjs';
 import {draftPreviews} from './draft-preview.mjs';
-import {capturePreference} from './style-preference.mjs';
+import {selectedStyle} from './style-catalog.mjs';
 import {compileSceneWithSound} from './scene-sound.mjs';
 import {legacyLibrary} from './library.mjs';
 import {createMusic} from './music.mjs';
@@ -112,8 +113,10 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       }
       if(parts[0]!=='api'){
         const name=url.pathname==='/'?'index.html':url.pathname.slice(1);
-        if(!['index.html','app.js','motion-clock.js','timeline-player.js','timeline.js','studio.css','timeline.css'].includes(name)||method!=='GET')throw fault('页面不存在。',404);
-        res.setHeader('Content-Type',{'index.html':'text/html; charset=utf-8','motion-clock.js':'text/javascript; charset=utf-8','app.js':'text/javascript; charset=utf-8','timeline-player.js':'text/javascript; charset=utf-8','timeline.js':'text/javascript; charset=utf-8','timeline.css':'text/css; charset=utf-8','studio.css':'text/css; charset=utf-8'}[name]);
+        const pageFiles=['index.html','app.js','motion-clock.js','timeline-player.js','timeline.js','studio.css','timeline.css','workbench.css','guide.js','guide-data.js','guide-controls.js','control-state.js','clip-automation.js','advanced-inspector.js','advanced-inspector.css'];
+        const helpImage=/^guide\/(new|edit|inspector|assets|style|settings|deliver|tools|blind)\.jpg$/.test(name);
+        if((!pageFiles.includes(name)&&!helpImage)||method!=='GET')throw fault('页面不存在。',404);
+        res.setHeader('Content-Type',helpImage?'image/jpeg':name.endsWith('.css')?'text/css; charset=utf-8':name.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8');
         res.setHeader('Cache-Control','no-store');return res.end(await readFile(path.join(web,name)));
       }
       const [,kind,id,action,part,leaf]=parts;
@@ -138,8 +141,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       if(kind==='music'&&id==='connection'&&method==='POST')return json(res,music.connect((await readJson(req)).key));
       if(kind==='styles'){
         if(method==='GET'&&!id)return json(res,await styles.list());
-        if(method==='POST'&&id==='learn')return json(res,await styles.learn(await readJson(req)),201);
-        if(method==='POST'&&id==='preferences')return json(res,await capturePreference(styles,store,await readJson(req)),201);
+        if(method==='POST'&&['learn','preferences'].includes(id))throw fault('制作风格目录只读。',410);
         if(method==='GET'&&id&&action&&part==='references'){
           const ref=await styles.getReference(id,action,leaf);if(!ref?.path||ref.verified===false)throw fault('参考文件尚未核验。',404);return await streamFile(req,res,ref.path);
         }
@@ -176,11 +178,11 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       }
       if(kind==='projects'){
         if(!id&&method==='GET')return json(res,store.list());
-        if(!id&&method==='POST'){const b=await readJson(req);if(b.style)b.style=await pinnedStyle(styles,b.style);return json(res,disclose(store.create(b)),201);}
+        if(!id&&method==='POST'){const b=await readJson(req);b.style=await pinnedStyle(styles,b.style);return json(res,disclose(store.create(b)),201);}
         if(!id)throw fault('缺少工程编号。');
         const p=store.get(id);
         if(!action&&method==='GET')return json(res,disclose(p));
-        if(action==='configure'&&method==='POST'){const b=await readJson(req);if(b.changes.style)b.changes.style=await pinnedStyle(styles,b.changes.style);return json(res,disclose(store.configure(id,b.baseRevision,b.changes)));}
+        if(action==='configure'&&method==='POST'){const b=await readJson(req);if('style' in b.changes)b.changes.style=await pinnedStyle(styles,b.changes.style);return json(res,disclose(store.configure(id,b.baseRevision,b.changes)));}
         if(action==='edits'&&method==='POST'){const b=await readJson(req);return json(res,disclose(store.apply(id,b.baseRevision,b.commands,'user')));}
         if(action==='history'&&!part&&method==='GET')return json(res,store.history(id));
         if((action==='undo'||action==='redo')&&!part&&method==='POST'){
@@ -223,19 +225,12 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
         if(action==='jobs'&&method==='POST'){const {kind,...input}=await readJson(req);return json(res,exposeJob(queue.enqueue(id,kind,input)),202);}
         if(action==='transcript'&&method==='POST'){const b=await readJson(req);if(!(await audio.audioCapabilities()).transcription){const {prepareMedia}=await import('../scripts/prepare-media.mjs');await prepareMedia('speech',{});}return json(res,await director.transcribe(id,{assetId:b.assetId}));}
         if(action==='restore-sentence'&&method==='POST'){const b=await readJson(req);await director.restoreUtterance(id,b);return json(res,disclose(store.get(id)));}
-        if(action==='learn-style'&&method==='POST'){
-          const b=await readJson(req),a=p.assets.find(a=>a.id===b.assetId);
-          if(b.assetId&&!a)throw fault('参考素材不在本工程。');
-          const references=a?[await styles.captureReference(await contained(a.path,store.paths(id).assets),{kind:a.kind,title:a.name})]:[];
-          const observations=a&&b.observation?.trim()?[{dimension:a.kind==='audio'?'audio':'visual',instruction:b.observation.trim(),evidence:'reference',basis:'user_direction'}]:[];
-          const s=await styles.learn({id:'personal-'+randomUUID(),name:b.name,script:b.script||'',observations,references,templateIds:['action-result','step-reveal'].includes(b.templateId)?[b.templateId]:[],knownExceptions:b.exception?.trim()?[String(b.exception).trim().slice(0,2000)]:[]});
-          return json(res,s,201);
-        }
+        if(action==='learn-style'&&method==='POST')throw fault('制作风格目录只读。',410);
         if(action==='scene'&&method==='POST'){const b=await readJson(req);
           if(b.baseRevision!==p.revision)throw fault('时间线已更新，请重新选择入点。',409);
           const style=await styles.get(p.style.id,p.style.version);
           const selected=p.timeline.clips.find(c=>c.id===(b.clipId||p.selection?.clipId) && c.track==='video');
-          const anchor=selected&&b.actionFrame>=selected.start&&b.actionFrame<selected.start+selected.duration?{anchorAssetId:selected.assetId,anchorSourceFrame:Math.round((selected.sourceIn||0)+(b.actionFrame-selected.start)*(selected.speed||1))}:{};
+          const anchor=selected&&b.actionFrame>=selected.start&&b.actionFrame<selected.start+selected.duration?{anchorAssetId:selected.assetId,anchorSourceFrame:Math.round(sourceAt(selected,b.actionFrame-selected.start))}:{};
           const scene={...b,anchorAssetId:anchor.anchorAssetId,anchorSourceFrame:anchor.anchorSourceFrame,style};
           const result=await compileSceneWithSound(styles,store,p,scene);
           return json(res,disclose(store.apply(id,result.baseRevision,result.clips.map(clip=>({op:'add',clip})),'user')));}
@@ -299,7 +294,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   authority='127.0.0.1:'+server.address().port;queue.recover();
   return {url:'http://'+authority+'/open/'+token,store,queue,async close(){if(stopped)return;stopped=true;const done=new Promise(r=>server.close(r));server.closeIdleConnections();const installer=installChild;const settled=installer?once(installer,'close').catch(()=>{}):Promise.resolve();installer?.kill('SIGTERM');await Promise.all([settled,queue.close(),drafts.close()]);await director.close?.();await done;store.close();await release();}};
 }
-async function pinnedStyle(styles,selector){const s=await styles.get(selector.id,selector.version);return {id:s.id,name:s.name,version:s.version};}
+async function pinnedStyle(styles,selector){const pin=selectedStyle(selector);await styles.get(pin.id,pin.version);return pin;}
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
   const channelFile=process.env.VIDEO_STUDIO_RESOURCE_DIR && path.join(process.env.VIDEO_STUDIO_RESOURCE_DIR,'quality-channel');
   const quality=channelFile && !process.env.STUDIO_DATA_ROOT && (await readFile(channelFile,'utf8').catch(()=>'' )).trim()==='quality';

@@ -109,7 +109,7 @@ const fixed={
 async function gate(mode,i,cues) {
   const key='gate-'+mode+'-'+i;if(state.samples[key])return state.samples[key];
   const interview=mode==='interview',config=fixed[mode],assetKey=interview?'interview':config.asset,text=interview?'':config.lines[i];
-  let p=store.create({title:'交付判断样本 '+mode+' '+(i+1),mode,brief:interview?'从公开访谈中剪出一句完整问答':'用给定公开镜头解释可见事项',script:text,profile,settings:{voiceMode:interview?'original':'system',requireCaptions:true,engine:'local'},style:{id:'neutral',version:1}});
+  let p=store.create({title:'交付判断样本 '+mode+' '+(i+1),mode,brief:interview?'从公开访谈中剪出一句完整问答':'用给定公开镜头解释可见事项',script:text,profile,settings:{voiceSelection:'user',voiceMode:interview?'original':'system',requireCaptions:true,engine:'local'}});
   const source=await assetFor(p,assetKey);let clips,defect=null;
   if(interview) {
     const spans=[[1,3],[4,9],[13,16],[17,19],[20,25],[26,33]], [a,b]=spans[i];

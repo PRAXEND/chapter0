@@ -1,4 +1,5 @@
 import {intentHash,validRequestId} from './request-key.mjs';
+import {currentStyle} from './style-catalog.mjs';
 import {activeStyleMusicCredit} from './style-audio.mjs';
 import path from 'node:path';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
@@ -111,7 +112,7 @@ export function createQueue({store, director, media, reviewProject, finalReviewe
         change(id,{phase:'review',renderedSha256:res.sha256,files:{video:res.videoPath,subtitle:res.srtPath}});
       }
       j=store.getJob(id);note('正在核对实际导出文件');
-      const styleSpec=styles?.get && p.style ? await styles.get(p.style.id,p.style.version) : undefined;
+      const styleSpec=styles?.get && currentStyle(p.style) ? await styles.get(p.style.id,p.style.version) : undefined;
       const musicPolicy=styleAudioPolicy(styleSpec)?.music;
       const styleMusicResource=musicPolicy&&styles?.getMusicResource?await styles.getMusicResource(p.style.id,p.style.version,musicPolicy):null;
       const former=j.firstCutId?store.getJob(j.firstCutId):null;

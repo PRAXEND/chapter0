@@ -1,4 +1,5 @@
 import {intentHash,validRequestId} from './request-key.mjs';
+import {selectedStyle} from './style-catalog.mjs';
 import {publicationFields,portraitLayout,portraitTitleProblem} from './presentation.mjs';
 import {requestedDurationRange,validateDuration} from './duration.mjs';
 import {validatePictureEffects} from './news-effects.mjs';
@@ -139,8 +140,9 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
   }
   function create(data={}) {
     if(!['topic','script','interview'].includes(data.mode))throw fault('请选择一个制作入口。');
+    const style=selectedStyle(data.style);
     const input={title:text(data.title||'未命名工程',160),mode:data.mode,brief:text(data.brief),script:text(data.script,160000),
-      profile:profileOf(data.profile), settings:newSettings(data.mode,{autoReview:true,...requestedDurationRange(data.brief),...data.settings},data.style),style:data.style||{id:'neutral',version:1},
+      profile:profileOf(data.profile), settings:newSettings(data.mode,{autoReview:true,...requestedDurationRange(data.brief),...data.settings},style),style,
       };
     const requestId=data.requestId;
     if(requestId!=null&&!validRequestId(requestId))throw fault('创建请求编号无效。');
@@ -247,7 +249,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     if(!Number.isInteger(base))throw conflicts();
     return mutate(id,base,p=>{
       for(const k of ['title','brief','script'])if(k in changes)p[k]=text(changes[k],k==='script'?160000:10000);
-      if(changes.style)p.style=copy(changes.style);
+      if('style' in changes)p.style=selectedStyle(changes.style);
       if(changes.publication){
         const {title,body,tags}=changes.publication;
         if(typeof title!=='string'||typeof body!=='string'||!Array.isArray(tags)||tags.some(t=>typeof t!=='string'))throw fault('请输入有效的发布标题、正文与话题。');
@@ -315,8 +317,8 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
       for(const clip of p.timeline.clips)validateClip(clip,p);
       delete p.threadId;delete p.directorThreadStore;delete p.previousDirectorThreads;delete p.directorState;
       if(p.style?.manifest){
-        if(!styles)throw fault('打开此工程需要个人风格库。');
-        await styles.restorePortable(p.style,directory);
+        if(!styles)throw fault('打开此工程需要核对随工程保存的风格资料。');
+        await styles.restorePortable(p.style,directory,{projectDirectory:dirs.directory});
       }
       return transaction(()=>persist(p,true));
     }catch(e){rmSync(dirs.directory,{recursive:true,force:true});throw e;}
