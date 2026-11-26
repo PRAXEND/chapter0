@@ -34,13 +34,15 @@ function modal(title,html){el('dialog-title').textContent=title;el('dialog-body'
 function dismiss(){el('dialog').close();}
 function safeAction(action){return async(...args)=>{try{await action(...args);}catch(e){notice(e.message);if(e.status===409&&s.p)await reload().catch(()=>{});}};}
 const renderNav=()=>{el('projects').innerHTML=s.projects.map(p=>btn('open-project',p.title,p.id===s.p?.id?'active':'',p.id)).join('');};
+function currentResult(project){return s.p?.id===project.id&&project.revision>=s.p.revision;}
 async function refreshList(){s.projects=await api('/api/projects');renderNav();}
 async function choose(id,tab='edit'){
   const request=++openingProject;
   if(s.p&&s.p.id!==id)releaseEditor();
   const [project,jobs]=await Promise.all([api('/api/projects/'+urlPart(id)),api('/api/projects/'+urlPart(id)+'/jobs')]);
   if(request!==openingProject)return;
-  s.p=project;s.jobs=jobs;s.tab=tab;s.clip=project.selection?.clipId||null;s.style=null;
+  if(s.p?.id!==project.id||currentResult(project))s.p=project;
+  s.jobs=jobs;s.tab=tab;s.clip=s.p.selection?.clipId||null;s.style=null;
   await refreshList();if(request===openingProject)draw();
 }
 async function reload(){if(s.p)await choose(s.p.id,s.tab);}
@@ -97,7 +99,7 @@ function draw(){
   if(s.tab==='edit'){drawEdit();if(previousEditor===p.id&&instruction!==undefined)el('instruction').value=instruction;}else if(s.tab==='assets')drawAssets();else if(s.tab==='style')loadStyle().catch(e=>notice(e.message));else if(s.tab==='deliver')drawDeliver();else drawSettings();
 }
 const componentById=id=>s.components?.find(c=>c.id===id);
-function clipTitle(c){return componentById(c.motion?.componentId)?.name||c.text||(c.shape==='outline'?'证据指示框':c.shape==='polygon'?'矢量轮廓':'')||assetName(c.assetId)||tracks[c.track];}
+function clipTitle(c){const a=s.p?.assets.find(a=>a.id===c.assetId);return componentById(c.motion?.componentId)?.name||c.text||(c.track==='narration'&&a?.source?.text)||(c.shape==='outline'?'证据指示框':c.shape==='polygon'?'矢量轮廓':'')||assetName(c.assetId)||tracks[c.track];}
 function cutLabel(job) {
   if(job?.cutRole==='first')return 'Codex 首版';
   if(job?.cutRole==='self-review')return job.creativeResult?.changed===false?'Codex 回看版（保留原剪）':'Codex 回看版';
@@ -199,7 +201,7 @@ function drawEdit(){
 }
 async function timelineAction(act,id){
   if(act==='undo'||act==='redo'){
-    const p=s.p,result=await proj('/'+act,{baseRevision:p.revision});if(s.p?.id===p.id){s.p=result;s.clip=result.timeline.clips.some(c=>c.id===s.clip)?s.clip:null;draw();}return;
+    const p=s.p,result=await proj('/'+act,{baseRevision:p.revision});if(currentResult(result)){s.p=result;s.clip=result.timeline.clips.some(c=>c.id===s.clip)?s.clip:null;draw();}return;
   }
   if(act==='paste'){s.clip=id[0].id;await edit(id.map(clip=>({op:'add',clip})));return pickClip(id[0].id,false);}
   if(act==='split')return runAction('split-clip',id);
@@ -216,8 +218,12 @@ function activity(j){
 }
 function inspector(c){
   if(!c)return '<p class="help">选择片段可修剪、锁定或调整声音。拖动时间线上的片段可移动起点。</p>';
-  const fps=frameRate();return `<section class="card inspector"><div class="hrow space"><h3>${esc(clipTitle(c))}</h3>${btn('lock',c.locked?'解锁片段':'锁定片段','',c.id)}</div>
-  <div class="three">${[['起点（秒）','at',c.start/fps],['长度（秒）','len',c.duration/fps],['原片入点（秒）','in',(c.sourceIn||0)/fps],['速率','speed',c.speed??1],['音量','gain',c.gain??1]].filter((_,i)=>!c.motion||i<2).map(([label,id,v])=>field(label,input('clip-'+id,Number(v.toFixed(4)),'number','step="any" min="0"'))).join('')}</div>
+  const fps=frameRate(),asset=s.p.assets.find(a=>a.id===c.assetId),timed=asset&&asset.kind!=='image';
+  const canSwitchAudioTrack=['narration','music'].includes(c.track)&&!c.soundBinding&&!c.speechGroup;
+  return `<section class="card inspector"><div class="hrow space"><h3>${esc(clipTitle(c))}</h3>${btn('lock',c.locked?'解锁片段':'锁定片段','',c.id)}</div>
+  <div class="three">${[['起点（秒）','at',c.start/fps],['长度（秒）','len',c.duration/fps],['原片入点（秒）','in',(c.sourceIn||0)/fps],['速率','speed',c.speed??1],['音量','gain',c.gain??1]].filter((_,i)=>i<2||(i<4?timed:asset?.hasAudio)).map(([label,id,v])=>field(label,input('clip-'+id,Number(v.toFixed(4)),'number','step="any" min="0"'))).join('')}</div>
+  ${canSwitchAudioTrack?field('音频轨道',select('clip-audio-track',[['narration','旁白'],['music','配乐']],c.track)):''}
+  ${asset?.hasAudio?btn('clip-mute',c.muted?'恢复原声':'静音片段','',c.id):''}
   ${c.motion?componentFields(c):['caption','graphic'].includes(c.track)?field('文字',area('clip-text',c.text,2)):''}
   ${c.shape==='polygon'?field('轮廓顶点（图层内 x、y，范围 0–1）',area('clip-points',JSON.stringify(c.geometry.points),3)):''}
   ${!c.motion&&['caption','graphic'].includes(c.track)?`<details><summary>图层位置与关键帧</summary><div class="three">${field('水平位置 0–1',input('clip-x',c.geometry?.x??.5,'number','step=".01"'))}${field('垂直位置 0–1',input('clip-y',c.geometry?.y??.5,'number','step=".01"'))}${field('字号（像素）',input('clip-font',c.style?.fontSize||48,'number','min="1"'))}</div>${field('关键帧（帧、位置、缩放、透明度及顺时针角度 rotation）',area('clip-keys',JSON.stringify(c.keyframes||[]),2))}</details>`:''}
@@ -225,7 +231,7 @@ function inspector(c){
 }
 async function edit(commands,baseRevision=s.p.revision){
   const previous=s.p, result=await proj('/edits',{baseRevision,commands});
-  if(s.p?.id!==previous.id)return;
+  if(!currentResult(result))return;
   const changed=commands.find(cmd=>cmd.op!=='lock');
   if(changed)s.lastEdit={projectId:previous.id,clipId:changed.id||changed.clip?.id,previous:previous.revision,revision:result.revision};
   s.p=result;draw();
@@ -408,6 +414,7 @@ async function runAction(act,id){
    const j=s.jobs.find(job=>job.id===id);
    await api('/api/jobs/'+id+'/resume',{approvedSequenceHash:j.approval.hash});return reload();}
  case 'resume':await api('/api/jobs/'+id+'/resume',{confirmRetry:true});return reload();
+ case 'clip-mute':{const c=p.timeline.clips.find(c=>c.id===id);return edit([{op:'update',id,changes:{muted:!c.muted}}]);}
  case 'lock':{const c=p.timeline.clips.find(c=>c.id===id);return edit([{op:'lock',id,locked:!c.locked}]);}
  case 'remove':s.clip=null;return edit([{op:'remove',id}]);
  case 'split-clip':{
@@ -473,6 +480,7 @@ async function runAction(act,id){
   const asset=p.assets.find(a=>a.id===c.assetId);
   const speedChange=asset&&asset.kind!=='image'&&edited('speed');
   const newSpeed=Number(val('clip-speed'));
+  if(el('clip-audio-track')&&val('clip-audio-track')!==c.track)changes.track=val('clip-audio-track');
   if(!edited('len'))delete changes.duration;
   if(!edited('at'))delete changes.start;
   if(['caption','graphic'].includes(c.track)){
@@ -599,11 +607,19 @@ el('dialog').addEventListener('close',()=>{el('dialog-body').innerHTML='';});
 async function refreshJobs(){
  if(s.polling||!s.p||timeline?.dragging)return;s.polling=true;
  try{
-  const id=s.p.id,previous=s.jobs;const next=await proj('/jobs');if(s.p?.id!==id)return;
+  const id=s.p.id,previous=s.jobs,next=await proj('/jobs');
+  if(s.p?.id!==id||timeline?.dragging)return;
   const changed=previous.some(a=>['queued','running','pausing'].includes(a.status)&&next.some(b=>a.id===b.id&&['done','paused','failed','awaiting-plan'].includes(b.status)));
-  s.jobs=next;
-  if(changed){const nextProject=await proj();if(s.p?.id===id){s.p=nextProject;if(s.tab==='edit'&&el('instruction')?.value){const draft=val('instruction');draw();el('instruction').value=draft;}else draw();}await refreshList();}
-  else if(el('activity')&&next.length)el('activity').innerHTML=activity(next[0]);
+  if(changed){
+    const project=await proj();
+    if(s.p?.id!==id||timeline?.dragging)return;
+    s.jobs=next;
+    if(currentResult(project)){s.p=project;draw();}
+    await refreshList();
+  }else{
+    s.jobs=next;
+    if(el('activity')&&next.length)el('activity').innerHTML=activity(next[0]);
+  }
  }catch{}finally{s.polling=false;}
 }
 async function init(){[s.styles,s.voices,s.components]=await Promise.all([api('/api/styles'),api('/api/voices'),api('/api/motion-components')]);await refreshList();if(s.projects.length)await choose(s.projects[0].id);else newPage();setInterval(refreshJobs,1800);}

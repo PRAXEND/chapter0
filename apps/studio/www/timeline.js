@@ -40,7 +40,7 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
   // Keep hidden clips selectable even when the playable picture ends earlier.
   const extent=clips.reduce((n,c)=>Math.max(n,c.start+c.duration),Math.max(end,fps*4));
   const total=Math.min(86400*fps,extent+Math.max(fps,Math.ceil(extent*.04)));
-  let scale=1,gesture=null,raf=0,selected=view.selected,dead=false,playing=false;
+  let canvasEnd=total,scale=1,gesture=null,raf=0,selected=view.selected,dead=false,playing=false;
   let ids=new Set((view.ids||[]).filter(id=>byId.has(id)));
   if(!ids.has(selected))ids=new Set(selected&&byId.has(selected)?[selected]:[]);
   const selectedClips=()=>[...ids].map(id=>byId.get(id));
@@ -128,7 +128,7 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     ruler.replaceChildren();
     // Only visible ticks need DOM nodes, even when an hour-long edit is zoomed to frames.
     const first=Math.max(0,Math.floor(scroll.scrollLeft/(step*scale))-1)*step;
-    const last=Math.min(total,first+Math.ceil((scroll.clientWidth+step*scale*3)/scale));
+    const last=Math.min(canvasEnd,first+Math.ceil((scroll.clientWidth+step*scale*3)/scale));
     for(let n=first;n<=last;n+=step){
       const t=document.createElement('span'); t.style.left=n*scale+'px';
       t.textContent=step<fps?timecode(n,fps).slice(3):timecode(n,fps).slice(n>=3600*fps?0:3,8);
@@ -139,7 +139,7 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
   function layout(){
     if(dead||!scroll.clientWidth)return;
     scale=Math.max(1,scroll.clientWidth-rail-2)/total*view.zoom;
-    sheet.style.width=(rail+total*scale)+'px';ticks();
+    canvasEnd=total;sheet.style.width=(rail+total*scale)+'px';ticks();
     for(const n of nodes){const c=byId.get(n.dataset.clip);geometry(n,c.start,c.duration);artwork(n,c,c.duration*scale);}
     frame(view.frame);
   }
@@ -177,6 +177,10 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     raf=0;const g=gesture;if(!g||!g.changed)return;
     const bounds=scroll.getBoundingClientRect();
     const over=g.lastX<bounds.left+rail?g.lastX-bounds.left-rail:g.lastX>bounds.right-18?g.lastX-bounds.right+18:0;
+    if(over>0&&g.c&&!g.locked&&!g.toggle&&g.edge!=='start'&&scroll.scrollLeft+scroll.clientWidth>=scroll.scrollWidth-2){
+      canvasEnd=Math.min(86400*fps,canvasEnd+Math.max(1,Math.ceil(90/scale)));
+      sheet.style.width=(rail+canvasEnd*scale)+'px';ticks();
+    }
     if(over)scroll.scrollLeft+=clamp(over,-24,24);
     if(!g.c)scrub(g.lastX,true);
     else if(!g.locked&&!g.toggle){
@@ -216,6 +220,7 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     const restore=()=>{for(const k of g.group)geometry(nodeById.get(k.id),k.start,k.duration);};
     if(cancel||g.locked||!g.changed||g.result===null){
       restore();
+      if(cancel)layout();
       if(!cancel&&!g.changed)choose(g.c.id,true);
       if(!cancel&&!g.changed)seek(clamp(coordinate(e.clientX),g.c.start,g.c.start+g.c.duration-1),false);
       return;
@@ -259,6 +264,11 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     if(e.target.closest('button,a')&&e.key===' '&&!e.target.closest('[data-clip],.tl-scroll'))return;
     if(e.key==='Enter'&&e.target.dataset.clip){e.preventDefault();choose(e.target.dataset.clip);select(selected,true);return;}
     const cmd=e.metaKey||e.ctrlKey,key=e.key.toLowerCase();
+    if(e.altKey&&!cmd&&['arrowleft','arrowright'].includes(key)&&selected){
+      e.preventDefault();const group=selectedClips(),delta=(key==='arrowleft'?-1:1)*(e.shiftKey?fps:1);
+      if(group.some(c=>c.locked||c.start+delta<0))return;
+      guard(commit)(group.filter(c=>!ids.has(c.soundBinding?.ownerId)).map(c=>({op:'move',id:c.id,start:c.start+delta})),p.revision);return;
+    }
     const id=cmd?({z:e.shiftKey?'redo':'undo',y:'redo',c:'copy',v:'paste'}[key]):({' ':'play',arrowleft:'step-back',arrowright:'step-next',s:'split',n:'snap',delete:e.shiftKey?'ripple':'remove',backspace:e.shiftKey?'ripple':'remove','+':'in','=':'in','-':'out'}[key]);
     if(id){if(cmd&&['c','v'].includes(key)&&(!selected&&!view.clipboard||String(window.getSelection())))return;e.preventDefault();guard(command)(id);}
     else if(!cmd&&['home','end'].includes(key)){e.preventDefault();seek(key==='home'?0:Math.max(0,end-1),false);}
@@ -266,7 +276,8 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
   listen(root,'click',e=>{const n=e.target.closest('[data-clip]');if(n&&e.detail===0){choose(n.dataset.clip);select(n.dataset.clip,true);}});
   const resize=new ResizeObserver(()=>{if(!gesture)layout();});resize.observe(scroll);
   layout();scroll.scrollLeft=view.scroll||0;choose(selected);
-  history().then(h=>{if(!dead&&h.revision===p.revision){buttons.undo.disabled=!h.canUndo;buttons.redo.disabled=!h.canRedo;}}).catch(report);
+  history().then(h=>{if(!dead&&h.revision===p.revision){buttons.undo.disabled=!h.canUndo;buttons.redo.disabled=!h.canRedo;
+      buttons.undo.title=h.undoReason||h.undoLabel||'撤销（⌘Z）';buttons.redo.title=h.redoReason||h.redoLabel||'重做（⇧⌘Z）';}}).catch(report);
   return {frame,choose,setPlaying(active){playing=active;buttons.play.textContent=active?'Ⅱ':'▶';},
     destroy(){dead=true;resize.disconnect();events.abort();cancelAnimationFrame(raf);},
     get dragging(){return !!gesture;}};
