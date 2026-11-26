@@ -106,12 +106,23 @@ export function portraitEnding(total,fps) {
   const black=Math.max(0,total-Math.round(.6*fps)),fade=Math.max(0,black-Math.round(1.2*fps));
   return {black,fade,musicFade:Math.max(0,black-Math.round(1.4*fps))};
 }
-export function portraitGraph(project,layout,base,from,total) {
+export function portraitGraph(project,layout,base,from,total,to=total) {
   const {width,height,fps}=project.profile,{black,fade}=portraitEnding(total,fps);
-  const t='clip((N-1+'+from+'-'+fade+')/'+Math.max(1,black-fade)+',0,1)';
-  // Draw the texture underneath the complete footage window, then title/captions above the base.
   const clock='settb=1/'+fps+',setpts=N+'+from;
-  return 'color=c=0x030405:s='+width+'x'+height+':r='+fps+','+clock+',ass=portrait.ass:fontsdir=fonts,setpts=N[paper];[paper]'+base+'overlay=x=0:y='+layout.top+':shortest=1[stage];[stage]split[f][b];[b]drawbox=c=black:t=fill[black];[f][black]blend=all_expr=\'A*(1-('+t+')*('+t+')*(3-2*('+t+')))+B*('+t+')*('+t+')*(3-2*('+t+'))\':shortest=1[outportrait]';
+  const stage='color=c=0x030405:s='+width+'x'+height+':r='+fps+','+clock+
+    ',ass=portrait.ass:fontsdir=fonts,setpts=N[paper];[paper]'+base+'overlay=x=0:y='+layout.top+':shortest=1';
+  const duration=Math.max(1,black-fade), firstTint=fade+1, fullBlack=fade+duration;
+  const fill='drawbox=c=black:t=fill';
+  if(to<=firstTint)return stage+'[outportrait]';
+  if(from>=fullBlack)return stage+','+fill+'[outportrait]';
+  const tail=to>fullBlack?','+fill+":enable='gte(n,"+(fullBlack-from)+")'":'';
+  if(duration===1)return stage+tail+'[outportrait]';
+  // blend's N starts at 1. The timeline gate's n is zero-based on this window.
+  const gate=from<firstTint||to>fullBlack?
+    ":enable='between(n,"+Math.max(0,firstTint-from)+','+(fullBlack-from-1)+")'":'';
+  const t='clip((N-1+'+from+'-'+fade+')/'+duration+',0,1)';
+  const curve='('+t+')*('+t+')*(3-2*('+t+'))';
+  return stage+',split[f][b];[b]'+fill+gate+'[black];[f][black]blend=all_expr=\'A*(1-'+curve+')+B*'+curve+'\':shortest=1'+gate+tail+'[outportrait]';
 }
 
 export function portraitTitleProblem(title) {

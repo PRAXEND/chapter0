@@ -321,7 +321,7 @@ async function pictureLayers(project,{work,directory,profile,layout,fromFrame,to
   if(layout){
     const base=motion?.map || (stageLayers.length?'[vstage]':'[0:v]');
     const before=motion?.filter || (stageLayers.length?'[0:v]'+overlay+'[vstage]':'');
-    filters=['-filter_complex',[before,portraitGraph(project,layout,base,fromFrame,projectLength)].filter(Boolean).join(';')];
+    filters=['-filter_complex',[before,portraitGraph(project,layout,base,fromFrame,projectLength,toFrame)].filter(Boolean).join(';')];
     map='[outportrait]';
   }
   return {layers,motion,filters,map};
