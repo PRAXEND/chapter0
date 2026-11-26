@@ -98,7 +98,15 @@ export function formDrafts(root,scopeFor){
       for(const [key,v] of at){const remaining=values.get(key);if(same(remaining?.value,v))values.delete(key);else if(remaining){remaining.base=v;remaining.conflict=false;}}
     };
   }
-  return {mount,capture,conflicts,resolve,clear,submitted};
+  function changed(node){
+    if(!node)return false;
+    const group=structures.get(node);
+    if(group)return !same(groupState(node),group.base);
+    const field=bound.get(node);
+    if(field&&node.type==='number'&&node.value!==''&&field.base!=='')return Number(node.value)!==Number(field.base);
+    return Boolean(field&&!same(valueOf(node),field.base));
+  }
+  return {mount,capture,conflicts,resolve,clear,submitted,changed};
 }
 export function durationProblem(low,high,target){
   const numbers=[low,high,target].map(v=>v===''||v==null?null:Number(v));
@@ -188,9 +196,12 @@ export function syncControls({doc,project:p,jobs=[],selected,gate,scope,files=[]
     'add-component':!v('new-component')?'先选择动效组件。':'',
     'cloud-key':!v('cloud-key')?'输入本次连接的密钥。':''
   };
-  if(!p){const menu=by('new-style');
-    if(menu&&(!menu.value||menu.selectedOptions[0]?.disabled))reasons.create='先选择可用的风格，或恢复本机风格资源。';
-    reasons.create||=durationProblem(v('new-min'),v('new-max'),v('new-duration'));reasons['create-run']=reasons.create||(mode==='interview'&&!files.some(f=>/^(audio|video)\//.test(f.type)||/\.(mp4|mov|m4v|mkv|webm|wav|aif|aiff|mp3|m4a|flac)$/i.test(f.name))?'选择可转录的视频或录音，或先仅创建工程。':'');}
+  if(!p){
+    const styleOption=by('new-style')?.selectedOptions[0];
+    reasons.create||=durationProblem(v('new-min'),v('new-max'),v('new-duration'));
+    if(!styleOption||styleOption.disabled)reasons.create||='选择资源已就绪的发行风格。';
+    reasons['create-run']=reasons.create||(mode==='interview'&&!files.some(f=>/^(audio|video)\//.test(f.type)||/\.(mp4|mov|m4v|mkv|webm|wav|aif|aiff|mp3|m4a|flac)$/i.test(f.name))?'选择可转录的视频或录音，或先仅创建工程。':'');
+  }
   if(clip?.locked)for(const op of ['save-clip','save-preview-cue','split-clip','remove','clip-mute','add-cue','drop-cue','add-shake','remove-shake','pair-shots'])reasons[op]=lock;
   if(clip&&!clip.locked){
     const numbers=['clip-at','clip-len','clip-in','clip-speed','clip-gain','clip-font'];
@@ -204,6 +215,7 @@ export function syncControls({doc,project:p,jobs=[],selected,gate,scope,files=[]
     for(const id of ['clip-keys','clip-points'])if(by(id)&&v(id)){
       try{if(!Array.isArray(JSON.parse(v(id))))throw Error();}catch{reasons['save-clip']='关键帧和轮廓顶点须为有效的 JSON 数组。';}
     }
+    if(drafts?.changed(by('clip-speed'))&&drafts.changed(by('clip-len')))reasons['save-clip']='修改固定速率会同时改变长度。请先保存速率或长度，再调整另一项。';
     if(reasons['save-clip'])reasons['save-preview-cue']=reasons['save-clip'];
   }
   if(!reasons['split-clip']&&clip&&(frame<=clip.start||frame>=clip.start+clip.duration))reasons['split-clip']='将播放头放在这个片段的两个端点之间。';

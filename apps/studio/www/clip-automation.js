@@ -19,6 +19,11 @@ export function sourceAt(clip,localFrame){
   const offset=curve.offsetFrames??0;
   return base+sourceDistance(curve.points,offset+localFrame)-sourceDistance(curve.points,offset);
 }
+// Storyboard source intervals are in seconds. The inspector and timeline use project frames.
+export function storyboardSourceRange(shot,fps){
+  if(!Number.isFinite(shot?.sourceStart))return {};
+  return {fromFrame:Math.round(shot.sourceStart*fps),...(Number.isFinite(shot.sourceEnd)&&{toFrame:Math.round(shot.sourceEnd*fps)})};
+}
 export function localAtSource(clip,sourceFrame){
   const curve=clip.timeMap,base=clip.sourceIn??0;
   if(!curve)return (sourceFrame-base)/(clip.speed??1);
