@@ -41,6 +41,9 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
   const extent=clips.reduce((n,c)=>Math.max(n,c.start+c.duration),Math.max(end,fps*4));
   const total=Math.min(86400*fps,extent+Math.max(fps,Math.ceil(extent*.04)));
   let scale=1,gesture=null,raf=0,selected=view.selected,dead=false,playing=false;
+  let ids=new Set((view.ids||[]).filter(id=>byId.has(id)));
+  if(!ids.has(selected))ids=new Set(selected&&byId.has(selected)?[selected]:[]);
+  const selectedClips=()=>[...ids].map(id=>byId.get(id));
   const events=new AbortController(), listen=(node,type,fn,options={})=>node.addEventListener(type,fn,{...options,signal:events.signal});
   const guard=fn=>(...args)=>Promise.resolve().then(()=>fn(...args)).catch(report);
   root.innerHTML='<div class="timeline-header"><div class="tl-heading"><h2>时间线</h2><small>v'+p.revision+'</small></div><div class="tl-transport">'+
@@ -62,11 +65,13 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     }).join('')+'<div class="tl-cursor" aria-hidden="true"><i></i></div><div class="tl-guide" hidden></div></div></div>';
   const scroll=root.querySelector('.tl-scroll'),sheet=root.querySelector('.tl-sheet'),ruler=root.querySelector('.tl-ruler'),cursor=root.querySelector('.tl-cursor'),guide=root.querySelector('.tl-guide');
   const nodes=[...root.querySelectorAll('[data-clip]')],buttons=Object.fromEntries([...root.querySelectorAll('[data-tl]')].map(b=>[b.dataset.tl,b]));
-  const time=root.querySelector('.tl-time');
+  const time=root.querySelector('.tl-time'),nodeById=new Map(nodes.map(n=>[n.dataset.clip,n]));
   function controls() {
     const c=byId.get(selected);
     buttons.split.disabled=!c||c.locked||!!c.motion||view.frame<=c.start||view.frame>=c.start+c.duration;
-    buttons.remove.disabled=buttons.ripple.disabled=!c||c.locked;
+    buttons.remove.disabled=!c||selectedClips().some(k=>k.locked);
+    buttons.ripple.disabled=buttons.remove.disabled||ids.size!==1;
+    if(ids.size>1)buttons.split.disabled=true;
     buttons.copy.disabled=!c;buttons.paste.disabled=!view.clipboard;
     buttons.play.disabled=!end;buttons['step-back'].disabled=!end||view.frame<=0;buttons['step-next'].disabled=!end||view.frame>=end-1;
   }
@@ -88,9 +93,10 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     time.blur();scroll.focus({preventScroll:true});seek(n,false);frame(n);
     const x=n*scale;if(x<scroll.scrollLeft||x>scroll.scrollLeft+scroll.clientWidth-rail)scroll.scrollLeft=Math.max(0,x-32);
   });
-  function choose(id) {
-    selected=view.selected=id;
-    for(const n of nodes){const active=n.dataset.clip===id;n.classList.toggle('focus',active);n.setAttribute('aria-pressed',active);}
+  function choose(id,single=false) {
+    if(single||!ids.has(id))ids=new Set(id&&byId.has(id)?[id]:[]);
+    selected=view.selected=id;view.ids=[...ids];
+    for(const n of nodes){const active=ids.has(n.dataset.clip);n.classList.toggle('focus',active);n.setAttribute('aria-pressed',active);}
     controls();
   }
   function artwork(n,c,width) {
@@ -158,8 +164,13 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     gesture={pointer:e.pointerId,node:n,c,edge,x:e.clientX,lastX:e.clientX,initialScroll:scroll.scrollLeft,changed:false,alt:e.altKey};
     try{scroll.setPointerCapture(e.pointerId);}catch{/* Synthetic input has no native capture. */}
     if(!c){player()?.pause();scrub(e.clientX,true);return;}
-    choose(c.id);select(c.id,false);
-    gesture.targets=[...new Set([0,view.frame,...clips.filter(k=>k.id!==c.id).flatMap(k=>[k.start,k.start+k.duration])])];
+    if(e.shiftKey||e.metaKey){
+      if(ids.has(c.id)&&ids.size>1)ids.delete(c.id);else ids.add(c.id);
+      const primary=ids.has(c.id)?c.id:[...ids].at(-1);choose(primary);select(primary,false);gesture.toggle=true;return;
+    }
+    choose(c.id,Boolean(edge));select(c.id,false);
+    gesture.group=selectedClips();gesture.locked=gesture.group.some(k=>k.locked);
+    gesture.targets=[...new Set([0,view.frame,...clips.filter(k=>!ids.has(k.id)).flatMap(k=>[k.start,k.start+k.duration])])];
     gesture.result=null;
   }
   function drag(){
@@ -168,10 +179,11 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     const over=g.lastX<bounds.left+rail?g.lastX-bounds.left-rail:g.lastX>bounds.right-18?g.lastX-bounds.right+18:0;
     if(over)scroll.scrollLeft+=clamp(over,-24,24);
     if(!g.c)scrub(g.lastX,true);
-    else if(!g.c.locked){
+    else if(!g.locked&&!g.toggle){
       const c=g.c,stop=c.start+c.duration,asset=assets.get(c.assetId),speed=c.speed||1;
       const delta=(g.lastX-g.x+scroll.scrollLeft-g.initialScroll)/scale;
-      let origin=c.start,min=0,max=86400*fps-c.duration,offsets=[0,c.duration];
+      let origin=c.start,min=c.start-Math.min(...g.group.map(k=>k.start)),max=86400*fps-Math.max(...g.group.map(k=>k.start+k.duration-c.start));
+      let offsets=g.group.flatMap(k=>[k.start-c.start,k.start+k.duration-c.start]);
       if(g.edge){
         offsets=[0];const media=asset&&asset.kind!=='image';
         if(g.edge==='start'){min=media?Math.max(0,c.start-Math.floor((c.sourceIn||0)/speed)):0;max=stop-1;}
@@ -180,6 +192,7 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
       const result=snapPosition(origin+delta,offsets,view.snap&&!g.alt?g.targets:[],8/scale,min,max,g.snap);g.snap=result;g.result=result.value;
       const start=g.edge==='end'?c.start:result.value,duration=g.edge==='end'?result.value-c.start:g.edge==='start'?stop-start:c.duration;
       geometry(g.node,start,duration);g.node.classList.add('dragging');
+      if(!g.edge)for(const k of g.group){if(k.id!==c.id)geometry(nodeById.get(k.id),k.start+start-c.start,k.duration);}
       guide.hidden=result.guide===null;if(!guide.hidden)guide.style.transform='translateX('+result.guide*scale+'px)';
     }
     if(over&&scroll.scrollWidth>scroll.clientWidth)raf=requestAnimationFrame(drag);
@@ -199,15 +212,19 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     if(raf)cancelAnimationFrame(raf);raf=0;gesture=null;guide.hidden=true;
     if(!g.c){if(!cancel)scrub(e.clientX,false);return;}
     g.node.classList.remove('dragging');
-    if(cancel||g.c.locked||!g.changed||g.result===null){
-      geometry(g.node,g.c.start,g.c.duration);
+    if(g.toggle)return;
+    const restore=()=>{for(const k of g.group)geometry(nodeById.get(k.id),k.start,k.duration);};
+    if(cancel||g.locked||!g.changed||g.result===null){
+      restore();
+      if(!cancel&&!g.changed)choose(g.c.id,true);
       if(!cancel&&!g.changed)seek(clamp(coordinate(e.clientX),g.c.start,g.c.start+g.c.duration-1),false);
       return;
     }
     const original=g.edge==='end'?g.c.start+g.c.duration:g.c.start;
     if(g.result===original)return;
-    const command=g.edge?{op:'trim',id:g.c.id,edge:g.edge,atFrame:g.result}:{op:'move',id:g.c.id,start:g.result};
-    Promise.resolve(commit([command],p.revision)).catch(error=>{if(!dead)geometry(g.node,g.c.start,g.c.duration);report(error);});
+    const commands=g.edge?[{op:'trim',id:g.c.id,edge:g.edge,atFrame:g.result}]:
+      g.group.filter(k=>!ids.has(k.soundBinding?.ownerId)).map(k=>({op:'move',id:k.id,start:k.start+g.result-g.c.start}));
+    Promise.resolve(commit(commands,p.revision)).catch(error=>{if(!dead)restore();report(error);});
   }
   function command(id){
     if(buttons[id]?.disabled)return;
@@ -215,10 +232,15 @@ export function timelineView({root,p,view,title,seek,select,commit,action,player
     if(id==='fit'||id==='out'||id==='in')return zoom(id==='fit'?1:view.zoom*(id==='in'?2:.5));
     if(id==='play')return player()?.toggle();
     if(id==='step-back'||id==='step-next')return seek(clamp(view.frame+(id==='step-back'?-1:1),0,Math.max(0,end-1)),false);
-    if(id==='copy'){view.clipboard=structuredClone(byId.get(selected));controls();return;}
+    if(id==='remove'&&ids.size>1)return commit(selectedClips().filter(k=>!ids.has(k.soundBinding?.ownerId)).map(k=>({op:'remove',id:k.id})),p.revision);
+    if(id==='copy'){view.clipboard=structuredClone(selectedClips().filter(k=>!ids.has(k.soundBinding?.ownerId)));controls();return;}
     if(id==='paste'){
-      const c={...structuredClone(view.clipboard),id:crypto.randomUUID(),start:view.frame,locked:false};delete c.stackOrigin;delete c.soundBinding;
-      return action('paste',c);
+      const copied=structuredClone(view.clipboard),origin=Math.min(...copied.map(k=>k.start)),mapping=new Map(copied.map(k=>[k.id,crypto.randomUUID()]));
+      for(const k of copied){
+        k.id=mapping.get(k.id);k.start+=view.frame-origin;k.locked=false;delete k.stackOrigin;delete k.soundBinding;
+        if(k.speechGroup)k.speechGroup=mapping.get(k.speechGroup)||k.id;
+      }
+      view.ids=copied.map(k=>k.id);return action('paste',copied);
     }
     return action(id,selected);
   }

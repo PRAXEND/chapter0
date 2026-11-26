@@ -37,6 +37,7 @@ const renderNav=()=>{el('projects').innerHTML=s.projects.map(p=>btn('open-projec
 async function refreshList(){s.projects=await api('/api/projects');renderNav();}
 async function choose(id,tab='edit'){
   const request=++openingProject;
+  if(s.p&&s.p.id!==id)releaseEditor();
   const [project,jobs]=await Promise.all([api('/api/projects/'+urlPart(id)),api('/api/projects/'+urlPart(id)+'/jobs')]);
   if(request!==openingProject)return;
   s.p=project;s.jobs=jobs;s.tab=tab;s.clip=project.selection?.clipId||null;s.style=null;
@@ -193,14 +194,14 @@ function drawEdit(){
     onFrame:f=>timeline?.frame(f,true),onState:state=>{
       timeline?.setPlaying(state.playing);
       const node=el('monitor-status');
-      if(node)node.textContent=state.error?.message||state.error||(state.status==='loading'?'正在准备当前帧…':clips.length?'工程预览 · v'+p.revision:'工程预览');
+      if(node)node.textContent=state.error?.message||state.error||(state.status==='loading'?'正在准备当前帧…':state.status==='buffering'?'正在准备下一段…':clips.length?'工程预览 · v'+p.revision:'工程预览');
     }});
 }
 async function timelineAction(act,id){
   if(act==='undo'||act==='redo'){
     const p=s.p,result=await proj('/'+act,{baseRevision:p.revision});if(s.p?.id===p.id){s.p=result;s.clip=result.timeline.clips.some(c=>c.id===s.clip)?s.clip:null;draw();}return;
   }
-  if(act==='paste'){s.clip=id.id;await edit([{op:'add',clip:id}]);return pickClip(id.id,false);}
+  if(act==='paste'){s.clip=id[0].id;await edit(id.map(clip=>({op:'add',clip})));return pickClip(id[0].id,false);}
   if(act==='split')return runAction('split-clip',id);
   if(act==='ripple')return edit([{op:'ripple-remove',id}]);
   if(act==='remove')return runAction(act,id);
@@ -599,4 +600,6 @@ async function refreshJobs(){
  }catch{}finally{s.polling=false;}
 }
 async function init(){[s.styles,s.voices,s.components]=await Promise.all([api('/api/styles'),api('/api/voices'),api('/api/motion-components')]);await refreshList();if(s.projects.length)await choose(s.projects[0].id);else newPage();setInterval(refreshJobs,1800);}
+window.addEventListener('pagehide',releaseEditor);
+window.addEventListener('pageshow',e=>{if(e.persisted&&s.p)draw();});
 safeAction(init)();
