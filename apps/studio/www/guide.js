@@ -15,7 +15,10 @@ const node=(tag,value)=>{const el=document.createElement(tag);if(value!=null)el.
 const simplify=str=>str.toLocaleLowerCase().replace(/[\s·／，（）＋]/g,'');
 function currentTopic(){
   if(location.pathname.startsWith('/blind'))return 'blind';
-  if(document.querySelector('#dialog[open]'))return 'tools';
+  const modal=document.querySelector('#dialog[open]');
+  if(modal?.querySelector('#source-preview,#event-label'))return 'assets';
+  if(modal?.querySelector('video,audio,img')&&!modal.querySelector('[data-act=install]'))return document.querySelector('.tabs .selected')?.dataset.id||'edit';
+  if(modal)return 'tools';
   if(document.querySelector('#new-title'))return 'new';
   return document.querySelector('.tabs .selected')?.dataset.id||'edit';
 }

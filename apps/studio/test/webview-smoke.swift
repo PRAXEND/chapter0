@@ -28,7 +28,18 @@ final class Smoke: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
           const click=q=>{const x=document.querySelector(q);if(!x)throw Error('找不到 '+q);x.click()};
           try{
             await wait(()=>document.querySelector('#new-title'));document.querySelector('#new-title').value='系统 WebView 回归';
-            document.querySelector('#brief').value='一段保留同期声的本机剪辑';click('[data-act="create"]');
+            const style=document.querySelector('#new-style');
+            if([...style.options].map(o=>o.value).sort().join(',')!=='henry-hot-news@8,henry-technical-explainer@8')throw Error('新建工程的风格目录偏离两套 v8');
+            style.value='henry-technical-explainer@8';style.dispatchEvent(new Event('change',{bubbles:true}));
+            const brief=document.querySelector('#brief');brief.value='一段保留同期声的本机剪辑';brief.dispatchEvent(new Event('input',{bubbles:true}));
+            click('[data-guide="new"]');await wait(()=>document.querySelector('#guide-dialog').open);
+            const versions=['new','edit','inspector','advanced','assets','style','settings','deliver','tools','blind'];
+            for(const topic of versions){click('#guide-nav [data-topic="'+topic+'"]');await wait(()=>document.querySelector('#guide-body img')?.naturalWidth>0);}
+            const search=document.querySelector('#guide-search');search.value='吸附';search.dispatchEvent(new Event('input',{bubbles:true}));click('.guide-hit');
+            await wait(()=>document.querySelector('.guide-match'));
+            click('.guide-inventory');await wait(()=>document.querySelector('.guide-locate'));click('#guide-close');
+            if(brief.value!=='一段保留同期声的本机剪辑')throw Error('查看帮助后制作要求发生变化');
+            click('[data-act="create"]');
             await wait(()=>document.querySelector('[data-act="tab"][data-id="assets"]'));click('[data-act="tab"][data-id="assets"]');
             await wait(()=>document.querySelector('#asset-upload'));const p=(await(await fetch('/api/projects')).json())[0];
             const response=await fetch('/api/projects/'+p.id+'/edits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({baseRevision:p.revision,commands:[{op:'add',clip:{id:'caption-sample',track:'caption',text:'可编辑字幕',start:3,duration:53}}]})});
