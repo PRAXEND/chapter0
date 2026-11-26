@@ -124,8 +124,9 @@ async function fixture(t) {
     frameAt: (file, at, to) => writeFile(to, path.basename(file) + ' at ' + at),
   };
   const client = {
-    async thread(id, tools) {
-      calls.push({ type: 'thread', id, tools });
+    storeId: 'private-review-store',
+    async thread(id, tools, _instructions, _settings, scope) {
+      calls.push({ type: 'thread', id, tools, scope });
       return id || 'independent-reader';
     },
     async runTurn(args) {
@@ -177,7 +178,7 @@ test('a new isolated turn compares signed final frames to the signed baseline wi
   assert.equal(got.candidate.sha256, f.qa.artifactSha256);
   assert.equal(got.style.referenceSha256, f.style.baseline.sha256);
   assert.notEqual(got.threadId, f.project.threadId);
-  assert.deepEqual(f.calls[0], { type: 'thread', id: null, tools: [] });
+  assert.deepEqual(f.calls[0], { type: 'thread', id: null, tools: [], scope: {allowLegacy:false, legacyTurnId:undefined} });
   const args = f.calls[1].args;
   assert.match(args.prompt, /projectIntent/);
   assert.doesNotMatch(args.prompt, /UNSHARED_PROJECT_TEXT|PRIVATE_TRANSCRIPT|creative-author|\/Users\//);
@@ -229,7 +230,9 @@ test('after restart the reader resumes the recorded read-only turn, and the char
   const prior = { ...done, status: 'running' };
   const resumed = await f.run({ checkpoint: prior });
   assert.equal(resumed.status, 'completed');
+  assert.equal(resumed.threadStore, 'private-review-store');
   assert.equal(f.calls.at(-2).id, 'independent-reader');
+  assert.deepEqual(f.calls.at(-2).scope, {allowLegacy:false, legacyTurnId:'T'});
   assert.equal(f.calls.at(-1).args.existingTurnId, 'T');
   assert.deepEqual(f.calls.at(-1).args.images, []);
   const calls = f.calls.length;

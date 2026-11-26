@@ -265,7 +265,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
   function snapshot(p,destination=path.join(paths(p.id).directory,'project.vstudio.json')){
     const out=copy(p), dir=path.dirname(destination);
     out.assets=out.assets.map(a=>({...a,path:path.relative(dir,a.path)}));
-    delete out.threadId;
+    delete out.threadId;delete out.directorThreadStore;delete out.previousDirectorThreads;delete out.directorState;
     const tmp=destination+'.'+randomUUID()+'.tmp';
     try{writeFileSync(tmp,JSON.stringify(out,null,2),{mode:0o600});renameSync(tmp,destination);}finally{rmSync(tmp,{force:true});}
     return destination;
@@ -295,7 +295,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
       for(const a of validated){checkId(a.id);const dest=path.join(dirs.assets,a.sha256+path.extname(a.path));await copyFile(a.path,dest,constants.COPYFILE_FICLONE);assets.push({...a,path:dest});}
       const p={...data,id,assets,revision:1,profile:profileOf(data.profile),settings:newSettings(data.mode,data.settings),createdAt:now(),updatedAt:now()};
       for(const clip of p.timeline.clips)validateClip(clip,p);
-      delete p.threadId;delete p.directorState;
+      delete p.threadId;delete p.directorThreadStore;delete p.previousDirectorThreads;delete p.directorState;
       if(p.style?.manifest){
         if(!styles)throw fault('打开此工程需要个人风格库。');
         await styles.restorePortable(p.style,directory);

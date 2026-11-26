@@ -37,6 +37,12 @@ Node 服务只监听环回地址。命令行启动时会显示一次性本地入
 
 默认资料库位于 ~/Library/Application Support/Video Studio/standalone。设置 STUDIO_BUILD_CHANNEL=quality 和独立的 STUDIO_DIST 可生成质量验证版，Finder 用独立应用标识启动，默认打开同目录下的 standalone-quality 资料库。STUDIO_DATA_ROOT 可以选择独立资料库，STUDIO_DELIVERY_ROOT 可选择导出目录。模型缓存由 VIDEO_STUDIO_MEDIA_HOME 指定。STUDIO_START_VIEW=blind 可直接打开盲评室，STUDIO_REVIEW_ROOT 可指定另一套研究库。prepare-media 的 render、speech、clone 子命令可分开运行。
 
+## 后台 Codex 会话
+
+导演、复剪与独立终审在工作台内保存会话。退出、重开工程后，工作台使用原会话和任务回执继续。默认会话目录是 `~/Library/Application Support/Video Studio/codex-runtime`。打开一个旧工程时，工作台可按已登记的线程编号和制作目录迁入那一份历史记录。此前出现在 Codex 桌面的聊天仍可在原处查看。
+
+工作台可沿用 Codex 桌面已登录的文件凭据及其刷新锁。本机使用系统钥匙串、其他凭据存储或还未登录时，可在“本机与账号”单独连接工作台账号。已有桌面账号的“连接账号”按钮会显示当前连接状态。需要在测试安装中自选会话目录时可设置 `VIDEO_STUDIO_CODEX_HOME` 为用户独占的绝对路径；工程和成片仍保存在相应资料库。[Codex 会话目录](https://developers.openai.com/codex/config-advanced/) · [Codex 本机登录方式](https://developers.openai.com/codex/auth/)
+
 ## 工程与恢复
 
 SQLite 保存当前工程、不可变编辑版本和任务。素材按 SHA-256 导入工程目录。用户与 Codex 共用带 baseRevision 的原子剪辑命令。每个任务冻结创作证据和时间线，渲染时发生的新修改属于下一版。临时输出与正式交付分开保存；审片证据关联实际 MP4/SRT 指纹。新资料库通过 OS 支持的数据库锁协调单写入服务。项目设置和密钥各自管理，ElevenLabs 密钥仅用于当前进程。原创配乐先登记服务商回执与曲目编号，并用已有本地文件指纹恢复结果。服务商音乐生成历史尚未开放 API，无法辨认的账单需由用户核实。[ElevenLabs 历史接口](https://elevenlabs.io/docs/api-reference/history/list)

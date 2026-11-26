@@ -45,8 +45,14 @@ test('a split inside a dissolve keeps the focus, source frame and opacity of bot
 test('portable project validates hash, re-probes inputs, restores locks and rejects forged duration',async t=>{
   const {store,p,file,root}=await fixture(t);const a=await store.addAsset(p.id,file);
   const edited=store.apply(p.id,2,[{op:'add',clip:{id:'v',track:'video',assetId:a.id,start:0,duration:30}},{op:'lock',id:'v',locked:true}]);
-  const manifest=await portableProject(edited,path.join(root,'portable'));
-  const opened=await store.importSnapshot(manifest);assert.notEqual(opened.id,p.id);assert.equal(opened.timeline.clips[0].locked,true);
+  const localState={threadId:'local-only',directorThreadStore:'local-profile',previousDirectorThreads:['past-locally'],directorState:{turnId:'local-turn'}};
+  const manifest=await portableProject({...edited,...localState},path.join(root,'portable'));
+  const portable=JSON.parse(await readFile(manifest,'utf8'));
+  for(const key of Object.keys(localState))assert.ok(!(key in portable));
+  // Older or externally supplied manifests may still contain machine-specific IDs.
+  await writeFile(manifest,JSON.stringify({...portable,...localState}));
+  const opened=await store.importSnapshot(manifest);
+  for(const key of Object.keys(localState))assert.ok(!(key in opened));assert.notEqual(opened.id,p.id);assert.equal(opened.timeline.clips[0].locked,true);
   const m=JSON.parse(await readFile(manifest));m.assets[0].duration=10000;m.timeline.clips[0].duration=3111;
   await writeFile(manifest,JSON.stringify(m));await assert.rejects(store.importSnapshot(manifest),/原片/);
   await writeFile(path.resolve(path.dirname(manifest),m.assets[0].path),'changed');await assert.rejects(store.importSnapshot(manifest),/指纹|内容/);

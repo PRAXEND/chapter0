@@ -1,10 +1,16 @@
 import { spawn } from 'node:child_process';
-import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { EventEmitter } from 'node:events';
+import { childEnvironment, desktopProfileHome, prepareProfile, privateRollout, studioProfileHome, workbenchLegacy } from './codex-profile.mjs';
+
+const readOnlyDesktop = Symbol('legacy workspace reader');
+const readMethods = new Set(['initialize', 'config/read', 'thread/read', 'thread/turns/list']);
+const absentThread = error => /no rollout found|(?:thread|conversation)[^\n]*(?:not found|not loaded|does not exist)|(?:not found|unknown) (?:thread|conversation)|could not find (?:a )?(?:thread|session|conversation)/i.test(error?.message || '');
+
 
 // No project directory or media file is ever exposed as an execution environment.
 // The host supplies the explicitly selected project data through typed dynamic tools.
@@ -51,7 +57,10 @@ async function binary() {
 }
 
 export class CodexClient {
-  constructor({ launch, directory } = {}) {
+  constructor({ launch, directory, home = studioProfileHome(), desktopHome = desktopProfileHome(), reader } = {}) {
+    this.home = home;
+    this.desktopHome = desktopHome;
+    this.readOnly = reader === readOnlyDesktop;
     this.launch = launch;
     this.directory = directory;
     this.events = new EventEmitter();
@@ -75,11 +84,28 @@ export class CodexClient {
       this.temporary = true;
     }
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
+    if (!this.readOnly) {
+      this.profile = await prepareProfile({
+        home: this.home,
+        desktop: this.desktopHome,
+        settings: () => this.withDesktop(reader => ({credentialMode: reader.credentialStore, sqliteHome: reader.sqliteHome, model: reader.defaultModel, effort: reader.defaultEffort})),
+      });
+      this.storeId = this.profile.storeId;
+    }
+    const home = this.readOnly ? this.desktopHome : this.profile.directory;
+    const env = childEnvironment(home, { reader: this.readOnly });
     const args = ['app-server', '--listen', 'stdio://'];
+    if (!this.readOnly) {
+      args.push('-c', 'sqlite_home=' + JSON.stringify(home));
+      if (this.profile.modelDefaults.model) args.push('-c', 'model=' + JSON.stringify(this.profile.modelDefaults.model));
+      if (this.profile.modelDefaults.effort) args.push('-c', 'model_reasoning_effort=' + JSON.stringify(this.profile.modelDefaults.effort));
+      if (['file','keyring','auto','ephemeral'].includes(this.profile.credentialStore))
+        args.push('-c', 'cli_auth_credentials_store=' + JSON.stringify(this.profile.credentialStore));
+    }
     for (const [key, value] of Object.entries(baseConfig)) args.push('-c', key + '=' + JSON.stringify(value));
     const child = this.launch
-      ? await this.launch(args, this.directory)
-      : spawn(await binary(), args, { cwd: this.directory, stdio: ['pipe', 'pipe', 'pipe'] });
+      ? await this.launch(args, this.directory, env)
+      : spawn(await binary(), args, { cwd: this.directory, env, stdio: ['pipe', 'pipe', 'pipe'] });
     this.child = child;
     // stderr can contain account diagnostics; drain it without copying it into project logs.
     child.stderr?.resume();
@@ -125,8 +151,20 @@ export class CodexClient {
     // Empty TOML maps can merge with user configuration. Explicitly disable every installed
     // custom MCP server for this thread, in addition to disabling plugin and app discovery.
     const { config } = await this.request('config/read', { includeLayers: false, cwd: this.directory });
+    this.credentialStore = config?.cli_auth_credentials_store;
+    this.sqliteHome = config?.sqlite_home;
+    // Reuse ordinary creative defaults without copying the desktop settings (plugins,
+    // credentials, alternate endpoints, or instructions). A project selection wins.
+    if (!config?.model_provider || config.model_provider === 'openai') {
+      this.defaultModel = config?.model;
+      this.defaultEffort = config?.model_reasoning_effort;
+    }
+    if (this.readOnly) return this;
+    if (config?.sqlite_home && path.resolve(config.sqlite_home) !== home)
+      throw Error('当前 Codex 配置未采用工作台的独立会话索引。');
     this.config = {
       ...baseConfig,
+      default_permissions: profile,
       ['permissions.' + profile + '.filesystem']: { ':minimal': 'read' },
       ['permissions.' + profile + '.network.enabled']: false,
     };
@@ -142,7 +180,23 @@ export class CodexClient {
     this.child.stdin.write(JSON.stringify(value) + '\n');
   }
 
+  async withDesktop(read) {
+    const client = new CodexClient({
+      launch: this.launch,
+      directory: this.directory,
+      desktopHome: this.desktopHome,
+      reader: readOnlyDesktop,
+    });
+    try {
+      await client.connect();
+      return await read(client);
+    } finally {
+      client.close();
+    }
+  }
+
   request(method, params) {
+    if (this.readOnly && !readMethods.has(method)) throw Error('旧工程目录仅允许读取指定工作台会话。');
     const id = ++this.next;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -206,17 +260,43 @@ export class CodexClient {
     try {
       await this.connect();
       const result = await this.request('account/read', { refreshToken: false });
-      return { available: true, connected: Boolean(result.account), accountType: result.account?.type || null };
+      return { available: true, connected: Boolean(result.account), accountType: result.account?.type || null, accountSource: this.profile.accountSource };
     } catch (error) {
       return { available: false, connected: false, message: error.message };
     }
   }
   async login() {
     await this.connect();
+    if (this.profile.accountSource === 'desktop-file') {
+      const status = await this.request('account/read', { refreshToken: false });
+      return {connected: Boolean(status.account), message: status.account
+        ? '已连接本机 Codex 账号。' : '请在 Codex 桌面重新登录已共享的账号，然后重新打开工作台。'};
+    }
     return this.request('account/login/start', { type: 'chatgpt' });
   }
 
-  async thread(threadId, tools, instructions, settings) {
+  async legacyCopy(threadId, options) {
+    return this.withDesktop(async reader => {
+      let thread;
+      try {
+        ({thread} = await reader.request('thread/read', {threadId, includeTurns: false}));
+      } catch (e) {
+        if (absentThread(e) && options.allowFreshOnMissing) return null;
+        throw e;
+      }
+      if (!workbenchLegacy(thread, threadId)) throw Error('原会话未通过工作台身份核对，请从当前工程另开制作。');
+      const page = await reader.request('thread/turns/list', { threadId, limit: 1, sortDirection: 'desc', itemsView: 'notLoaded' });
+      if (thread.status?.type === 'active' || page.data.some(t => t.status === 'inProgress'))
+        throw Error('旧版工作台回合仍在执行或缺少结束回执，请先确认原任务状态。');
+      if (options.legacyTurnId && !options.allowFreshOnMissing) {
+        const {turn} = await reader.findTurnHere(threadId, options.legacyTurnId);
+        if (!turn) throw Error('未能核对旧任务的回合，请在当前工程新建制作任务。');
+      }
+      return privateRollout(this.profile, thread, threadId);
+    });
+  }
+
+  async thread(threadId, tools, instructions, settings, options = {}) {
     await this.connect();
     const common = {
       cwd: this.directory,
@@ -227,15 +307,31 @@ export class CodexClient {
       developerInstructions: instructions,
     };
     if (settings?.model) common.model = settings.model;
-    const result = threadId
-      ? await this.request('thread/resume', { ...common, threadId, excludeTurns: true })
-      : await this.request('thread/start', {
-          ...common,
-          ephemeral: false,
-          environments: [],
-          selectedCapabilityRoots: [],
-          dynamicTools: tools,
-        });
+    const start = () => this.request('thread/start', {
+      ...common, ephemeral: false, environments: [], selectedCapabilityRoots: [], dynamicTools: tools,
+    });
+    let result;
+    if (threadId) {
+      try {
+        result = await this.request('thread/resume', { ...common, threadId, excludeTurns: true });
+      } catch (error) {
+        if (!absentThread(error) || (!options.allowLegacy && !options.allowFreshOnMissing)) throw error;
+        const legacy = options.allowLegacy ? await this.legacyCopy(threadId, options) : null;
+        if (legacy) {
+          result = await this.request('thread/resume', { ...common, threadId, path: legacy, excludeTurns: true });
+          if (result.thread.id !== threadId || !result.thread.path || await realpath(result.thread.path) !== await realpath(legacy))
+            throw Error('Codex 没有从迁入工作台的记录恢复，工程已保留。');
+        } else {
+          result = await start();
+        }
+      }
+    } else {
+      result = await start();
+    }
+    // New rollouts may not yet be materialized. Their configured root and returned
+    // absolute location must both belong to Studio before a paid turn can begin.
+    if (result.thread.path && !this.ownsRolloutPath(result.thread.path))
+      throw Error('Codex 未返回工作台目录中的会话，工程已保留。');
     // Fail closed if a globally managed connector survived the thread overrides.
     let cursor = null;
     do {
@@ -258,11 +354,51 @@ export class CodexClient {
     this.threadModels.set(result.thread.id, result.model || null);
     return result.thread.id;
   }
+  ownsRolloutPath(file) {
+    const relative = path.relative(this.profile.directory, path.resolve(file)).split(path.sep);
+    return ['sessions', 'archived_sessions'].includes(relative[0]) && !relative.includes('..');
+  }
+
   modelForThread(id) {
     return this.threadModels?.get(id) || null;
   }
 
-  async findTurn(threadId, turnId) {
+  async recentTurnIds(threadId) {
+    await this.connect();
+    try {
+      const page = await this.request('thread/turns/list', {threadId, limit: 2, sortDirection: 'desc', itemsView: 'notLoaded'});
+      return page.data.map(turn => turn.id);
+    } catch (error) {
+      if (absentThread(error) || /not materialized|no persisted/i.test(error.message)) return [];
+      throw error;
+    }
+  }
+
+  async findTurn(threadId, turnId, { allowLegacy = false, allowMissing = false } = {}) {
+    await this.connect();
+    try {
+      return await this.findTurnHere(threadId, turnId);
+    } catch (error) {
+      if (!absentThread(error)) throw error;
+      if (!allowLegacy) {
+        if (allowMissing) return {turn: null, status: null};
+        throw error;
+      }
+      return this.withDesktop(async reader => {
+        let thread;
+        try {
+          ({thread} = await reader.request('thread/read', {threadId, includeTurns: false}));
+        } catch (e) {
+          if (allowMissing && absentThread(e)) return {turn: null, status: null};
+          throw e;
+        }
+        if (!workbenchLegacy(thread, threadId)) throw Error('该旧回合不是已登记的工作台会话。');
+        return reader.findTurnHere(threadId, turnId);
+      });
+    }
+  }
+
+  async findTurnHere(threadId, turnId) {
     const { thread } = await this.request('thread/read', { threadId, includeTurns: false });
     let cursor = null;
     do {

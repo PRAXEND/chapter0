@@ -928,15 +928,37 @@ test('the director can place a native JSX beat on first cut and revise its secon
 
 test('opening an old project for an ordinary edit registers newly added tools once',async t=>{
   const {p,deps}=await fixture(t,{threadId:'old-thread',directorToolSignature:'previous-tools'});
-  const starts=[];
-  deps.client={account:async()=>({connected:true}),close(){},
-    async thread(id,tools){starts.push(id);assert.ok(tools.some(t=>t.name==='studio_component'));return 'updated-thread';},
+  const starts=[], scopes=[];
+  deps.client={storeId:'private-director-store',account:async()=>({connected:true}),close(){},
+    async thread(id,tools,_instructions,_settings,options){starts.push(id);scopes.push(options);assert.ok(tools.some(t=>t.name==='studio_component'));return 'updated-thread';},
     async runTurn({onStart}){await onStart('new-turn');return '已读取工程';}};
   const director=createDirector(deps);
   await director.run(p.id,{kind:'revise'});
   await director.run(p.id,{kind:'revise'});
   assert.deepEqual(starts,[null,'updated-thread']);
+  assert.equal(p.directorThreadStore,'private-director-store');
+  assert.deepEqual(scopes.map(s=>s.allowLegacy),[true,false]);
   assert.deepEqual(p.previousDirectorThreads,['old-thread']);
+});
+
+test('a lost dispatch receipt only reconciles a single provable successor without purchasing a replacement',async t=>{
+  const {p,deps}=await fixture(t);
+  let history=['prior'],starts=0,lost=true;
+  deps.client={storeId:'private-store',account:async()=>({connected:true}),close(){},
+    thread:async()=> 'same',recentTurnIds:async()=>history,
+    findTurn:async(_id,id)=>({turn:id==='real-turn'?{id,status:'completed',items:[]}:null,status:{type:'notLoaded'}}),
+    async runTurn({onStart}){starts++;if(lost)throw Error('response lost');await onStart('real-turn');return '读取完成';}};
+  const director=createDirector(deps), input={kind:'revise',jobId:'retry-once'};
+  await assert.rejects(director.run(p.id,input),/response lost/);
+  assert.equal(p.directorState.dispatch,'starting');assert.equal(p.directorState.predecessor,'prior');
+  await assert.rejects(director.run(p.id,input),/尚无可核对/);
+  history=['different','extra'];
+  await assert.rejects(director.run(p.id,input),/尚无可核对/);
+  history=['real-turn','prior'];lost=false;
+  const result=await director.run(p.id,input);assert.equal(result.changed,false);
+  assert.equal(p.directorState.turnId,'real-turn');assert.equal(starts,1);
+  p.directorState.turnId='missing-turn';
+  await assert.rejects(director.run(p.id,input),/回合尚无可核对/);assert.equal(starts,1);
 });
 
 test('a first cut can apply independently editable headline and credit components to the same shot',async t=>{

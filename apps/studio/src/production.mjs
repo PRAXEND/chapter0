@@ -1068,19 +1068,31 @@ export function createDirector(deps) {
     if (!status.connected) throw new Error(status.message || '请登录 Codex，或选择本地草稿。');
     // App Server registers dynamic tools on thread/start only. Migrate once for
     // both first cuts and edits. Resume an interrupted job against its original receipt first.
+    if (jobId && p.directorState?.jobId === jobId && p.directorState.dispatch === 'starting' && !p.directorState.turnId) {
+      const prior = p.directorState;
+      const ids = p.threadId && client.recentTurnIds ? await client.recentTurnIds(p.threadId) : [];
+      const onlySuccessor = prior.predecessor === null ? ids.length === 1 : ids.length === 2 && ids[1] === prior.predecessor;
+      if (!Object.hasOwn(prior, 'predecessor') || !onlySuccessor)
+        throw Error('上一轮提交尚无可核对的回执，已保留工程；可在确认后发起新的制作任务。');
+      await store.setMeta(id, {directorState: {...prior, dispatch:'running', turnId:ids[0]}});
+      p = await store.get(id);
+    }
     const resumingJob=Boolean(jobId && p.directorState?.jobId===jobId && p.directorState?.turnId);
     const upgrade = Boolean(!resumingJob && p.threadId && p.directorToolSignature !== toolSignature);
     if (upgrade && p.directorState?.turnId && client.findTurn) {
-      const prior = await client.findTurn(p.threadId, p.directorState.turnId);
-      if (prior?.turn?.status === 'inProgress' && prior.status?.type === 'active')
+      const prior = await client.findTurn(p.threadId, p.directorState.turnId, {allowLegacy: !p.directorThreadStore, allowMissing: true});
+      if (prior?.turn?.status === 'inProgress' && (prior.status?.type === 'active' || !p.directorThreadStore))
         throw Error('原创作会话还有正在执行的回合；请在其完成或暂停后继续。');
     }
-    const threadId = await client.thread(upgrade ? null : p.threadId || null, tools, instructions, p.settings);
-    if (p.threadId !== threadId)
+    const threadId = await client.thread(upgrade ? null : p.threadId || null, tools, instructions, p.settings, {
+      allowLegacy: !p.directorThreadStore, allowFreshOnMissing: !resumingJob, legacyTurnId: p.directorState?.turnId,
+    });
+    if (p.threadId !== threadId || (client.storeId && client.storeId !== p.directorThreadStore))
       await store.setMeta(id, {
         threadId,
         directorToolSignature: toolSignature,
-        ...(upgrade
+        ...(client.storeId ? {directorThreadStore: client.storeId} : {}),
+        ...(p.threadId && p.threadId !== threadId
           ? { previousDirectorThreads: [...new Set([...(p.previousDirectorThreads || []), p.threadId])] }
           : {}),
       });
@@ -1096,6 +1108,8 @@ export function createDirector(deps) {
       if(visual?.continuous && (Number.isInteger(old.observedRevision)?old.observedRevision!==p.revision:old.lastEditHash&&old.lastEditHash!==shotFingerprint(p)))
         throw Error('上次试剪之后工程已有其他编辑，请从当前版本继续。');
       const {turn:previous,status:threadStatus}=await client.findTurn(threadId,old.turnId);
+      if (!previous || (previous.status === 'inProgress' && threadStatus?.type !== 'active'))
+        throw Error('原任务的回合尚无可核对的结束回执，已保留工程和已有剪辑。');
       await checkCandidateVersion();
       notes = p.directorNotes || [];
       if(candidate&&previous?.status==='completed'){
@@ -1585,6 +1599,11 @@ export function createDirector(deps) {
     const approvalMessage=manual?'\n用户选择了手动审稿。先用 studio_sequence 提交完整镜头、源窗、组件和旁白方案；工作台等待用户确认精确指纹后再合成，不要把待审方案或试剪称为已完成。':'';
     const creativeLoop=visual?.continuous?'\n本次在同一个工程持续剪辑。可先用 studio_edit 或 studio_sequence(intent=trial) 做一个可见的试剪，然后用 studio_frame(s) 或 studio_review_cut 看实切效果并继续选源、扩剪和改句。可用 studio_sequence(operation=append) 续段、replace-range 一次重排多镜或删整段、replace-all 重新编排本片。复查时同样可改旁白、镜头和整段结构。完整时在本回合用 studio_review_cut 和 studio_visual_review 提交这一版的实看记录，然后 studio_cut_ready。默认不会另开复查回合；确实缺少必须原生附图的合成证据时，可用 studio_cut_ready(reviewInNextTurn=true,reason) 说明。每次改动后复查真实新版本，限制以用户选区、锁和素材授权为准。'+
       (summary.publishPackage||summary.presentation?' 使用 studio_publication 设置简短标题、标题内的黄色重点及两个封面的帧和取景中心。竖版标题最多两行，每行最多约十个汉字。图解与动作在居中的素材窗内，字幕在窗下。片末留 1.8 秒连续的动作与渐隐黑场，先结束旁白。':''):'';
+    if (jobId && !existingTurnId && client.recentTurnIds) {
+      const [predecessor] = await client.recentTurnIds(threadId);
+      state = {...state, dispatch:'starting', predecessor:predecessor || null};
+      await remember();
+    }
     const outcome = await client.runTurn({
       threadId,
       existingTurnId,
@@ -1623,6 +1642,7 @@ export function createDirector(deps) {
       effort: p.settings?.reasoningEffort,
       onStart: async (v) => {
         turnId = v;
+        state.dispatch = 'running';
         if(candidate && visual?.images?.length && !existingTurnId){
           await checkCandidateVersion();
           for(const {frame} of visual.images)if(frame.source==='asset' && requestsSeen.length<120)

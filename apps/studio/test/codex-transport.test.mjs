@@ -3,7 +3,16 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { createInterface } from 'node:readline';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { CodexClient } from '../src/codex.mjs';
+
+async function client(t, options) {
+  const tmp = await mkdtemp(path.join(tmpdir(), 'studio-rpc-test-'));
+  t.after(() => rm(tmp, {recursive:true, force:true}));
+  return new CodexClient({...options, home:path.join(tmp,'studio'), desktopHome:path.join(tmp,'desktop')});
+}
 
 function transport(handle) {
   const child = new EventEmitter();
@@ -37,8 +46,12 @@ function transport(handle) {
 test('official RPC uses a durable isolated thread and binds server tool requests to its current turn', async (t) => {
   const called = [];
   let declined = false;
-  const c = new CodexClient({
-    launch: async (args) => {
+  const c = await client(t, {
+    launch: async (args, cwd, env) => {
+      assert.equal(env.CODEX_HOME, env.CODEX_SQLITE_HOME);
+      assert.equal(path.basename(env.CODEX_HOME), 'studio');
+      assert.equal(env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE, undefined);
+      assert.ok(args.includes('sqlite_home=' + JSON.stringify(env.CODEX_HOME)));
       assert.ok(args.includes('features.shell_tool=false'));
       return transport((m, send) => {
         if (m.method === 'thread/start' || m.method === 'thread/resume') {
@@ -115,7 +128,7 @@ test('official RPC uses a durable isolated thread and binds server tool requests
 });
 
 test('an unexpected third-party connector blocks before any project data goes to a model turn', async (t) => {
-  const c = new CodexClient({
+  const c = await client(t, {
     launch: async () =>
       transport((m, send) => {
         if (m.method === 'thread/start') send({ id: m.id, result: { thread: { id: 'thread' } } });
@@ -131,7 +144,7 @@ test('an unexpected third-party connector blocks before any project data goes to
 test('restart reconnects to the exact live turn without submitting a second turn', async (t) => {
   let starts = 0,
     calls = 0;
-  const c = new CodexClient({
+  const c = await client(t, {
     launch: async () =>
       transport((m, send) => {
         if (m.method === 'turn/start') {
@@ -186,7 +199,7 @@ test('steer sends expectedTurnId with the new text and never creates another mod
   const accepted = [];
   let starts = 0;
   const ready = Promise.withResolvers();
-  const c = new CodexClient({
+  const c = await client(t, {
     launch: async () =>
       transport((m, send) => {
         if (m.method === 'turn/start') {

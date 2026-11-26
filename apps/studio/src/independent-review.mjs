@@ -388,10 +388,12 @@ export function createFinalReviewer({
       const shareText =
         p.settings.shareTranscript === true && store.get(p.id).settings.shareTranscript === true;
       if (state.threadId === p.threadId && state.threadId) throw Error('creative-thread');
-      const id = await client.thread(state.threadId || null, [], instructions, { model: p.settings?.model });
+      const id = await client.thread(state.threadId || null, [], instructions, { model: p.settings?.model }, {
+        allowLegacy: Boolean(state.threadId && !state.threadStore), legacyTurnId: state.turnId,
+      });
       if (!id || id === p.threadId || (state.threadId && id !== state.threadId))
         throw Error('creative-thread');
-      state = { ...state, threadId: id };
+      state = { ...state, threadId: id, ...(client.storeId ? {threadStore: client.storeId} : {}) };
       check();
       const images = [];
       if (!state.turnId) {

@@ -16,7 +16,7 @@ export async function portableProject(project,target,styles) {
       await copyFile(a.path,path.join(temp,'assets',name),constants.COPYFILE_FICLONE);
       a.path='assets/'+name;
     }
-    delete out.threadId;delete out.directorState;
+    delete out.threadId;delete out.directorThreadStore;delete out.previousDirectorThreads;delete out.directorState;
     if(styles&&out.style)out.style={...out.style,...await styles.exportPortable(out.style,temp)};
     await writeFile(path.join(temp,'project.vstudio.json'),JSON.stringify(out,null,2),{mode:0o600});
     try{await rename(temp,target);}catch(error){if(!['ENOTEMPTY','EEXIST'].includes(error.code))throw error;}
