@@ -110,7 +110,7 @@ el('create').onclick=run(async()=>{
     const conditions=Object.fromEntries([...row.querySelectorAll('[data-condition]')].map(i=>[i.dataset.condition,i.value]));
     return {...source,expected:row.querySelector('.expected')?.value.trim(),topicGroup:row.querySelector('.group')?.value.trim(),comparisonProjectId:comp?.projectId,comparisonJobId:comp?.jobId,comparisonAssetId:comp?.assetId,primary:row.querySelector('.primary-source')?.value,conditions};
   });
-  const s=await api('/api/blind/studies',{kind:el('kind').value,title:el('title').value,samples});await refresh();await choose(s);
+  const s=await api('/api/blind/studies',{kind:el('kind').value,title:el('title').value,samples});sampleDrafts.clear();el('title').value='看片盲评';await refresh();await choose(s);
 });
 el('begin').onclick=run(loadSession);
 el('reviewer').addEventListener('input',()=>{if(viewer&&el('reviewer').value.trim()!==viewer){rememberBallot();viewer='';active=null;session=null;show('screen',false);el('movies').replaceChildren();}});

@@ -1,7 +1,7 @@
 // Stable control names bind explanations to actions, even when their visible label is a filename.
 const entries={
  new:[
- ['从选题开始','mode:topic'],['脚本与素材','mode:script'],['精剪原片','mode:interview'],['工程名称／','new-title brief script'],['画幅／','ratio new-style new-duration'],['最短片长／','new-min new-max'],['素材范围／','new-source-scope new-facts new-urls'],['本地素材／','new-files new-voice'],['字幕','new-captions'],['制作前确认','new-confirm-sequence'],['分享语音','new-share-text new-share-frames new-auto-review new-final-review'],['仅创建工程','create create-run'],['打开工程文件夹','import-folder folder-picker open-project new']],
+ ['从选题开始','mode:topic'],['脚本与素材','mode:script'],['精剪原片','mode:interview'],['工程名称／','new-title brief script'],['画幅／','ratio new-style new-duration'],['最短片长／','new-min new-max'],['素材范围／','new-source-scope new-facts new-urls'],['本地素材／','new-files new-voice'],['字幕','new-captions'],['制作前确认','new-confirm-sequence'],['分享语音','new-share-text new-share-frames new-auto-review new-final-review'],['移除已选','drop-file continue-create'],['仅创建工程','create create-run'],['打开工程文件夹','import-folder folder-picker open-project new']],
  edit:[
  ['播放头／','tl-time tl-ruler step-back step-next'],['播放／','play out fit in'],['吸附／','snap clip'],['分割／','split remove ripple'],['复制／','copy paste undo redo'],['M／','track:toggle track:lock'],['本次要求','instruction direct'],['暂停／','pause resume approve-plan replan'],['生成本地草稿','local preview render draft'],['插入素材','insert-asset insert-caption add-component new-component'],['选中片段','clip-picker']],
  inspector:[
@@ -13,9 +13,9 @@ const entries={
  style:[
  ['浏览风格','browse-style pin-style'],['看片段','style-ref'],['模板／','scene-template scene-action scene-duration'],['强调文字','scene-text scene-sound scene-sound-asset'],['在选区','add-scene']],
  settings:[
- ['名称／','set-title set-brief set-script set-scope set-captions target-length set-min set-max'],['本期旁白选择','voice-selection voice-mode'],['导入旁白','narration voice-reference reference-text consent'],['试听当前','audition saved-voice use-voice voice-label enroll-voice'],['本期配乐选择','music-selection music-mode bgm'],['场景模板落点','project-scene-sound'],['确认分镜','confirm-plan share-text share-frames auto-review final-review'],['附两种封面','pack pub-title pub-emphasis pub-body pub-tags'],['启用第三方','cloud budget music-prompt music-length compose-music'],['核对回执','reconcile charged not-charged'],['保存工程设置','settings-save']],
+ ['名称／','set-title set-brief set-script set-scope set-captions target-length set-min set-max'],['本期旁白选择','voice-selection voice-mode'],['导入旁白','narration voice-reference reference-text consent'],['试听当前','audition saved-voice use-voice voice-label enroll-voice'],['本期配乐选择','music-selection music-mode bgm'],['场景模板落点','project-scene-sound'],['确认分镜','confirm-plan share-text share-frames auto-review final-review'],['附两种封面','pack pub-title pub-emphasis pub-body pub-tags'],['启用第三方','cloud budget music-prompt music-length compose-music'],['核对回执','reconcile charged not-charged'],['采用我的','keep-draft use-current'],['保存工程设置','settings-save']],
  deliver:[['播放器','player'],['播放问题','review-issue fix-issue'],['MP4／','reveal:video reveal:subtitle reveal:project'],['3:4','reveal']],
- tools:[['本机与账号','environment install'],['连接 Codex','login'],['ElevenLabs','cloud-key'],['历史素材','legacy-editor migrate legacy'],['使用帮助','dismiss']],
+ tools:[['本机与账号','environment install'],['连接 Codex','login'],['ElevenLabs','cloud-key'],['断开本次','cloud-disconnect'],['历史素材','legacy-editor migrate legacy'],['使用帮助','dismiss']],
  blind:[['新建盲评','new title kind'],['候选 A','add source comparison expected group primary-source condition'],['冻结候选','create reviewer begin'],['看片判断','decision observation dimension'],['问题起点','from to mark-from mark-to']]
 };
 export function guideControl(el,topic,topics){
