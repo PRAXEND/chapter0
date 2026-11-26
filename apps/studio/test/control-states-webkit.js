@@ -7,9 +7,10 @@ const truth=(v,h)=>{if(!v)throw Error('状态不符 '+h);};
 const checked=[],ok=name=>checked.push(name);
 const original=window.fetch.bind(window);
 const request=async(route,body)=>{const r=await original(route,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};
-let pause=null, observe=null;
+let pause=null, observe=null,failUpload=false;
 window.fetch=async(url,opts)=>{
  const uri=typeof url==='string'?url:new URL(url.url).pathname;
+ if(failUpload&&uri.endsWith('/assets')&&opts?.method==='POST'){failUpload=false;return Response.json({error:'模拟临时导入中断'},{status:503});}
  if(observe)observe(uri,opts);
  if(pause&&pause.match(uri,opts)){const hold=pause;pause=null;const answer=await original(url,opts);hold.entered();await hold.wait;return answer;}
  return original(url,opts);
@@ -60,5 +61,44 @@ try{
  click('lock');await wait(()=>el('clip-text')&&!el('clip-text').disabled);click('save-clip','one');
  await wait(()=>document.querySelector('[data-clip="one"]')?.title?.includes('一号草稿'));truth((await request('/api/projects/'+a)).timeline.clips.find(c=>c.id==='one').text==='一号草稿','persisted selected');
  ok('两个片段各自保存文本草稿，锁定拒绝删除，解锁后可保存');
+ const bytes=Uint8Array.from(atob(testMovie),c=>c.charCodeAt(0));
+ const uploaded=await original('/api/projects/'+a+'/assets',{method:'POST',headers:{'X-File-Name':'controls.mp4'},body:bytes});
+ const asset=await uploaded.json();truth(uploaded.ok&&asset.hasAudio,'可播源录像及声音');
+ current=await request('/api/projects/'+a);const fps=current.profile.fps;
+ const framing={from:{x:.5,y:.5,zoom:1},to:{x:.66,y:.5,zoom:1.5},keys:[{frame:14,x:.35,y:.5,zoom:2}]};
+ const timeMap={points:[{frame:0,sourceFrame:0},{frame:24,sourceFrame:12},{frame:48,sourceFrame:48}]};
+ const curve={id:'curve',track:'video',assetId:asset.id,start:0,duration:48,sourceIn:8,framing,timeMap,speed:1,gain:.8};
+ const keys=[{frame:0,x:.30,y:.25,opacity:.6},{frame:24,x:.70,y:.65,rotation:48}];
+ const layer={id:'moving-label',track:'graphic',text:'移动',geometry:{x:.35,y:.30},start:0,duration:48,keyframes:keys};
+ await request('/api/projects/'+a+'/edits',{baseRevision:current.revision,commands:[curve,layer].map(clip=>({op:'add',clip}))});
+ click('open-project',a);await wait(()=>document.querySelector('[data-clip="curve"]'));input('clip-picker','curve');await wait(()=>el('clip-gain'));
+ truth(el('view-from-x').disabled&&el('clip-automation').querySelector('details'),'高级取景编辑器与普通字段区分');
+ input('clip-gain','.55');click('save-clip','curve');await wait(()=>el('clip-gain')?.defaultValue==='0.55');
+ const getClip=async id=>(await request('/api/projects/'+a)).timeline.clips.find(c=>c.id===id);
+ let savedCurve=await getClip('curve');truth(savedCurve.gain===.55&&JSON.stringify(savedCurve.framing)===JSON.stringify(framing)&&JSON.stringify(savedCurve.timeMap)===JSON.stringify(timeMap),'仅音量变化保留两条曲线');
+ ok('基础音量保存后保留可视取景中点、变速曲线与高级检查器');
+ input('clip-len',String(36/fps));input('clip-speed','2');truth(button('save-clip','curve').getAttribute('aria-disabled')==='true','长度与固定速率同时设置');
+ input('clip-speed',el('clip-speed').defaultValue);input('clip-at',String(15/fps));click('save-clip','curve');
+ await wait(()=>Number(el('clip-len')?.defaultValue)===36/fps);savedCurve=await getClip('curve');
+ truth(savedCurve.start===15&&savedCurve.duration===36&&Math.abs(savedCurve.speed-30/36)<1e-8&&savedCurve.timeMap?.points?.length===3,'先裁切源时钟再移动镜头');
+ click('clip-source','curve');await wait(()=>el('source-preview')?.readyState>=1);el('source-preview').pause();
+ truth(el('source-range')?.dataset.from==='8'&&el('source-range').dataset.to==='38','显示真实源区间');
+ truth(el('source-preview').currentTime>=8/fps-.04,'原片播放器从实际源入点开始');el('dismiss').click();
+ ok('按源时钟裁切并移动曲线镜头，打开真实原片 8–38 帧');
+ input('clip-picker','moving-label');await wait(()=>el('clip-x')?.value==='0.35');input('clip-x','.50');click('save-clip','moving-label');
+ await wait(()=>Number(el('clip-x')?.defaultValue)===.5);
+ let moved=await getClip('moving-label');
+ truth(moved.geometry.x===.5&&Math.abs(moved.keyframes[0].x-.45)<1e-8&&Math.abs(moved.keyframes[1].x-.85)<1e-8&&moved.keyframes[1].y===.65&&moved.keyframes[1].rotation===48,'平移已有绝对关键帧');
+ input('clip-x','.55');const explicit=[{frame:0,x:.12},{frame:24,x:.8,opacity:.5}];input('clip-keys',JSON.stringify(explicit));click('save-clip','moving-label');
+ await wait(()=>Number(el('clip-x')?.defaultValue)===.55);moved=await getClip('moving-label');
+ truth(JSON.stringify(moved.keyframes)===JSON.stringify(explicit),'手改关键帧优先');
+ ok('基础位置平移已有动效轨迹，显式输入的关键帧按原值保存');
+ el('new').click();await wait(()=>el('new-files'));input('new-title','仅补导一次');
+ const files=new DataTransfer();files.items.add(new File([bytes],'retry.mp4',{type:'video/mp4'}));el('new-files').files=files.files;el('new-files').dispatchEvent(new Event('change',{bubbles:true}));
+ failUpload=true;click('create');await wait(()=>el('continue-imports'));const beforeRetry=await request('/api/projects');
+ truth(beforeRetry.length===3,'导入失败保留一个新工程');click('continue-create');await wait(()=>!el('continue-imports'));
+ const afterRetry=await request('/api/projects'),retryId=afterRetry.find(p=>p.title==='仅补导一次')?.id;
+ truth(afterRetry.length===3&&(await request('/api/projects/'+retryId)).assets.length===1&&(await request('/api/projects/'+retryId+'/jobs')).length===0,'只补未完成操作');
+ ok('导入中断后在已建工程补导，保留文件且仅入库一次');
  report({passed:true,checks:checked});
 }catch(error){report({error:error.message,checks:checked,screen:document.getElementById('current-title')?.textContent,notice:document.getElementById('notice')?.textContent});}

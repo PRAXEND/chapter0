@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {actionGate,dependencies,durationProblem,jobReason} from '../www/control-state.js';
+import {storyboardSourceRange} from '../www/clip-automation.js';
+
+test('viewing a fact source uses the stored source seconds at the project frame rate',()=>{
+  assert.deepEqual(storyboardSourceRange({start:240,sourceStart:1.25,sourceEnd:3.5},24),{fromFrame:30,toFrame:84});
+  assert.deepEqual(storyboardSourceRange({sourceStart:1},30),{fromFrame:30});
+  assert.deepEqual(storyboardSourceRange(undefined,30),{});
+});
 
 test('mutually exclusive requests share a project gate and unrelated work stays available',()=>{
   const gate=actionGate();

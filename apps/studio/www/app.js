@@ -1,6 +1,7 @@
 import {actionGate,activeJob,formDrafts,syncControls} from './control-state.js';
 import {motionCues,defaultMotionGeometry,contentStage} from './motion-clock.js';
 import {mountClipInspector} from './advanced-inspector.js';
+import {sourceAt,storyboardSourceRange} from './clip-automation.js';
 import {timelineView} from './timeline.js';
 import {createTimelinePlayer} from './timeline-player.js';
 let timeline,transport,advanced,editorView,editorProject,openingProject=0,viewEpoch=0,styleEpoch=0,dialogEpoch=0;
@@ -309,12 +310,12 @@ function inspector(c){
   const fps=frameRate(),asset=s.p.assets.find(a=>a.id===c.assetId),timed=asset&&asset.kind!=='image';
   const canSwitchAudioTrack=['narration','music'].includes(c.track)&&!c.soundBinding&&!c.speechGroup;
   return `<section class="card inspector"><div class="hrow space"><h3>${esc(clipTitle(c))}</h3>${btn('lock',c.locked?'解锁片段':'锁定片段','',c.id)}</div>
-  <div class="three">${[['起点（秒）','at',c.start/fps],['长度（秒）','len',c.duration/fps],['原片入点（秒）','in',(c.sourceIn||0)/fps],['速率','speed',c.speed??1],['音量','gain',c.gain??1]].filter((_,i)=>i<2||(i<4?timed:asset?.hasAudio)).map(([label,id,v])=>field(label,input('clip-'+id,Number(v.toFixed(4)),'number','step="any" min="0"'))).join('')}</div>
+  <div class="three">${[['起点（秒）','at',c.start/fps],['长度（秒）','len',c.duration/fps],['原片入点（秒）','in',(c.sourceIn||0)/fps],[c.timeMap?'改为固定速率（当前为时间曲线）':'速率','speed',c.speed??1],['音量','gain',c.gain??1]].filter((_,i)=>i<2||(i<4?timed:asset?.hasAudio)).map(([label,id,v])=>field(label,input('clip-'+id,Number(v.toFixed(4)),'number','step="any" min="0"'))).join('')}</div>
   ${canSwitchAudioTrack?field('音频轨道',select('clip-audio-track',[['narration','旁白'],['music','配乐']],c.track)):''}
   ${asset?.hasAudio?btn('clip-mute',c.muted?'恢复原声':'静音片段','',c.id):''}
   ${c.motion?componentFields(c):['caption','graphic'].includes(c.track)?field('文字',area('clip-text',c.text,2)):''}
   ${c.shape==='polygon'?field('轮廓顶点（图层内 x、y，范围 0–1）',area('clip-points',JSON.stringify(c.geometry.points),3)):''}
-  ${!c.motion&&['caption','graphic'].includes(c.track)?`<details><summary>图层位置与关键帧</summary><div class="three">${field('水平位置 0–1',input('clip-x',c.geometry?.x??.5,'number','step=".01"'))}${field('垂直位置 0–1',input('clip-y',c.geometry?.y??.5,'number','step=".01"'))}${field('字号（像素）',input('clip-font',c.style?.fontSize||48,'number','min="1"'))}</div>${field('关键帧（帧、位置、缩放、透明度及顺时针角度 rotation）',area('clip-keys',JSON.stringify(c.keyframes||[]),2))}</details>`:''}
+  ${!c.motion&&['caption','graphic'].includes(c.track)?`<details><summary>图层位置与关键帧</summary><div class="three">${field('水平位置 0–1',input('clip-x',c.geometry?.x??.5,'number','step=".01"'))}${field('垂直位置 0–1',input('clip-y',c.geometry?.y??(c.track==='caption'?.86:.28),'number','step=".01"'))}${field('字号（像素）',input('clip-font',c.style?.fontSize||48,'number','min="1"'))}</div>${field('关键帧（帧、位置、缩放、透明度及顺时针角度 rotation）',area('clip-keys',JSON.stringify(c.keyframes||[]),2))}</details>`:''}
   ${c.track==='video'?`${viewportFields(c)}${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照'],['whip-pan','热点 · 甩镜'],['organic-dissolve','热点 · 纹理溶解']],['wipe-right','whip-pan','organic-dissolve'].includes(c.transition?.type)?c.transition.type:'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>${shakeInspector(c)}`:''}<div id="clip-automation"></div><div class="actions">${!c.motion?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${c.motion?btn('save-preview-cue','保存并预览落点','',c.id):''}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
 }
 const timelineRequests=new Set();
@@ -401,13 +402,15 @@ function previewOriginal(asset,{fromFrame=0,toFrame}={}){
   const source=aid(asset.id);
   if(asset.kind==='image')return modal(asset.name,`<img class="wide-video" src="${source}" alt="${esc(asset.name)}">`);
   const type=asset.kind==='audio'?'audio':'video';
+  const range=Number.isFinite(toFrame)&&toFrame>fromFrame, fps=frameRate();
+  const bounds=range?`<p class="help" id="source-range" data-from="${fromFrame}" data-to="${toFrame}">原片区间 ${(fromFrame/fps).toFixed(2)} 至 ${(toFrame/fps).toFixed(2)} 秒</p>`:'';
   const markup=`<${type} id="source-preview" class="wide-video" controls playsinline src="${source}"></${type}>`;
   const mark=asset.kind==='video'?field('当前帧发生了什么',input('event-label'))+btn('mark-action','将当前帧标为动作落点','',asset.id):'';
-  modal(asset.name,markup+mark);
-  const player=el('source-preview'),fps=frameRate();
+  modal(asset.name,markup+bounds+mark);
+  const player=el('source-preview');
   const start=()=>{player.currentTime=Math.max(0,fromFrame/fps);player.play().catch(()=>{});};
   if(player.readyState>=1)start();else player.addEventListener('loadedmetadata',start,{once:true});
-  if(Number.isFinite(toFrame)&&toFrame>fromFrame){
+  if(range){
     player.addEventListener('timeupdate',()=>{if(player.currentTime>=toFrame/fps)player.pause();});
   }
 }
@@ -602,66 +605,89 @@ async function runAction(act,id){
  case 'save-clip':{
   const accepted=drafts.submitted(formScope('clip',id)),save=commands=>edit(commands,p.revision,accepted);
   const c=p.timeline.clips.find(c=>c.id===id),f=frameRate();
-  const changes={start:Math.round(Number(val('clip-at'))*f),duration:Math.round(Number(val('clip-len'))*f)};
-  const edited=key=>{const n=el('clip-'+key);return n&&Number(n.value)!==Number(n.defaultValue);};
-  if(edited('in'))changes.sourceIn=Number((Number(val('clip-in'))*f).toFixed(8));
-  if(edited('gain'))changes.gain=Number(val('clip-gain'));
+  const changed=key=>drafts.changed(el(key)),changes={},commands=[];
+  const move=changed('clip-at'),resize=changed('clip-len');
+  const start=Math.round(Number(val('clip-at'))*f),duration=Math.round(Number(val('clip-len'))*f);
+  if(changed('clip-in'))changes.sourceIn=Number((Number(val('clip-in'))*f).toFixed(8));
+  if(changed('clip-gain'))changes.gain=Number(val('clip-gain'));
   if(c.motion){
+    if(resize)changes.duration=duration;
+    if(move)commands.push({op:'move',id,start});
     const spec=componentById(c.motion.componentId),props={...c.motion.props};
-    for(const f of spec.fields.filter(f=>!['second','third'].includes(f.key))){
+    const fields=spec.fields.filter(f=>!['second','third'].includes(f.key)&&changed('motion-'+f.key));
+    for(const f of fields){
       const node=el('motion-'+f.key);
       props[f.key]=f.type==='number'?Number(node.value):f.type==='boolean'?node.checked:node.value;
     }
-    const cueFrames=Array.from(document.querySelectorAll('[data-cue]'),n=>Number(n.value));
-    const sound=el('motion-sound-on'),soundDesign={...c.soundDesign};
-    if(sound){
-      const defaultEnabled=Boolean(spec.soundEvents?.length),selected=val('motion-sound-id');
-      if(sound.checked!==defaultEnabled||soundDesign.enabled!=null)soundDesign.enabled=sound.checked;
-      if(selected!==String(soundDesign.resourceId||'')){
+    const cuesChanged=drafts.changed(el('cue-0')?.closest('fieldset'));
+    if(fields.length||cuesChanged){
+      changes.motion={...c.motion,...(fields.length&&{props})};
+      if(cuesChanged)changes.motion.cueFrames=Array.from(document.querySelectorAll('[data-cue]'),n=>Number(n.value));
+    }
+    if(rectKeys.some(key=>changed('motion-rect-'+key)))changes.geometry={...c.geometry,...readRect('motion-rect')};
+    if(changed('motion-sound-on')||changed('motion-sound-id')){
+      const soundDesign={...c.soundDesign};
+      if(changed('motion-sound-on'))soundDesign.enabled=el('motion-sound-on').checked;
+      if(changed('motion-sound-id')){
+        const selected=val('motion-sound-id');
         if(selected)soundDesign.resourceId=selected;else delete soundDesign.resourceId;
         delete soundDesign.assetId;
       }
+      changes.soundDesign=soundDesign;
     }
-    return save([{op:'update',id,changes:{start:changes.start,duration:changes.duration,geometry:readRect('motion-rect'),
-      ...(sound?{soundDesign}:{}),motion:{...c.motion,props,cueFrames}}}]);
+  }else{
+    if(changed('clip-audio-track'))changes.track=val('clip-audio-track');
+    if(['caption','graphic'].includes(c.track)){
+      if(changed('clip-text'))changes.text=val('clip-text');
+      const position=['x','y'].filter(k=>changed('clip-'+k)),manualKeys=changed('clip-keys');
+      if(position.length||changed('clip-points')){
+        const geometry={...c.geometry};
+        for(const k of position)geometry[k]=Number(val('clip-'+k));
+        if(changed('clip-points'))geometry.points=JSON.parse(val('clip-points'));
+        changes.geometry=geometry;
+        if(position.length&&!manualKeys&&c.keyframes?.length){
+          const dx=(geometry.x??.5)-(c.geometry?.x??.5),baseY=c.track==='caption'?.86:.28;
+          const dy=(geometry.y??baseY)-(c.geometry?.y??baseY);
+          const keyframes=c.keyframes.map(k=>({...k,...(Number.isFinite(k.x)&&{x:k.x+dx}),...(Number.isFinite(k.y)&&{y:k.y+dy})}));
+          // Trim the translated animation on its original clock.
+          commands.push({op:'update',id,changes:{geometry,keyframes}});delete changes.geometry;
+        }
+      }
+      if(changed('clip-font'))changes.style={...c.style,fontSize:Number(val('clip-font'))};
+      if(manualKeys)changes.keyframes=JSON.parse(val('clip-keys')||'[]');
+    }
+    if(c.track==='video'){
+      if(changed('use-viewport')||rectKeys.some(k=>changed('viewport-'+k)))changes.viewport=el('use-viewport').checked?readRect('viewport'):null;
+      if(changed('clip-fit'))changes.fit=val('clip-fit');
+      const point=key=>Object.fromEntries(['x','y','zoom'].map(k=>[k,Number(val('view-'+key+'-'+k))]));
+      const changedPoints=['from','to'].some(key=>['x','y','zoom'].some(k=>changed('view-'+key+'-'+k)));
+      if(changed('clip-framing')||changedPoints&&!c.framing?.keys?.length)
+        changes.framing=el('clip-framing').checked?{from:point('from'),to:point('to')}:null;
+      if(drafts.changed(el('picture-shakes')))changes.pictureEffects=readShakes();
+      if(changed('replace-asset'))changes.assetId=val('replace-asset');
+      if(changed('clip-fade')||changed('clip-transition')){
+        const fade=Number(val('clip-fade'));changes.transition=fade?{type:val('clip-transition'),duration:fade}:null;
+      }
+    }
+    if(resize)commands.push({op:'trim',id,edge:'end',atFrame:c.start+duration});
+    if(changed('clip-speed'))commands.push({op:'speed',id,speed:Number(val('clip-speed'))});
+    if(move)commands.push({op:'move',id,start});
   }
-  const asset=p.assets.find(a=>a.id===c.assetId);
-  const speedChange=asset&&asset.kind!=='image'&&edited('speed');
-  const newSpeed=Number(val('clip-speed'));
-  if(el('clip-audio-track')&&val('clip-audio-track')!==c.track)changes.track=val('clip-audio-track');
-  if(!edited('len'))delete changes.duration;
-  if(!edited('at'))delete changes.start;
-  if(['caption','graphic'].includes(c.track)){
-    changes.text=val('clip-text');changes.geometry={...c.geometry,x:Number(val('clip-x')),y:Number(val('clip-y'))};
-    if(c.shape==='polygon')changes.geometry.points=JSON.parse(val('clip-points'));
-    changes.style={...c.style,fontSize:Number(val('clip-font'))};changes.keyframes=JSON.parse(val('clip-keys')||'[]');
-  }
-  if(c.track==='video'){
-    changes.viewport=el('use-viewport').checked?readRect('viewport'):null;changes.fit=val('clip-fit');
-    const point=key=>Object.fromEntries(['x','y','zoom'].map(k=>[k,Number(val('view-'+key+'-'+k))]));
-    if(el('clip-framing').checked){
-      const modified=['from','to'].some(key=>['x','y','zoom'].some(k=>{const n=el('view-'+key+'-'+k);return Number(n.value)!==Number(n.defaultValue);}));
-      if(!c.framing||modified&&!c.framing.keys?.length)changes.framing={from:point('from'),to:point('to')};
-    }else if(c.framing)changes.framing=null;
-    if(el('picture-shakes')&&(c.pictureEffects||el('picture-shakes').children.length))changes.pictureEffects=readShakes();
-    changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));const type=val('clip-transition');if(n!==(c.transition?.duration||0)||(n&&type!==(['wipe-right','whip-pan','organic-dissolve'].includes(c.transition?.type)?c.transition.type:'fade')))changes.transition=n?{type,duration:n}:null;}
-  const commands=speedChange?[{op:'speed',id,speed:newSpeed}]:[];
   if(Object.keys(changes).length)commands.push({op:'update',id,changes});
   if(commands.length)return save(commands);
-  return;}
+  accepted();return;}
  case 'fact-source':await proj('/facts/'+Number(id)+'/open',{});return;
  case 'fact-shot':{
     const f=p.facts?.[Number(id)],asset=p.assets.find(a=>a.id===f?.assetId);
     if(!asset)throw Error('原素材未载入工程。');
     const shot=(p.storyboard||[]).find(shot=>shot.start===f.start&&shot.assetId===asset.id);
-    return previewOriginal(asset,{fromFrame:shot?.sourceStart,toFrame:shot?.sourceEnd});
+    return previewOriginal(asset,storyboardSourceRange(shot,p.profile.fps));
  }
  case 'asset-play':return previewOriginal(p.assets.find(a=>a.id===id));
  case 'clip-source':{
     const c=p.timeline.clips.find(c=>c.id===id),asset=p.assets.find(a=>a.id===c?.assetId);
     if(!asset)throw Error('找不到此片段的原素材。');
-    const fromFrame=c.sourceIn||0;
-    return previewOriginal(asset,{fromFrame,toFrame:fromFrame+c.duration*(c.speed||1)});
+    return previewOriginal(asset,{fromFrame:sourceAt(c,0),toFrame:sourceAt(c,c.duration)});
  }
  case 'insert-caption':{
    const clip={id:crypto.randomUUID(),track:'caption',start:playhead(),duration:frameRate()*2,text:'新字幕'};
