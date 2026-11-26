@@ -80,6 +80,16 @@ test('a voice-only edit can reuse the frozen picture until a changed layer or en
   assert.notEqual(pictureIdentity(before),pictureIdentity({...after,assets:[{id:'camera',sha256:hash('other')}]}));
   assert.equal(pictureIdentity({...before,assets:[]}),null);
 });
+test('independent QA renders the same time span even after frozen-picture playback has populated its cache',async t=>{
+  const {p,store,media,records}=await fixture(t),drafts=draftPreviews(store,media);
+  t.after(()=>drafts.close());
+  const playback=await drafts.segment(p,0,undefined,'verified-frozen-picture.mp4');
+  const comparison=await drafts.open(p,0);
+  assert.deepEqual([comparison.fromFrame,comparison.toFrame],[playback.fromFrame,playback.toFrame]);
+  assert.notEqual(playback.name,comparison.name);
+  assert.equal(records.filter(r=>r.window).length,2);
+});
+
 test('requests share their exact frame, cancel a superseded worker and reject a completed result on an old revision',async t=>{
   const {p,store,media,records}=await fixture(t),drafts=draftPreviews(store,media),service=timelinePlayback(store,media,drafts);
   t.after(()=>drafts.close());

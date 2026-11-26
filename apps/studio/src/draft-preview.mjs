@@ -15,8 +15,9 @@ const rendererVersion=Promise.all(inputs.map(name=>readFile(new URL(name,import.
   return hash.digest('hex');
 });
 const safeFile=/^[a-f0-9]{16}-\d+-\d+-\d+\.(mp4|jpg)$/;
-export async function draftPrefix(p) {
-  return createHash('sha256').update(await rendererVersion).update(playbackIdentity(p)).digest('hex').slice(0,16)+'-'+p.revision+'-';
+// Independent QA must never compare an encoded candidate against its own preview.
+export async function draftPrefix(p,fromFrozenPicture=false) {
+  return createHash('sha256').update(await rendererVersion).update(playbackIdentity(p)).update(fromFrozenPicture?'frozen-picture':'timeline-composition').digest('hex').slice(0,16)+'-'+p.revision+'-';
 }
 export function draftPreviews(store,media){
   const active=new Map(),lastClean=new Map();
@@ -71,8 +72,8 @@ export function draftPreviews(store,media){
       if(f.file.endsWith('.mp4'))await unlink(f.file.slice(0,-4)+'.srt').catch(()=>{});
     }
   }
-  async function cachedSegment(project,frame,minAhead=1){
-    const folder=path.join(store.paths(project.id).cache,'drafts'),prefix=await draftPrefix(project),length=timelineFrames(project);
+  async function cachedSegment(project,frame,minAhead=1,fromFrozenPicture=false){
+    const folder=path.join(store.paths(project.id).cache,'drafts'),prefix=await draftPrefix(project,fromFrozenPicture),length=timelineFrames(project);
     const names=await readdir(folder).catch(()=>[]);
     let best;
     for(const name of names){
@@ -91,7 +92,7 @@ export function draftPreviews(store,media){
     if(frame>=length&&mode!=='draft')throw fault('播放头已超出时间线。',422);
     const span=6*project.profile.fps,still=mode==='still';
     if(mode==='window'){
-      const present=await cachedSegment(project,frame,2*project.profile.fps);
+      const present=await cachedSegment(project,frame,2*project.profile.fps,Boolean(frozenPicture));
       if(present)return present;
     }
     const grid=Math.floor(frame/span)*span;
@@ -99,7 +100,7 @@ export function draftPreviews(store,media){
     // play a few frames and stall. Give the next segment a full prefetch interval.
     const fromFrame=still?frame:mode==='draft'?Math.max(0,Math.min(frame,length-span)):frame-grid>span/2?frame:grid;
     const toFrame=Math.min(length,still?frame+1:fromFrame+span);
-    const name=(await draftPrefix(project))+fromFrame+'-'+toFrame+(still?'.jpg':'.mp4');
+    const name=(await draftPrefix(project,Boolean(frozenPicture)))+fromFrame+'-'+toFrame+(still?'.jpg':'.mp4');
     const directory=store.paths(project.id).cache,folder=path.join(directory,'drafts'),output=path.join(folder,name);
     await share(output,async signal=>{
       if(still){

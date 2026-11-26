@@ -60,7 +60,7 @@ export function timelinePlayback(store,media,drafts){
       }catch{signal?.throwIfAborted();}
     }
     if(!descriptor){
-      const still=mode==='still',existing=still&&await drafts.cachedSegment(p,frame);
+      const still=mode==='still',existing=still&&await drafts.cachedSegment(p,frame,1,Boolean(frozenPicture));
       const file=existing||await (still?drafts.still:drafts.segment)(p,frame,signal,frozenPicture);
       descriptor={source:still&&!existing?'frame':'window',...file};
     }
@@ -75,7 +75,7 @@ export function timelinePlayback(store,media,drafts){
     let file;
     if(cut){
       file=await matchingCut(p,store.getJob(cut[1]),identity,signal);
-    }else if(draft&&name.startsWith(await draftPrefix(p))&&Number(draft[2])===revision){
+    }else if(draft&&Number(draft[2])===revision&&(name.startsWith(await draftPrefix(p))||name.startsWith(await draftPrefix(p,true)))){
       const folder=path.join(store.paths(p.id).cache,'drafts');
       file=await inside(path.join(folder,name),folder).catch(()=>null);
     }
