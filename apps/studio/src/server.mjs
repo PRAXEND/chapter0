@@ -1,3 +1,4 @@
+import {sourceAt} from '../www/clip-automation.js';
 import {v8Readiness} from './v8-readiness.mjs';
 import {sourceSelection} from './source-selection.mjs';
 import {compareCompositions} from './composite-parity.mjs';
@@ -229,7 +230,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
           if(b.baseRevision!==p.revision)throw fault('时间线已更新，请重新选择入点。',409);
           const style=await styles.get(p.style.id,p.style.version);
           const selected=p.timeline.clips.find(c=>c.id===(b.clipId||p.selection?.clipId) && c.track==='video');
-          const anchor=selected&&b.actionFrame>=selected.start&&b.actionFrame<selected.start+selected.duration?{anchorAssetId:selected.assetId,anchorSourceFrame:Math.round((selected.sourceIn||0)+(b.actionFrame-selected.start)*(selected.speed||1))}:{};
+          const anchor=selected&&b.actionFrame>=selected.start&&b.actionFrame<selected.start+selected.duration?{anchorAssetId:selected.assetId,anchorSourceFrame:Math.round(sourceAt(selected,b.actionFrame-selected.start))}:{};
           const scene={...b,anchorAssetId:anchor.anchorAssetId,anchorSourceFrame:anchor.anchorSourceFrame,style};
           const result=await compileSceneWithSound(styles,store,p,scene);
           return json(res,disclose(store.apply(id,result.baseRevision,result.clips.map(clip=>({op:'add',clip})),'user')));}

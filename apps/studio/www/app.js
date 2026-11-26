@@ -1,9 +1,10 @@
 import {motionCues,defaultMotionGeometry,contentStage} from './motion-clock.js';
+import {mountClipInspector} from './advanced-inspector.js';
 import {timelineView} from './timeline.js';
 import {createTimelinePlayer} from './timeline-player.js';
-let timeline,transport,editorView,editorProject,openingProject=0;
+let timeline,transport,advanced,editorView,editorProject,openingProject=0;
 function releaseEditor(){
-  timeline?.destroy();timeline=null;transport?.destroy();transport=null;
+  advanced?.dispose();advanced=null;timeline?.destroy();timeline=null;transport?.destroy();transport=null;
 }
 const playhead=()=>transport?.frame??editorView?.frame??0;
 const el=id=>document.getElementById(id);
@@ -175,6 +176,13 @@ function viewportFields(c){
     field('右窗素材',select('right-asset',candidates.map(a=>[a.id,a.name]),candidates.find(a=>a.id!==c.assetId)?.id))+
     btn('pair-shots','将所选镜头与右窗素材并排','',c.id)+'</details>';
 }
+function mountAdvanced(p,clip){
+  advanced?.dispose();advanced=null;
+  if(!clip)return;
+  advanced=mountClipInspector({element:el('clip-automation'),project:p,clip,frame:playhead(),
+    commit:commands=>{if(s.p?.id!==p.id||s.clip!==clip.id)throw Error('选区已改变，请重新选择要编辑的片段。');return edit(commands,p.revision);},
+    seek:frame=>transport?.seek(frame)});
+}
 function drawEdit(){
   const p=s.p,clips=p.timeline.clips,fps=p.profile.fps;
   const active=s.jobs.find(j=>['running','queued','pausing'].includes(j.status));
@@ -201,11 +209,12 @@ function drawEdit(){
     seek,select:(id,focus)=>pickClip(id,focus).catch(onError),commit:edit,action:timelineAction,player:()=>transport,
     report:onError,history:()=>proj('/history')});
   transport=createTimelinePlayer({project:p,jobs:s.jobs,video:el('player'),frame:editorView.frame,
-    onFrame:f=>timeline?.frame(f,true),onState:state=>{
+    onFrame:f=>{timeline?.frame(f,true);advanced?.setFrame(f);},onState:state=>{
       timeline?.setPlaying(state.playing);
       const node=el('monitor-status');
       if(node)node.textContent=state.error?.message||state.error||(state.status==='loading'?'正在准备当前帧…':state.status==='buffering'?'正在准备下一段…':clips.length?'工程预览 · v'+p.revision:'工程预览');
     }});
+  mountAdvanced(p,chosen);
 }
 async function timelineAction(act,id){
   if(act==='undo'||act==='redo'){
@@ -235,7 +244,7 @@ function inspector(c){
   ${c.motion?componentFields(c):['caption','graphic'].includes(c.track)?field('文字',area('clip-text',c.text,2)):''}
   ${c.shape==='polygon'?field('轮廓顶点（图层内 x、y，范围 0–1）',area('clip-points',JSON.stringify(c.geometry.points),3)):''}
   ${!c.motion&&['caption','graphic'].includes(c.track)?`<details><summary>图层位置与关键帧</summary><div class="three">${field('水平位置 0–1',input('clip-x',c.geometry?.x??.5,'number','step=".01"'))}${field('垂直位置 0–1',input('clip-y',c.geometry?.y??.5,'number','step=".01"'))}${field('字号（像素）',input('clip-font',c.style?.fontSize||48,'number','min="1"'))}</div>${field('关键帧（帧、位置、缩放、透明度及顺时针角度 rotation）',area('clip-keys',JSON.stringify(c.keyframes||[]),2))}</details>`:''}
-  ${c.track==='video'?`${viewportFields(c)}${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照'],['whip-pan','热点 · 甩镜'],['organic-dissolve','热点 · 纹理溶解']],['wipe-right','whip-pan','organic-dissolve'].includes(c.transition?.type)?c.transition.type:'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>${shakeInspector(c)}`:''}<div class="actions">${!c.motion?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${c.motion?btn('save-preview-cue','保存并预览落点','',c.id):''}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
+  ${c.track==='video'?`${viewportFields(c)}${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照'],['whip-pan','热点 · 甩镜'],['organic-dissolve','热点 · 纹理溶解']],['wipe-right','whip-pan','organic-dissolve'].includes(c.transition?.type)?c.transition.type:'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>${shakeInspector(c)}`:''}<div id="clip-automation"></div><div class="actions">${!c.motion?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${c.motion?btn('save-preview-cue','保存并预览落点','',c.id):''}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
 }
 async function edit(commands,baseRevision=s.p.revision){
   const previous=s.p, result=await proj('/edits',{baseRevision,commands});
@@ -249,7 +258,7 @@ async function pickClip(id,seek=true){
   const projectId=s.p.id,c=s.p.timeline.clips.find(c=>c.id===id);if(!c)return;
   s.clip=id;
   timeline?.choose(id);
-  if(el('inspect'))el('inspect').innerHTML=inspector(c);
+  if(el('inspect')){advanced?.dispose();advanced=null;el('inspect').innerHTML=inspector(c);mountAdvanced(s.p,c);}
   if(el('clip-picker'))el('clip-picker').value=id;
   if(seek)transport?.seek(c.start);
   const write=selectionWrite.then(()=>{
