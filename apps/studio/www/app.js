@@ -13,7 +13,7 @@ const btn=(act,label,cls='',id='')=>`<button type="button" data-act="${esc(act)}
 const field=(label,control)=>`<label class="field">${label}${control}</label>`;
 const input=(id,value='',kind='text',extra='')=>`<input id="${id}" type="${kind}" value="${esc(value)}" ${extra}>`;
 const area=(id,value='',rows=3,ph='')=>`<textarea id="${id}" rows="${rows}" placeholder="${esc(ph)}">${esc(value)}</textarea>`;
-const select=(id,rows,chosen)=>`<select id="${id}">${rows.map(([v,l])=>`<option value="${esc(v)}" ${String(v)===String(chosen)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+const select=(id,rows,chosen)=>`<select id="${id}">${rows.map(([v,l,unavailable])=>`<option ${unavailable?'disabled':''} value="${esc(v)}" ${String(v)===String(chosen)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
 const check=(id,label,selected)=>`<label class="check"><input id="${id}" type="checkbox" ${selected?'checked':''}>${esc(label)}</label>`;
 const fileInput=(id,multiple=true)=>`<input id="${id}" type="file" accept="video/*,audio/*,image/*" ${multiple?'multiple':''}>`;
 const val=id=>el(id)?.value||'';
@@ -51,20 +51,24 @@ function captureNew(){
   if(el('new-title'))s.form={title:val('new-title'),brief:val('brief'),script:val('script'),style:val('new-style'),ratio:val('ratio'),targetDuration:val('new-duration'),captionDisplay:val('new-captions'),confirmSequence:el('new-confirm-sequence').checked,minimum:val('new-min'),maximum:val('new-max'),finalReview:el('new-final-review').checked,sourceScope:val('new-source-scope'),autoReview:el('new-auto-review').checked,sourceUrls:val('new-urls'),factUrls:val('new-facts'),voice:val('new-voice'),shareFrames:el('new-share-frames').checked,shareTranscript:el('new-share-text').checked};
   if(el('new-files')?.files.length)s.newFiles=[...el('new-files').files];
 }
+function pageHeading(title,description,topic){
+  return '<div class="page-heading"><div><h1>'+title+'</h1><p>'+description+'</p></div><button type="button" class="guide-link" data-guide="'+topic+'">操作说明</button></div>';
+}
 function newPage(fresh=true){
   if(fresh){openingProject++;releaseEditor();editorProject=null;s.p=null;s.tab='new';s.form={};s.newFiles=[];s.mode='topic';}
   renderNav();el('current-title').textContent='新建工程';el('top-actions').innerHTML=btn('import-folder','打开工程文件夹');
   const f=s.form;
-  el('content').innerHTML=`<section class="page new-page"><div class="kicker">创建视频</div><h1>从哪里开始剪？</h1>
-  <div class="modes">${Object.entries(modeLabels).map(([k,v],n)=>`<button data-act="mode" data-id="${k}" class="mode ${s.mode===k?'chosen':''}"><span class="mode-icon">${['◉','▤','▥'][n]}</span><strong>${v}</strong><small>${['找来源、写稿并组接画面','按原稿匹配镜头与旁白','保留同期声，按原句精剪'][n]}</small></button>`).join('')}</div>
+  el('content').innerHTML=`<section class="page new-page">${pageHeading('新建工程','选一种起点，再告诉 Codex 这条片要讲什么。','new')}
+  <div class="modes">${Object.entries(modeLabels).map(([k,v],n)=>`<button data-act="mode" data-id="${k}" class="mode ${s.mode===k?'chosen':''}"><span aria-hidden="true" class="mode-icon mode-${k}"></span><strong>${v}</strong><small>${['找来源、写稿并组接画面','按原稿匹配镜头与旁白','保留同期声，按原句精剪'][n]}</small></button>`).join('')}</div>
   <div class="card">${field('工程名称',input('new-title',f.title,'text','placeholder="例如，岛上的第一场雨" maxlength="160"'))}
   ${field(s.mode==='topic'?'选题与制作要求':'制作要求',area('brief',f.brief,3,s.mode==='interview'?'保留哪些观点，想剪成多长？':'想让观众看懂什么？'))}
   ${s.mode==='script'?field('脚本',area('script',f.script,5,'粘贴准备好的旁白或分镜稿')):''}
-  ${s.mode==='topic'?field('素材范围',select('new-source-scope',[['search','检索和使用工程素材'],['project','仅使用工程已有素材']],f.sourceScope||'search'))+field('出处网页（每行一个，可选）',area('new-facts',f.factUrls,2))+field('可用的媒体文件直链（可选）',area('new-urls',f.sourceUrls,2)):''}
-  <div class="form-grid">${field('画幅',select('ratio',[['16:9','16:9 横屏'],['9:16','9:16 竖屏'],['1:1','1:1 方形']],f.ratio||'16:9'))}${field('风格',select('new-style',styleOptions(),f.style|| (s.mode==='interview'?'original-dialogue@1':'neutral@1')))}${field('目标片长（秒，可留空）',input('new-duration',f.targetDuration||'','number','min="1"'))}</div>
-  <div class="form-grid">${field('最短片长（秒）',input('new-min',f.minimum||'','number','min=".01" step="any"'))}${field('最大片长（秒）',input('new-max',f.maximum||'','number','min=".01" step="any"'))}</div>
-  ${s.voices.length?field('本期音色',select('new-voice',[['','跟随所选风格'],...s.voices.map(v=>[v.id,v.name])],f.voice||'')):''}<div class="outline">${field(s.mode==='interview'?'原片':'本地素材',fileInput('new-files'))}<small id="selected-files">${s.newFiles.length?esc(s.newFiles.map(f=>f.name).join('、')):'支持视频、音频和图片，可在工程中继续添加。'}</small></div>
-  ${field('字幕',select('new-captions',[['burned-in','画面字幕和 SRT'],['sidecar','只导出 SRT']],f.captionDisplay||'burned-in'))}${check('new-confirm-sequence','制作前由我确认正式分镜与台词',f.confirmSequence===true)}<fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格、草稿与成片帧（含画面上的字幕）',f.shareFrames===true)}${check('new-auto-review','分享画面时自动回看首版，保留两版',f.autoReview!==false)}${check('new-final-review','允许独立终审使用 1 个 Codex 回合',f.finalReview!==false)}<p id="review-mode" class="help"></p></fieldset>
+  ${s.mode==='topic'?'<details class="fold"><summary>素材来源</summary>'+field('素材范围',select('new-source-scope',[['search','检索和使用工程素材'],['project','仅使用工程已有素材']],f.sourceScope||'search'))+field('出处网页（每行一个，可选）',area('new-facts',f.factUrls,2))+field('可用的媒体文件直链（可选）',area('new-urls',f.sourceUrls,2))+'</details>':''}
+  <div class="form-grid basic-specs">${field('画幅',select('ratio',[['16:9','16:9 横屏'],['9:16','9:16 竖屏'],['1:1','1:1 方形']],f.ratio||'16:9'))}${field('风格',select('new-style',styleOptions(),f.style||styleOptions()[0]?.[0]))}${field('目标片长（秒，可留空）',input('new-duration',f.targetDuration||'','number','min="1"'))}</div>
+  <details class="fold"><summary>片长范围、旁白与字幕</summary><div class="form-grid">${field('最短片长（秒）',input('new-min',f.minimum||'','number','min=".01" step="any"'))}${field('最大片长（秒）',input('new-max',f.maximum||'','number','min=".01" step="any"'))}</div>
+  ${s.voices.length?field('本期音色',select('new-voice',[['','跟随所选风格'],...s.voices.map(v=>[v.id,v.name])],f.voice||'')):''}
+  ${field('字幕',select('new-captions',[['burned-in','画面字幕和 SRT'],['sidecar','只导出 SRT']],f.captionDisplay||'burned-in'))}</details><div class="outline">${field(s.mode==='interview'?'原片':'本地素材',fileInput('new-files'))}<small id="selected-files">${s.newFiles.length?esc(s.newFiles.map(f=>f.name).join('、')):'支持视频、音频和图片，可在工程中继续添加。'}</small></div>
+  <details class="fold"><summary>制作确认与画面分享</summary>${check('new-confirm-sequence','制作前由我确认正式分镜与台词',f.confirmSequence===true)}<fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格、草稿与成片帧（含画面上的字幕）',f.shareFrames===true)}${check('new-auto-review','分享画面时自动回看首版，保留两版',f.autoReview!==false)}${check('new-final-review','允许独立终审使用 1 个 Codex 回合',f.finalReview!==false)}<p id="review-mode" class="help"></p></fieldset></details>
   <div class="actions">${btn('create','仅创建工程')}${btn('create-run','创建并开始制作','primary')}</div></div>
   <input type="file" id="folder-picker" webkitdirectory multiple hidden></section>`;reviewMode();
 }
@@ -73,8 +77,12 @@ function reviewMode(){
   node.textContent=!el('new-share-frames').checked?'本次只使用本地检测。开启分享画面后，可让 Codex 看素材与成片。':!el('new-auto-review').checked?'本次由主导演制作，可手动查看成片。':el('new-final-review').checked?'主导演可看图和修改首版。最终候选另交独立终审，最多 1 个 Codex 回合。':'主导演可看图和修改首版。独立终审已关闭。';
 }
 document.addEventListener('change', e=>{if(['new-share-frames','new-auto-review','new-final-review'].includes(e.target.id))reviewMode();});
-function styleOptions(){const rows=s.styles.flatMap(i=>(i.versions||[i.version]).map(v=>[i.id+'@'+v,(i.name||i.id)+' · v'+v]));if(!rows.some(r=>r[0]==='neutral@1'))rows.unshift(['neutral@1','自由剪辑']);return rows;}
-function styleSelector(value){const [id,version]=String(value||'neutral@1').split('@');return {id,version:Number(version)||1};}
+function styleOptions(){return s.styles.map(item=>[item.id+'@'+item.version,item.name+' · v'+item.version+(item.available===false?'（资源待恢复）':''),item.available===false]);}
+function styleSelector(value){
+  const item=s.styles.find(st=>st.id+'@'+st.version===value);
+  if(!item||item.available===false)throw Error('所选风格尚未载入，请查看风格库或重新打开工作台。');
+  return {id:item.id,version:item.version};
+}
 async function uploadFiles(projectId,files){
   for(const [n,file] of [...files].entries()){
     notice('导入 '+(n+1)+' / '+files.length+' · '+file.name);
@@ -173,7 +181,7 @@ function drawEdit(){
   const chosen=clips.find(c=>c.id===s.clip);
   if(editorProject!==p.id){editorProject=p.id;editorView={frame:0,zoom:1,scroll:0,snap:true,clipboard:null};}
   editorView.selected=s.clip;
-  el('view').innerHTML=`<div class="edit-layout workspace"><div class="monitor"><div class="screen"><video id="player" playsinline preload="metadata"></video>
+  el('view').innerHTML=`<div class="editor-intro"><span>在播放头看画面，选片段手动调整，或把改动交给 Codex。</span><button class="guide-link" data-guide="edit">操作说明</button></div><div class="edit-layout workspace"><div class="monitor"><div class="screen"><video id="player" playsinline preload="metadata"></video>
   ${!clips.length?'<div class="empty"><p>时间线为空</p>'+btn('tab','添加素材','','assets')+'</div>':''}</div>
   <div class="monitor-foot"><span id="monitor-status" role="status"></span><span class="mono">${p.profile.width} × ${p.profile.height} · ${fps} fps</span></div></div>
   <aside class="card director"><div class="hrow space"><h2>剪辑对话</h2></div>
@@ -300,17 +308,36 @@ function previewOriginal(asset,{fromFrame=0,toFrame}={}){
 }
 function drawAssets(){
  const p=s.p;const utterances=Object.entries(p.transcript||{}).flatMap(([assetId,arr])=>Array.isArray(arr)?arr.map(u=>({...u,assetId})):[]);
- el('view').innerHTML=`<section class="page"><div class="hrow space"><h1>素材与原句</h1>${btn('legacy','从历史工程导入')}</div><div class="two-col"><section class="card"><h2>项目素材</h2><div class="outline">${fileInput('asset-upload')}</div><div class="asset-list">${p.assets.map(a=>`<div class="asset"><div><strong>${esc(a.name)}</strong><small>${esc(a.kind)} · ${clock(a.duration)}　${esc(a.source?.credit||a.source?.author||'')}</small>${a.source?.url?'<small class="wrap">'+esc(a.source.url)+'</small>':''}</div><div class="hrow">${btn('asset-play','预览','',a.id)}${btn('add-asset-clip','加入时间线','',a.id)}${a.hasAudio?btn('transcribe','转录','',a.id):''}</div></div>`).join('')}</div></section>
+ el('view').innerHTML=`<section class="page">${pageHeading('素材与原句','把原片放进工程，试听转录原句，或把选中的素材加入时间线。','assets')}<div class="two-col"><section class="card"><div class="hrow space"><h2>工程素材</h2>${btn('legacy','从历史工程导入')}</div><div class="outline">${fileInput('asset-upload')}</div><div class="asset-list">${p.assets.map(a=>`<div class="asset"><div><strong>${esc(a.name)}</strong><small>${esc(a.kind)} · ${clock(a.duration)}　${esc(a.source?.credit||a.source?.author||'')}</small>${a.source?.url?'<small class="wrap">'+esc(a.source.url)+'</small>':''}</div><div class="hrow">${btn('asset-play','预览','',a.id)}${btn('add-asset-clip','加入时间线','',a.id)}${a.hasAudio?btn('transcribe','转录','',a.id):''}</div></div>`).join('')}</div></section>
  <section class="card"><h2>按来源导入</h2>${s.p.settings.sourceScope!=='project'?field('查找并手动选择源录像',input('asset-query'))+btn('search-assets','查找候选')+'<div id="source-choices"></div>':''}${field('媒体文件直链',input('asset-url','','url','placeholder="https://…"'))}${field('来源与授权说明',input('asset-rights'))}${btn('add-url','导入工程')}<h3>转录原句</h3>${utterances.length?utterances.map((u,i)=>`<div class="entry"><div><strong>${esc(u.text)}</strong><small>${clock(u.start)} – ${clock(u.end)}</small></div><div class="hrow">${btn('play-line','听原句','',i)}${btn('restore-line','恢复','',i)}</div></div>`).join(''):'<p class="help">转录带声音的素材后，可试听原句或恢复到时间线。</p>'}</section></div>${factList(p)}</section>`;s.utterances=utterances;
 }
+let styleRequest=0;
 async function loadStyle(selector=s.p.style){
- const selected=s.p.id;const st=await api('/api/styles/'+urlPart(selector.id)+'/'+urlPart(selector.version));if(s.p?.id!==selected||s.tab!=='style')return;
+ const request=++styleRequest,selected=s.p.id,available=styleOptions();
+ if(!available.length){el('view').innerHTML='<section class="page">'+pageHeading('风格库','本机风格包尚未载入。','style')+'</section>';return;}
+ const requested=available.some(([key])=>key===selector?.id+'@'+selector?.version)?selector:styleSelector(available[0][0]);
+ let st;
+ try{st=await api('/api/styles/'+urlPart(requested.id)+'/'+urlPart(requested.version));}
+ catch(error){
+   if(request!==styleRequest||s.p?.id!==selected||s.tab!=='style')return;
+   el('view').innerHTML='<section class="page">'+pageHeading('风格库','可在本机资源恢复后继续使用所选风格。','style')+field('浏览风格',select('browse-style',available,requested.id+'@'+requested.version))+'<p role="status">'+esc(error.message)+'</p></section>';return;
+ }
+ if(request!==styleRequest||s.p?.id!==selected||s.tab!=='style')return;
  s.style=st;const ref=(st.references||[]).filter(r=>r.available!==false&&r.locator&&r.sha256);
- const templates=st.templates||[];el('view').innerHTML=`<section class="page"><h1>风格库</h1><div class="two-col"><section class="card">${field('查看风格与版本',select('browse-style',styleOptions(),st.id+'@'+st.version))}<div class="hrow space"><h2>${esc(st.name)}</h2><span class="pill">v${esc(st.version)}</span></div><p class="help">${esc(st.description||'')}</p>${st.readiness?'<p>'+esc(st.readiness.ready?'基准片指纹已核对 · 可执行原动效 '+st.readiness.executable+' / '+st.readiness.expected:st.readiness.problems.join('，'))+'</p>':''}
- ${ref.map(r=>`<div class="entry"><span>${esc(r.title||r.id)}</span>${btn('style-ref',r.kind==='image'?'查看参考帧':r.kind==='audio'?'试听':/script|direction|text/i.test(r.kind)?'查看文字':'看片段','',r.id)}</div>`).join('')}<div class="actions">${btn('pin-style','用于本工程','primary')}</div>
- <h3>场景模板</h3>${field('模板',select('scene-template',templates.map(t=>typeof t==='string'?[t,t]:[t.id,t.name||t.title||t.id]),''))}
- <div class="form-grid">${field('事件落点（秒）',input('scene-action','1','number','min="0" step=".1"'))}${field('场景时长（秒）',input('scene-duration','4','number','min=".3" step=".1"'))}</div>${field('强调文字',input('scene-text','','text','placeholder="例如，灯芯亮起"'))}${check('scene-sound','在已标记的动作帧上加入音效',s.p.settings.sceneSound??(s.p.mode!=='interview'))}${field('落点音效来源',select('scene-sound-asset',[['','模板自带'],...s.p.assets.filter(a=>a.kind==='audio').map(a=>[a.id,a.name])],''))}${btn('add-scene','在选区加入可编辑模板')}</section>
- <section class="card"><h2>保存个人风格</h2>${field('以后也这样剪',area('preference','',3,'记录这次调整，例如，结果出现后多停留半秒。'))}${btn('preference','保存为新版')}<hr><h3>从参考学习</h3>${field('风格名称',input('learn-name'))}${field('参考脚本',area('learn-script','',4))}${field('本机参考视频或录音',select('learn-media',[['','仅脚本'],...s.p.assets.filter(a=>['audio','video'].includes(a.kind)).map(a=>[a.id,a.name])],''))}${field('希望保留的视听特征（可选）',area('learn-observation','',2))}<details><summary>适用的模板与反例</summary>${field('可选场景模板',select('learn-template',[['','不指定'],['action-result','动作、反应与结果'],['step-reveal','分步揭示与实拍验证']]))}${field('这种风格应避开的做法',area('learn-exception','',2))}</details>${btn('learn','保存新风格')}</section></div></section>`;
+ const templates=st.templates||[],current=s.p.style?.id===st.id&&s.p.style?.version===st.version;
+ const label=r=>r.kind==='image'?'查看参考帧':r.kind==='audio'?'试听':/script|direction|text/i.test(r.kind)?'查看文字':'看片段';
+ el('view').innerHTML=`<section class="page">${pageHeading('风格库','先看参考片，再决定本期采用哪一种讲法。','style')}
+ <div class="two-col style-layout"><section class="card"><div class="style-selector">${field('浏览风格',select('browse-style',available,st.id+'@'+st.version))}</div>
+ <div class="hrow space"><h2>${esc(st.name)}</h2><span class="pill">v${esc(st.version)}</span></div>
+ <p class="help">${esc(st.description||'')}</p>
+ <div class="actions">${current?'<span class="applied">✓ 本工程正在使用</span>':btn('pin-style','用于本工程','primary')}</div>
+ <h3>参考素材</h3>${ref.map(r=>`<div class="entry"><span>${esc(r.title||r.id)}</span>${btn('style-ref',label(r),'',r.id)}</div>`).join('')}
+ ${st.readiness?'<details class="fold"><summary>本机资源状态</summary><p>'+esc(st.readiness.ready?'基准片指纹已核对 · 可执行原动效 '+st.readiness.executable+' / '+st.readiness.expected:st.readiness.problems.join('，'))+'</p></details>':''}</section>
+ <section class="card"><h2>场景模板</h2><p class="help">在剪辑台选中镜头后，可在此设置画面强调的文字和时间。</p>
+ ${field('模板',select('scene-template',templates.map(t=>typeof t==='string'?[t,t]:[t.id,t.name||t.title||t.id]),''))}
+ <div class="form-grid">${field('事件落点（秒）',input('scene-action','1','number','min="0" step=".1"'))}${field('场景时长（秒）',input('scene-duration','4','number','min=".3" step=".1"'))}</div>${field('强调文字',input('scene-text','','text','placeholder="例如，灯芯亮起"'))}
+ <details class="fold"><summary>动作音效</summary>${check('scene-sound','在动作帧上加入音效',s.p.settings.sceneSound??(s.p.mode!=='interview'))}${field('落点音效来源',select('scene-sound-asset',[['','模板自带'],...s.p.assets.filter(a=>a.kind==='audio').map(a=>[a.id,a.name])],''))}</details>
+ ${btn('add-scene','在选区加入可编辑模板')}</section></div></section>`;
 }
 function pictureEvidence(qa){
  const visual=qa.evidence?.visual,coverage=visual?.motionCoverage;
@@ -348,17 +375,18 @@ function drawDeliver(){
  <video class="wide-video" data-review="${esc(j.id)}" controls preload="metadata" src="/api/jobs/${j.id}/file/video"></video>${parityEvidence(qa)}${pictureEvidence(qa)}${independentEvidence(qa)}
  <div class="actions">${(j.files||[]).filter(k=>['video','subtitle','project','cover34','cover43','copy','credits','review'].includes(k)).map(k=>btn('reveal',({video:'MP4',subtitle:'SRT',project:'可编辑工程',cover34:'3:4 封面',cover43:'4:3 封面',copy:'发布文案',credits:'素材与事实来源',review:'验收记录'})[k],'',j.id+'|'+k)).join('')}</div>
  ${(qa.issues||[]).map((q,i)=>`<div class="feedback"><strong>${esc(q.message||q.reason)}</strong> ${issuePlayback(q,j.id,i,qa.frameRate||frameRate())} ${btn('fix-issue','按意见修改','',j.id+'|'+i)}<br><small>${esc(q.fix||'')}</small></div>`).join('')}<p class="help">${esc((qa.limitations||[]).join('　'))}</p></section>`;}).join('');
- el('view').innerHTML=`<section class="page"><h1>交付记录</h1>${cards||'<div class="card empty-panel">完成渲染后，可在这里播放成片并打开本地交付目录。</div>'}</section>`;
+ el('view').innerHTML=`<section class="page">${pageHeading('交付记录','播放已导出的版本，按时间点查看审片意见，或在访达中打开文件。','deliver')}${cards||'<div class="card empty-panel">完成渲染后，可在这里播放成片并打开本地交付目录。</div>'}</section>`;
 }
 function drawSettings(){
  const p=s.p,t=p.settings,options=[['','请选择'],...p.assets.filter(a=>a.hasAudio||a.kind==='audio').map(a=>[a.id,a.name])];
- el('view').innerHTML=`<section class="page"><h1>工程设置</h1><div class="two-col"><section class="card"><h2>创作与交付</h2>${field('名称',input('set-title',p.title))}${field('制作要求',area('set-brief',p.brief))}${field('原始脚本',area('set-script',p.script,4))}${field('素材范围',select('set-scope',[['search','允许检索其他来源'],['project','只使用我已选入工程的素材']],t.sourceScope||'search'))}${field('字幕',select('set-captions',[['burned-in','画面字幕和 SRT'],['sidecar','只导出 SRT']],t.captionDisplay||'burned-in'))}${field('最短片长（秒）',input('set-min',t.durationMinSeconds||'','number','min=".01" step="any"'))}${field('最大片长（秒）',input('set-max',t.durationMaxSeconds||'','number','min=".01" step="any"'))}${field('目标片长（秒，可留空）',input('target-length',t.targetDuration||'','number','min="1"'))}
+ el('view').innerHTML=`<section class="page">${pageHeading('工程设置','设置本片的旁白、配乐与分享范围，调整后点击保存。','settings')}<div class="two-col"><section class="card"><h2>创作与交付</h2><details class="fold" open><summary>内容与时长</summary>${field('名称',input('set-title',p.title))}${field('制作要求',area('set-brief',p.brief))}${field('原始脚本',area('set-script',p.script,4))}${field('素材范围',select('set-scope',[['search','允许检索其他来源'],['project','只使用我已选入工程的素材']],t.sourceScope||'search'))}${field('字幕',select('set-captions',[['burned-in','画面字幕和 SRT'],['sidecar','只导出 SRT']],t.captionDisplay||'burned-in'))}${field('最短片长（秒）',input('set-min',t.durationMinSeconds||'','number','min=".01" step="any"'))}${field('最大片长（秒）',input('set-max',t.durationMaxSeconds||'','number','min=".01" step="any"'))}${field('目标片长（秒，可留空）',input('target-length',t.targetDuration||'','number','min="1"'))}
+ </details><details class="fold"><summary>旁白与音色</summary>
  ${p.styleAudio?.voice?.status==='preview-only'?'<p class="help">本期旁白为试听候选。确认采用当前声音，或在个人音色库选择已授权音色。</p>':''}${field('本期旁白选择',select('voice-selection',[['style','跟随所选风格'],['user','使用我为本片指定的声音'],['preview','仅用于试听候选']],t.voiceSelection||p.styleAudio?.voice?.selection||(['import','clone','original'].includes(t.voiceMode)?'user':'style')))}${field('声音',select('voice-mode',[['original','保留同期声'],['system','系统中文配音'],['preset','Qwen 本地预置男声 Dylan'],['import','导入旁白'],['clone','本地克隆']],t.voiceMode))}${field('导入旁白',select('narration',options,t.narrationAssetId))}
  ${field('参考录音',select('voice-reference',options,t.voiceReferenceAssetId))}${field('参考录音的准确原文',area('reference-text',t.voiceReferenceText,2))}${check('consent','我已获准用该录音建立音色',t.voiceConsent)}${btn('audition','试听当前音色')}<details><summary>个人音色库</summary>${field('使用已登记的音色',select('saved-voice',[['','请选择'],...s.voices.map(v=>[v.id,v.name])],t.voiceLibraryId))}${btn('use-voice','用于本工程')}${field('给参考音色取名',input('voice-label'))}${btn('enroll-voice','登记参考录音')}</details>
- ${field('本期配乐选择',select('music-selection',[['style','跟随所选风格'],['user','使用我为本片指定的配乐设置']],t.musicSelection||p.styleAudio?.music?.selection||(['asset','original'].includes(t.musicMode)||p.mode==='interview'?'user':'style')))}${field('配乐方式',select('music-mode',[['library','本地曲库'],['asset','指定素材'],['original','原创配乐'],['none','无需配乐']],t.musicEnabled===false?'none':t.musicMode||'library'))}${field('配乐素材',select('bgm',options,t.musicAssetId))}${check('project-scene-sound','场景模板在动作发生时加落点音效',t.sceneSound??(p.mode!=='interview'))}${check('pack','附两种封面和发布文案',t.publishPackage)}<details><summary>编辑发布文案</summary>${field('发布标题',input('pub-title',p.publication?.title))}${field('标题中的黄色重点',input('pub-emphasis',p.publication?.emphasis))}${field('给观众的正文',area('pub-body',p.publication?.body,3))}${field('话题',input('pub-tags',p.publication?.tags?.join(' ')))}</details></section>
+ </details><details class="fold"><summary>配乐与音效</summary>${field('本期配乐选择',select('music-selection',[['style','跟随所选风格'],['user','使用我为本片指定的配乐设置']],t.musicSelection||p.styleAudio?.music?.selection||(['asset','original'].includes(t.musicMode)||p.mode==='interview'?'user':'style')))}${field('配乐方式',select('music-mode',[['library','本地曲库'],['asset','指定素材'],['original','原创配乐'],['none','无需配乐']],t.musicEnabled===false?'none':t.musicMode||'library'))}${field('配乐素材',select('bgm',options,t.musicAssetId))}${check('project-scene-sound','场景模板在动作发生时加落点音效',t.sceneSound??(p.mode!=='interview'))}</details><details class="fold"><summary>发布包与文案</summary>${check('pack','附两种封面和发布文案',t.publishPackage)}<details><summary>编辑发布文案</summary>${field('发布标题',input('pub-title',p.publication?.title))}${field('标题中的黄色重点',input('pub-emphasis',p.publication?.emphasis))}${field('给观众的正文',area('pub-body',p.publication?.body,3))}${field('话题',input('pub-tags',p.publication?.tags?.join(' ')))}</details></details></section>
  <section class="card"><h2>项目隐私与服务</h2>${check('confirm-plan','制作前由我确认正式分镜与台词',t.confirmSequence===true)}<p class="help">Codex 会收到本项目的要求、脚本和剪辑结构。原媒体保存在本机。</p>${check('share-text','允许把转录文字交给 Codex',t.shareTranscript)}${check('share-frames','允许分享选取的参考帧、素材帧和成片帧（含画面上的字幕）',t.shareFrames)}${check('auto-review','分享画面时自动回看首版，保留两版',t.autoReview===true)}${check('final-review','允许独立终审使用 1 个 Codex 回合',t.finalReviewMaxTurns!==0)}
  ${check('cloud','启用第三方原创配乐',t.cloudEnabled)}${field('本项目云配乐总时长预算（秒）',input('budget',t.cloudBudget,'number','min="0" step="1"'))}
- <div class="actions">${btn('settings-save','保存工程设置','primary')}</div><hr><h3>原创配乐</h3>${field('曲风与用途',area('music-prompt','',2))}${field('时长（秒）',input('music-length',15,'number','min="3" max="600"'))}${btn('compose-music','从云端生成并导入')}${(p.musicReceipts||[]).map(r=>`<div class="entry"><small>${esc(r.seconds)} 秒 · ${esc(r.status)}</small>${['sent','unknown'].includes(r.status)?btn('reconcile','核对回执','',r.id):''}</div>`).join('')}</section></div></section>`;
+ <div class="actions">${btn('settings-save','保存工程设置','primary')}</div><hr><details class="fold"><summary>生成原创配乐</summary>${field('曲风与用途',area('music-prompt','',2))}${field('时长（秒）',input('music-length',15,'number','min="3" max="600"'))}${btn('compose-music','从云端生成并导入')}${(p.musicReceipts||[]).map(r=>`<div class="entry"><small>${esc(r.seconds)} 秒 · ${esc(r.status)}</small>${['sent','unknown'].includes(r.status)?btn('reconcile','核对回执','',r.id):''}</div>`).join('')}</details></section></div></section>`;
 }
 async function openLegacy(){
  const list=await api('/api/legacy');s.legacy=list;
@@ -546,11 +574,6 @@ async function runAction(act,id){
    if(p.style.id!==s.style.id||p.style.version!==s.style.version)throw Error('请先把该风格用于本工程。');
    const c=p.timeline.clips.find(c=>c.id===s.clip),start=c?.start||0,duration=Math.round(Number(val('scene-duration'))*frameRate());
    await proj('/scene',{baseRevision:p.revision,template:val('scene-template'),clipId:c?.id,soundEnabled:el('scene-sound').checked,soundAssetId:val('scene-sound-asset')||undefined,start,duration,actionFrame:start+Math.round(Number(val('scene-action'))*frameRate()),text:val('scene-text'),sourceAssetId:c?.assetId});notice('已生成可编辑图层');return choose(p.id,'edit');}
- case 'preference':{
-  if(!val('preference').trim())throw Error('请写明要保存的调整。');
-  const c=p.timeline.clips.find(c=>c.id===s.clip);const recent=s.lastEdit?.projectId===p.id?s.lastEdit:null;const after={projectId:p.id,clipId:c?.id||recent?.clipId,revision:p.revision,fromFrame:c?.start||0,toFrame:c?c.start+c.duration:Math.max(1,...p.timeline.clips.map(c=>c.start+c.duration))};
-  const st=await api('/api/styles/preferences',{id:s.style.id,version:s.style.version,findEdit:true,instruction:val('preference'),before:{...after,revision:Math.max(1,p.revision-1)},after,source:'用户明确保存的改稿偏好'});s.styles=await api('/api/styles');notice('已保存新版本');return loadStyle(st);}
- case 'learn':{const name=val('learn-name').trim();if(!name)throw Error('请输入风格名称。');const st=await proj('/learn-style',{name,script:val('learn-script'),assetId:val('learn-media'),observation:val('learn-observation'),templateId:val('learn-template'),exception:val('learn-exception')});s.styles=await api('/api/styles');notice('风格已保存');return loadStyle(st);}
  case 'settings-save':{
    const changes={title:val('set-title'),brief:val('set-brief'),script:val('set-script'),publication:{title:val('pub-title'),emphasis:val('pub-emphasis'),body:val('pub-body'),tags:val('pub-tags').split(/\s+/).filter(Boolean)},settings:{captionDisplay:val('set-captions'),sourceScope:val('set-scope'),confirmSequence:el('confirm-plan').checked,autoReview:el('auto-review').checked,finalReviewMaxTurns:el('final-review').checked?1:0,durationMinSeconds:val('set-min')?Number(val('set-min')):null,durationMaxSeconds:val('set-max')?Number(val('set-max')):null,voiceSelection:val('voice-selection'),musicSelection:val('music-selection'),targetDuration:val('target-length')?Number(val('target-length')):null,voiceMode:val('voice-mode'),narrationAssetId:val('narration'),voiceReferenceAssetId:val('voice-reference'),voiceReferenceText:val('reference-text'),voiceConsent:el('consent').checked,musicAssetId:val('bgm'),musicMode:val('music-mode'),musicEnabled:val('music-mode')!=='none',requireMusic:val('music-mode')==='asset'||val('music-mode')==='original',publishPackage:el('pack').checked,sceneSound:el('project-scene-sound').checked,shareTranscript:el('share-text').checked,shareFrames:el('share-frames').checked,cloudEnabled:el('cloud').checked,cloudBudget:Number(val('budget'))}};
    s.p=await proj('/configure',{baseRevision:p.revision,changes});notice('已保存工程设置');await refreshList();return draw();}

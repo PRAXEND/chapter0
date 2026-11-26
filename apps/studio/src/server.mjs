@@ -112,8 +112,10 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       }
       if(parts[0]!=='api'){
         const name=url.pathname==='/'?'index.html':url.pathname.slice(1);
-        if(!['index.html','app.js','motion-clock.js','timeline-player.js','timeline.js','studio.css','timeline.css'].includes(name)||method!=='GET')throw fault('页面不存在。',404);
-        res.setHeader('Content-Type',{'index.html':'text/html; charset=utf-8','motion-clock.js':'text/javascript; charset=utf-8','app.js':'text/javascript; charset=utf-8','timeline-player.js':'text/javascript; charset=utf-8','timeline.js':'text/javascript; charset=utf-8','timeline.css':'text/css; charset=utf-8','studio.css':'text/css; charset=utf-8'}[name]);
+        const pageFiles=['index.html','app.js','motion-clock.js','timeline-player.js','timeline.js','studio.css','timeline.css','workbench.css','guide.js','guide-data.js','guide-controls.js','control-state.js','clip-automation.js','advanced-inspector.js','advanced-inspector.css'];
+        const helpImage=/^guide\/(new|edit|inspector|assets|style|settings|deliver|tools|blind)\.jpg$/.test(name);
+        if((!pageFiles.includes(name)&&!helpImage)||method!=='GET')throw fault('页面不存在。',404);
+        res.setHeader('Content-Type',helpImage?'image/jpeg':name.endsWith('.css')?'text/css; charset=utf-8':name.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8');
         res.setHeader('Cache-Control','no-store');return res.end(await readFile(path.join(web,name)));
       }
       const [,kind,id,action,part,leaf]=parts;
