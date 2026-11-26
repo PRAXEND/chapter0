@@ -3,14 +3,24 @@ const show=(id,yes=true)=>{el(id).hidden=!yes;};
 const setNotice=value=>{el('notice').textContent=value||'';};
 const labels={gate:'交付判断',style:'风格辨认',pair:'前台与工作台配对',usable:'愿意直接用',minor:'愿意用但想小修',redo:'必须重剪',tie:'两版相当',A:'A 版',B:'B 版'};
 const dimensionNames={facts:'事实与叙事',shots:'镜头选择',sync:'声画落点',rework:'需要返工之处'};
-let candidates=[],studies=[],chosen,session,active,loading=false;
+let candidates=[],styleChoices=[],studies=[],chosen,session,active,loading=false;
 const sampleDrafts=new Map(),ballotDrafts=new Map();
 let currentKind='gate',viewer='';
 function updateControls(){
-  const rows=[...el('samples').querySelectorAll('.sample')],pair=el('kind').value==='pair';
-  const complete=rows.length&&rows.every(r=>r.querySelector('.source')?.value&&(!pair||r.querySelector('.comparison')?.value&&r.querySelector('.comparison').value!==r.querySelector('.source').value)&&(!r.querySelector('.expected')||r.querySelector('.expected').value.trim()));
-  el('create').disabled=loading||!el('title').value.trim()||!complete;
-  el('create').title=!el('title').value.trim()?'先填写研究名称。':complete?'':'先填完整样本，配对时选择不同候选。';
+  const rows=[...el('samples').querySelectorAll('.sample')],kind=el('kind').value;
+  let problem=!el('title').value.trim()?'先填写研究名称。':!rows.length?'至少增加一条样本。':'';
+  for(const row of rows){
+    const source=row.querySelector('.source'),other=row.querySelector('.comparison'),first=row.querySelector('.primary-source')?.value;
+    for(const select of [source,other].filter(Boolean)){
+      const needsExport=kind==='pair'&&(select===source?first==='workbench':first==='foreground');
+      for(const option of select.options)option.disabled=needsExport&&option.dataset.imported==='true';
+    }
+    if(!source.value||source.selectedOptions[0]?.disabled)problem||='工作台一侧请选择已经导出的成片。';
+    if(kind==='pair'&&(!other?.value||other.selectedOptions[0]?.disabled||other.value===source.value))problem||='配对时请选择两个不同候选，工作台一侧使用已导出的成片。';
+    if(kind==='style'&&(!row.querySelector('.expected').value||!row.querySelector('.group').value.trim()))problem||='选择实际风格，并填写题材分组。';
+  }
+  el('create').disabled=loading||Boolean(problem);el('create').title=problem;
+  el('add').disabled=loading||rows.length>=100;el('add').title=rows.length>=100?'每项研究最多 100 条样本。':'';
   el('begin').title=el('reviewer').value.trim()?'':'先输入本次使用的审片人代号。';
   el('begin').disabled=loading||!el('reviewer').value.trim();
   const decision=el('decision').value,range=session?.kind==='gate'&&decision==='redo';
@@ -32,17 +42,18 @@ function run(fn) {return async e=>{
 };}
 function make(tag,text='',parent) {const n=document.createElement(tag);n.textContent=text;if(parent)parent.append(n);return n;}
 function control(tag,label,wrapper) {const group=make('label',label,wrapper);const input=document.createElement(tag);group.append(input);return input;}
-function option(select,value,label) {const o=make('option',label,select);o.value=value;}
+function option(select,value,label) {const o=make('option',label,select);o.value=value;return o;}
 function sourcePick(wrapper,label,cls) {
   const select=control('select',label,wrapper);select.className=cls;
-  for(const item of candidates.filter(c=>c.jobId||el('kind').value==='pair')) option(select,item.jobId||item.assetId,item.title+(item.jobId?' · v'+item.revision:' · 已导入视频')+' · '+String(item.createdAt||'').slice(0,10));
+  for(const item of candidates.filter(c=>c.jobId||el('kind').value==='pair')) option(select,item.jobId||item.assetId,item.title+(item.jobId?' · v'+item.revision:' · 已导入视频')+' · '+String(item.createdAt||'').slice(0,10)).dataset.imported=String(!item.jobId);
   return select;
 }
 function sample() {
   const section=make('div','',el('samples'));section.className='sample';
   sourcePick(section,'候选成片','source');
   if(el('kind').value==='style') {
-    control('input','实际风格',section).className='expected';
+    const expected=control('select','实际风格',section);expected.className='expected';option(expected,'','选择实际使用的风格');
+    for(const name of styleChoices)option(expected,name,name);
     control('input','题材组',section).className='group';
   }
   if(el('kind').value==='pair') {
@@ -98,7 +109,7 @@ async function loadSession() {
 }
 el('decision').onchange=()=>show('range',session?.kind==='gate'&&el('decision').value==='redo');
 el('new').onclick=run(async()=>{
-  candidates=await api('/api/blind/candidates');if(!candidates.length) throw Error('请先在工作台完成至少一个可播放的正式候选。');
+  const [sources,styles]=await Promise.all([api('/api/blind/candidates'),api('/api/styles')]);candidates=sources;styleChoices=styles.map(s=>s.name+' v'+s.version);if(!candidates.length) throw Error('请先在工作台完成至少一个可播放的正式候选。');
   rememberBallot();if(!el('setup').hidden)rememberSetup();viewer='';active=null;chosen=null;show('setup');show('screen',false);show('identity',false);show('report',false);renderSetup();
 });
 el('kind').onchange=()=>{rememberSetup();renderSetup();};
@@ -110,7 +121,7 @@ el('create').onclick=run(async()=>{
     const conditions=Object.fromEntries([...row.querySelectorAll('[data-condition]')].map(i=>[i.dataset.condition,i.value]));
     return {...source,expected:row.querySelector('.expected')?.value.trim(),topicGroup:row.querySelector('.group')?.value.trim(),comparisonProjectId:comp?.projectId,comparisonJobId:comp?.jobId,comparisonAssetId:comp?.assetId,primary:row.querySelector('.primary-source')?.value,conditions};
   });
-  const s=await api('/api/blind/studies',{kind:el('kind').value,title:el('title').value,samples});sampleDrafts.clear();el('title').value='看片盲评';await refresh();await choose(s);
+  const s=await api('/api/blind/studies',{kind:el('kind').value,title:el('title').value,samples,choices:el('kind').value==='style'?styleChoices:[]});sampleDrafts.clear();el('title').value='看片盲评';await refresh();await choose(s);
 });
 el('begin').onclick=run(loadSession);
 el('reviewer').addEventListener('input',()=>{if(viewer&&el('reviewer').value.trim()!==viewer){rememberBallot();viewer='';active=null;session=null;show('screen',false);el('movies').replaceChildren();}});
