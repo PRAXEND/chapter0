@@ -1,8 +1,9 @@
+import {actionGate,activeJob,formDrafts,syncControls} from './control-state.js';
 import {motionCues,defaultMotionGeometry,contentStage} from './motion-clock.js';
 import {mountClipInspector} from './advanced-inspector.js';
 import {timelineView} from './timeline.js';
 import {createTimelinePlayer} from './timeline-player.js';
-let timeline,transport,advanced,editorView,editorProject,openingProject=0;
+let timeline,transport,advanced,editorView,editorProject,openingProject=0,viewEpoch=0,styleEpoch=0,dialogEpoch=0;
 function releaseEditor(){
   advanced?.dispose();advanced=null;timeline?.destroy();timeline=null;transport?.destroy();transport=null;
 }
@@ -22,6 +23,33 @@ const tracks={video:'画面',narration:'人声',music:'配乐',caption:'字幕',
 const modeLabels={topic:'从选题开始',script:'脚本与素材',interview:'精剪原片'};
 const statusLabels={'awaiting-plan':'等待确认分镜',queued:'等待中',running:'制作中',pausing:'正在暂停',paused:'已暂停',done:'已完成',failed:'需要处理'};
 const s={projects:[],styles:[],voices:[],p:null,mode:'topic',tab:'edit',clip:null,jobs:[],form:{},style:null,notice:0,polling:false,newFiles:[]};
+const gate=actionGate();
+const formScope=(tab,clip=s.clip,style=s.style)=>JSON.stringify([s.p?.id||'new',tab,tab==='clip'?clip:tab==='style'?style?.id+'@'+style?.version:null]);
+const drafts=formDrafts(document,n=>{
+  if(!s.p||!n.closest('#view')||n.closest('.timeline,.monitor,#activity,#clip-automation'))return null;
+  if(n.closest('#inspect'))return formScope('clip');
+  if(n.id==='browse-style'||n.id==='clip-picker')return null;
+  if(n.closest('#source-choices'))return formScope('sources|'+(resultChoices.get(s.p.id)?.query||''));
+  return formScope(s.tab);
+});
+const actionScope=act=>['install','login','cloud-key','cloud-disconnect'].includes(act)?'device':s.p?.id||'new';
+const paidRequests=new Map(),pendingRequests=new Map(),pendingCreation=new Map(),styleSelection=new Map(),resultChoices=new Map(),voiceDrafts=new Map();
+let styleByMode={},lastList=0,searchToken=0;
+function sync(clicked){
+  syncControls({doc:document,project:s.p,jobs:s.p?s.jobs:[],selected:s.clip,gate,scope:actionScope,files:s.newFiles,mode:s.mode,style:s.style,system:s.system,frame:playhead(),drafts,clicked});
+}
+function mounted(container=document){
+  drafts.mount(container);
+  const reference=el('voice-reference');
+  if(reference&&reference.dataset.activeRef===undefined)reference.dataset.activeRef=reference.value;
+  sync();
+}
+const projectPage=p=>Boolean(p&&s.p?.id===p.id);
+const sameView=(projectId,epoch)=>s.p?.id===projectId&&viewEpoch===epoch;
+function storeResult(result,redraw=true){
+  if(!currentResult(result))return false;
+  s.p=result;if(redraw)draw();return true;
+}
 const clock=v=>{const n=Math.max(0,Math.floor(Number(v)||0));return Math.floor(n/60)+':'+String(n%60).padStart(2,'0');};
 const assetName=id=>s.p?.assets.find(a=>a.id===id)?.name||'';
 const aid=id=>'/api/projects/'+s.p.id+'/assets/'+urlPart(id);
@@ -29,16 +57,18 @@ async function api(route,body,opts={}){
   const res=await fetch(route,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)}),...opts});
   const data=await res.json();if(!res.ok){const e=new Error(data.error||'请求失败');e.status=res.status;throw e;}return data;
 }
-const proj=(suffix='',body)=>api('/api/projects/'+s.p.id+suffix,body);
+const projectApi=(projectId,suffix='',body)=>api('/api/projects/'+urlPart(projectId)+suffix,body);
+const proj=(suffix='',body)=>projectApi(s.p.id,suffix,body);
 function notice(m){if(!m)return;el('notice').textContent=m;el('notice').hidden=false;clearTimeout(s.notice);s.notice=setTimeout(()=>el('notice').hidden=true,6000);}
-function modal(title,html){el('dialog-title').textContent=title;el('dialog-body').innerHTML=html;if(!el('dialog').open)el('dialog').showModal();}
-function dismiss(){el('dialog').close();}
-function safeAction(action){return async(...args)=>{try{await action(...args);}catch(e){notice(e.message);if(e.status===409&&s.p)await reload().catch(()=>{});}};}
+function modal(title,html){dialogEpoch++;el('dialog-title').textContent=title;el('dialog-body').innerHTML=html;if(!el('dialog').open)el('dialog').showModal();sync();}
+function dismiss(){dialogEpoch++;el('dialog').close();}
+function safeAction(action){return async(...args)=>{const project=s.p?.id;try{await action(...args);}catch(e){if(s.p?.id!==project&&e.project!==s.p?.id)return;notice(e.message);if(e.status===409&&s.p)await reload().catch(()=>{});}};}
 const renderNav=()=>{el('projects').innerHTML=s.projects.map(p=>btn('open-project',p.title,p.id===s.p?.id?'active':'',p.id)).join('');};
 function currentResult(project){return s.p?.id===project.id&&project.revision>=s.p.revision;}
-async function refreshList(){s.projects=await api('/api/projects');renderNav();}
+async function refreshList(){const token=++lastList,rows=await api('/api/projects');if(token===lastList){s.projects=rows;renderNav();}}
 async function choose(id,tab='edit'){
-  const request=++openingProject;
+  drafts.capture();if(!s.p)captureNew();
+  const request=++openingProject;viewEpoch++;
   if(s.p&&s.p.id!==id)releaseEditor();
   const [project,jobs]=await Promise.all([api('/api/projects/'+urlPart(id)),api('/api/projects/'+urlPart(id)+'/jobs')]);
   if(request!==openingProject)return;
@@ -49,14 +79,22 @@ async function choose(id,tab='edit'){
 async function reload(){if(s.p)await choose(s.p.id,s.tab);}
 const frameRate=()=>s.p.profile.fps;
 function captureNew(){
-  if(el('new-title'))s.form={title:val('new-title'),brief:val('brief'),script:val('script'),style:val('new-style'),ratio:val('ratio'),targetDuration:val('new-duration'),captionDisplay:val('new-captions'),confirmSequence:el('new-confirm-sequence').checked,minimum:val('new-min'),maximum:val('new-max'),finalReview:el('new-final-review').checked,sourceScope:val('new-source-scope'),autoReview:el('new-auto-review').checked,sourceUrls:val('new-urls'),factUrls:val('new-facts'),voice:val('new-voice'),shareFrames:el('new-share-frames').checked,shareTranscript:el('new-share-text').checked};
-  if(el('new-files')?.files.length)s.newFiles=[...el('new-files').files];
+  if(!el('new-title'))return;
+  const fields={title:'new-title',brief:'brief',script:'script',style:'new-style',ratio:'ratio',targetDuration:'new-duration',captionDisplay:'new-captions',minimum:'new-min',maximum:'new-max',sourceScope:'new-source-scope',sourceUrls:'new-urls',factUrls:'new-facts',voice:'new-voice'};
+  const switches={confirmSequence:'new-confirm-sequence',finalReview:'new-final-review',autoReview:'new-auto-review',shareFrames:'new-share-frames',shareTranscript:'new-share-text'};
+  for(const [key,id] of Object.entries(fields))if(el(id))s.form[key]=el(id).value;
+  for(const [key,id] of Object.entries(switches))if(el(id))s.form[key]=el(id).checked;
+  if(el('new-style'))styleByMode[s.mode]=el('new-style').value;
+}
+function leaveNewMode(mode){
+  captureNew();s.mode=mode;s.form.style=styleByMode[mode]||'';
+  return newPage(false);
 }
 function pageHeading(title,description,topic){
   return '<div class="page-heading"><div><h1>'+title+'</h1><p>'+description+'</p></div><button type="button" class="guide-link" data-guide="'+topic+'">操作说明</button></div>';
 }
 function newPage(fresh=true){
-  if(fresh){openingProject++;releaseEditor();editorProject=null;s.p=null;s.tab='new';s.form={};s.newFiles=[];s.mode='topic';}
+  if(fresh){drafts.capture();captureNew();openingProject++;viewEpoch++;releaseEditor();editorProject=null;s.p=null;s.jobs=[];s.tab='new';}
   renderNav();el('current-title').textContent='新建工程';el('top-actions').innerHTML=btn('import-folder','打开工程文件夹');
   const f=s.form;
   el('content').innerHTML=`<section class="page new-page">${pageHeading('新建工程','选一种起点，再告诉 Codex 这条片要讲什么。','new')}
@@ -71,7 +109,7 @@ function newPage(fresh=true){
   ${field('字幕',select('new-captions',[['burned-in','画面字幕和 SRT'],['sidecar','只导出 SRT']],f.captionDisplay||'burned-in'))}</details><div class="outline">${field(s.mode==='interview'?'原片':'本地素材',fileInput('new-files'))}<small id="selected-files">${s.newFiles.length?esc(s.newFiles.map(f=>f.name).join('、')):'支持视频、音频和图片，可在工程中继续添加。'}</small></div>
   <details class="fold"><summary>制作确认与画面分享</summary>${check('new-confirm-sequence','制作前由我确认正式分镜与台词',f.confirmSequence===true)}<fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格、草稿与成片帧（含画面上的字幕）',f.shareFrames===true)}${check('new-auto-review','分享画面时自动回看首版，保留两版',f.autoReview!==false)}${check('new-final-review','允许独立终审使用 1 个 Codex 回合',f.finalReview!==false)}<p id="review-mode" class="help"></p></fieldset></details>
   <div class="actions">${btn('create','仅创建工程')}${btn('create-run','创建并开始制作','primary')}</div></div>
-  <input type="file" id="folder-picker" webkitdirectory multiple hidden></section>`;reviewMode();
+  <input type="file" id="folder-picker" webkitdirectory multiple hidden></section>`;reviewMode();mounted();
 }
 function reviewMode(){
   const node=el('review-mode');if(!node)return;
@@ -84,6 +122,33 @@ function styleSelector(value){
   if(!item||item.available===false)throw Error('所选风格尚未载入，请查看风格库或重新打开工作台。');
   return {id:item.id,version:item.version};
 }
+async function postIntent(route,body,intent=body){
+  const key=JSON.stringify([route,intent]),saved=pendingRequests.get(key)||{...body,requestId:crypto.randomUUID()};
+  pendingRequests.set(key,saved);
+  try{const result=await api(route,saved);pendingRequests.delete(key);return result;}
+  catch(error){if(error.status>=400&&error.status<500)pendingRequests.delete(key);throw error;}
+}
+async function finishCreation(id,entry){
+  while(entry.files.length){await uploadFiles(id,[entry.files[0]]);entry.files.shift();}
+  if(entry.voice){
+    const p=await projectApi(id);
+    if(p.settings.voiceLibraryId!==entry.voice)await projectApi(id,'/voices/use',{id:entry.voice,baseRevision:p.revision});
+    entry.voice=null;
+  }
+  if(entry.run){
+    if(!entry.job){const p=await projectApi(id);entry.job={kind:'produce',engine:'codex',baseRevision:p.revision,message:entry.message};}
+    await postIntent('/api/projects/'+id+'/jobs',entry.job);
+  }
+  pendingCreation.delete(id);
+}
+function showPendingCreation(){
+  const entry=s.p&&pendingCreation.get(s.p.id),host=el('view');
+  if(entry&&host&&!el('continue-imports')){
+    const box=document.createElement('div');box.id='continue-imports';box.className='feedback';
+    const words=document.createElement('p');words.textContent=entry.files.length?'还有 '+entry.files.length+' 份所选素材待导入。':'工程已建立，本次设置或制作请求尚未完成。';
+    const retry=document.createElement('button');retry.type='button';retry.dataset.act='continue-create';retry.textContent='继续这次创建';box.append(words,retry);host.prepend(box);
+  }
+}
 async function uploadFiles(projectId,files){
   for(const [n,file] of [...files].entries()){
     notice('导入 '+(n+1)+' / '+files.length+' · '+file.name);
@@ -91,21 +156,27 @@ async function uploadFiles(projectId,files){
   }
 }
 async function create(run){
-  captureNew();const f=s.form,mode=s.mode;const ratio=f.ratio==='9:16'?[1080,1920]:f.ratio==='1:1'?[1080,1080]:[1920,1080];
+  captureNew();const f=structuredClone(s.form),mode=s.mode,files=[...s.newFiles],epoch=viewEpoch;const ratio=f.ratio==='9:16'?[1080,1920]:f.ratio==='1:1'?[1080,1080]:[1920,1080];
   if(!f.title?.trim()&&!f.brief?.trim()&&!f.script?.trim()&&!s.newFiles.length)throw Error('请填写选题、脚本或选择原片。');
-  const p=await api('/api/projects',{mode,title:f.title||f.brief?.slice(0,36)||s.newFiles[0]?.name||'新工程',brief:f.brief,script:f.script,style:styleSelector(f.style),profile:{width:ratio[0],height:ratio[1],fps:30},settings:{captionDisplay:f.captionDisplay,confirmSequence:f.confirmSequence,autoReview:f.autoReview,finalReviewMaxTurns:f.finalReview?1:0,...(f.minimum&&{durationMinSeconds:Number(f.minimum)}),...(f.maximum&&{durationMaxSeconds:Number(f.maximum)}),sourceScope:f.sourceScope||'search',targetDuration:f.targetDuration?Number(f.targetDuration):null,shareFrames:f.shareFrames===true,shareTranscript:f.shareTranscript!==false,factUrls:(f.factUrls||'').split('\n').map(v=>v.trim()).filter(Boolean),sourceUrls:(f.sourceUrls||'').split('\n').map(v=>v.trim()).filter(Boolean)}});
-  try{await uploadFiles(p.id,s.newFiles);if(f.voice){const latest=await api('/api/projects/'+p.id);await api('/api/projects/'+p.id+'/voices/use',{id:f.voice,baseRevision:latest.revision});}}finally{await choose(p.id);}
-  if(run)await startJob('produce','codex');
+  const p=await postIntent('/api/projects',{mode,title:f.title||f.brief?.slice(0,36)||s.newFiles[0]?.name||'新工程',brief:f.brief,script:mode==='script'?f.script:'',style:styleSelector(f.style),profile:{width:ratio[0],height:ratio[1],fps:30},settings:{captionDisplay:f.captionDisplay,confirmSequence:f.confirmSequence,autoReview:!!f.shareFrames&&f.autoReview,finalReviewMaxTurns:f.shareFrames&&f.autoReview&&f.finalReview?1:0,...(f.minimum&&{durationMinSeconds:Number(f.minimum)}),...(f.maximum&&{durationMaxSeconds:Number(f.maximum)}),sourceScope:f.sourceScope||'search',targetDuration:f.targetDuration?Number(f.targetDuration):null,shareFrames:f.shareFrames===true,shareTranscript:f.shareTranscript!==false,factUrls:(mode==='topic'&&f.sourceScope!=='project'?f.factUrls||'':'').split('\n').map(v=>v.trim()).filter(Boolean),sourceUrls:(mode==='topic'&&f.sourceScope!=='project'?f.sourceUrls||'':'').split('\n').map(v=>v.trim()).filter(Boolean)}});
+  const entry={files,voice:f.voice||null,run,message:f.brief||''};pendingCreation.set(p.id,entry);
+  let failed=false;
+  try{await finishCreation(p.id,entry);}
+  catch(error){failed=true;error.project=p.id;error.message='工程已创建。'+error.message;throw error;}
+  finally{
+    if(!s.p&&viewEpoch===epoch){await choose(p.id,failed?'assets':'edit');s.form={};s.newFiles=[];styleByMode={};s.mode='topic';}
+    else await refreshList();
+  }
 }
+
 function draw(){
-  const instruction=el('instruction')?.value;
-  const previousEditor=editorProject;
-  releaseEditor();
+  drafts.capture();releaseEditor();
   if(!s.p)return newPage(false);
   const p=s.p;el('current-title').textContent=p.title;const making=s.jobs.some(j=>['queued','running','pausing'].includes(j.status));el('top-actions').innerHTML=(making?btn('draft','预览当前片段'):btn('preview','生成预览'))+btn('render','导出成片','accent');
   const tabs={edit:'剪辑台',assets:'素材与原句',style:'风格库',deliver:'交付',settings:'工程设置'};
   el('content').innerHTML=`<nav class="tabs" aria-label="工程分区">${Object.entries(tabs).map(([k,v])=>btn('tab',v,s.tab===k?'selected':'',k)).join('')}</nav><div id="view"></div>`;
-  if(s.tab==='edit'){drawEdit();if(previousEditor===p.id&&instruction!==undefined)el('instruction').value=instruction;}else if(s.tab==='assets')drawAssets();else if(s.tab==='style')loadStyle().catch(e=>notice(e.message));else if(s.tab==='deliver')drawDeliver();else drawSettings();
+  if(s.tab==='edit')drawEdit();else if(s.tab==='assets')drawAssets();else if(s.tab==='style')loadStyle().catch(e=>notice(e.message));else if(s.tab==='deliver')drawDeliver();else drawSettings();
+  showPendingCreation();mounted();
 }
 const componentById=id=>s.components?.find(c=>c.id===id);
 function clipTitle(c){const a=s.p?.assets.find(a=>a.id===c.assetId);return componentById(c.motion?.componentId)?.name||c.text||(c.track==='narration'&&a?.source?.text)||(c.shape==='outline'?'证据指示框':c.shape==='polygon'?'矢量轮廓':'')||assetName(c.assetId)||tracks[c.track];}
@@ -209,7 +280,7 @@ function drawEdit(){
     seek,select:(id,focus)=>pickClip(id,focus).catch(onError),commit:edit,action:timelineAction,player:()=>transport,
     report:onError,history:()=>proj('/history')});
   transport=createTimelinePlayer({project:p,jobs:s.jobs,video:el('player'),frame:editorView.frame,
-    onFrame:f=>{timeline?.frame(f,true);advanced?.setFrame(f);},onState:state=>{
+    onFrame:f=>{timeline?.frame(f,true);advanced?.setFrame(f);const button=el('inspect')?.querySelector('[data-act="split-clip"]');if(button&&s.clip){const c=s.p?.timeline.clips.find(c=>c.id===s.clip);if(c){const disabled=c.locked||f<=c.start||f>=c.start+c.duration;if((button.getAttribute('aria-disabled')==='true')!==disabled)sync(button);}}},onState:state=>{
       timeline?.setPlaying(state.playing);
       if(state.displayedFrame!=null)advanced?.setFrame(state.displayedFrame);
       const node=el('monitor-status');
@@ -219,7 +290,7 @@ function drawEdit(){
 }
 async function timelineAction(act,id){
   if(act==='undo'||act==='redo'){
-    const p=s.p,result=await proj('/'+act,{baseRevision:p.revision});if(currentResult(result)){s.p=result;s.clip=result.timeline.clips.some(c=>c.id===s.clip)?s.clip:null;draw();}return;
+    const p=s.p,result=await commitTimeline(p,()=>projectApi(p.id,'/'+act,{baseRevision:p.revision}));if(currentResult(result)){s.p=result;s.clip=result.timeline.clips.some(c=>c.id===s.clip)?s.clip:null;draw();}return;
   }
   if(act==='paste'){s.clip=id[0].id;await edit(id.map(clip=>({op:'add',clip})));return pickClip(id[0].id,false);}
   if(act==='split')return runAction('split-clip',id);
@@ -247,8 +318,14 @@ function inspector(c){
   ${!c.motion&&['caption','graphic'].includes(c.track)?`<details><summary>图层位置与关键帧</summary><div class="three">${field('水平位置 0–1',input('clip-x',c.geometry?.x??.5,'number','step=".01"'))}${field('垂直位置 0–1',input('clip-y',c.geometry?.y??.5,'number','step=".01"'))}${field('字号（像素）',input('clip-font',c.style?.fontSize||48,'number','min="1"'))}</div>${field('关键帧（帧、位置、缩放、透明度及顺时针角度 rotation）',area('clip-keys',JSON.stringify(c.keyframes||[]),2))}</details>`:''}
   ${c.track==='video'?`${viewportFields(c)}${framingFields(c)}<div class="form-grid">${field('替换画面素材',select('replace-asset',s.p.assets.filter(a=>['image','video'].includes(a.kind)).map(a=>[a.id,a.name]),c.assetId))}${field('入场方式',select('clip-transition',[['fade','叠化'],['wipe-right','向右擦除对照'],['whip-pan','热点 · 甩镜'],['organic-dissolve','热点 · 纹理溶解']],['wipe-right','whip-pan','organic-dissolve'].includes(c.transition?.type)?c.transition.type:'fade'))}${field('转场时长（帧）',input('clip-fade',c.transition?.duration||0,'number','min="0"'))}</div>${shakeInspector(c)}`:''}<div id="clip-automation"></div><div class="actions">${!c.motion?btn('split-clip','在播放头处分割','',c.id):''}${c.assetId?btn('clip-source','查看原片区间','',c.id):''}${btn('remove','移除片段','',c.id)}${c.motion?btn('save-preview-cue','保存并预览落点','',c.id):''}${btn('save-clip','保存片段','primary',c.id)}</div></section>`;
 }
-async function edit(commands,baseRevision=s.p.revision){
-  const previous=s.p, result=await proj('/edits',{baseRevision,commands});
+const timelineRequests=new Set();
+async function commitTimeline(p,operation){
+  if(timelineRequests.has(p.id))throw Error('上一项时间线修改正在保存。');
+  timelineRequests.add(p.id);try{return await operation();}finally{timelineRequests.delete(p.id);}
+}
+async function edit(commands,baseRevision=s.p.revision,accepted){
+  const previous=s.p,result=await commitTimeline(previous,()=>projectApi(previous.id,'/edits',{baseRevision,commands}));
+  accepted?.();
   if(!currentResult(result))return;
   const changed=commands.find(cmd=>cmd.op!=='lock');
   if(changed)s.lastEdit={projectId:previous.id,clipId:changed.id||changed.clip?.id,previous:previous.revision,revision:result.revision};
@@ -257,9 +334,9 @@ async function edit(commands,baseRevision=s.p.revision){
 let selectionWrite=Promise.resolve();
 async function pickClip(id,seek=true){
   const projectId=s.p.id,c=s.p.timeline.clips.find(c=>c.id===id);if(!c)return;
-  s.clip=id;
+  drafts.capture();s.clip=id;
   timeline?.choose(id);
-  if(el('inspect')){advanced?.dispose();advanced=null;el('inspect').innerHTML=inspector(c);mountAdvanced(s.p,c);}
+  if(el('inspect')){advanced?.dispose();advanced=null;el('inspect').innerHTML=inspector(c);mountAdvanced(s.p,c);mounted(el('inspect'));}
   if(el('clip-picker'))el('clip-picker').value=id;
   if(seek)transport?.seek(c.start);
   const write=selectionWrite.then(()=>{
@@ -268,27 +345,46 @@ async function pickClip(id,seek=true){
   selectionWrite=write.catch(()=>{});await write;
 }
 document.addEventListener('input',e=>{
+  if(e.target.closest('#guide-dialog'))return;
   if(e.target.dataset.cue!==undefined){
     s.cueFocus={id:s.clip,index:e.target.dataset.cue};
     el('cue-read-'+e.target.dataset.cue).value=e.target.value+' 帧';
   }
 });
 document.addEventListener('change',e=>{
+  if(e.target.closest('#guide-dialog'))return;
   const id=e.target.id;
   if(id==='clip-picker'&&e.target.value)safeAction(pickClip)(e.target.value);
+  if(id==='voice-reference'&&el('reference-text')&&el('consent')){
+    const node=e.target,previous=node.dataset.activeRef||'',current=node.value;
+    if(previous!==current){
+      const key=ref=>JSON.stringify([s.p.id,ref]);
+      if(previous)voiceDrafts.set(key(previous),{text:val('reference-text'),consent:el('consent').checked});
+      const known=voiceDrafts.get(key(current))||(current&&current===s.p.settings.voiceReferenceAssetId
+        ?{text:s.p.settings.voiceReferenceText,consent:s.p.settings.voiceConsent}:{text:previous?'':val('reference-text'),consent:false});
+      el('reference-text').value=known.text||'';el('consent').checked=known.consent===true;node.dataset.activeRef=current;
+    }
+  }
   if(['voice-mode','voice-reference','narration'].includes(id)&&el('voice-selection')&&val('voice-selection')!=='preview')el('voice-selection').value='user';
   if(['music-mode','bgm'].includes(id)&&el('music-selection'))el('music-selection').value='user';
   if(id==='music-selection'&&e.target.value==='style'&&el('music-mode'))el('music-mode').value='library';
+  sync();
 });
 async function startJob(kind,engine,extra={}){
-  const message=val('instruction')||s.p.brief;
-  const selection=s.p.timeline.clips.find(c=>c.id===s.clip);
-  const active=s.jobs.find(j=>['queued','running','pausing'].includes(j.status));
+  const p=s.p,active=activeJob(s.jobs),typed=val('instruction').trim();
+  const message=active?typed:typed||p.brief;
+  const c=p.timeline.clips.find(c=>c.id===s.clip);
+  const selection=c?{clipId:c.id,fromFrame:c.start,toFrame:c.start+c.duration}:undefined;
   if(active&&['revise','produce'].includes(kind)){
-    await api('/api/jobs/'+active.id+'/direction',{engine,message,selection:selection?{clipId:selection.id,fromFrame:selection.start,toFrame:selection.start+selection.duration}:undefined});s.jobs=await proj('/jobs');notice('已保存新的制作方向');return;
+    if(!typed)throw Error('输入这次新的剪辑要求。');
+    if(active.status==='pausing')throw Error('正在保存暂停进度。');
+    await api('/api/jobs/'+active.id+'/direction',{engine,message,selection});
+    const jobs=await projectApi(p.id,'/jobs');
+    if(projectPage(p)){s.jobs=jobs;draw();notice('已保存新的制作方向');}return;
   }
-  const j=await proj('/jobs',{kind,engine,message,baseRevision:s.p.revision,...(selection?{selection:{clipId:selection.id,fromFrame:selection.start,toFrame:selection.start+selection.duration}}:{}),...extra});
-  s.jobs.unshift(j);if(el('activity'))el('activity').innerHTML=activity(j);notice('已加入制作队列');
+  const intent={kind,engine,message,...(selection&&{selection}),...extra};
+  const j=await postIntent('/api/projects/'+p.id+'/jobs',{...intent,baseRevision:p.revision},intent);
+  if(projectPage(p)){s.jobs=[j,...s.jobs.filter(job=>job.id!==j.id)];draw();notice('已加入制作队列');}
 }
 function factList(p){
   const facts=p.facts||[];
@@ -316,24 +412,30 @@ function previewOriginal(asset,{fromFrame=0,toFrame}={}){
     player.addEventListener('timeupdate',()=>{if(player.currentTime>=toFrame/fps)player.pause();});
   }
 }
+function showSources(rows){
+  const target=el('source-choices');if(!target)return;
+  target.innerHTML=rows.map(r=>'<div class="entry"><div>'+check('pick-'+r.key,r.title,false)+'<small>'+esc([r.credit,r.date,r.license].filter(Boolean).join(' · '))+'</small>'+(r.hasWindow?field('原片入点（秒）',input('in-'+r.key,'0','number'))+field('原片出点（秒）',input('out-'+r.key,'10','number'))+check('rights-'+r.key,'我已获得该原片的使用授权',false):'')+'</div></div>').join('')+(rows.length?btn('pick-assets','导入选中素材'):'没有找到匹配的录像。');
+  mounted(target);
+}
 function drawAssets(){
  const p=s.p;const utterances=Object.entries(p.transcript||{}).flatMap(([assetId,arr])=>Array.isArray(arr)?arr.map(u=>({...u,assetId})):[]);
  el('view').innerHTML=`<section class="page">${pageHeading('素材与原句','把原片放进工程，试听转录原句，或把选中的素材加入时间线。','assets')}<div class="two-col"><section class="card"><div class="hrow space"><h2>工程素材</h2>${btn('legacy','从历史工程导入')}</div><div class="outline">${fileInput('asset-upload')}</div><div class="asset-list">${p.assets.map(a=>`<div class="asset"><div><strong>${esc(a.name)}</strong><small>${esc(a.kind)} · ${clock(a.duration)}　${esc(a.source?.credit||a.source?.author||'')}</small>${a.source?.url?'<small class="wrap">'+esc(a.source.url)+'</small>':''}</div><div class="hrow">${btn('asset-play','预览','',a.id)}${btn('add-asset-clip','加入时间线','',a.id)}${a.hasAudio?btn('transcribe','转录','',a.id):''}</div></div>`).join('')}</div></section>
- <section class="card"><h2>按来源导入</h2>${s.p.settings.sourceScope!=='project'?field('查找并手动选择源录像',input('asset-query'))+btn('search-assets','查找候选')+'<div id="source-choices"></div>':''}${field('媒体文件直链',input('asset-url','','url','placeholder="https://…"'))}${field('来源与授权说明',input('asset-rights'))}${btn('add-url','导入工程')}<h3>转录原句</h3>${utterances.length?utterances.map((u,i)=>`<div class="entry"><div><strong>${esc(u.text)}</strong><small>${clock(u.start)} – ${clock(u.end)}</small></div><div class="hrow">${btn('play-line','听原句','',i)}${btn('restore-line','恢复','',i)}</div></div>`).join(''):'<p class="help">转录带声音的素材后，可试听原句或恢复到时间线。</p>'}</section></div>${factList(p)}</section>`;s.utterances=utterances;
+ <section class="card"><h2>按来源导入</h2>${s.p.settings.sourceScope!=='project'?field('查找并手动选择源录像',input('asset-query'))+btn('search-assets','查找候选')+'<div id="source-choices"></div>':''}${field('媒体文件直链',input('asset-url','','url','placeholder="https://…"'))}${field('来源与授权说明',input('asset-rights'))}${btn('add-url','导入工程')}<h3>转录原句</h3>${utterances.length?utterances.map((u,i)=>`<div class="entry"><div><strong>${esc(u.text)}</strong><small>${clock(u.start)} – ${clock(u.end)}</small></div><div class="hrow">${btn('play-line','听原句','',i)}${btn('restore-line','恢复','',i)}</div></div>`).join(''):'<p class="help">转录带声音的素材后，可试听原句或恢复到时间线。</p>'}</section></div>${factList(p)}</section>`;s.utterances=utterances;if(p.settings.sourceScope!=='project'&&resultChoices.has(p.id))showSources(resultChoices.get(p.id).rows);
 }
-let styleRequest=0;
-async function loadStyle(selector=s.p.style){
- const request=++styleRequest,selected=s.p.id,available=styleOptions();
+async function loadStyle(selector=styleSelection.get(s.p.id)||s.p.style){
+ drafts.capture();const request=++styleEpoch,selected=s.p.id,available=styleOptions();
  if(!available.length){el('view').innerHTML='<section class="page">'+pageHeading('风格库','本机风格包尚未载入。','style')+'</section>';return;}
- const requested=available.some(([key])=>key===selector?.id+'@'+selector?.version)?selector:styleSelector(available[0][0]);
+ const fallback=available.find(row=>!row[2]);
+ if(!fallback){el('view').innerHTML='<section class="page">'+pageHeading('风格库','两套风格资源都需要恢复。','style')+'</section>';return;}
+ const requested=available.some(([key])=>key===selector?.id+'@'+selector?.version)?selector:styleSelector(fallback[0]);
  let st;
  try{st=await api('/api/styles/'+urlPart(requested.id)+'/'+urlPart(requested.version));}
  catch(error){
-   if(request!==styleRequest||s.p?.id!==selected||s.tab!=='style')return;
+   if(request!==styleEpoch||s.p?.id!==selected||s.tab!=='style')return;
    el('view').innerHTML='<section class="page">'+pageHeading('风格库','可在本机资源恢复后继续使用所选风格。','style')+field('浏览风格',select('browse-style',available,requested.id+'@'+requested.version))+'<p role="status">'+esc(error.message)+'</p></section>';return;
  }
- if(request!==styleRequest||s.p?.id!==selected||s.tab!=='style')return;
- s.style=st;const ref=(st.references||[]).filter(r=>r.available!==false&&r.locator&&r.sha256);
+ if(request!==styleEpoch||s.p?.id!==selected||s.tab!=='style')return;
+ styleSelection.set(selected,{id:st.id,version:st.version});s.style=st;const ref=(st.references||[]).filter(r=>r.available!==false&&r.locator&&r.sha256);
  const templates=st.templates||[],current=s.p.style?.id===st.id&&s.p.style?.version===st.version;
  const label=r=>r.kind==='image'?'查看参考帧':r.kind==='audio'?'试听':/script|direction|text/i.test(r.kind)?'查看文字':'看片段';
  el('view').innerHTML=`<section class="page">${pageHeading('风格库','先看参考片，再决定本期采用哪一种讲法。','style')}
@@ -347,7 +449,7 @@ async function loadStyle(selector=s.p.style){
  ${field('模板',select('scene-template',templates.map(t=>typeof t==='string'?[t,t]:[t.id,t.name||t.title||t.id]),''))}
  <div class="form-grid">${field('事件落点（秒）',input('scene-action','1','number','min="0" step=".1"'))}${field('场景时长（秒）',input('scene-duration','4','number','min=".3" step=".1"'))}</div>${field('强调文字',input('scene-text','','text','placeholder="例如，灯芯亮起"'))}
  <details class="fold"><summary>动作音效</summary>${check('scene-sound','在动作帧上加入音效',s.p.settings.sceneSound??(s.p.mode!=='interview'))}${field('落点音效来源',select('scene-sound-asset',[['','模板自带'],...s.p.assets.filter(a=>a.kind==='audio').map(a=>[a.id,a.name])],''))}</details>
- ${btn('add-scene','在选区加入可编辑模板')}</section></div></section>`;
+ ${btn('add-scene','在选区加入可编辑模板')}</section></div></section>`;mounted();
 }
 function pictureEvidence(qa){
  const visual=qa.evidence?.visual,coverage=visual?.motionCoverage;
@@ -399,22 +501,22 @@ function drawSettings(){
  <div class="actions">${btn('settings-save','保存工程设置','primary')}</div><hr><details class="fold"><summary>生成原创配乐</summary>${field('曲风与用途',area('music-prompt','',2))}${field('时长（秒）',input('music-length',15,'number','min="3" max="600"'))}${btn('compose-music','从云端生成并导入')}${(p.musicReceipts||[]).map(r=>`<div class="entry"><small>${esc(r.seconds)} 秒 · ${esc(r.status)}</small>${['sent','unknown'].includes(r.status)?btn('reconcile','核对回执','',r.id):''}</div>`).join('')}</details></section></div></section>`;
 }
 async function openLegacy(){
- const list=await api('/api/legacy');s.legacy=list;
+ const doc=s.p?.id,ui=viewEpoch,nonce=dialogEpoch;const list=await api('/api/legacy');if(!sameView(doc,ui)||nonce!==dialogEpoch)return;s.legacy=list;
  modal('历史素材与成片',list.length?list.map(p=>`<h3>${esc(p.title)}</h3>${p.editor?btn('legacy-editor','打开原编辑工程','',p.id):''}${p.media.map(a=>`<div class="entry"><div><strong>${esc(a.name)}</strong><small>${esc(a.role)} ${esc(a.status||'')}</small></div>${btn('migrate',s.p?'导入当前工程':'建工程并导入','',p.id+'|'+a.id)}</div>`).join('')}`).join(''):'<p>尚未发现旧工作台的登记记录。</p>');
 }
 async function environment(){
  modal('本机与账号','<p>正在检查本机组件…</p>');
- const [v,account]=await Promise.all([api('/api/status'),api('/api/account').catch(e=>({reason:e.message}))]);s.system=v;
+ const nonce=dialogEpoch;const [v,account]=await Promise.all([api('/api/status'),api('/api/account').catch(e=>({reason:e.message}))]);s.system=v;if(nonce!==dialogEpoch||!el('dialog').open)return;
  const capability=name=>{const a={...v.media,...v.audio};const b=a[name];if(typeof b==='object')return b?.available===false?'待准备':b?'可用':'待准备';return b?'可用':'待准备';};
  modal('本机与账号',`<div class="entry"><div><strong>Codex</strong><small>${account.connected?'已连接':esc(account.message||account.reason||'尚未登录')}</small></div>${btn('login','连接账号')}</div>
  ${[['render','本地渲染','melt'],['speech','语音转录','transcription'],['clone','中文音色克隆','clone'],['preset','Qwen 本地预置男声 Dylan','preset']].map(([key,label,cap])=>`<div class="entry"><div><strong>${label}</strong><small>${capability(cap)}</small></div>${btn('install',key==='preset'?'准备本地预置男声':'准备组件','',key)}</div>`).join('')}
  ${v.install?'<p class="help">'+esc(v.install.state+' · '+v.install.message)+'</p>':''}
- <h3>云配乐账号</h3>${field('ElevenLabs API 密钥（仅在本次打开期间使用）',input('cloud-key','','password','autocomplete="off"'))}${btn('cloud-key','保存本次连接')} <span class="help">${v.cloudMusic?'已连接':''}</span>`);
+ <h3>云配乐账号</h3>${field('ElevenLabs API 密钥（仅在本次打开期间使用）',input('cloud-key','','password','autocomplete="off"'))}${btn('cloud-key','保存本次连接')}${v.cloudMusic?btn('cloud-disconnect','断开本次连接'):''} <span class="help">${v.cloudMusic?'已连接':''}</span>`);
 }
 async function showDraft(project,fromFrame,focusFrame){
-  notice('正在合成此处的工程草稿');
+  const epoch=viewEpoch,nonce=dialogEpoch;notice('正在合成此处的工程草稿');
   const draft=await api('/api/projects/'+project.id+'/draft',{fromFrame});
-  if(s.p?.id!==project.id||draft.revision!==s.p.revision)return;
+  if(!sameView(project.id,epoch)||dialogEpoch!==nonce||draft.revision!==s.p.revision)return;
   const fps=project.profile.fps;
   modal('当前草稿 · v'+draft.revision+' · '+clock(draft.fromFrame/fps)+'–'+clock(draft.toFrame/fps),
     '<video class="wide-video" autoplay controls playsinline src="'+esc(draft.url)+'"></video>');
@@ -424,13 +526,21 @@ async function showDraft(project,fromFrame,focusFrame){
   }
 }
 async function runAction(act,id){
- const p=s.p;
+ const p=s.p,epoch=viewEpoch,nonce=dialogEpoch,styleNonce=styleEpoch,tab=s.tab,stillHere=()=>sameView(p?.id,epoch)&&(tab!=='style'||styleNonce===styleEpoch);
+ const proj=(suffix='',body)=>projectApi(p.id,suffix,body);
+ const again=()=>projectPage(p)?reload():undefined;
+ const go=(pid,tab)=>stillHere()?choose(pid,tab):refreshList();
+ const display=(name,html)=>{if(stillHere()&&nonce===dialogEpoch)modal(name,html);};
  switch(act){
  case 'open-project':return choose(id);
- case 'mode':captureNew();s.mode=id;return newPage(false);
+ case 'mode':return leaveNewMode(id);
  case 'create':case 'create-run':return create(act==='create-run');
+ case 'continue-create':{const entry=pendingCreation.get(p.id);if(!entry)return;await finishCreation(p.id,entry);if(stillHere())await choose(p.id,entry.run?'edit':s.tab);return;}
+ case 'drop-file':s.newFiles.splice(Number(id),1);el('new-files').value='';return sync();
+ case 'keep-draft':drafts.resolve(el('view'),true);return sync();
+ case 'use-current':drafts.resolve(el('view'),false);return draw();
  case 'import-folder':return el('folder-picker').click();
- case 'tab':s.tab=id;return draw();
+ case 'tab':drafts.capture();viewEpoch++;s.tab=id;return draw();
  case 'direct':return startJob(p.timeline.clips.length?'revise':'produce','codex');
  case 'local':return startJob(p.timeline.clips.length&&val('instruction').trim()?'revise':'produce','local');
  case 'draft':{
@@ -442,16 +552,16 @@ async function runAction(act,id){
    const index=s.cueFocus?.id===id?s.cueFocus.index:0;
    const focusFrame=Math.round(Number(val('clip-at'))*p.profile.fps)+Number(val('cue-'+index));
    await runAction('save-clip',id);
-   if(s.p?.id===p.id)return showDraft(s.p,Math.max(0,focusFrame-p.profile.fps),focusFrame);
+   if(stillHere()&&s.clip===id)return showDraft(s.p,Math.max(0,focusFrame-p.profile.fps),focusFrame);
    return;
  }
  case 'preview':case 'render':return startJob(act,'local');
- case 'pause':s.jobs=await proj('/jobs');await api('/api/jobs/'+id+'/pause',{});return reload();
+ case 'pause':await api('/api/jobs/'+id+'/pause',{});return again();
  case 'replan':return startJob('produce','codex');
  case 'approve-plan':{
    const j=s.jobs.find(job=>job.id===id);
-   await api('/api/jobs/'+id+'/resume',{approvedSequenceHash:j.approval.hash});return reload();}
- case 'resume':await api('/api/jobs/'+id+'/resume',{confirmRetry:true});return reload();
+   await api('/api/jobs/'+id+'/resume',{approvedSequenceHash:j.approval.hash});return again();}
+ case 'resume':await api('/api/jobs/'+id+'/resume',{confirmRetry:true});return again();
  case 'clip-mute':{const c=p.timeline.clips.find(c=>c.id===id);return edit([{op:'update',id,changes:{muted:!c.muted}}]);}
  case 'lock':{const c=p.timeline.clips.find(c=>c.id===id);return edit([{op:'lock',id,locked:!c.locked}]);}
  case 'remove':s.clip=null;return edit([{op:'remove',id}]);
@@ -491,6 +601,7 @@ async function runAction(act,id){
  }
  case 'remove-shake':{el('picture-shakes').querySelector('[data-shake="'+Number(id)+'"]')?.remove();return;}
  case 'save-clip':{
+  const accepted=drafts.submitted(formScope('clip',id)),save=commands=>edit(commands,p.revision,accepted);
   const c=p.timeline.clips.find(c=>c.id===id),f=frameRate();
   const changes={start:Math.round(Number(val('clip-at'))*f),duration:Math.round(Number(val('clip-len'))*f)};
   const edited=key=>{const n=el('clip-'+key);return n&&Number(n.value)!==Number(n.defaultValue);};
@@ -512,7 +623,7 @@ async function runAction(act,id){
         delete soundDesign.assetId;
       }
     }
-    return edit([{op:'update',id,changes:{start:changes.start,duration:changes.duration,geometry:readRect('motion-rect'),
+    return save([{op:'update',id,changes:{start:changes.start,duration:changes.duration,geometry:readRect('motion-rect'),
       ...(sound?{soundDesign}:{}),motion:{...c.motion,props,cueFrames}}}]);
   }
   const asset=p.assets.find(a=>a.id===c.assetId);
@@ -529,13 +640,15 @@ async function runAction(act,id){
   if(c.track==='video'){
     changes.viewport=el('use-viewport').checked?readRect('viewport'):null;changes.fit=val('clip-fit');
     const point=key=>Object.fromEntries(['x','y','zoom'].map(k=>[k,Number(val('view-'+key+'-'+k))]));
-    if(el('clip-framing').checked)changes.framing={from:point('from'),to:point('to')};
-    else if(c.framing)changes.framing=null;
+    if(el('clip-framing').checked){
+      const modified=['from','to'].some(key=>['x','y','zoom'].some(k=>{const n=el('view-'+key+'-'+k);return Number(n.value)!==Number(n.defaultValue);}));
+      if(!c.framing||modified&&!c.framing.keys?.length)changes.framing={from:point('from'),to:point('to')};
+    }else if(c.framing)changes.framing=null;
     if(el('picture-shakes')&&(c.pictureEffects||el('picture-shakes').children.length))changes.pictureEffects=readShakes();
     changes.assetId=val('replace-asset');const n=Number(val('clip-fade'));const type=val('clip-transition');if(n!==(c.transition?.duration||0)||(n&&type!==(['wipe-right','whip-pan','organic-dissolve'].includes(c.transition?.type)?c.transition.type:'fade')))changes.transition=n?{type,duration:n}:null;}
   const commands=speedChange?[{op:'speed',id,speed:newSpeed}]:[];
   if(Object.keys(changes).length)commands.push({op:'update',id,changes});
-  if(commands.length)return edit(commands);
+  if(commands.length)return save(commands);
   return;}
  case 'fact-source':await proj('/facts/'+Number(id)+'/open',{});return;
  case 'fact-shot':{
@@ -560,22 +673,25 @@ async function runAction(act,id){
   const start=act==='insert-asset'?playhead():Math.max(0,...p.timeline.clips.filter(c=>c.track===track).map(c=>c.start+c.duration));
   s.clip=crypto.randomUUID();await edit([{op:'add',clip:{id:s.clip,assetId:a.id,track,start,sourceIn:0,duration:Math.max(1,Math.round((a.kind==='image'?4:a.duration)*frameRate())),gain:1,speed:1}}]);notice('已加入'+tracks[track]+'轨');return;}
  case 'search-assets':{
-   const rows=await proj('/source-options',{query:val('asset-query')});
-   el('source-choices').innerHTML=rows.map(r=>'<div class="entry"><div>'+check('pick-'+r.key,r.title,false)+'<small>'+esc([r.credit,r.date,r.license].filter(Boolean).join(' · '))+'</small>'+(r.hasWindow?field('原片入点（秒）',input('in-'+r.key,'0','number'))+field('原片出点（秒）',input('out-'+r.key,'10','number'))+check('rights-'+r.key,'我已获得该原片的使用授权',false):'')+'</div></div>').join('')+(rows.length?btn('pick-assets','导入选中素材'):'没有找到匹配的录像。');return;}
+   const token=++searchToken,query=val('asset-query'),rows=await proj('/source-options',{query});
+   if(token!==searchToken)return;
+   if(stillHere()&&el('source-choices')){drafts.capture(el('source-choices'));resultChoices.set(p.id,{query,rows});showSources(rows);}
+   else if(!resultChoices.has(p.id))resultChoices.set(p.id,{query,rows});
+   return;}
  case 'pick-assets':{
    const items=Array.from(el('source-choices').querySelectorAll('input[id^="pick-"]:checked')).map(e=>{const key=e.id.slice(5);return {key,...(el('in-'+key)&&{window:{start:Number(val('in-'+key)),end:Number(val('out-'+key))},authorized:el('rights-'+key).checked})};});
-   await proj('/source-options/pick',{items});return choose(p.id,'assets');}
- case 'add-url':await proj('/url',{url:val('asset-url'),rights:val('asset-rights')});return reload();
- case 'transcribe':notice('正在本地转录');await proj('/transcript',{assetId:id});return reload();
+   await proj('/source-options/pick',{items});resultChoices.delete(p.id);return go(p.id,'assets');}
+ case 'add-url':await proj('/url',{url:val('asset-url'),rights:val('asset-rights')});return again();
+ case 'transcribe':notice('正在本地转录');await proj('/transcript',{assetId:id});return again();
  case 'play-line':{const u=s.utterances[Number(id)];modal('原句试听',`<audio id="line-audio" controls src="${aid(u.assetId)}"></audio><p>${esc(u.text)}</p>`);const a=el('line-audio');a.addEventListener('loadedmetadata',()=>{a.currentTime=u.start;a.play().catch(()=>{});},{once:true});a.ontimeupdate=()=>{if(a.currentTime>=u.end)a.pause();};return;}
- case 'restore-line':{const u=s.utterances[Number(id)];await proj('/restore-sentence',{assetId:u.assetId,utteranceId:u.id,baseRevision:p.revision});notice('已将原句恢复到时间线');return reload();}
- case 'pin-style':s.p=await proj('/configure',{baseRevision:p.revision,changes:{style:{id:s.style.id,version:s.style.version}}});notice('已固定到该风格版本');return draw();
+ case 'restore-line':{const u=s.utterances[Number(id)];await proj('/restore-sentence',{assetId:u.assetId,utteranceId:u.id,baseRevision:p.revision});notice('已将原句恢复到时间线');return again();}
+ case 'pin-style':{const applied=await proj('/configure',{baseRevision:p.revision,changes:{style:{id:s.style.id,version:s.style.version}}});if(storeResult(applied))notice('已固定到该风格版本');return;}
  case 'style-ref':{
    const ref=(s.style.references||[]).find(r=>r.id===id);if(!ref)throw Error('找不到这份参考。');
    const url='/api/styles/'+urlPart(s.style.id)+'/'+urlPart(s.style.version)+'/references/'+urlPart(id);
    if(/script|direction|text/i.test(ref.kind)){
      const response=await fetch(url);if(!response.ok)throw Error('参考文字尚未载入。');
-     return modal(ref.title||'参考文字','<pre class="source-text">'+esc((await response.text()).slice(0,120000))+'</pre>');
+     return display(ref.title||'参考文字','<pre class="source-text">'+esc((await response.text()).slice(0,120000))+'</pre>');
    }
    const preview=ref.kind==='image'?`<img class="wide-video" alt="${esc(ref.title)}" src="${url}">`:ref.kind==='audio'?`<audio controls autoplay src="${url}"></audio>`:`<video class="wide-video" controls autoplay src="${url}"></video>`;
    return modal(ref.title||'风格参考',preview);
@@ -583,48 +699,61 @@ async function runAction(act,id){
  case 'add-scene':{
    if(p.style.id!==s.style.id||p.style.version!==s.style.version)throw Error('请先把该风格用于本工程。');
    const c=p.timeline.clips.find(c=>c.id===s.clip),start=c?.start||0,duration=Math.round(Number(val('scene-duration'))*frameRate());
-   await proj('/scene',{baseRevision:p.revision,template:val('scene-template'),clipId:c?.id,soundEnabled:el('scene-sound').checked,soundAssetId:val('scene-sound-asset')||undefined,start,duration,actionFrame:start+Math.round(Number(val('scene-action'))*frameRate()),text:val('scene-text'),sourceAssetId:c?.assetId});notice('已生成可编辑图层');return choose(p.id,'edit');}
+   await proj('/scene',{baseRevision:p.revision,template:val('scene-template'),clipId:c?.id,soundEnabled:el('scene-sound').checked,soundAssetId:val('scene-sound-asset')||undefined,start,duration,actionFrame:start+Math.round(Number(val('scene-action'))*frameRate()),text:val('scene-text'),sourceAssetId:c?.assetId});notice('已生成可编辑图层');return go(p.id,'edit');}
  case 'settings-save':{
-   const changes={title:val('set-title'),brief:val('set-brief'),script:val('set-script'),publication:{title:val('pub-title'),emphasis:val('pub-emphasis'),body:val('pub-body'),tags:val('pub-tags').split(/\s+/).filter(Boolean)},settings:{captionDisplay:val('set-captions'),sourceScope:val('set-scope'),confirmSequence:el('confirm-plan').checked,autoReview:el('auto-review').checked,finalReviewMaxTurns:el('final-review').checked?1:0,durationMinSeconds:val('set-min')?Number(val('set-min')):null,durationMaxSeconds:val('set-max')?Number(val('set-max')):null,voiceSelection:val('voice-selection'),musicSelection:val('music-selection'),targetDuration:val('target-length')?Number(val('target-length')):null,voiceMode:val('voice-mode'),narrationAssetId:val('narration'),voiceReferenceAssetId:val('voice-reference'),voiceReferenceText:val('reference-text'),voiceConsent:el('consent').checked,musicAssetId:val('bgm'),musicMode:val('music-mode'),musicEnabled:val('music-mode')!=='none',requireMusic:val('music-mode')==='asset'||val('music-mode')==='original',publishPackage:el('pack').checked,sceneSound:el('project-scene-sound').checked,shareTranscript:el('share-text').checked,shareFrames:el('share-frames').checked,cloudEnabled:el('cloud').checked,cloudBudget:Number(val('budget'))}};
-   s.p=await proj('/configure',{baseRevision:p.revision,changes});notice('已保存工程设置');await refreshList();return draw();}
+   const accepted=drafts.submitted(formScope('settings'));
+   const changes={title:val('set-title'),brief:val('set-brief'),script:val('set-script'),publication:{title:val('pub-title'),emphasis:val('pub-emphasis'),body:val('pub-body'),tags:val('pub-tags').split(/\s+/).filter(Boolean)},settings:{captionDisplay:val('set-captions'),sourceScope:val('set-scope'),confirmSequence:el('confirm-plan').checked,autoReview:el('share-frames').checked&&el('auto-review').checked,finalReviewMaxTurns:el('share-frames').checked&&el('auto-review').checked&&el('final-review').checked?1:0,durationMinSeconds:val('set-min')?Number(val('set-min')):null,durationMaxSeconds:val('set-max')?Number(val('set-max')):null,voiceSelection:val('voice-selection'),musicSelection:val('music-selection'),targetDuration:val('target-length')?Number(val('target-length')):null,voiceMode:val('voice-mode'),narrationAssetId:val('narration'),voiceReferenceAssetId:val('voice-reference'),voiceReferenceText:val('reference-text'),voiceConsent:el('consent').checked,musicAssetId:val('bgm'),musicMode:val('music-mode'),musicEnabled:val('music-mode')!=='none',requireMusic:val('music-mode')==='asset'||val('music-mode')==='original',publishPackage:el('pack').checked,sceneSound:el('project-scene-sound').checked,shareTranscript:el('share-text').checked,shareFrames:el('share-frames').checked,cloudEnabled:el('cloud').checked,cloudBudget:Number(val('budget'))}};
+   const applied=await proj('/configure',{baseRevision:p.revision,changes});accepted();if(storeResult(applied))notice('已保存工程设置');await refreshList();return;}
  case 'enroll-voice':{
     const r=await proj('/voices/enroll',{name:val('voice-label'),assetId:val('voice-reference'),referenceText:val('reference-text'),consent:el('consent').checked});
-    s.voices=await api('/api/voices');s.p=await proj('/voices/use',{id:r.id,baseRevision:p.revision});draw();notice('音色已登记，正在生成专名和数字试听');const audition=await proj('/audition',{});return modal('新音色试听',`<audio controls autoplay src="${aid(audition.id)}"></audio>`);}
- case 'use-voice':s.p=await proj('/voices/use',{id:val('saved-voice'),baseRevision:p.revision});notice('已使用个人音色');return draw();
+    s.voices=await api('/api/voices');const applied=await proj('/voices/use',{id:r.id,baseRevision:p.revision});if(!storeResult(applied)||!stillHere())return;notice('音色已登记，正在生成专名和数字试听');const audition=await proj('/audition',{});if(!stillHere())return;return display('新音色试听',`<audio controls autoplay src="${aid(audition.id)}"></audio>`);}
+ case 'use-voice':{const applied=await proj('/voices/use',{id:val('saved-voice'),baseRevision:p.revision});if(storeResult(applied))notice('已使用个人音色');return;}
  case 'mark-action':{
-    const v=el('source-preview');if(!v)throw Error('请打开视频素材。');await proj('/anchor',{baseRevision:p.revision,assetId:id,sourceFrame:Math.round(v.currentTime*frameRate()),label:val('event-label')});dismiss();notice('已在原片登记动作帧');return reload();}
- case 'audition':{await runAction('settings-save');notice('正在本地生成试听');const a=await proj('/audition',{});modal('音色试听',`<audio controls autoplay src="${aid(a.id)}"></audio>`);return;}
- case 'compose-music':{const prompt=val('music-prompt'),seconds=Number(val('music-length'));if(!p.settings.cloudEnabled)throw Error('请先保存项目云配乐授权和时长预算。');await proj('/cloud-music',{requestId:crypto.randomUUID(),prompt,seconds});notice('配乐已加入项目素材');return choose(p.id,'assets');}
+    const v=el('source-preview');if(!v)throw Error('请打开视频素材。');await proj('/anchor',{baseRevision:p.revision,assetId:id,sourceFrame:Math.round(v.currentTime*frameRate()),label:val('event-label')});if(stillHere()&&dialogEpoch===nonce){dismiss();notice('已在原片登记动作帧');}return again();}
+ case 'audition':{await runAction('settings-save');if(!stillHere())return;notice('正在本地生成试听');const a=await proj('/audition',{});if(!stillHere())return;display('音色试听',`<audio controls autoplay src="${aid(a.id)}"></audio>`);return;}
+ case 'compose-music':{const prompt=val('music-prompt'),seconds=Number(val('music-length'));if(!p.settings.cloudEnabled)throw Error('请先保存项目云配乐授权和时长预算。');const key=JSON.stringify([p.id,prompt,seconds]),requestId=paidRequests.get(key)||crypto.randomUUID();paidRequests.set(key,requestId);
+   try{await proj('/cloud-music',{requestId,prompt,seconds});paidRequests.delete(key);}catch(e){if(e.status===400)paidRequests.delete(key);throw e;}notice('配乐已加入项目素材');return go(p.id,'assets');}
  case 'reconcile':{
     const receipt=await proj('/music-receipt/'+urlPart(id));
-    if(receipt.status==='done'){notice('已按文件指纹找回这次生成的配乐。');return reload();}
-    return modal('核对服务商账单',`<p>请核对 ${esc(receipt.at)} 的 ${esc(receipt.seconds)} 秒配乐。${receipt.songId?'曲目编号 '+esc(receipt.songId)+'。':''}${receipt.providerRequestId?'服务商请求编号 '+esc(receipt.providerRequestId)+'。':''}确认后将更新本项目的剩余时长。</p>${btn('charged','已计费','',id)} ${btn('not-charged','未计费','',id)}`);
+    if(receipt.status==='done'){notice('已按文件指纹找回这次生成的配乐。');return again();}
+    return display('核对服务商账单',`<p>请核对 ${esc(receipt.at)} 的 ${esc(receipt.seconds)} 秒配乐。${receipt.songId?'曲目编号 '+esc(receipt.songId)+'。':''}${receipt.providerRequestId?'服务商请求编号 '+esc(receipt.providerRequestId)+'。':''}确认后将更新本项目的剩余时长。</p>${btn('charged','已计费','',id)} ${btn('not-charged','未计费','',id)}`);
  }
- case 'charged':case 'not-charged':await proj('/reconcile-music',{requestId:id,charged:act==='charged'});dismiss();return reload();
+ case 'charged':case 'not-charged':await proj('/reconcile-music',{requestId:id,charged:act==='charged'});for(const [k,request] of paidRequests)if(request===id)paidRequests.delete(k);if(stillHere()&&dialogEpoch===nonce)dismiss();return again();
  case 'reveal':{const [job,key]=id.split('|');await api('/api/jobs/'+job+'/reveal/'+key,{});return;}
  case 'review-issue':case 'fix-issue':{
   const [job,n,at]=id.split('|'),j=s.jobs.find(j=>j.id===job),q=j.qa.issues[Number(n)];
   const f=j.qa.frameRate||frameRate(),location=at===undefined?undefined:q.locations?.[Number(at)]?.frame,from=location??q.fromFrame??0,to=location??q.toFrame??from;
   if(act==='fix-issue'){
     const times=q.locations?.length?q.locations.map(p=>(p.frame/f).toFixed(2)+' 秒').join('、'):clock(from/f);
-    s.tab='edit';draw();el('instruction').value='修改 '+times+' 附近：'+q.message+' '+(q.fix||'');el('instruction').focus();return;
+    viewEpoch++;s.tab='edit';draw();const pending=val('instruction').trim();el('instruction').value=[pending,'修改 '+times+' 附近：'+q.message+' '+(q.fix||'')].filter(Boolean).join('\n');el('instruction').focus();return;
   }
   const v=document.querySelector(`video[data-review="${CSS.escape(job)}"]`);v.currentTime=Math.max(0,from/f-.8);v.ontimeupdate=()=>{if(v.currentTime>to/f+1){v.pause();v.ontimeupdate=null;}};return v.play();}
  case 'legacy':return openLegacy();
  case 'legacy-editor':return api('/api/legacy-editor/'+id,{});
- case 'migrate':{const [old,item]=id.split('|');const h=s.legacy.find(h=>h.id===old);let pid=p?.id;if(!pid)pid=(await api('/api/projects',{mode:'script',title:h.title+' · 新剪辑'})).id;await api('/api/projects/'+pid+'/legacy',{projectId:old,itemId:item});dismiss();notice('已核对指纹并导入');return choose(pid,'assets');}
+ case 'migrate':{const [old,item]=id.split('|');const h=s.legacy.find(h=>h.id===old);let pid=p?.id;if(!pid)pid=(await api('/api/projects',{mode:'script',title:h.title+' · 新剪辑'})).id;await api('/api/projects/'+pid+'/legacy',{projectId:old,itemId:item});if(stillHere()&&nonce===dialogEpoch){dismiss();notice('已核对指纹并导入');}return go(pid,'assets');}
  case 'login':{const v=await api('/api/login',{});notice(v.message||'已打开官方账号登录');return;}
- case 'install':{const x=await api('/api/prepare',{feature:id});notice(x.message);return environment();}
- case 'cloud-key':await api('/api/music/connection',{key:val('cloud-key')});return environment();
+ case 'install':{const x=await api('/api/prepare',{feature:id});if(stillHere()&&nonce===dialogEpoch){notice(x.message);return environment();}return;}
+ case 'cloud-disconnect':await api('/api/music/connection',{key:''});if(stillHere()&&nonce===dialogEpoch)return environment();return;
+ case 'cloud-key':await api('/api/music/connection',{key:val('cloud-key')});if(stillHere()&&nonce===dialogEpoch)return environment();return;
  }
 }
-document.addEventListener('click',safeAction(async e=>{const n=e.target.closest('[data-act]');if(!n)return;n.disabled=true;try{await runAction(n.dataset.act,n.dataset.id);}finally{n.disabled=false;}}));
+document.addEventListener('click',safeAction(async e=>{
+ const n=e.target.closest('[data-act]');if(!n||n.closest('#guide-dialog'))return;
+ sync(n);if(n.dataset.controlReason){notice(n.dataset.controlReason);return;}
+ const act=n.dataset.act,id=n.dataset.id,unlock=gate.begin(actionScope(act),act,id);if(!unlock)return;
+ try{sync();await runAction(act,id);}finally{unlock();mounted();}
+}));
+document.addEventListener('input',e=>{if(e.target.closest('#guide-dialog'))return;sync();});
 document.addEventListener('change',safeAction(async e=>{
- if(e.target.id==='new-files'){s.newFiles=[...e.target.files];el('selected-files').textContent=s.newFiles.map(f=>f.name).join('、');}
- if(e.target.id==='asset-upload'){await uploadFiles(s.p.id,e.target.files);await reload();}
+ if(e.target.closest('#guide-dialog'))return;
+ if(e.target.id==='new-files'){
+   const key=f=>JSON.stringify([f.name,f.size,f.lastModified]);
+   s.newFiles=[...new Map([...s.newFiles,...e.target.files].map(f=>[key(f),f])).values()];sync();
+ }
+ if(e.target.id==='asset-upload'){const p=s.p,list=[...e.target.files];await uploadFiles(p.id,list);if(projectPage(p))await reload();}
  if(e.target.id==='browse-style')await loadStyle(styleSelector(e.target.value));
  if(e.target.id==='folder-picker'){
-   const files=[...e.target.files],manifest=files.find(f=>f.name==='project.vstudio.json');
+   const epoch=viewEpoch,project=s.p?.id;const files=[...e.target.files],manifest=files.find(f=>f.name==='project.vstudio.json');
    if(!manifest)throw Error('请选择含 project.vstudio.json 和 assets 子目录的工程。');
    const {id}=await api('/api/imports',{});const folder=manifest.webkitRelativePath.slice(0,-manifest.name.length);
    for(const file of files.filter(f=>f===manifest||f.webkitRelativePath.startsWith(folder+'assets/')||f.webkitRelativePath.startsWith(folder+'style/'))){
@@ -632,11 +761,11 @@ document.addEventListener('change',safeAction(async e=>{
      if(name.split('/').some(piece=>piece.startsWith('.')))continue;
      await api('/api/imports/'+id+'/file',undefined,{method:'POST',headers:{'X-Project-Path':encodeURIComponent(name)},body:file});
    }
-   const p=await api('/api/imports/'+id+'/open',{});await choose(p.id);
+   const p=await api('/api/imports/'+id+'/open',{});if(sameView(project,epoch))await choose(p.id);else await refreshList();
  }
 }));
 el('new').onclick=()=>newPage(true);el('legacy').onclick=safeAction(openLegacy);el('environment').onclick=safeAction(environment);el('dismiss').onclick=dismiss;
-el('dialog').addEventListener('close',()=>{el('dialog-body').innerHTML='';});
+el('dialog').addEventListener('close',()=>{dialogEpoch++;el('dialog-body').innerHTML='';});
 async function refreshJobs(){
  if(s.polling||!s.p||timeline?.dragging)return;s.polling=true;
  try{
@@ -651,11 +780,11 @@ async function refreshJobs(){
     await refreshList();
   }else{
     s.jobs=next;
-    if(el('activity')&&next.length)el('activity').innerHTML=activity(next[0]);
+    if(el('activity')&&next.length)el('activity').innerHTML=activity(activeJob(next)||next[0]);sync();
   }
  }catch{}finally{s.polling=false;}
 }
-async function init(){[s.styles,s.voices,s.components]=await Promise.all([api('/api/styles'),api('/api/voices'),api('/api/motion-components')]);await refreshList();if(s.projects.length)await choose(s.projects[0].id);else newPage();setInterval(refreshJobs,1800);}
+async function init(){const epoch=viewEpoch;[s.styles,s.voices,s.components]=await Promise.all([api('/api/styles'),api('/api/voices'),api('/api/motion-components')]);await refreshList();if(viewEpoch===epoch){if(s.projects.length)await choose(s.projects[0].id);else newPage();}setInterval(refreshJobs,1800);}
 window.addEventListener('pagehide',releaseEditor);
 window.addEventListener('pageshow',e=>{if(e.persisted&&s.p)draw();});
 safeAction(init)();

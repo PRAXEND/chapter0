@@ -1,3 +1,4 @@
+import {intentHash,validRequestId} from './request-key.mjs';
 import {selectedStyle} from './style-catalog.mjs';
 import {publicationFields,portraitLayout,portraitTitleProblem} from './presentation.mjs';
 import {requestedDurationRange,validateDuration} from './duration.mjs';
@@ -107,6 +108,7 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
   const db=new DatabaseSync(path.join(root,'studio.sqlite'));
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS project_requests(request_id TEXT PRIMARY KEY, project TEXT NOT NULL, fingerprint TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS history (project TEXT, revision INTEGER, body TEXT NOT NULL, PRIMARY KEY(project,revision));
     CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, project TEXT NOT NULL, body TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS project_jobs ON jobs(project);`);
@@ -142,12 +144,27 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
   }
   function create(data={}) {
     if(!['topic','script','interview'].includes(data.mode))throw fault('请选择一个制作入口。');
-    const style=selectedStyle(data.style),id=randomUUID(), dirs=paths(id);
-    for(const dir of Object.values(dirs))mkdirSync(dir,{recursive:true,mode:0o700});
-    const p={schema:1,id,title:text(data.title||'未命名工程',160),mode:data.mode,brief:text(data.brief),script:text(data.script,160000),
+    const style=selectedStyle(data.style);
+    const input={title:text(data.title||'未命名工程',160),mode:data.mode,brief:text(data.brief),script:text(data.script,160000),
       profile:profileOf(data.profile), settings:newSettings(data.mode,{autoReview:true,...requestedDurationRange(data.brief),...data.settings},style),style,
-      revision:1,assets:[],timeline:{clips:[]},createdAt:now(),updatedAt:now()};
-    return transaction(()=>persist(p,true));
+      };
+    const requestId=data.requestId;
+    if(requestId!=null&&!validRequestId(requestId))throw fault('创建请求编号无效。');
+    const fingerprint=requestId?intentHash(input):null;
+    return transaction(()=>{
+      if(requestId){
+        const receipt=db.prepare('SELECT project,fingerprint FROM project_requests WHERE request_id=?').get(requestId);
+        if(receipt){
+          if(receipt.fingerprint!==fingerprint)throw fault('请求编号与已登记的工程内容不符。',409);
+          return get(receipt.project);
+        }
+      }
+      const id=randomUUID(),dirs=paths(id);
+      for(const dir of Object.values(dirs))mkdirSync(dir,{recursive:true,mode:0o700});
+      const p={schema:1,id,...input,revision:1,assets:[],timeline:{clips:[]},createdAt:now(),updatedAt:now()};
+      if(requestId)db.prepare('INSERT INTO project_requests VALUES(?,?,?)').run(requestId,id,fingerprint);
+      return persist(p,true);
+    });
   }
   async function addAsset(id,file,source={}) {
     get(id);
@@ -256,6 +273,8 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
           p.timeline.clips.sort((a,b)=>a.start-b.start||tracks.indexOf(a.track)-tracks.indexOf(b.track)||a.id.localeCompare(b.id));
         }
         if(p.settings.voiceReferenceAssetId!==previous.voiceReferenceAssetId){
+          if(changes.settings?.voiceConsent!==true)p.settings.voiceConsent=false;
+          if(!Object.hasOwn(changes.settings||{},'voiceReferenceText'))p.settings.voiceReferenceText='';
           const a=p.assets.find(a=>a.id===p.settings.voiceReferenceAssetId);
           p.settings.referenceHash=a?.sha256||null;
           if(!changes.settings?.voiceLibraryId)p.settings.voiceLibraryId=null;
