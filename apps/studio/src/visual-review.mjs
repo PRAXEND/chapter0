@@ -1,4 +1,4 @@
-import {sourceAt,localAtSource} from '../www/clip-automation.js';
+import {sourceAt,localAtSource,curveRuns} from '../www/clip-automation.js';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {projectSourceRegion,validRegion} from './visual-steps.mjs';
@@ -179,12 +179,15 @@ export async function measureMotion(project,windows,ffmpeg,signal,videoPath,{sta
   const records=[],fps=project.profile.fps;
   const spans=[];
   for(const window of windows.filter(v=>v.shot.asset?.kind==='video')) {
-    const length=window.to-window.from+1,parts=Math.ceil(length/(4*fps));
-    for(let i=0;i<parts;i++)spans.push({...window,from:window.from+Math.floor(length*i/parts),to:window.from+Math.floor(length*(i+1)/parts)-1});
+    for(const run of curveRuns(window.shot.clip)){
+      const first=Math.max(window.from,run.start),last=Math.min(window.to,run.start+run.duration-1);
+      const length=last-first+1,parts=Math.ceil(length/(4*fps));
+      for(let i=0;i<parts;i++)spans.push({...window,speed:run.speed??1,from:first+Math.floor(length*i/parts),to:first+Math.floor(length*(i+1)/parts)-1});
+    }
   }
   const count=Math.min(36,spans.length);
   for(let i=0;i<count;i++) {
-    const {from,to,shot:{clip,asset},regions}=spans[count===spans.length?i:Math.round(i*(spans.length-1)/(count-1))];
+    const {from,to,speed,shot:{clip,asset},regions}=spans[count===spans.length?i:Math.round(i*(spans.length-1)/(count-1))];
     const exposed=regions?.reduce((a,b)=>a.width*a.height>=b.width*b.height?a:b);
     const crop=stage.rect(exposed?viewportRect(exposed,stage.profile):null);
     if(!asset.path||to-from<fps*.35)continue;
@@ -198,7 +201,7 @@ export async function measureMotion(project,windows,ffmpeg,signal,videoPath,{sta
         return {pair,result};
       };
       const source=await compare(asset.path,times),candidate=await compare(videoPath,fractions.map(u=>(from+d*u)/fps),crop);
-      const kind=source.result==='changing-footage'?candidate.result:source.result,count=to-from+1,speed=clip.speed||1;
+      const kind=source.result==='changing-footage'?candidate.result:source.result,count=to-from+1;
       let confirmedFrozen=false;
       if(kind==='no-detectable-change'){
         const sourceStill=source.result==='no-detectable-change';

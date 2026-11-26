@@ -41,7 +41,7 @@ try{
       const project=()=>fetch('/project').then(r=>r.json()),wait=async check=>{for(let i=0;i<110;i++){if(await check())return;await new Promise(r=>setTimeout(r,35));}throw Error('等待交互反馈超时');};
       let p=await project(),inspector;
       function mount(id){inspector?.dispose();const clip=p.timeline.clips.find(c=>c.id===id);inspector=mountClipInspector({element,project:p,clip,frame:24,seek:f=>inspector.setFrame(f),
-        commit:async commands=>{const r=await fetch('/edit',{method:'POST',body:JSON.stringify({revision:p.revision,commands})});if(!r.ok)throw Error(await r.text());p=await r.json();}});
+        commit:async (commands,revision)=>{const r=await fetch('/edit',{method:'POST',body:JSON.stringify({revision,commands})});if(!r.ok)throw Error(await r.text());p=await r.json();}});
         element.querySelector('details').open=true;}
       const click=a=>element.querySelector('[data-ae="'+a+'"]').click(),value=(k,v)=>{const el=element.querySelector('[data-ae-value="'+k+'"]');el.value=v;el.dispatchEvent(new Event('change',{bubbles:true}));};
       mount('footage');await wait(()=>element.querySelector('[data-ae="ellipse"]'));click('ellipse');value('feather',.08);

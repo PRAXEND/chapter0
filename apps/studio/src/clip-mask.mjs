@@ -3,7 +3,7 @@ import {stat,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {validateMask} from '../www/clip-automation.js';
 
-// Distance is measured in output pixels, so wide panes keep an even feather radius.
+// Express the feather in pixels relative to the shorter dimension of the current pane.
 export function maskSampler(mask,width,height){
   const cx=mask.x*width,cy=mask.y*height,rx=mask.width*width/2,ry=mask.height*height/2;
   const feather=Math.max(1,(mask.feather??0)*Math.min(width,height));

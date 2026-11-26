@@ -141,6 +141,7 @@ export function mountClipInspector({element,project,clip,frame=0,commit,seek,get
   function add(frame){
     const m=state.mode,rows=data(),f=clamp(Math.round(frame),0,m==='focus'?clip.duration-1:clip.duration);
     let i=rows.findIndex(p=>p.frame===f);
+    if(i<0&&((m==='focus'&&rows.length>=32)||(m==='curve'&&rows.length>=64))){message=m==='focus'?'最多可使用 30 个中间取景关键帧。':'最多可使用 64 个时间锚点。';return null;}
     if(i<0){const p=blendKeys(rows,f);i=rows.findIndex(k=>k.frame>f);rows.splice(i,0,p);mark();}
     select(i);if(m==='focus')state.focusOff=false;
     if(m==='curve'&&rows.length>2)state.flat=false;
@@ -169,6 +170,7 @@ export function mountClipInspector({element,project,clip,frame=0,commit,seek,get
       const rows=timeKeys({...clip,timeMap:null}),f=Math.round(clip.duration/2),end=rows.at(-1);
       rows.splice(1,0,{frame:f,sourceFrame:end.sourceFrame*f/clip.duration});
       rows[1]=limitAnchor(rows,1,f,end.sourceFrame*(action==='slow'?.25:.75));
+      if(Math.abs(rows[1].sourceFrame-end.sourceFrame*f/clip.duration)<1e-8){message='当前片长与原片窗口已到速度边界，只能保持恒速。';draw();return;}
       state.curve=rows;state.flat=false;select(1);mark();
     }
     draw();
@@ -182,7 +184,7 @@ export function mountClipInspector({element,project,clip,frame=0,commit,seek,get
     if(d.curve){const points=state.flat?null:state.curve;validateTimeMap({...clip,...setTimeMap(clip,points)},asset,project.profile.fps);cmds.push({op:'time-map',id:clip.id,points});}
     if(!cmds.length)return;
     pending=true;drafts.delete(identity);draw();
-    try{await commit(cmds);drafts.delete(identity);state.dirty={};message='已应用到时间线';}
+    try{await commit(cmds,project.revision);drafts.delete(identity);state.dirty={};message='已应用到时间线';}
     catch(error){message=error.message;remember();}
     finally{pending=false;if(!removed)draw();}
   }
@@ -202,9 +204,9 @@ export function mountClipInspector({element,project,clip,frame=0,commit,seek,get
     const svg=e.target.closest('.ae-pad');if(!svg||readOnly()||e.button!==0)return;
     const m=state.mode,loc=pointOn(svg,e),hit=e.target.dataset.point;
     if(m==='mask'&&!state.mask)return;
-    if(m==='curve'&&hit===undefined){if(data().length>=64)return;add(loc.x*clip.duration);}
+    if(m==='curve'&&hit===undefined){if(add(loc.x*clip.duration)==null){draw();return;}}
     else if(m!=='mask'&&hit!==undefined)select(Number(hit),true);
-    else if(m!=='mask'&&hit===undefined)add(local);
+    else if(m!=='mask'&&hit===undefined&&add(local)==null){draw();return;}
     if(m==='curve'&&(state.selected[m]===0||state.selected[m]===data().length-1)){draw();return;}
     e.preventDefault();svg.setPointerCapture(e.pointerId);
     drag={svg,id:e.pointerId,mode:m,resize:hit==='scale',x:e.clientX,y:e.clientY,moved:false};
@@ -223,7 +225,7 @@ export function mountClipInspector({element,project,clip,frame=0,commit,seek,get
     const line=body.querySelector('.ae-time');if(line){line.setAttribute('x1',1000*local/clip.duration);line.setAttribute('x2',1000*local/clip.duration);}
     clearTimeout(timer);if(state.mode!=='curve')timer=setTimeout(()=>{if(!removed&&!drag)renderBoard(true);},220);
   }
-  host.addEventListener('toggle',()=>{state.open=host.open;remember();if(host.open)draw();});
+  host.addEventListener('toggle',()=>{if(removed||pending)return;state.open=host.open;remember();if(host.open)draw();});
   body.addEventListener('click',click);body.addEventListener('change',change);body.addEventListener('pointerdown',pointer);
   body.addEventListener('pointermove',move);body.addEventListener('pointerup',end);body.addEventListener('pointercancel',end);
   if(host.open)draw();

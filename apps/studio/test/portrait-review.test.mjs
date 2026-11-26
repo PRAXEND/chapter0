@@ -71,3 +71,14 @@ test('portrait JSX/viewport parity compares the actual footage canvas and expose
   assert.equal(regular.viewport, null);
   assert.deepEqual(regular.rect({ x: 1, y: 2, width: 3, height: 4 }), { x: 1, y: 2, width: 3, height: 4 });
 });
+
+test('frozen-source checks use each authored speed segment and its source frame clock',async()=>{
+  const shot={asset,clip:{...clip,start:0,duration:48,viewport:null,sourceIn:60,speed:1,timeMap:{points:[
+    {frame:0,sourceFrame:0},{frame:12,sourceFrame:6},{frame:36,sourceFrame:42},{frame:48,sourceFrame:48}]}}};
+  const p={...project,profile:{width:320,height:180,fps:24}};
+  const checks=[];
+  const records=await measureMotion(p,[{from:0,to:47,shot}],null,undefined,'portrait',{readPixels:async(_ff,_file,_time,w,h)=>Buffer.alloc(w*h*3,80),
+    checkFrozen:async(_ff,file,at,duration,rate,frames)=>{checks.push([file,at,duration,rate,frames]);return true;}});
+  assert.deepEqual(records.map(r=>[r.fromFrame,r.toFrame]),[[0,11],[12,35],[36,47]]);
+  assert.deepEqual(checks,[['original',2.5,.25,48,12],['original',2.75,1.5,16,24],['original',4.25,.25,48,12]]);
+});
