@@ -29,11 +29,15 @@ final class Probe: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     func userContentController(_ controller:WKUserContentController,didReceive message:WKScriptMessage){
         guard let m=message.body as? [String:Any] else{return}
         if let points=m["drag"] as? [[Double]], points.count>=2 && points.allSatisfy({$0.count==2}) {
-            let now=ProcessInfo.processInfo.systemUptime
+            // Let WebKit dispatch pointerdown and acquire capture before sending movement.
             for (i,xy) in points.enumerated() {
-                let pos=NSPoint(x:xy[0],y:window.contentView!.bounds.height-xy[1])
-                let type:NSEvent.EventType = i==0 ? .leftMouseDown : (i==points.count-1 ? .leftMouseUp : .leftMouseDragged)
-                if let event=NSEvent.mouseEvent(with:type,location:pos,modifierFlags:[],timestamp:now+Double(i)*0.016,windowNumber:window.windowNumber,context:nil,eventNumber:i,clickCount:1,pressure:1){window.sendEvent(event)}
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.045) { [self] in
+                    let pos=NSPoint(x:xy[0],y:window.contentView!.bounds.height-xy[1])
+                    let type:NSEvent.EventType = i==0 ? .leftMouseDown : (i==points.count-1 ? .leftMouseUp : .leftMouseDragged)
+                    if let event=NSEvent.mouseEvent(with:type,location:pos,modifierFlags:[],timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,eventNumber:i,clickCount:1,pressure:1) {
+                        window.sendEvent(event)
+                    }
+                }
             }
         } else if m["click"] != nil {
             let p=NSPoint(x:50,y:window.contentView!.bounds.height-35)
