@@ -96,7 +96,7 @@ export function createQueue({store, director, media, reviewProject, finalReviewe
           if(typeof n==='number')change(id,{progress:n}); else if(typeof n==='string')note(n);
         }});
         signal.throwIfAborted();
-        change(id,{phase:'review',files:{video:res.videoPath,subtitle:res.srtPath}});
+        change(id,{phase:'review',renderedSha256:res.sha256,files:{video:res.videoPath,subtitle:res.srtPath}});
       }
       j=store.getJob(id);note('正在核对实际导出文件');
       const styleSpec=styles?.get && p.style ? await styles.get(p.style.id,p.style.version) : undefined;

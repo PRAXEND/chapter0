@@ -123,7 +123,7 @@ async function sequenceFile(work,name,runs,fps){
   await writeFile(path.join(work,name),lines.join('\n')+'\n');
 }
 
-export async function prepareMotionOverlay(layers,profile,{work,directory,projectId,fromFrame,toFrame,signal}){
+export async function prepareMotionOverlay(layers,profile,{work,directory,projectId,fromFrame,toFrame,signal,firstInput=2}){
   const {width,height,fps}=profile;
   const font=await verifyMotionFont();
   const version=(await nativeVersion)+'/'+font.sha256;
@@ -135,7 +135,7 @@ export async function prepareMotionOverlay(layers,profile,{work,directory,projec
   const projectCache=path.join(process.env.VIDEO_STUDIO_MOTION_CACHE||path.join(mediaCache(),'motion-frames-v1'),digest(String(projectId||path.resolve(directory))));
   const raster=await prepareFrames(states,projectCache,work,signal,font);
   const inputs=[],filters=[];
-  let current='0:v',serial=0,inputIndex=2;
+  let current='0:v',serial=0,inputIndex=firstInput;
   const next=()=> 'motionlayer'+(++serial);
   const narrowClock='settb=1/'+fps+',setpts=N';
   async function paintAss(ordinary){

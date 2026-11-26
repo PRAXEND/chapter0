@@ -17,6 +17,7 @@ import {createReadStream} from 'node:fs';
 import {readFile,writeFile,mkdir,rm,stat,readdir,realpath,open} from 'node:fs/promises';
 import {createStore,defaultRoot,fault} from './project.mjs';
 import {createQueue} from './jobs.mjs';
+import {timelinePlayback} from './timeline-playback.mjs';
 import {draftPreviews} from './draft-preview.mjs';
 import {capturePreference} from './style-preference.mjs';
 import {compileSceneWithSound} from './scene-sound.mjs';
@@ -62,6 +63,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   const artwork=trackArtwork();
   const shortlist=sourceSelection(store,dependencies.sourceSelection);
   const drafts=draftPreviews(store,dependencies.media||media);
+  const playback=timelinePlayback(store,dependencies.media||media,drafts);
   const director=dependencies.director||createDirector({store,styleLibrary:styles,media,audio,drafts});
   const standardLibrary=path.resolve(root)===path.resolve(defaultRoot())&&!process.env.STUDIO_DATA_ROOT;
   const movies=path.join(os.homedir(),'Movies','Video Studio');
@@ -110,8 +112,8 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
       }
       if(parts[0]!=='api'){
         const name=url.pathname==='/'?'index.html':url.pathname.slice(1);
-        if(!['index.html','app.js','motion-clock.js','timeline.js','studio.css','timeline.css'].includes(name)||method!=='GET')throw fault('页面不存在。',404);
-        res.setHeader('Content-Type',{'index.html':'text/html; charset=utf-8','motion-clock.js':'text/javascript; charset=utf-8','app.js':'text/javascript; charset=utf-8','timeline.js':'text/javascript; charset=utf-8','timeline.css':'text/css; charset=utf-8','studio.css':'text/css; charset=utf-8'}[name]);
+        if(!['index.html','app.js','motion-clock.js','timeline-player.js','timeline.js','studio.css','timeline.css'].includes(name)||method!=='GET')throw fault('页面不存在。',404);
+        res.setHeader('Content-Type',{'index.html':'text/html; charset=utf-8','motion-clock.js':'text/javascript; charset=utf-8','app.js':'text/javascript; charset=utf-8','timeline-player.js':'text/javascript; charset=utf-8','timeline.js':'text/javascript; charset=utf-8','timeline.css':'text/css; charset=utf-8','studio.css':'text/css; charset=utf-8'}[name]);
         res.setHeader('Cache-Control','no-store');return res.end(await readFile(path.join(web,name)));
       }
       const [,kind,id,action,part,leaf]=parts;
@@ -184,6 +186,16 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
         if((action==='undo'||action==='redo')&&!part&&method==='POST'){
           const b=await readJson(req);
           return json(res,disclose(store[action](id,b.baseRevision)));
+        }
+        if(action==='playback'&&['GET','HEAD'].includes(method)){
+          const cancel=new AbortController(),aborted=()=>{if(!res.writableEnded)cancel.abort();};
+          res.once('close',aborted);
+          const integer=name=>url.searchParams.has(name)&&/^\d+$/.test(url.searchParams.get(name))?Number(url.searchParams.get(name)):NaN;
+          try{
+            if(part) return await streamFile(req,res,await playback.file(p,part,{revision:integer('revision'),identity:url.searchParams.get('identity'),signal:cancel.signal}));
+            if(method!=='GET')throw fault('请选择预览文件。',404);
+            return json(res,await playback.describe(p,{revision:integer('revision'),frame:integer('frame'),mode:url.searchParams.get('mode'),signal:cancel.signal}));
+          }finally{res.off('close',aborted);}
         }
         if(action==='draft'&&!part&&method==='POST'){
           const b=await readJson(req);const d=await drafts.open(p,b.fromFrame??0);

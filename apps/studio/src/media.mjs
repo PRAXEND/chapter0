@@ -39,9 +39,9 @@ export async function probeMedia(file, { signal } = {}) {
   return { kind: image ? 'image' : video ? 'video' : 'audio', duration, width, height, ...(pixelAspect !== 1 && {pixelAspect}), hasAudio: Boolean(audio), videoCodec: video?.codec_name, audioCodec: audio?.codec_name, frames: Number(video?.nb_frames) || undefined, sampleRate: Number(audio?.sample_rate) || undefined, frameRate };
 }
 
-export async function fileHash(file) {
+export async function fileHash(file,{signal}={}) {
   const hash = createHash('sha256');
-  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  for await (const chunk of createReadStream(file,{signal})) hash.update(chunk);
   return hash.digest('hex');
 }
 
@@ -171,10 +171,10 @@ function composePanes(span, media, profile) {
   return [...args, '-filter_complex', chains.join(';'), '-map', `[${picture}]`];
 }
 
-async function renderSpan(span, media, profile, ffmpeg, target, signal) {
+async function renderSpan(span, media, profile, ffmpeg, target, signal, still=false) {
   const { width, height, fps } = profile;
   const lavfi = ['-f', 'lavfi', '-i', `color=c=black:s=${width}x${height}:r=${fps}`];
-  const out = ['-frames:v', String(span.duration), ...videoEncode, target];
+  const out = still?['-frames:v','1','-threads','1','-c:v','png',target]:['-frames:v', String(span.duration), ...videoEncode, target];
   if (span.layers) return run(ffmpeg, [...ffBase, ...composePanes(span, media, profile), ...out], {signal});
   if (!span.top) return run(ffmpeg, [...ffBase, ...lavfi, ...out], { signal });
   const top = span.top;
@@ -281,8 +281,78 @@ async function renderMix(clips, media, work, fps, mixStart, mixEnd, ffmpeg, sign
   return mix;
 }
 
+async function readSources(project,relevant,directory,fps,signal){
+  const media = new Map();
+  for (const c of relevant) {
+    const asset = project.assets.find(a => a.id === c.assetId);
+    if (!asset?.path) throw new Error(`片段 ${c.id} 缺少素材`);
+    if (!media.has(asset.id)) {
+      const file = path.resolve(directory, asset.path);
+      media.set(asset.id, { ...asset, ...await probeMedia(file, { signal }), path: file });
+    }
+    const info = media.get(asset.id);
+    if (c.track === 'video' ? info.kind === 'audio' : !info.hasAudio) throw new Error(`素材与 ${c.track} 轨道不匹配`);
+    if (info.kind !== 'image' && ((c.sourceIn ?? 0) + c.duration * (c.speed ?? 1)) / fps > info.duration + Math.max(0.075, 1 / fps)) throw new Error(`片段 ${c.id} 超出原素材时长`);
+  }
+  return media;
+}
+
+async function pictureLayers(project,{work,directory,profile,layout,fromFrame,toFrame,projectLength,clips,signal,firstInput=2}){
+  const fps=profile.fps;
+  const layers = clips.filter(c => ['caption', 'graphic'].includes(c.track) && c.start < toFrame && c.start + c.duration > fromFrame);
+  const stageLayers=layout||project.settings?.captionDisplay==='sidecar'?layers.filter(c=>c.track!=='caption'):layers;
+  if (layout) {
+    await symlink(fileURLToPath(new URL('./fonts',import.meta.url)),path.join(work,'fonts'));
+    await writeFile(path.join(work,'portrait.ass'),portraitScript(project,layout,fromFrame,toFrame,projectLength));
+  }
+  let motion;
+  if (stageLayers.some(c => c.track === 'graphic' && c.motion)) {
+    const {prepareMotionOverlay} = await import('./motion-render.mjs');
+    motion = await prepareMotionOverlay(stageLayers, profile, {work, directory, projectId: project.id, fromFrame, toFrame, signal,firstInput});
+  } else if (stageLayers.length) await writeFile(path.join(work, 'layers.ass'), createAss(stageLayers, profile));
+  const overlay = fromFrame ? `settb=1/${fps},setpts=N+${fromFrame},ass=layers.ass,setpts=N` : 'ass=layers.ass';
+  let map=motion?.map??'0:v:0';
+  let filters=motion?['-filter_complex',motion.filter]:stageLayers.length?['-vf',overlay]:[];
+  if(layout){
+    const base=motion?.map || (stageLayers.length?'[vstage]':'[0:v]');
+    const before=motion?.filter || (stageLayers.length?'[0:v]'+overlay+'[vstage]':'');
+    filters=['-filter_complex',[before,portraitGraph(project,layout,base,fromFrame,projectLength)].filter(Boolean).join(';')];
+    map='[outportrait]';
+  }
+  return {layers,motion,filters,map};
+}
+
+// Render only the requested picture. Reuse the same picture span, ASS, native JSX and
+// portrait compositor as MP4; decoding the sound buses is unnecessary during a scrub.
+export async function renderProjectFrame(project,{directory,output,frame,signal,maxWidth=960}){
+  const {width,height,fps,clips,length:projectLength}=validate(project);
+  if(!Number.isSafeInteger(frame)||frame<0||frame>=projectLength||!path.isAbsolute(output)||path.extname(output)!=='.jpg')
+    throw Error('请选择工程内的帧和有效的预览输出。');
+  const layout=portraitLayout(project),profile={width,height:layout?.contentHeight||height,fps};
+  const [span]=pictureSpans(clips,projectLength,frame,frame+1,profile);
+  const sources=await readSources(project,span.layers||[span.top,span.under].filter(Boolean),directory,fps,signal);
+  const ffmpeg=await requiredTool('ffmpeg');
+  await mkdir(path.dirname(output),{recursive:true});
+  await scratch(path.dirname(output),async work=>{
+    const base=path.join(work,'base.png'),final=path.join(work,'frame.jpg');
+    await renderSpan(span,sources,profile,ffmpeg,base,signal,true);
+    const {motion,filters,map}=await pictureLayers(project,{work,directory,profile,layout,fromFrame:frame,toFrame:frame+1,projectLength,clips,signal,firstInput:1});
+    const w=Math.max(2,Math.min(width,2*Math.floor(maxWidth/2))),h=Math.max(2,2*Math.round(height*w/width/2));
+    await run(ffmpeg,[...ffBase,'-loop','1','-framerate',String(fps),...inputArgs(base),...(motion?.inputs||[]),...filters,
+      '-map',map,'-an','-frames:v','1','-s',w+'x'+h,'-pix_fmt','yuvj444p','-q:v','3','-threads','1',final],{cwd:work,signal});
+    signal?.throwIfAborted();await rename(final,output);
+  });
+  return output;
+}
+
 export function renderProject(project, options) {
   return mediaSlot(() => render(project, options), options.signal);
+}
+
+// The playback service serializes these short intervals separately from full exports.
+export function renderPreviewWindow(project,options){
+  if(!options.window||options.window.toFrame-options.window.fromFrame>6*project.profile.fps)throw Error('播放预览须为六秒内的工程区间');
+  return render(project,{...options,preview:true});
 }
 
 async function render(project, { directory, output, preview = false, window, signal, onProgress = () => {} }) {
@@ -300,18 +370,7 @@ async function render(project, { directory, output, preview = false, window, sig
   const relevant = window ? new Set([...audible, ...spans.flatMap(s => s.layers || [s.top, s.under]).filter(Boolean)]) : clips.filter(c => ['video', 'narration', 'music'].includes(c.track));
   const ffmpeg = await requiredTool('ffmpeg');
   const melt = process.env.VIDEO_STUDIO_RENDER_ENGINE === 'ffmpeg' ? null : await mediaTool('melt');
-  const media = new Map();
-  for (const c of relevant) {
-    const asset = project.assets.find(a => a.id === c.assetId);
-    if (!asset?.path) throw new Error(`片段 ${c.id} 缺少素材`);
-    if (!media.has(asset.id)) {
-      const file = path.resolve(directory, asset.path);
-      media.set(asset.id, { ...asset, ...await probeMedia(file, { signal }), path: file });
-    }
-    const info = media.get(asset.id);
-    if (c.track === 'video' ? info.kind === 'audio' : !info.hasAudio) throw new Error(`素材与 ${c.track} 轨道不匹配`);
-    if (info.kind !== 'image' && ((c.sourceIn ?? 0) + c.duration * (c.speed ?? 1)) / fps > info.duration + Math.max(0.075, 1 / fps)) throw new Error(`片段 ${c.id} 超出原素材时长`);
-  }
+  const media=await readSources(project,relevant,directory,fps,signal);
   const srtPath = output.slice(0, -4) + '.srt';
   await mkdir(path.dirname(output), { recursive: true });
   const result = await scratch(path.dirname(output), async work => {
@@ -323,29 +382,9 @@ async function render(project, { directory, output, preview = false, window, sig
     const picture = await assemblePicture(spans, work, profile, ffmpeg, melt, signal);
     onProgress(0.6);
     const mix = await renderMix(audible, media, work, fps, mixStart, mixEnd, ffmpeg, signal, layout && portraitEnding(projectLength,fps));
-    const layers = clips.filter(c => ['caption', 'graphic'].includes(c.track) && c.start < toFrame && c.start + c.duration > fromFrame);
-    const stageLayers=layout||project.settings?.captionDisplay==='sidecar'?layers.filter(c=>c.track!=='caption'):layers;
-    if (layout) {
-      await symlink(fileURLToPath(new URL('./fonts',import.meta.url)),path.join(work,'fonts'));
-      await writeFile(path.join(work,'portrait.ass'),portraitScript(project,layout,fromFrame,toFrame,projectLength));
-    }
-    let motion;
-    if (stageLayers.some(c => c.track === 'graphic' && c.motion)) {
-      const {prepareMotionOverlay} = await import('./motion-render.mjs');
-      motion = await prepareMotionOverlay(stageLayers, profile, {work, directory, projectId: project.id, fromFrame, toFrame, signal});
-    } else if (stageLayers.length) await writeFile(path.join(work, 'layers.ass'), createAss(stageLayers, profile));
-    const srt = createSrt(layers, fps, { fromFrame, toFrame });
-    await writeFile(path.join(work, 'captions.srt'), srt);
-    const final = path.join(work, 'final.mp4');
-    const overlay = fromFrame ? `settb=1/${fps},setpts=N+${fromFrame},ass=layers.ass,setpts=N` : 'ass=layers.ass';
-    let map=motion?.map??'0:v:0';
-    let filters=motion?['-filter_complex',motion.filter]:stageLayers.length?['-vf',overlay]:[];
-    if(layout){
-      const base=motion?.map || (stageLayers.length?'[vstage]':'[0:v]');
-      const before=motion?.filter || (stageLayers.length?'[0:v]'+overlay+'[vstage]':'');
-      filters=['-filter_complex',[before,portraitGraph(project,layout,base,fromFrame,projectLength)].filter(Boolean).join(';')];
-      map='[outportrait]';
-    }
+    const {layers,motion,filters,map}=await pictureLayers(project,{work,directory,profile,layout,fromFrame,toFrame,projectLength,clips,signal});
+    await writeFile(path.join(work,'captions.srt'),createSrt(layers,fps,{fromFrame,toFrame}));
+    const final=path.join(work,'final.mp4');
     const encoding = layout || layers.length ? ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', preview ? 'ultrafast' : 'veryfast', '-crf', preview ? '22' : '18', '-threads', '2'] : ['-c:v', 'copy'];
     const sampleAt = frame => Math.round(frame * 48000 / fps);
     const mixWindow = window ? ['-af', `atrim=start_sample=${sampleAt(fromFrame) - sampleAt(mixStart)}:end_sample=${sampleAt(toFrame) - sampleAt(mixStart)},asetpts=PTS-STARTPTS`] : [];

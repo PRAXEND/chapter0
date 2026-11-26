@@ -1,8 +1,9 @@
 import path from 'node:path';
-import {stat,readFile} from 'node:fs/promises';
+import {stat,readFile,readdir,unlink} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import os from 'node:os';
 import {fault} from './project.mjs';
+import {playbackIdentity,timelineFrames} from './playback-identity.mjs';
 
 // Projects can be reopened at the same revision after upgrading the compositor.
 const inputs=['./media.mjs','./motion-components.mjs','./motion-dom.mjs','./motion-render.mjs','./motion-font.mjs',
@@ -11,46 +12,103 @@ const inputs=['./media.mjs','./motion-components.mjs','./motion-dom.mjs','./moti
 const rendererVersion=Promise.all(inputs.map(name=>readFile(new URL(name,import.meta.url)))).then(parts=>{
   const hash=createHash('sha256').update(os.release());
   for(const bytes of parts)hash.update(bytes);
-  return hash.digest('hex').slice(0,16);
+  return hash.digest('hex');
 });
-
-export function draftPreviews(store, media) {
-  const active = new Map();
-  async function open(project, frame = 0, signal) {
+const safeFile=/^[a-f0-9]{16}-\d+-\d+-\d+\.(mp4|jpg)$/;
+export async function draftPrefix(p) {
+  return createHash('sha256').update(await rendererVersion).update(playbackIdentity(p)).digest('hex').slice(0,16)+'-'+p.revision+'-';
+}
+export function draftPreviews(store,media){
+  const active=new Map(),lastClean=new Map();
+  let stillQueue=Promise.resolve(),windowQueue=Promise.resolve(),closed=false;
+  // On a small Mac one scrub and one playback segment may run while an export is in progress.
+  // A new drag cancels its predecessor before taking a decoder or native WebKit process.
+  function schedule(task,still){
+    const prior=still?stillQueue:windowQueue;
+    const next=prior.then(task,task);
+    if(still)stillQueue=next.catch(()=>{});else windowQueue=next.catch(()=>{});
+    return next;
+  }
+  async function share(file,producer,signal){
     signal?.throwIfAborted();
-    if (!Number.isSafeInteger(frame) || frame < 0) throw fault('请选择有效的预览帧。');
-    const length = project.timeline.clips.filter(c=>!c.hidden&&c.enabled!==false).reduce((end, c) => Math.max(end, c.start + c.duration), 0);
-    if (!length) throw fault('画面尚在编排中。时间线出现片段后即可预览。', 409);
-    const span = 6 * project.profile.fps;
-    const fromFrame = Math.max(0, Math.min(frame, length - span));
-    const toFrame = Math.min(length, fromFrame + span);
-    const name = [await rendererVersion, project.revision, fromFrame, toFrame].join('-') + '.mp4';
-    const directory = store.paths(project.id).cache;
-    const output = path.join(directory, 'drafts', name);
-    const result = {name, revision:project.revision, fromFrame, toFrame};
-    if ((await stat(output).catch(() => null))?.size) return result;
-    if (!active.has(output)) {
-      const controller = new AbortController();
-      const promise = media.renderProject(project, {directory, output, preview:true, window:{fromFrame,toFrame}, signal:controller.signal})
-        .finally(() => active.delete(output));
-      active.set(output, {controller,promise});
+    if(closed)throw fault('预览服务已关闭。',503);
+    if((await stat(file).catch(()=>null))?.size)return;
+    signal?.throwIfAborted();
+    let entry=active.get(file);
+    if(!entry||entry.controller.signal.aborted){
+      const controller=new AbortController();
+      entry={controller,users:0};
+      entry.work=schedule(()=>{controller.signal.throwIfAborted();return producer(controller.signal);},file.endsWith('.jpg'))
+        .finally(()=>{if(active.get(file)===entry)active.delete(file);});
+      active.set(file,entry);
     }
-    const work=active.get(output).promise;
-    if(signal){
-      let abort;
-      try{
-        await Promise.race([work,new Promise((_,reject)=>{
-          abort=()=>reject(signal.reason);signal.addEventListener('abort',abort,{once:true});
-          if(signal.aborted)abort();
-        })]);
-      }finally{signal.removeEventListener('abort',abort);}
-    }else await work;
-    return result;
+    entry.users++;let cancel;
+    try{
+      if(!signal)return await entry.work;
+      await Promise.race([entry.work,new Promise((_,reject)=>{
+        cancel=()=>reject(signal.reason);signal.addEventListener('abort',cancel,{once:true});
+        if(signal.aborted)cancel();
+      })]);
+    }finally{
+      if(cancel)signal.removeEventListener('abort',cancel);
+      if(--entry.users===0 && active.get(file)===entry)entry.controller.abort();
+    }
   }
-  async function close() {
-    const pending = [...active.values()];
-    for (const draft of pending) draft.controller.abort();
-    await Promise.allSettled(pending.map(draft => draft.promise));
+  async function trim(directory){
+    const now=Date.now();
+    if(now-(lastClean.get(directory)||0)<30000)return;
+    lastClean.set(directory,now);
+    const names=await readdir(directory).catch(()=>[]);
+    const rows=(await Promise.all(names.filter(n=>safeFile.test(n)).map(async name=>{
+      const file=path.join(directory,name),s=await stat(file).catch(()=>null);
+      return s&&{file,time:s.mtimeMs,size:s.size};
+    }))).filter(Boolean).sort((a,b)=>a.time-b.time);
+    let bytes=rows.reduce((n,f)=>n+f.size,0);
+    for(const f of rows){
+      if(bytes<=256*1024**2||f.time>now-120000)break;
+      if(active.has(f.file))continue;
+      await unlink(f.file).catch(()=>{});bytes-=f.size;
+      if(f.file.endsWith('.mp4'))await unlink(f.file.slice(0,-4)+'.srt').catch(()=>{});
+    }
   }
-  return {open,close};
+  async function cachedSegment(project,frame,minAhead=1){
+    const folder=path.join(store.paths(project.id).cache,'drafts'),prefix=await draftPrefix(project),length=timelineFrames(project);
+    const names=await readdir(folder).catch(()=>[]);
+    let best;
+    for(const name of names){
+      if(!name.startsWith(prefix)||!name.endsWith('.mp4')||!safeFile.test(name))continue;
+      const [fromFrame,toFrame]=name.slice(prefix.length,-4).split('-').map(Number);
+      if(fromFrame<=frame && toFrame-frame>=Math.min(minAhead,length-frame) && (!best||toFrame>best.toFrame))
+        best={name,revision:project.revision,fromFrame,toFrame};
+    }
+    return best;
+  }
+  async function request(project,frame,mode,signal){
+    signal?.throwIfAborted();
+    if(!Number.isSafeInteger(frame)||frame<0)throw fault('请选择有效的预览帧。');
+    const length=timelineFrames(project);
+    if(!length)throw fault('时间线上出现片段后即可预览。',409);
+    if(frame>=length&&mode!=='draft')throw fault('播放头已超出时间线。',422);
+    const span=6*project.profile.fps,still=mode==='still';
+    if(mode==='window'){
+      const present=await cachedSegment(project,frame,2*project.profile.fps);
+      if(present)return present;
+    }
+    const grid=Math.floor(frame/span)*span;
+    // Starting at the end of a cold grid bucket must not decode six seconds just to
+    // play a few frames and stall. Give the next segment a full prefetch interval.
+    const fromFrame=still?frame:mode==='draft'?Math.max(0,Math.min(frame,length-span)):frame-grid>span/2?frame:grid;
+    const toFrame=Math.min(length,still?frame+1:fromFrame+span);
+    const name=(await draftPrefix(project))+fromFrame+'-'+toFrame+(still?'.jpg':'.mp4');
+    const directory=store.paths(project.id).cache,folder=path.join(directory,'drafts'),output=path.join(folder,name);
+    await share(output,(signal)=>still?media.renderProjectFrame(project,{directory,output,frame,signal}):
+      (mode==='window'&&media.renderPreviewWindow||media.renderProject)(project,{directory,output,preview:true,window:{fromFrame,toFrame},signal}),signal);
+    signal?.throwIfAborted();await trim(folder);
+    return {name,revision:project.revision,fromFrame,toFrame};
+  }
+  async function close(){
+    closed=true;const pending=[...active.values()];for(const e of pending)e.controller.abort();
+    await Promise.allSettled([...pending.map(e=>e.work),stillQueue,windowQueue]);
+  }
+  return {cachedSegment,open:(p,f=0,s)=>request(p,f,'draft',s),still:(p,f,s)=>request(p,f,'still',s),segment:(p,f,s)=>request(p,f,'window',s),close};
 }
