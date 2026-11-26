@@ -383,7 +383,7 @@ test('durable B final review writes its report beside the frozen candidate witho
   const p = store.create({
     title: 'read-only fixture',
     mode: 'topic',
-    style: fx,
+    style: { id:fx.id, version:fx.version },
     settings: { autoReview: true, shareFrames: true },
   });
   const dir = path.join(store.paths(p.id).outputs, 'B');
