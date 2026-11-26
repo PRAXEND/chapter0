@@ -139,8 +139,16 @@ export function* timelineCommands(commands,project) {
       const left=section(clip,0,head,project),right={...clip,...section(clip,head,clip.duration,project),id:cmd.newId};
       // An explicitly split sound is now two independently editable audio pieces.
       delete right.soundBinding;
+      const cues=clip.track==='narration'?clips.filter(c=>c.track==='caption'&&c.speechGroup===clip.id):[];
+      const rightCues=cues.filter(c=>c.start>=at),leftIdentities=new Set(cues.filter(c=>end(c)<=at).map(c=>c.stackOrigin?.id??c.id));
+      const separatesCues=cues.length&&cues.every(c=>c.start>=clip.start&&end(c)<=end(clip)&&(end(c)<=at||c.start>=at))&&
+        rightCues.every(c=>!leftIdentities.has(c.stackOrigin?.id??c.id))&&
+        !clips.some(c=>c!==clip&&c.track==='narration'&&c.speechGroup===clip.id);
+      if(cues.length)right.speechGroup=separatesCues?right.id:clip.id;
       yield {op:'update',id:clip.id,changes:left};
       yield {op:'add',clip:right};
+      if(separatesCues)for(const c of rightCues)
+        yield {op:'update',id:c.id,changes:{speechGroup:right.id}};
     }else{
       if(!Number.isSafeInteger(at)||at<0||!['start','end'].includes(cmd.edge))fail('请选择有效的裁切边和工程帧。');
       const from=cmd.edge==='start'?head:0,to=cmd.edge==='end'?head:clip.duration;

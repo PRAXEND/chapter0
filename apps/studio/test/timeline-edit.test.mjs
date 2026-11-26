@@ -9,6 +9,7 @@ import {graphicKeys} from '../src/graphic-keys.mjs';
 import {componentClip} from '../src/motion-components.mjs';
 import {startStudio} from '../src/server.mjs';
 import {createDirector} from '../src/production.mjs';
+import {reviseLine} from '../src/storyboard.mjs';
 
 async function fixture(t,style){
   const root=await mkdtemp(path.join(os.tmpdir(),'studio-timeline-'));
@@ -207,4 +208,31 @@ test('the Codex studio_edit tool uses the same timing commands and cannot unlock
   assert.equal(clip(result,'take'),undefined);assert.equal(clip(result,'tail').start,9);
   assert.equal(clip(result,'tail').sourceIn,18);assert.equal(clip(result,'protected').locked,true);
   assert.equal(f.store.history(p.id).undoLabel,label);
+});
+
+test('split narration transfers complete cues to the new voice; a cut through a spoken cue never triggers ambiguous synthesis',async t=>{
+  const f=await fixture(t),audio=await f.asset('wav');
+  const voice={id:'voice',speechGroup:'voice',track:'narration',assetId:audio.id,start:5,duration:55};
+  const first={...caption('first',6,21),speechGroup:'voice',speechCue:0,speechAssetId:audio.id};
+  const last={...caption('last',34,23),speechGroup:'voice',speechCue:1,speechAssetId:audio.id};
+  f.edit([add(voice),add(first),add(last)],'codex');
+  const split=atFrame=>({op:'split',id:'voice',atFrame,newId:'voice-two'});
+  f.edit([{op:'lock',id:'last',locked:true}]);
+  assert.throws(()=>f.edit([split(29)]),{status:409});
+  f.edit([{op:'lock',id:'last',locked:false}]);
+  let p=f.edit([split(29)]);
+  assert.equal(clip(p,'last').speechGroup,'voice-two');assert.equal(clip(p,'last').speechCue,1);
+  assert.equal(clip(p,'first').speechGroup,'voice');assert.equal(clip(p,'voice-two').sourceIn,24);
+  const requests=[];
+  await assert.rejects(reviseLine({store:f.store,audio:{async synthesize(words){requests.push(words);throw Error('offline voice stub');}}},
+    p,'last','只读第二句'),/offline voice stub/);
+  assert.deepEqual(requests,['只读第二句']);
+  p=f.undo();assert.equal(clip(p,'last').speechGroup,'voice');
+  p=f.edit([split(17)]);
+  for(const id of ['voice','voice-two','first'])await assert.rejects(reviseLine({},p,id,'新读法'),/切点穿过/);
+  f.undo();
+  p=f.edit([{op:'split',id:'first',atFrame:17,newId:'second-half'}]);
+  await assert.rejects(reviseLine({},p,'second-half','新读法'),/有声字幕已手工拆开/);
+  p=f.edit([split(17)]);assert.equal(clip(p,'voice-two').speechGroup,'voice');
+  await assert.rejects(reviseLine({},p,'voice','新读法'),/切点穿过/);
 });

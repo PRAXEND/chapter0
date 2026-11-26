@@ -261,6 +261,9 @@ export async function reviseLine(deps, project, clipId, text, signal) {
         );
   if (voices.length !== 1) throw new Error('该字幕没有可唯一定位的同段旁白，请在时间线上选择对应的声音。');
   const [voice] = voices;
+  const group=voice.speechGroup||voice.id;
+  if(clips.some(c=>c!==voice&&c.track==='narration'&&(c.speechGroup||c.id)===group))
+    throw new Error('手工切点穿过同一句旁白，无法确定两侧应读的词。可先撤销分割，再在两条完整字幕之间切开。');
   let captions = clips.filter((c) => c.track === 'caption' && c.speechGroup === voice.id);
   if (!captions.length) {
     captions = clips.filter(
@@ -272,6 +275,10 @@ export async function reviseLine(deps, project, clipId, text, signal) {
     throw new Error('所选字幕未绑定到对应旁白。');
   if (!captions.length || voice.locked || captions.some((c) => c.locked))
     throw new Error('该句需要未锁定的旁白和同组字幕。');
+  if(voice.sampleWindow&&captions.some(c=>c.start<voice.start||c.start+c.duration>voice.start+voice.duration))
+    throw new Error('当前字幕超出了手工裁切后的旁白区间，请先对齐这句的字幕和声音。');
+  if(target.track==='caption'&&new Set(captions.map(c=>c.stackOrigin?.id??c.id)).size!==captions.length)
+    throw new Error('同一条有声字幕已手工拆开，无法确定两半各自的原词。可改显示文字，或选择整段旁白重新配音。');
   captions.sort((a, b) => a.start - b.start || (a.speechCue || 0) - (b.speechCue || 0));
   const fullText =
     target.track === 'caption' ? captions.map((c) => (c.id === target.id ? words : c.text)).join('') : words;
