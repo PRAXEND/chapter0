@@ -1,3 +1,4 @@
+import {intentHash,validRequestId} from './request-key.mjs';
 import {activeStyleMusicCredit} from './style-audio.mjs';
 import path from 'node:path';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
@@ -34,15 +35,26 @@ export function createQueue({store, director, media, reviewProject, finalReviewe
     if('reviewCandidate' in input)throw fault('回看文件由工作台绑定。');
     const p=store.get(projectId);
     if(!['produce','revise','preview','render'].includes(kind))throw fault('未知任务。');
+    const jobs=store.listJobs(projectId),requestId=input.requestId;
+    let request;
+    if(requestId!=null){
+      if(!validRequestId(requestId))throw fault('制作请求编号无效。');
+      request={id:requestId,fingerprint:intentHash({kind,input})};
+      const receipt=jobs.find(j=>j.request?.id===request.id);
+      if(receipt){
+        if(receipt.request.fingerprint!==request.fingerprint)throw fault('请求编号与上次提交的任务不一致。',409);
+        return receipt;
+      }
+    }
     if(['produce','revise'].includes(kind)){
       const engine=input.engine??(p.settings.engine==='local'?'local':'codex');
       if(!['local','codex'].includes(engine))throw fault('创作引擎无效。');
       input={...input,engine};
     }
-    const previous=store.listJobs(projectId).find(j=>activeStates.includes(j.status));
+    const previous=jobs.find(j=>activeStates.includes(j.status));
     if(previous)throw fault('此工程正在处理任务，可先暂停或等待完成。',409);
     if(input.baseRevision!==undefined&&input.baseRevision!==p.revision)throw fault('工程已改变，请刷新后重新提交。',409);
-    const id=randomUUID(), j={id,projectId,kind,input,status:'queued',phase:['produce','revise'].includes(kind)?'creative':'render',
+    const id=randomUUID(), j={id,projectId,kind,input,...(request?{request}:{}),status:'queued',phase:['produce','revise'].includes(kind)?'creative':'render',
       revision:p.revision,snapshot:['preview','render'].includes(kind)?p:undefined,createdAt:stamp(),updatedAt:stamp(),events:[],repairs:0};
     if(kind==='produce' && input.engine==='codex' && p.settings.autoReview && p.settings.shareFrames)j.cutRole='first';
     store.saveJob(j);kick();return j;
