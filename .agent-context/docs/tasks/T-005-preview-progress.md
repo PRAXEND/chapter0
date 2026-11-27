@@ -12,8 +12,8 @@
     "三种工程画幅的预览可随修订自动变化，放大、定位、播放、还原后沿用同一播放头。",
     "进度连续轮询、收到新消息、旧消息淘汰及任务转为完成时，保留仍可阅读的历史行。停在底部时跟随最新进度。"
   ],
-  "status": "implemented",
-  "updated": "2026-11-28T04:18:53+08:00",
+  "status": "merged",
+  "updated": "2026-11-28T04:24:49+08:00",
   "modules": [
     "editor-preview",
     "job-progress"
@@ -22,8 +22,8 @@
     "T-004-live-edit-review"
   ],
   "handoff": {
-    "next": "审阅任务分支，在质量验证版的实际工程中体验放大预览和滚动阅读进度。",
-    "blockers": "无实现阻塞，待合入共享分支及创作者体验验收。",
+    "next": "创作者可在质量验证版的实际工程中体验放大预览和滚动阅读进度。",
+    "blockers": "共享分支已合入，创作者实际体验待验收。",
     "failed_attempts": "旧版竖屏被置于横向屏幕，进度轮询使阅读位置从 97 回到 0。安装包复验时，后台原生测试窗口未收到鼠标事件，将测试点击直接投递到测试 WebView 后，受信任点击与连续播放均通过。"
   },
   "validation": {
@@ -49,6 +49,13 @@
         "result": "passed",
         "evidence": ".agent-context/docs/tasks/T-005-preview-progress.md",
         "at": "2026-11-28T04:18:53+08:00"
+      },
+      {
+        "command": "gh pr view 10 --repo PRAXEND/chapter0 --json state,mergedAt,mergeCommit",
+        "environment": "GitHub 远端共享开发分支，核对合并提交 b25b532。",
+        "result": "passed",
+        "evidence": "https://github.com/PRAXEND/chapter0/pull/10",
+        "at": "2026-11-28T04:24:49+08:00"
       }
     ]
   },
