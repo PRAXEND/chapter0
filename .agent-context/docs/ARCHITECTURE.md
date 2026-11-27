@@ -14,3 +14,11 @@
 GitHub 素材库的目录、LFS 媒体与发行下载仅对列出的公开主机启用代理。每跳先校验 HTTPS、端口与 DNS 公网地址，再依次处理环境例外、显式 HTTPS 代理和 macOS 系统路由。系统指定直连时，Node 固定已校验的地址；系统代理请求由随包 URLSession 工具执行，重定向交回同一入口复查。所有成功下载仍需通过流大小、清单指纹和本地媒体探测才能写入工程。[下载入口](../../apps/studio/src/sources.mjs) · [系统代理选择](../../apps/studio/src/github-media.mjs)
 
 素材导入和受控文件流仍复用同一仓库的 [workbench 媒体模块](../../plugins/video-studio/workbench/media.mjs)。单独复制 apps/studio 会遗漏该相对依赖。个人工程库、账号凭据、原始参考录音和本地输出存放在仓库外，任务里只保留必要的脱敏证据。
+
+## 剪辑提交、文字合成与审片授权
+
+已打开的剪辑台订阅同源、已认证的 `GET /api/projects/:id/revisions`。连接和重连先返回当前修订号，后续 SQLite 事务成功提交才发送新修订号。界面按需读取最新工程，拖动或本机保存期间延后应用。分镜整批提交时作为一个版本显示。编辑器保留播放头与手动草稿，冲突处理仍按起始修订和字段执行。[订阅入口](../../apps/studio/src/server.mjs) · [工程事务](../../apps/studio/src/project.mjs) · [剪辑台](../../apps/studio/www/app.js)
+
+带文字字段的 JSX 组件默认 `motion.lockAspect=true`。尺寸在实际内容区里按原稿像素比例换算，中心保持原位。只改高度时由高度推导宽度，同时指定两者时以宽度为准，动作线等纯图形保留各自的尺寸。分镜、Codex 局部编辑、检查器、帧预览、正式渲染与成片抽样采用同一换算。旧成片文件仍由交付页保存。存在拉伸的历史导出不能充当当前时间线的合成预览。[尺寸换算](../../apps/studio/www/motion-clock.js) · [成片匹配](../../apps/studio/src/timeline-playback.mjs)
+
+创建表单用同一函数生成审片说明与工程设置。帧分享默认关闭。启用分享后可开启导演回看，再授权一次独立终审。工作台对两套 v8 的可播放回看候选按冻结版本执行终审，并在交付记录中保存实际结果。[创建页](../../apps/studio/www/app.js) · [终审条件](../../apps/studio/src/independent-review.mjs)

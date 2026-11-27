@@ -173,3 +173,37 @@ test('slow cold scrubbing shows intermediate samples without a blank, drops reve
     await wait(()=>states.at(-1)?.status==='paused');assert.equal(shown().src,'/still-2-48.jpg');
   }finally{player.destroy();}
 });
+
+test('revision stream publishes the committed project only and catches up on reconnect',async t=>{
+  const {p,store,api}=await fixture(t);
+  const route='/api/projects/'+p.id+'/revisions';
+  const ctl=new AbortController();t.after(()=>ctl.abort());
+  const res=await api(route,{signal:ctl.signal});assert.equal(res.headers.get('content-type'),'text/event-stream');
+  const reader=res.body.pipeThrough(new TextDecoderStream()).getReader();
+  const announced=async()=>Number((await reader.read()).value.trim().slice(6));
+  assert.equal(await announced(),p.revision);
+  const edit=text=>({op:'update',id:'line',changes:{text}});
+  assert.throws(()=>store.apply(p.id,p.revision,[edit('未提交'),{op:'remove',id:'missing'}]),/改变/);
+  const other=populate(store);store.apply(other.id,other.revision,[edit('其他工程')]);
+  store.setMeta(p.id,{directorNotes:'progress'});
+  const committed=store.applySceneEdit(p.id,p.revision,[edit('新提交')],{},'codex');
+  assert.equal(await announced(),committed.revision);
+  await reader.cancel();ctl.abort();
+  const latest=store.apply(p.id,committed.revision,[edit('离线期间提交')]);
+  const back=await api(route);const replay=back.body.pipeThrough(new TextDecoderStream()).getReader();
+  assert.equal((await replay.read()).value,'data: '+latest.revision+'\n\n');await replay.cancel();
+});
+
+test('a legacy frozen cut with stretched lettering is replaced by a live frame until a corrected export exists',async t=>{
+  const {store,p,media}=await fixture(t);
+  const raw={id:'legacy-label',track:'graphic',start:0,duration:frames,
+    geometry:{x:.5,y:.5,width:.39,height:.025},motion:{componentId:'hot-source-label',props:{}}};
+  const legacy={...p,timeline:{clips:[raw]}};
+  await freeze(store,legacy);
+  const drafts=draftPreviews(store,media),player=timelinePlayback(store,media,drafts);
+  t.after(()=>drafts.close());
+  const options={revision:legacy.revision,frame:12,mode:'still'};
+  assert.equal((await player.describe(legacy,options)).source,'frame');
+  store.saveJob({...store.getJob('frozen-job'),textAspectVersion:1});
+  assert.equal((await player.describe(legacy,options)).source,'cut');
+});

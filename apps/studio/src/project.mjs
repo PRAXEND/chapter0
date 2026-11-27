@@ -19,7 +19,8 @@ import os from 'node:os';
 import {validateMask,validateTimeMap} from '../www/clip-automation.js';
 import {validFraming} from './framing.mjs';
 import {polygonPath} from './polygon.mjs';
-import {validateMotionClip} from './motion-components.mjs';
+import {contentStage} from '../www/motion-clock.js';
+import {validateMotionClip,sizeMotionClip} from './motion-components.mjs';
 import {viewportRect,overlapOnStage} from './viewport.mjs';
 
 export const defaultRoot = () => process.env.STUDIO_DATA_ROOT || path.join(os.homedir(),'Library','Application Support','Video Studio','standalone');
@@ -102,7 +103,7 @@ function newSettings(mode, supplied={},style) {
   return s;
 }
 const sortClips=clips=>clips.sort((a,b)=>a.start-b.start||tracks.indexOf(a.track)-tracks.indexOf(b.track)||a.id.localeCompare(b.id));
-export function createStore(root=defaultRoot(),{probeMedia}={}) {
+export function createStore(root=defaultRoot(),{probeMedia,onRevision}={}) {
   root=path.resolve(root);
   mkdirSync(root,{recursive:true,mode:0o700});
   const db=new DatabaseSync(path.join(root,'studio.sqlite'));
@@ -133,14 +134,17 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
     return p;
   }
   function mutate(id,base,fn,versioned=true) {
-    return transaction(()=>{
+    let advanced=false;
+    const result=transaction(()=>{
       const p=get(id);
       if(base!==undefined && p.revision!==base)throw conflicts();
       if(fn(p)===false)return p;
-      if(versioned)p.revision++;
+      if(versioned){p.revision++;advanced=true;}
       p.updatedAt=now();
       return persist(p,versioned);
     });
+    if(advanced)onRevision?.(id,result.revision);
+    return result;
   }
   function create(data={}) {
     if(!['topic','script','interview'].includes(data.mode))throw fault('请选择一个制作入口。');
@@ -215,6 +219,10 @@ export function createStore(root=defaultRoot(),{probeMedia}={}) {
         if(candidate.muted!==before?.muted&&candidate.muted!==undefined&&typeof candidate.muted!=='boolean')throw fault('静音状态须为开或关。');
         if(candidate.fit!=null&&candidate.fit!==before?.fit&&!['cover','contain'].includes(candidate.fit))throw fault('画面适配方式无效。');
         validateClip(candidate,p);
+        if(candidate.motion){
+          const heightOnly=before?.geometry && candidate.geometry?.width===before.geometry.width && candidate.geometry?.height!==before.geometry.height;
+          sizeMotionClip(candidate,contentStage(p.profile,p.style),heightOnly?'height':'width');
+        }
         if(actor==='user'&&direct.has(cmd)){
           const a=p.assets.find(a=>a.id===candidate.assetId);
           const out=c=>(c.sourceIn??0)+c.duration*(c.speed??1);

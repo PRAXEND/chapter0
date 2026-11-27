@@ -675,7 +675,7 @@ export async function applyScenes(
       } else notes.push({ type: 'suggestion', frame: cursor, message: '重点动作尚无可见证据，已留出动效位置。' });
     }
     for(const [layer,motionPlan] of motionPlans.entries()){
-      const {componentId,props,geometry,cueSource,atSeconds,durationSeconds}=motionPlan;
+      const {componentId,props,geometry,lockAspect,cueSource,atSeconds,durationSeconds}=motionPlan;
       let offset=Math.round((atSeconds??0)*fps),cueFrames=motionPlan.cueFrames;
       if(cueSource){
         if(cueFrames||atSeconds!==undefined||!['visualSteps','captionStarts'].includes(cueSource))
@@ -688,7 +688,7 @@ export async function applyScenes(
       const span=durationSeconds===undefined ? visible-offset : Math.round(durationSeconds*fps);
       if(!Number.isSafeInteger(offset)||!Number.isSafeInteger(span)||offset<0||span<1||offset+span>visible)
         throw Error('组件的出场或退场超出该镜头的可见时段。');
-      const overlay=componentClip({id:'scene-'+i+'-motion'+(layer?'-'+layer:''),componentId,props,geometry,cueFrames,
+      const overlay=componentClip({id:'scene-'+i+'-motion'+(layer?'-'+layer:''),componentId,props,geometry,lockAspect,cueFrames,
         start:cursor+offset,duration:span},contentStage(project.profile,project.style));
       if(motionPlan.soundDesign)overlay.soundDesign=motionPlan.soundDesign;
       clips.push(overlay);

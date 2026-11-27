@@ -4,7 +4,7 @@ import {access, copyFile, link, mkdir, open, readFile, rename, writeFile} from '
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {defaultMotionGeometry, motionCatalog, motionSample, validateMotionClip} from './motion-components.mjs';
+import {motionGeometry, motionCatalog, motionSample, validateMotionClip} from './motion-components.mjs';
 import {serialize} from './motion-dom.mjs';
 import {verifyMotionFont} from './motion-font.mjs';
 import {components, sourceHashes} from './motion-jsx.generated.mjs';
@@ -105,7 +105,7 @@ function segmentsFor(clip,profile,from,to,version,states){
     if(!states.has(key))states.set(key,{key,html:markup,width:sample.width,height:sample.height});
     runs.push({key,frames:1});
   }
-  return {geometry:clip.geometry??defaultMotionGeometry(component,profile),start:start-from,frames:end-start,runs};
+  return {geometry:motionGeometry(component,profile,clip),start:start-from,frames:end-start,runs};
 }
 
 async function sequenceFile(work,name,runs,fps){

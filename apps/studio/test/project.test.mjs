@@ -79,3 +79,21 @@ test('authorized local voice can be reused in a second project with its actual r
   assert.equal(result.settings.referenceHash,a.sha256);assert.equal(result.settings.voiceConsent,true);assert.notEqual(result.settings.voiceReferenceAssetId,a.id);
   assert.equal((await library.list()).length,1);
 });
+
+test('text motion keeps the authored ratio on the v8 portrait content stage for director and manual edits',async t=>{
+  const {store}=await fixture(t);
+  const p=store.create({mode:'topic',style:{id:'henry-hot-news',version:8},profile:{width:1080,height:1920,fps:30}});
+  const geometry={x:.785,y:.362,width:.39,height:.025};
+  const raw={id:'source',track:'graphic',start:0,duration:90,geometry,motion:{componentId:'hot-source-label',props:{}}};
+  let doc=store.applySceneEdit(p.id,p.revision,[{op:'add',clip:raw}],{},'codex');
+  const clip=()=>doc.timeline.clips.find(c=>c.id===raw.id);
+  const ratio=()=>clip().geometry.width*1080/(clip().geometry.height*608);
+  assert.equal(clip().motion.lockAspect,true);
+  assert.ok(Math.abs(ratio()-560/52)<1e-9);
+  assert.deepEqual([Math.round(1080*clip().geometry.width),Math.round(608*clip().geometry.height)],[421,39]);
+  doc=store.apply(p.id,doc.revision,[{op:'update',id:raw.id,changes:{geometry:{...clip().geometry,height:.05}}}]);
+  assert.ok(Math.abs(clip().geometry.height-.05)<1e-9&&Math.abs(ratio()-560/52)<1e-9);
+  doc=store.apply(p.id,doc.revision,[{op:'update',id:raw.id,changes:{geometry,motion:{...clip().motion,lockAspect:false}}}]);
+  assert.deepEqual(clip().geometry,geometry);
+  assert.throws(()=>store.apply(p.id,doc.revision,[{op:'update',id:raw.id,changes:{motion:{...clip().motion,lockAspect:0}}}]),/锁定状态/);
+});

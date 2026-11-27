@@ -15,6 +15,16 @@ export function defaultMotionGeometry(spec,{width,height}){
   return {...spec.geometry,width:spec.width*scale/width,height:spec.height*scale/height};
 }
 
+export const hasMotionText=spec=>spec.fields.some(field=>field.type==='text');
+
+export function motionGeometry(spec,stage,clip,axis='width'){
+  const box=clip.geometry??defaultMotionGeometry(spec,stage);
+  if(!hasMotionText(spec)||clip.motion?.lockAspect===false)return box;
+  const ratio=stage.width*spec.height/(stage.height*spec.width);
+  const width=Math.min(2,2/ratio,axis==='height'?box.height/ratio:box.width);
+  return {...box,width,height:width*ratio};
+}
+
 export function contentStage(profile,style) {
   const portrait=profile.height>profile.width && Number(style?.version)===8 &&
     ['henry-hot-news','henry-technical-explainer'].includes(style?.id);

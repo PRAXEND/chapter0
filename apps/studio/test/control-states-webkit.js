@@ -18,7 +18,14 @@ window.fetch=async(url,opts)=>{
 const hold=match=>{let entered,release;const started=new Promise(r=>entered=r),wait=new Promise(r=>release=r);pause={match,entered,wait};return {started,release};};
 try{
  await wait(()=>el('new-title'));truth(el('new-auto-review').disabled&&el('new-final-review').disabled,'frames off');
- input('new-share-frames',true);truth(!el('new-auto-review').disabled,'share frames');input('new-auto-review',false);truth(el('new-final-review').disabled,'auto off');
+ const reviewIds=['new-share-frames','new-auto-review','new-final-review','review-mode'];
+ truth(reviewIds.every(id=>el(id).getClientRects().length&&!el(id).closest('details')),'创建页直接展示审片开关和结果');
+ truth(el('review-mode').textContent.includes('未开启独立终审')&&!el('new-auto-review').checked&&!el('new-final-review').checked,'默认终审关闭');
+ input('new-share-frames',true);truth(el('review-mode').textContent.includes('已开启独立终审'),'终审已授权');
+ input('new-final-review',false);truth(el('review-mode').textContent.includes('0 个额外回合'),'回看开启且终审关闭');
+ input('new-share-frames',false);input('new-share-frames',true);
+ truth(el('new-auto-review').checked&&!el('new-final-review').checked,'重新开启分享保留之前关闭终审的选择');
+ input('new-final-review',true);truth(!el('new-auto-review').disabled,'share frames');input('new-auto-review',false);truth(el('new-final-review').disabled,'auto off');
  input('new-title','控件 A');input('new-facts','https://example.org/fact');input('new-urls','https://example.org/film.mp4');
  click('mode','script');input('script','第一句台词。');click('mode','topic');truth(el('new-facts').value.endsWith('/fact'),'topic retained');
  click('mode','script');truth(el('script').value==='第一句台词。','script returned');
@@ -28,6 +35,7 @@ try{
  observe=(url,opts)=>{if(url==='/api/projects'&&opts?.method==='POST')posts++;};
  click('create');click('create-run');await createHold.started;truth(posts===1,'create duplicate');truth(el('new-title').matches(':disabled')&&!el('creation-progress').hidden,'submitted inputs frozen');truth(!document.querySelector('[data-guide=new]').matches(':disabled'),'help still available');createHold.release();
  await wait(()=>el('instruction'));const ps=await request('/api/projects');truth(ps.length===1,'single project');const a=ps[0].id;
+ const settings=(await request('/api/projects/'+a)).settings;truth(settings.shareFrames&&!settings.autoReview&&settings.finalReviewMaxTurns===0,'明示状态与工程一致');
  truth((await request('/api/projects/'+a+'/jobs')).length===0,'create did not run');observe=null;
  ok('两个新建按钮并发只建一个工程');
  input('instruction','甲的导演草稿');click('tab','assets');input('asset-url','https://example.org/manual.mp4');
@@ -52,7 +60,13 @@ try{
  ok('保存途中切换工程，响应、草稿与服务端写入各归原项目');
  let current=await request('/api/projects/'+a);
  await request('/api/projects/'+a+'/edits',{baseRevision:current.revision,commands:['one','two'].map((id,i)=>({op:'add',clip:{id,track:'caption',start:i*40,duration:35,text:id}}))});
- click('open-project',a);await wait(()=>document.querySelector('[data-clip="one"]'));
+ await wait(()=>document.querySelector('[data-clip="one"]'));ok('无需重新打开工程即可看到后台提交');
+ const time=document.querySelector('.tl-time');time.focus();time.value='00:00:02';time.setSelectionRange(3,5);
+ current=await request('/api/projects/'+a);
+ await request('/api/projects/'+a+'/edits',{baseRevision:current.revision,commands:[{op:'update',id:'two',changes:{start:45}}]});
+ await wait(()=>document.querySelector('.tl-time')!==time);
+ const refreshed=document.querySelector('.tl-time');truth(document.activeElement===refreshed&&refreshed.value==='00:00:02'&&refreshed.selectionStart===3&&refreshed.selectionEnd===5,'后台提交保留正在输入的时间码');
+ refreshed.blur();
  input('clip-picker','one');await wait(()=>el('clip-text')?.value==='one');input('clip-text','一号草稿');
  input('clip-picker','two');await wait(()=>el('clip-text')?.value==='two');input('clip-text','二号草稿');
  input('clip-picker','one');await wait(()=>el('clip-text')?.value==='一号草稿');
