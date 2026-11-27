@@ -13,14 +13,14 @@
     "复核代理例外、逐跳路由和无环境配置的系统代理路径。",
     "以工程历史、审片回执和 MP4 抽帧核对制作现象。"
   ],
-  "status": "implemented",
-  "updated": "2026-11-28T02:06:33+08:00",
+  "status": "merged",
+  "updated": "2026-11-28T02:34:31+08:00",
   "modules": [
     "media-import"
   ],
   "dependencies": [],
   "handoff": {
-    "next": "人工审阅合入开发分支。日志所示的时间线刷新和动效比例问题可据下方证据分别处理。",
+    "next": "创作者可使用质量验证版导入素材。后续时间线与动效修复见 T-004。",
     "blockers": "企业 PAC 和独立 SOCKS 网络未实测。",
     "failed_attempts": "修复前同一工程的两条 GitHub 视频共三次超时。技术复核时发现 NO_PROXY 大小写与通配边界，已更正并复测。"
   },
@@ -47,6 +47,13 @@
         "result": "passed",
         "evidence": ".agent-context/docs/tasks/T-003-github-media.md",
         "at": "2026-11-28T02:06:33+08:00"
+      },
+      {
+        "command": "gh pr view 8 --repo PRAXEND/chapter0 --json state,mergeCommit,mergedAt",
+        "environment": "GitHub 远端共享开发分支",
+        "result": "passed",
+        "evidence": "https://github.com/PRAXEND/chapter0/pull/8",
+        "at": "2026-11-28T02:34:31+08:00"
       }
     ]
   },
@@ -93,3 +100,5 @@
 - 工程历史在第 5 版有 8 个片段，第 26 版增至 53 个。分镜编排期间先发逐段进度，整批成功才提交。前台的任务轮询在任务运行时只更新消息，到终态才重新读取工程，因此即使持久化的修改也不会在当前时间线上自动出现。[分镜编排](../../../apps/studio/src/storyboard.mjs) · [编辑器轮询](../../../apps/studio/www/app.js)
 - 两条新闻视频超时后，导演改用另一题材。最终七镜中前六镜的底片是照片，共 1301 帧，末镜使用 720 帧档案视频。成片共 2021 帧，30 fps。
 - 抽查 MP4 时，竖版标题和普通字幕可读，素材上的来源标和强调字异常扁小。MP4 是 1080 × 1920、像素比例 1:1。来源标组件原稿 560 × 52，在 1080 × 608 的内容区内显式指定了 0.39 × 0.025 的尺寸，合成为 421 × 15。FFmpeg 将整个栅格独立缩到指定宽高，横纵缩放失配。改动重点应放在组件比例、内容区坐标及实际合成回看。[竖版内容区](../../../apps/studio/www/motion-clock.js) · [动效合成](../../../apps/studio/src/motion-render.mjs)
+
+已合入 `codex/standalone-mac-studio`，合并提交为 `b40f984`。[PR #8](https://github.com/PRAXEND/chapter0/pull/8)

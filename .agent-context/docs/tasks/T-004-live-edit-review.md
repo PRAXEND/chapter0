@@ -13,8 +13,8 @@
     "竖版来源角标在静帧、播放与 MP4 中的实际字形尺寸匹配原稿等比对照，支持手动解锁。",
     "三个新建入口都直接展示审片设置，显示状态与工程实际保存的权限、回合预算一致。"
   ],
-  "status": "implemented",
-  "updated": "2026-11-28T02:30:32+08:00",
+  "status": "merged",
+  "updated": "2026-11-28T02:34:51+08:00",
   "modules": [
     "timeline",
     "motion-composition",
@@ -24,8 +24,8 @@
     "T-003-github-media"
   ],
   "handoff": {
-    "next": "人工审阅任务分支，创作者可用已安装的质量验证版检查真实项目。",
-    "blockers": "技术复核已通过，尚待共享开发分支合入与人的体验验收。",
+    "next": "创作者可在本机质量验证版检查真实项目。",
+    "blockers": "技术合入已完成。创作者的实际体验验收待进行。",
     "failed_attempts": "基线的轨道直到任务终止才更新，角标字形仅 6 像素高。技术复核另发现刷新会打断时间码输入，已修复并单独复测。"
   },
   "validation": {
@@ -51,6 +51,13 @@
         "result": "passed",
         "evidence": ".agent-context/docs/tasks/T-004-live-edit-review.md",
         "at": "2026-11-28T02:30:32+08:00"
+      },
+      {
+        "command": "gh pr view 9 --repo PRAXEND/chapter0 --json state,mergeCommit,mergedAt",
+        "environment": "GitHub 远端共享开发分支",
+        "result": "passed",
+        "evidence": "https://github.com/PRAXEND/chapter0/pull/9",
+        "at": "2026-11-28T02:34:51+08:00"
       }
     ]
   },
@@ -84,3 +91,5 @@
 ## 接手
 
 仓库根目录按 [Mac 工作台说明](../../../apps/studio/README.md) 准备两套风格资料。在 apps/studio 运行上表命令。完整离线集成测试通过 `VIDEO_STUDIO_RESOURCE_DIR` 指向已安装应用的 Contents/Resources，通过 `VIDEO_STUDIO_TEST_CODEX` 指向其中 codex-executable.txt 对应的随包程序。独立技术复核使用单独的检出和资料库，人工验收与共享合并单独记录。
+
+已合入 `codex/standalone-mac-studio`，合并提交为 `62aca9d`。[PR #9](https://github.com/PRAXEND/chapter0/pull/9)
