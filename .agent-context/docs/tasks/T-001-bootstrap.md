@@ -14,15 +14,15 @@
     "明确下一步与未完成验收"
   ],
   "status": "implemented",
-  "updated": "2026-11-28T00:49:20+08:00",
+  "updated": "2026-11-28T00:53:15+08:00",
   "modules": [
     "development-context"
   ],
   "dependencies": [],
   "handoff": {
     "next": "领取 T-002-first-edit，使用隔离工程验证新用户从首版到局部改稿与交付的体验。贡献者提交 PR 时，目标选择 codex/standalone-mac-studio。",
-    "blockers": "本地技术交接已复核。人类代码审阅、远端 CI 执行和产品体验验收分别待相应成员开展。",
-    "failed_attempts": "初始技能副本缺实现，改用相同版本完整安装。本机 npm 损坏，改用 Node 内置 runner。首次无媒体检出快测为 12/13，已修正视觉夹具并独立复测 13/13。"
+    "blockers": "GitHub 克隆、测试和实际媒体校验已通过。人类代码审阅、远端 CI 执行和产品体验验收分别待相应成员开展。",
+    "failed_attempts": "初始技能副本缺实现，改用相同版本完整安装。本机 npm 损坏，改用 Node 内置 runner。首次无媒体检出快测为 12/13，已修正视觉夹具并独立复测 13/13。新克隆首次拉取媒体只有指针，已补充仓库级 LFS 初始化并复验成功。"
   },
   "validation": {
     "claim": "passed",

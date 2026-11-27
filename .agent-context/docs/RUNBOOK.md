@@ -49,6 +49,7 @@ STUDIO_DATA_ROOT="$studio_data" node apps/studio/src/server.mjs
 - Git LFS 的 checkout 不会覆盖本地已修改文件。应在干净的个人工作目录运行。发行构建还支持 `STUDIO_PACK_CHECKOUT`，其值是包含 user-packs 的已物化资源根目录。[打包实现](../../apps/studio/scripts/bundle-styles.mjs)
 
 ```sh
+git lfs install --local
 git lfs pull --include='user-packs/henry-video-styles/media/**' --exclude='' origin
 python3 user-packs/henry-video-styles/verify.py
 ```
