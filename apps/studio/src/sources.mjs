@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {publisherFacts,robotics,dailySources,youtubeSources,youtubeId,acquireYoutube} from './robot-sources.mjs';
 import dns from 'node:dns/promises';
+import {githubRoute, macGithubResponse} from './github-media.mjs';
 import https from 'node:https';
 import { BlockList, isIP } from 'node:net';
 import { createWriteStream } from 'node:fs';
@@ -30,6 +31,7 @@ const catalogHosts = new Set([
 // Use the configured network proxy for known catalog services, including their media hosts.
 // Unknown user-provided hosts continue to use the public IP resolved below.
 const catalogAgent = new https.Agent({ proxyEnv: process.env });
+const directAgent = new https.Agent({keepAlive: true});
 const blocked = new BlockList();
 for (const [address, bits] of [
   ['0.0.0.0', 8],
@@ -67,12 +69,14 @@ async function publicRequest(
   const records = await dns.lookup(host, { all: true });
   if (!records.length || records.some((record) => !publicAddress(record.address)))
     throw new Error('素材地址不属于公开网络。');
-  const res = await new Promise((resolve, reject) => {
+  const route = githubRoute(host);
+  const native = route === 'system' ? await macGithubResponse(url, {signal, maxBytes, accept, userAgent: agent}) : null;
+  const res = native ?? await new Promise((resolve, reject) => {
     const req = https.get(
       url,
       {
         signal,
-        agent: catalogHosts.has(host) ? catalogAgent : undefined,
+        agent: route === 'environment' || catalogHosts.has(host) ? catalogAgent : route ? directAgent : undefined,
         headers: { 'user-agent': agent, accept },
         // Use the addresses that were just checked for this connection as well.
         lookup: (_host, options, callback) =>

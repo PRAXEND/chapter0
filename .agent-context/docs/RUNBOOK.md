@@ -43,6 +43,10 @@ STUDIO_DATA_ROOT="$studio_data" node apps/studio/src/server.mjs
 
 打开终端打印的一次性本机 URL，查看「新建工程」或「使用帮助」。Ctrl+C 结束本次服务。首次访问后复用已认证窗口。重新启服务可取得新入口。工程库占用时，先确认使用该库的服务，再为自己的任务换用独立目录。
 
+## GitHub 素材下载超时
+
+先在工程的素材库搜索并导入同一条视频，检查是否出现实际时长和分辨率。工作台优先使用启动环境中的 `https_proxy` 或 `HTTPS_PROXY`（HTTP 或 HTTPS 地址），并遵守 `no_proxy` / `NO_PROXY`。没有显式环境代理时，Mac 安装版按用户当前的系统代理设置连接。系统指定直连的地址将直接访问。安装版已包含原生网络工具，源码模式使用 Xcode Command Line Tools。更新运行中的应用后重新打开，让服务加载新版本。[实机导入与验证范围](tasks/T-003-github-media.md)
+
 ## 实体媒体、实机测试与构建
 
 - 完整风格验证使用 Git LFS 从 GitHub 获取 42 个实体音视频（约 473 MB）。在目标检出安装 Git LFS 后运行以下命令，验证脚本会对照当前版本逐项校验 SHA-256。
