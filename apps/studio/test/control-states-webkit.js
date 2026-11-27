@@ -1,5 +1,9 @@
 const report=value=>webkit.messageHandlers.transport.postMessage(value);
-const wait=async ok=>{for(let i=0;i<240;i++){if(ok())return;await new Promise(r=>setTimeout(r,30));}throw Error('等待界面状态超时');};
+const wait=async(ok,what='界面状态',timeout=7200)=>{
+ const start=performance.now();
+ while(performance.now()-start<timeout){if(ok())return;await new Promise(r=>setTimeout(r,30));}
+ throw Error('等待超时 · '+what);
+};
 const el=id=>document.getElementById(id),button=(op,id)=>[...document.querySelectorAll('[data-act]')].find(n=>n.dataset.act===op&&(id==null||n.dataset.id===id));
 const input=(id,value)=>{const n=el(id);if(!n)throw Error('找不到字段 '+id);if(n.type==='checkbox')n.checked=value;else n.value=value;n.dispatchEvent(new Event('input',{bubbles:true}));n.dispatchEvent(new Event('change',{bubbles:true}));};
 const click=(op,id)=>{const n=button(op,id);if(!n)throw Error('找不到操作 '+op);n.click();};
@@ -7,10 +11,11 @@ const truth=(v,h)=>{if(!v)throw Error('状态不符 '+h);};
 const checked=[],ok=name=>checked.push(name);
 const original=window.fetch.bind(window);
 const request=async(route,body)=>{const r=await original(route,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};
-let pause=null, observe=null,failUpload=false;
+let pause=null, observe=null,failUpload=false,progressFeed=null;
 window.fetch=async(url,opts)=>{
  const uri=typeof url==='string'?url:new URL(url.url).pathname;
  if(failUpload&&uri.endsWith('/assets')&&opts?.method==='POST'){failUpload=false;return Response.json({error:'模拟临时导入中断'},{status:503});}
+ if(progressFeed&&uri===progressFeed.path&&(!opts?.method||opts.method==='GET')){progressFeed.reads++;return Response.json([progressFeed.job]);}
  if(observe)observe(uri,opts);
  if(pause&&pause.match(uri,opts)){const hold=pause;pause=null;const answer=await original(url,opts);hold.entered();await hold.wait;return answer;}
  return original(url,opts);
@@ -114,5 +119,59 @@ try{
  const afterRetry=await request('/api/projects'),retryId=afterRetry.find(p=>p.title==='仅补导一次')?.id;
  truth(afterRetry.length===3&&(await request('/api/projects/'+retryId)).assets.length===1&&(await request('/api/projects/'+retryId+'/jobs')).length===0,'只补未完成操作');
  ok('导入中断后在已建工程补导，保留文件且仅入库一次');
+ // B is still empty. Configure the real project and let its revision stream update the monitor.
+ click('open-project',b.id);await wait(()=>el('current-title').textContent==='控件 B');
+ const screen=()=>el('project-monitor').querySelector('.screen').getBoundingClientRect();
+ for(const [width,height] of [[320,180],[240,240],[180,320]]){
+   current=await request('/api/projects/'+b.id);
+   await request('/api/projects/'+b.id+'/configure',{baseRevision:current.revision,changes:{profile:{width,height,fps:30}}});
+   await wait(()=>Math.abs(screen().width/screen().height-width/height)<.002);
+   truth(Math.abs(el('project-monitor').getBoundingClientRect().width-screen().width)<1,'普通模式的监视器外框跟随工程画幅');
+   const normal=screen().height;el('monitor-size').click();
+   truth(screen().height>normal*1.2&&Math.abs(screen().width/screen().height-width/height)<.002,'放大保留实际画幅');
+   el('monitor-size').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+   truth(!el('project-monitor').hasAttribute('aria-modal')&&Math.abs(screen().height-normal)<1,'Escape 恢复原布局');
+ }
+ ok('空工程横屏、方形和竖屏按修订自动换画幅，均可放大和还原');
+ const source=await original('/api/projects/'+b.id+'/assets',{method:'POST',headers:{'X-File-Name':'monitor.mp4'},body:bytes});
+ const film=await source.json();truth(source.ok,'预览真实素材');
+ current=await request('/api/projects/'+b.id);
+ await request('/api/projects/'+b.id+'/edits',{baseRevision:current.revision,commands:[{op:'add',clip:{id:'monitor-source',track:'video',assetId:film.id,start:0,duration:115,sourceIn:0}}]});
+ await wait(()=>el('monitor-seek').max==='114'&&!el('monitor-play').disabled,'导入后预览时长');
+ const player=el('player');el('monitor-size').click();input('monitor-seek','17');
+ await wait(()=>document.querySelector('.tl-ruler').getAttribute('aria-valuenow')==='17'&&el('monitor-status').textContent.startsWith('工程预览 ·'),'定位后首帧解码',20000);
+ const playButton=el('monitor-play').getBoundingClientRect(),point=[playButton.x+playButton.width/2,playButton.y+playButton.height/2];
+ let trusted=false;
+ el('monitor-play').addEventListener('click',e=>{trusted=e.isTrusted;},{once:true});
+ report({click:point});await wait(()=>Number(el('monitor-seek').value)>20,'放大预览开始播放',20000);
+ truth(trusted,'WebKit 监视器收到原生播放点击');
+ el('monitor-size').click();const at=Number(el('monitor-seek').value);
+ await wait(()=>Number(el('monitor-seek').value)>at,'还原尺寸后继续播放');
+ el('monitor-size').click();el('monitor-play').click();await wait(()=>el('monitor-play').textContent==='播放');
+ const paused=el('monitor-seek').value;el('monitor-size').click();
+ truth(el('player')===player&&el('monitor-seek').value===paused&&!document.querySelector('.sidebar').inert,'真实播放和暂停帧跨尺寸切换连续，返回后恢复侧栏操作');
+ ok('竖版实片在放大预览定位第 17 帧、播放、还原和暂停后保持位置');
+ const event=n=>({at:String(n),message:'步骤 '+n+' · '+ '核对动作与剪辑记录。'.repeat(6)});
+ const job={id:'ui-progress',kind:'produce',creativeEngine:'codex',status:'running',events:Array.from({length:120},(_,i)=>event(i))};
+ progressFeed={path:'/api/projects/'+b.id+'/jobs',job,reads:0};
+ const list=()=>document.querySelector('#activity .log');
+ await wait(()=>list()?.children.length===120);
+ const log=list(),card=log.closest('.director');
+ const bottom=()=>log.scrollHeight-log.scrollTop-log.clientHeight<2;
+ truth(bottom(),'新打开的进度列表跟随最新消息');
+ card.scrollTop=80;const outer=card.scrollTop;
+ const marker=log.children[35].textContent,markerTop=()=>[...list().children].find(n=>n.textContent===marker).getBoundingClientRect().top-list().getBoundingClientRect().top;
+ log.scrollTop=markerTop()+log.scrollTop+4;const offset=markerTop(),reads=progressFeed.reads;
+ await wait(()=>progressFeed.reads>reads);await new Promise(r=>requestAnimationFrame(r));
+ truth(log===list()&&Math.abs(markerTop()-offset)<1&&card.scrollTop===outer,'无变化的轮询保留内外滚动位置');
+ job.events=[...job.events.slice(1),event(120)];
+ await wait(()=>log.lastElementChild.textContent===event(120).message);
+ truth(Math.abs(markerTop()-offset)<1&&card.scrollTop===outer,'滚动窗口淘汰旧消息时保留阅读行和行内偏移');
+ log.scrollTop=log.scrollHeight;job.events=[...job.events.slice(1),event(121)];
+ await wait(()=>log.lastElementChild.textContent===event(121).message);truth(bottom(),'在底部时跟随新消息');
+ log.scrollTop=markerTop()+log.scrollTop+4;job.status='done';
+ await wait(()=>el('activity').querySelector('.pill').textContent==='已完成');
+ truth(Math.abs(markerTop()-offset)<1,'切换完成状态保留进度阅读位置');
+ progressFeed=null;ok('进度轮询、消息滚动和完成状态保留阅读行，停在底部时自动跟随');
  report({passed:true,checks:checked});
-}catch(error){report({error:error.message,checks:checked,screen:document.getElementById('current-title')?.textContent,notice:document.getElementById('notice')?.textContent});}
+}catch(error){report({error:error.message,checks:checked,screen:document.getElementById('current-title')?.textContent,notice:document.getElementById('notice')?.textContent,monitor:el('monitor-status')?.textContent,frame:el('monitor-seek')?.value});}

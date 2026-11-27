@@ -24,6 +24,7 @@
 | [T-002-first-edit · 新用户从空工程到一次局部改稿](tasks/T-002-first-edit.md) | 项目发起人负责体验验收 | 已登记，待领取执行。使用隔离工程和已获授权的素材，由创作者审看首版与改稿。 |
 | [T-003-github-media · GitHub 素材导入](tasks/T-003-github-media.md) | Mac 工作台维护者 | 已合入共享开发分支，两条原片已在本机质量验证版成功导入。[PR #8](https://github.com/PRAXEND/chapter0/pull/8) |
 | [T-004-live-edit-review · 剪辑提交、文字比例和审片开关](tasks/T-004-live-edit-review.md) | Mac 工作台维护者 | 已合入共享开发分支并在本机质量验证版安装，待创作者体验验收。[PR #9](https://github.com/PRAXEND/chapter0/pull/9) |
+| [T-005-preview-progress · 工程预览与进度滚动](tasks/T-005-preview-progress.md) | Mac 工作台维护者 | 任务分支已实现，已装入本机质量验证版。 |
 
 从[任务索引](tasks/README.md)进入同一份记录。既有的 Mac 与插件研发证据继续维护在[历史任务目录](../../docs/tasks/README.md)。新开并行任务时登记结果、分支和涉及模块，仅凭本机保留的旧 worktree 无法推断谁在工作。
 

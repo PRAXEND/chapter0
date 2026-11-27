@@ -53,13 +53,29 @@ details[open]>summary {margin-bottom:9px}
 fieldset {border-color:#d2dce9}.outline{margin:8px 0;background:#f5f8fd;border-color:#aabbd1}
 .check input{accent-color:#405cb7}.help,small,.muted {color:var(--muted)}.help{line-height:1.55}
 .workspace .monitor,.workspace .timeline {border-radius:13px;box-shadow:0 4px 15px #202b4714}
-.workspace .screen{height:clamp(195px,31vh,415px);background:#12161f}
-.workspace .monitor-foot{background:#222a38;color:#dce5f3}.workspace .director{padding:15px 17px;max-height:clamp(250px,36vh,470px)}
+.workspace .monitor{--screen-height:clamp(200px,36vh,480px);justify-self:center;width:min(100%,max(150px,calc(var(--screen-height) * var(--project-ratio))))}
+.workspace .monitor.portrait{--screen-height:clamp(270px,43vh,580px)}
+.monitor-viewport{display:grid;place-items:center;background:#394150}
+.workspace .screen{width:min(100%,calc(var(--screen-height) * var(--project-ratio)));height:auto;aspect-ratio:var(--project-ratio);min-height:0;overflow:hidden;background:#101218}
+.screen .empty{position:absolute;inset:0;display:grid;align-content:center;justify-items:center;margin:auto}
+.workspace .monitor-foot{height:auto;min-height:40px;padding:5px 10px;gap:8px;flex-wrap:wrap;background:#222a38;color:#dce5f3}
+#monitor-status{flex:1}
+.monitor.portrait:not(.expanded) .monitor-foot{display:grid;gap:3px;text-align:center}
+.monitor.portrait:not(.expanded) #monitor-size{margin-top:2px}
+.monitor-foot button{color:#f1f4fb;background:#364051;border:1px solid #5b677c;font-size:12px;min-height:28px;padding:3px 10px}
+.monitor-transport{display:none}
+html.preview-expanded{overflow:hidden}
+.workspace .monitor.expanded{position:fixed;inset:0;width:auto;justify-self:stretch;z-index:1000;border-radius:0;background:#222a38;display:flex;flex-direction:column;--screen-height:calc(100vh - 52px)}
+.monitor.expanded .monitor-viewport{height:var(--screen-height);background:#292f39}
+.monitor.expanded .monitor-foot{min-height:52px;flex-wrap:nowrap;padding-inline:clamp(12px,3vw,36px)}
+.monitor.expanded .monitor-transport{display:flex;align-items:center;gap:10px}
+.monitor-transport input{width:clamp(85px,20vw,360px)}
+.workspace .director{padding:15px 17px;max-height:clamp(250px,36vh,470px)}
 .workspace .director .help {margin:4px 0}.director textarea {border-radius:11px}.director .actions>button.primary {width:100%}
 .workspace .timeline{background:#202734;border-color:#354152}.workspace .timeline button{min-height:0}
 .workspace .timeline .tl-clip{border-radius:5px}.workspace .timeline .tl-tools button[aria-pressed=true] {color:#c6f2e6;background:#364e4d}
 .insert-tools{border-block:1px solid #cfdaea;padding-block:4px}.inspector{margin-top:0}
-.pill,.applied{background:#e0ece8;color:#34594e}.applied{font-size:12px;font-weight:600;padding:6px 10px;border-radius:7px}.log{color:#52627a}
+.pill,.applied{background:#e0ece8;color:#34594e}.applied{font-size:12px;font-weight:600;padding:6px 10px;border-radius:7px}.log{color:#52627a;overscroll-behavior:contain;overflow-wrap:anywhere}
 .asset,.entry{gap:8px}.entry>span,.asset>div:first-child {min-width:0;overflow-wrap:anywhere}.entry button {flex:none}
 .wide-video{border-radius:9px}.empty-panel{padding:23px;color:#536179}
 #notice {position:fixed;color:white;background:#26344a;border:1px solid #8390a7;border-radius:11px}
