@@ -2,9 +2,16 @@
 
 ## 当前开发分支 · 独立 Mac 工作台
 
-这里开发 `codex/standalone-mac-studio`。工作台在本机完成 Codex 对话、可编辑剪辑与成片交付。团队从[项目首页](.agent-context/docs/PROJECT.md)领取任务，按[接手与自检](.agent-context/docs/RUNBOOK.md)准备自己的检出。产品操作和构建见 [Mac 工作台使用说明](apps/studio/README.md)。
+团队在 GitHub 的 `PRAXEND/chapter0` 仓库维护 `codex/standalone-mac-studio`。新成员可以从任意目录运行以下命令，把个人分支名换成自己的任务名。快测需要 Git 和 Node 24。
 
-已有本分支代码时，在仓库根目录运行 `(cd apps/studio && node --run test:quick)`。这组检查使用 Node 24，覆盖工程版本与锁、控件状态和时间线操作，使用临时工程。历史工程记录和风格验证见[已有研发记录](docs/tasks/README.md)。
+```sh
+GIT_LFS_SKIP_SMUDGE=1 git clone --branch codex/standalone-mac-studio --single-branch https://github.com/PRAXEND/chapter0.git video-studio-mac
+cd video-studio-mac
+git switch -c codex/my-studio-task
+(cd apps/studio && node --run test:quick)
+```
+
+从[任务索引](.agent-context/docs/tasks/README.md)领取任务，提交改动后向 `codex/standalone-mac-studio` 发起 PR。已有检出、获取完整风格媒体及提交 PR 的步骤见[接手手册](.agent-context/docs/RUNBOOK.md)。[项目首页](.agent-context/docs/PROJECT.md) · [Mac 工作台运行与构建](apps/studio/README.md)
 
 ## web.39 插件发行与升级
 

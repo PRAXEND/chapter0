@@ -4,31 +4,18 @@
 
 ## 取得分支并分开工作
 
-已经有集成分支的成员可以直接建立自己的工作目录。
+首次加入时，按[仓库首页](../../README.md)克隆 GitHub 开发分支，在个人分支运行快测。
+
+已有 `PRAXEND/chapter0` 检出的成员可从远端最新提交另建工作目录，包括当初只克隆了插件分支的情况。在原检出运行以下命令，将 `my-studio-task` 换成任务名。
 
 ```sh
-GIT_LFS_SKIP_SMUDGE=1 git worktree add -b codex/my-studio-task ../studio-my-task codex/standalone-mac-studio
+git fetch origin refs/heads/codex/standalone-mac-studio:refs/remotes/origin/codex/standalone-mac-studio
+GIT_LFS_SKIP_SMUDGE=1 git worktree add --no-track -b codex/my-studio-task ../studio-my-task origin/codex/standalone-mac-studio
 cd ../studio-my-task
 (cd apps/studio && node --run test:quick)
 ```
 
-收到维护者提供的增量 Git bundle 时，先在包含 web.39 基准的仓库执行以下步骤。新机器可先取得公开插件仓库与标签，跳过媒体下载以运行快测。命令中的 bundle 路径换成实际位置。
-
-```sh
-GIT_LFS_SKIP_SMUDGE=1 git clone --single-branch --branch video-generation-workbench https://github.com/PRAXEND/chapter0.git video-studio
-cd video-studio
-git fetch origin tag v0.3.0-web.39
-git bundle verify /path/to/video-studio-mac.bundle
-git fetch /path/to/video-studio-mac.bundle refs/heads/codex/standalone-mac-studio:refs/remotes/handoff/standalone-mac-studio
-GIT_LFS_SKIP_SMUDGE=1 git worktree add -b codex/my-studio-task ../studio-my-task refs/remotes/handoff/standalone-mac-studio
-cd ../studio-my-task
-```
-
-维护者可从本分支重新生成交接文件。Git bundle 收录已提交的代码、协作文档和 LFS 指针，实体风格媒体另取。团队有共享远端分支时可直接取该分支，无须重复传送 bundle。
-
-```sh
-git bundle create ../video-studio-mac.bundle refs/heads/codex/standalone-mac-studio ^v0.3.0-web.39
-```
+完成修改和验证后，有仓库写权限的成员在自己的任务分支执行 `git push -u origin HEAD`。在 GitHub 新建 PR，base 选择 `PRAXEND/chapter0` 的 `codex/standalone-mac-studio`，compare 选择个人任务分支。外部贡献者可以把个人分支推到自己的 fork，再向同一个 base 提 PR。审核者可在 PR 的 Checks 中查看协作资料检查和工作台快测。
 
 ## 十分钟内完成第一次检查
 
@@ -45,7 +32,7 @@ python3 .agent-context/tools/check_context.py --config .agent-context/config.jso
 
 若 Python 自检提示标准库模块缺失，可将下面及后续的 python3 换成自检通过的 python3.11 或 python3.12，再运行同一组命令。
 
-上述基准用于复验初始化。开发新任务时以实际目标分支的分叉点运行，例如 `git merge-base HEAD refs/remotes/handoff/standalone-mac-studio`，再传入自己的任务 ID。看到 HUMAN_REVIEW 时到任务记录核对同伴确认。
+上述基准用于复验初始化。开发新任务时以实际目标分支的分叉点运行，例如 `git merge-base HEAD origin/codex/standalone-mac-studio`，再传入自己的任务 ID。看到 HUMAN_REVIEW 时到任务记录核对同伴确认。
 
 ## 在隔离资料库打开源码界面
 
@@ -58,12 +45,11 @@ STUDIO_DATA_ROOT="$studio_data" node apps/studio/src/server.mjs
 
 ## 实体媒体、实机测试与构建
 
-- 完整风格验证需要 42 个实体音视频（约 473 MB）。克隆自公开发行库且 origin 指向该仓库时，可取回已发布媒体，再按当前检出校验。只有指针时媒体校验会明确报错。如果 origin 是本地 bundle，可先用 `git remote add release-media https://github.com/PRAXEND/chapter0.git` 登记发行源，取得 web.39 标签后把以下 LFS 命令的 origin 换成 release-media，或由同伴提供已物化、同指纹的风格包。
+- 完整风格验证使用 Git LFS 从 GitHub 获取 42 个实体音视频（约 473 MB）。在目标检出安装 Git LFS 后运行以下命令，验证脚本会对照当前版本逐项校验 SHA-256。
 - Git LFS 的 checkout 不会覆盖本地已修改文件。应在干净的个人工作目录运行。发行构建还支持 `STUDIO_PACK_CHECKOUT`，其值是包含 user-packs 的已物化资源根目录。[打包实现](../../apps/studio/scripts/bundle-styles.mjs)
 
 ```sh
-git lfs fetch --include='user-packs/henry-video-styles/media/**' --exclude='' origin v0.3.0-web.39
-git lfs checkout 'user-packs/henry-video-styles/media/**'
+git lfs pull --include='user-packs/henry-video-styles/media/**' --exclude='' origin
 python3 user-packs/henry-video-styles/verify.py
 ```
 
