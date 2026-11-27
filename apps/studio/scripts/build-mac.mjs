@@ -47,6 +47,10 @@ try{
   exec('/usr/bin/xcrun',['swiftc','-parse-as-library','-O',path.join(base,'scripts','motion-webkit.swift'),'-o',helper],
     {env:{...toolEnv,MACOSX_DEPLOYMENT_TARGET:'13.5'}});
   exec('/usr/bin/codesign',['--force','--sign',process.env.STUDIO_SIGN_IDENTITY||'-',helper]);
+  const githubMedia=path.join(binDir,'github-media');
+  exec('/usr/bin/xcrun',['swiftc','-O',path.join(base,'scripts','github-media.swift'),'-o',githubMedia],
+    {env:{...toolEnv,MACOSX_DEPLOYMENT_TARGET:'13.5'}});
+  exec('/usr/bin/codesign',['--force','--sign',process.env.STUDIO_SIGN_IDENTITY||'-',githubMedia]);
   await clone(process.execPath,path.join(binDir,'node'));
   for(const name of ['ffmpeg','ffprobe','whisper-cli']){
     const tool=await mediaTool(name);if(!tool){if(name==='whisper-cli')continue;throw Error('发行需要可用的 '+name);}

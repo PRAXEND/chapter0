@@ -11,4 +11,6 @@
 | 选择风格与合成 | 正式选项来自双 v8 目录。风格读取器校验规格与素材，JSX 动效经本机 WebKit 渲染，音视频在本机组合。 | 改风格同时检查选项、指纹、原版组件、基准片与原配乐。动效须看真实画面及落点。[风格目录](../../apps/studio/src/style-catalog.mjs) · [风格读取](../../apps/studio/src/style.mjs) · [媒体实现与验证](../../apps/studio/MEDIA.md) |
 | 预览、导出、复核 | 播放器按修订取得对应的冻结文件、帧或播放窗口。导出任务绑定快照并记录视频、字幕与工程。独立验收依据冻结版本回看。 | 比对同一修订和帧号，核对 MP4、SRT、可编辑工程。听感与风格是否适用需要看片人确认。[播放](../../apps/studio/src/timeline-playback.mjs) · [渲染](../../apps/studio/src/media.mjs) · [验收](../../apps/studio/src/review.mjs) · [独立复核](../../apps/studio/src/independent-review.mjs) |
 
+GitHub 素材库的目录、LFS 媒体与发行下载仅对列出的公开主机启用代理。每跳先校验 HTTPS、端口与 DNS 公网地址，再依次处理环境例外、显式 HTTPS 代理和 macOS 系统路由。系统指定直连时，Node 固定已校验的地址；系统代理请求由随包 URLSession 工具执行，重定向交回同一入口复查。所有成功下载仍需通过流大小、清单指纹和本地媒体探测才能写入工程。[下载入口](../../apps/studio/src/sources.mjs) · [系统代理选择](../../apps/studio/src/github-media.mjs)
+
 素材导入和受控文件流仍复用同一仓库的 [workbench 媒体模块](../../plugins/video-studio/workbench/media.mjs)。单独复制 apps/studio 会遗漏该相对依赖。个人工程库、账号凭据、原始参考录音和本地输出存放在仓库外，任务里只保留必要的脱敏证据。
