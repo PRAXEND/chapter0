@@ -6,6 +6,9 @@ import {timelineView} from './timeline.js';
 import {createTimelinePlayer} from './timeline-player.js';
 let timeline,transport,advanced,editorView,editorProject,openingProject=0,viewEpoch=0,styleEpoch=0,dialogEpoch=0;
 function releaseEditor(){
+  const log=document.querySelector('#activity .log');
+  if(log&&editorView)editorView.progress=logPosition(log);
+  if(el('project-monitor')?.classList.contains('expanded'))expandMonitor(false);
   advanced?.dispose();advanced=null;timeline?.destroy();timeline=null;transport?.destroy();transport=null;
 }
 const playhead=()=>transport?.frame??editorView?.frame??0;
@@ -288,26 +291,74 @@ function directorActions(active,clips){
   return `<div class="actions">${btn('direct',active?'告诉 Codex 新的方向':clips.length?'用 Codex 改稿':'用 Codex 剪辑','primary')}</div>
   ${active?'':'<details><summary>本地粗剪</summary><p class="help">按素材与脚本生成草稿。需要按风格选镜、设计强调或检查画面时，请用 Codex 剪辑。</p>'+btn('local','生成本地草稿')+'</details>'}`;
 }
+function setMonitorProfile(profile){
+  const monitor=el('project-monitor');
+  monitor.style.setProperty('--project-ratio',String(profile.width/profile.height));
+  monitor.classList.toggle('portrait',profile.height>profile.width);
+  el('monitor-format').textContent=profile.width+' × '+profile.height+' · '+profile.fps+' fps';
+}
+let monitorBackground=[];
+function expandMonitor(expanded){
+  const monitor=el('project-monitor'),toggle=el('monitor-size');
+  monitor.classList.toggle('expanded',expanded);
+  document.documentElement.classList.toggle('preview-expanded',expanded);
+  toggle.textContent=expanded?'还原预览':'放大预览';toggle.setAttribute('aria-expanded',String(expanded));
+  if(expanded){
+    monitor.setAttribute('role','dialog');monitor.setAttribute('aria-modal','true');
+    monitorBackground=[...document.querySelectorAll('.sidebar,.topbar,.tabs,.editor-intro,.workspace > :not(.monitor)')].filter(n=>!n.inert);
+    for(const n of monitorBackground)n.inert=true;
+  }else{
+    monitor.setAttribute('role','region');monitor.removeAttribute('aria-modal');
+    for(const n of monitorBackground)n.inert=false;
+    monitorBackground=[];
+  }
+  toggle.focus({preventScroll:true});
+}
+function bindMonitor(){
+  const monitor=el('project-monitor'),range=el('monitor-seek');
+  el('monitor-size').onclick=()=>expandMonitor(!monitor.classList.contains('expanded'));
+  el('monitor-play').onclick=safeAction(()=>transport.toggle());
+  range.oninput=safeAction(()=>transport.seek(Number(range.value),{scrub:true}));
+  range.onchange=safeAction(()=>transport.seek(Number(range.value)));
+  monitor.onkeydown=e=>{
+    if(!monitor.classList.contains('expanded'))return;
+    e.stopPropagation();
+    if(e.key==='Escape'){e.preventDefault();expandMonitor(false);}
+    else if(e.key==='Tab'){
+      const buttons=[...monitor.querySelectorAll('button:not(:disabled),input:not(:disabled)')];
+      const edge=e.shiftKey?buttons[0]:buttons.at(-1);
+      if(e.target===edge){e.preventDefault();(e.shiftKey?buttons.at(-1):buttons[0]).focus();}
+    }else if(e.target!==range&&['ArrowLeft','ArrowRight'].includes(e.key)){
+      e.preventDefault();safeAction(()=>transport.step(e.key==='ArrowLeft'?-1:1))();
+    }
+  };
+}
 function drawEdit(){
   const p=s.p,clips=p.timeline.clips,fps=p.profile.fps;
   const active=s.jobs.find(j=>['running','queued','pausing'].includes(j.status));
   const chosen=clips.find(c=>c.id===s.clip);
   if(editorProject!==p.id){editorProject=p.id;editorView={frame:0,zoom:1,scroll:0,snap:true,clipboard:null};}
   editorView.selected=s.clip;
-  el('view').innerHTML=`<div class="editor-intro"><span>在播放头看画面，选片段手动调整，或把改动交给 Codex。</span><button class="guide-link" data-guide="edit">操作说明</button></div><div class="edit-layout workspace"><div class="monitor"><div class="screen"><video id="player" playsinline preload="metadata"></video>
+  el('view').innerHTML=`<div class="editor-intro"><span>在播放头看画面，选片段手动调整，或把改动交给 Codex。</span><button class="guide-link" data-guide="edit">操作说明</button></div><div class="edit-layout workspace"><div class="monitor" id="project-monitor" role="region" aria-label="工程预览"><div class="monitor-viewport"><div class="screen"><video id="player" playsinline preload="metadata"></video>
   ${!clips.length?'<div class="empty"><p>时间线为空</p>'+btn('tab','添加素材','','assets')+'</div>':''}</div>
-  <div class="monitor-foot"><span id="monitor-status" role="status"></span><span class="mono">${p.profile.width} × ${p.profile.height} · ${fps} fps</span></div></div>
+  </div><div class="monitor-foot"><span id="monitor-status" role="status"></span><span class="mono" id="monitor-format"></span>
+  <div class="monitor-transport"><button type="button" id="monitor-play">播放</button><input id="monitor-seek" type="range" min="0" max="0" value="0" step="1" aria-label="预览播放头（帧）"></div>
+  <button type="button" id="monitor-size" aria-expanded="false">放大预览</button></div></div>
   <aside class="card director"><div class="hrow space"><h2>剪辑对话</h2></div>
   <div class="compose">${field('本次要求',area('instruction','',4,'例如，把选中镜头换成操作特写，旁白保留。'))}</div>
   <div id="director-actions">${directorActions(active,clips)}</div>
-  <div id="activity">${activity(active||s.jobs[0])}</div></aside>
+  <div id="activity"></div></aside>
   <section class="timeline" aria-label="工程时间线"></section>
   <div class="insert-tools">${insertTools(p)}</div>
   <div id="inspect">${inspector(chosen)}</div></div>`;
+  setMonitorProfile(p.profile);bindMonitor();updateActivity(active||s.jobs[0]);
   mountTimeline(p);
   transport=createTimelinePlayer({project:p,jobs:s.jobs,video:el('player'),frame:editorView.frame,
-    onFrame:f=>{timeline?.frame(f,true);advanced?.setFrame(f);const button=el('inspect')?.querySelector('[data-act="split-clip"]');if(button&&s.clip){const c=s.p?.timeline.clips.find(c=>c.id===s.clip);if(c){const disabled=c.locked||f<=c.start||f>=c.start+c.duration;if((button.getAttribute('aria-disabled')==='true')!==disabled)sync(button);}}},onState:state=>{
+    onFrame:f=>{el('monitor-seek').value=f;timeline?.frame(f,true);advanced?.setFrame(f);const button=el('inspect')?.querySelector('[data-act="split-clip"]');if(button&&s.clip){const c=s.p?.timeline.clips.find(c=>c.id===s.clip);if(c){const disabled=c.locked||f<=c.start||f>=c.start+c.duration;if((button.getAttribute('aria-disabled')==='true')!==disabled)sync(button);}}},onState:state=>{
       timeline?.setPlaying(state.playing);
+      const play=el('monitor-play'),range=el('monitor-seek');
+      play.disabled=range.disabled=!state.length;play.textContent=state.playing?'暂停':'播放';
+      range.max=Math.max(0,state.length-1);range.value=state.frame;
       if(state.displayedFrame!=null)advanced?.setFrame(state.displayedFrame);
       const node=el('monitor-status');
       if(node)node.textContent=state.error?.message||state.error||(state.status==='loading'?'正在准备当前帧…':state.status==='buffering'?'正在准备下一段…':s.p.timeline.clips.length?'工程预览 · v'+s.p.revision:'工程预览');
@@ -325,11 +376,49 @@ async function timelineAction(act,id){
 }
 function activity(j){
   if(!j)return '<p class="help">可以在这里查看制作进度、暂停任务并继续改稿。</p>';
-  const text=(j.events||[]).slice(-8).map(e=>'<li>'+esc(e.message)+'</li>').join('');
   return `<div class="hrow space"><strong>${esc(['produce','revise'].includes(j.kind)?(j.creativeEngine==='local'?'本地粗剪进度':j.creativeEngine==='codex'?'Codex 剪辑进度':'剪辑进度'):j.kind==='preview'?'预览进度':'导出进度')}</strong><span class="pill">${statusLabels[j.status]||j.status}</span></div>
-  ${j.status==='running'?'<progress></progress>':''}<ul class="log">${text}</ul>${j.error?'<p class="feedback">'+esc(j.error)+'</p>':''}
+  ${j.status==='running'?'<progress></progress>':''}<ul class="log" tabindex="0" aria-label="剪辑进度记录"></ul>${j.error?'<p class="feedback">'+esc(j.error)+'</p>':''}
   ${j.status==='awaiting-plan'&&j.approval?'<ol>'+j.approval.beats.map(b=>'<li>'+esc(s.p.assets.find(a=>a.id===b.assetId)?.name||b.assetId||'')+' · '+esc(String(b.sourceStart??0))+' 至 '+esc(String(b.sourceEnd??'由实际片长决定'))+' 秒 · '+esc(b.narration||'')+'</li>').join('')+'</ol><details><summary>查看完整分镜、源区间和动效</summary><pre>'+esc(JSON.stringify(j.approval.beats,null,2))+'</pre></details>'+btn('approve-plan','确认这版分镜并继续','primary',j.id)+btn('replan','重新拟定分镜','',j.id):''}
   ${['running','queued'].includes(j.status)?btn('pause','暂停','',j.id):['paused','failed'].includes(j.status)?btn('resume','检查后续作','',j.id):''}`;
+}
+function logPosition(log){
+  const end=log.scrollHeight-log.clientHeight-log.scrollTop<=2;
+  const top=log.getBoundingClientRect().top;
+  const row=end?null:[...log.children].find(li=>li.getBoundingClientRect().bottom>top);
+  return {job:log.dataset.job,end,row,key:row?.eventKey,offset:row?row.getBoundingClientRect().top-top:0,top:log.scrollTop};
+}
+function restoreLogPosition(log,position){
+  if(!position||position.job!==log.dataset.job||position.end){log.scrollTop=log.scrollHeight;return;}
+  const row=position.row?.parentNode===log?position.row:[...log.children].find(li=>li.eventKey===position.key);
+  log.scrollTop=row?log.scrollTop+row.getBoundingClientRect().top-log.getBoundingClientRect().top-position.offset:
+    position.key?0:position.top;
+}
+function updateActivity(job){
+  const host=el('activity');if(!host)return;
+  const shell=activity(job),changedJob=host.dataset.job!==(job?.id||'');
+  let log=host.querySelector('.log'),position;
+  if(changedJob||host.activityShell!==shell){
+    position=!changedJob&&log?logPosition(log):editorView?.progress;
+    if(editorView)delete editorView.progress;
+    const previous=!changedJob&&log;
+    host.innerHTML=shell;host.activityShell=shell;host.dataset.job=job?.id||'';
+    log=host.querySelector('.log');if(!log)return;
+    if(previous){log.replaceWith(previous);log=previous;}
+    log.dataset.job=job.id;
+  }
+  if(!log)return;
+  const events=job.events||[],old=log.events||[];
+  let shared=0;
+  while(shared<old.length&&shared<events.length&&old[shared].at===events[shared].at&&old[shared].message===events[shared].message)shared++;
+  if(shared===old.length&&shared===events.length&&!position)return;
+  position??=logPosition(log);
+  while(log.children.length>shared)log.lastElementChild.remove();
+  const added=document.createDocumentFragment();
+  for(const event of events.slice(shared)){
+    const row=document.createElement('li');row.textContent=event.message;
+    row.eventKey=JSON.stringify([event.at,event.message]);added.append(row);
+  }
+  log.append(added);log.events=events;restoreLogPosition(log,position);
 }
 function inspector(c){
   if(!c)return '<p class="help">选择片段可修剪、锁定或调整声音。拖动时间线上的片段可移动起点。</p>';
@@ -880,7 +969,7 @@ function updateEditingProject(project){
   if(!activeJob(s.jobs)&&Boolean(previous.timeline.clips.length)!==Boolean(project.timeline.clips.length))
     el('director-actions').innerHTML=directorActions(null,project.timeline.clips);
   el('current-title').textContent=project.title;
-  timeline.destroy();mountTimeline(project);
+  setMonitorProfile(project.profile);timeline.destroy();mountTimeline(project);
   const screen=el('player').closest('.screen');
   if(project.timeline.clips.length)screen.querySelector('.empty')?.remove();
   else if(!screen.querySelector('.empty'))screen.insertAdjacentHTML('beforeend','<div class="empty"><p>时间线为空</p>'+btn('tab','添加素材','','assets')+'</div>');
@@ -919,14 +1008,14 @@ async function refreshJobs(){
         if(project.revision>s.p.revision)updateEditingProject(project);
         else{s.p=project;transport.setProject(project,next);}
         drawProjectActions();el('director-actions').innerHTML=directorActions(activeJob(next),project.timeline.clips);
-        el('activity').innerHTML=activity(activeJob(next)||next[0]);sync();
+        updateActivity(activeJob(next)||next[0]);sync();
       }else{s.p=project;draw();}
     }
     await refreshList();
   }else{
     s.jobs=next;
     if(activeChanged){drawProjectActions();if(el('director-actions'))el('director-actions').innerHTML=directorActions(activeJob(next),s.p.timeline.clips);}
-    if(el('activity')&&next.length)el('activity').innerHTML=activity(activeJob(next)||next[0]);sync();
+    updateActivity(activeJob(next)||next[0]);sync();
   }
  }catch{}finally{s.polling=false;}
 }

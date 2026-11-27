@@ -40,10 +40,15 @@ final class Probe: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
                 }
             }
         } else if m["click"] != nil {
-            let p=NSPoint(x:50,y:window.contentView!.bounds.height-35)
+            let xy=m["click"] as? [Double] ?? [50,35]
+            guard xy.count==2 else{return}
+            let p=page.convert(NSPoint(x:xy[0],y:xy[1]),to:nil)
             let now=ProcessInfo.processInfo.systemUptime
             for type:NSEvent.EventType in [.leftMouseDown,.leftMouseUp] {
-                if let e=NSEvent.mouseEvent(with:type,location:p,modifierFlags:[],timestamp:now,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1){window.sendEvent(e)}
+                if let e=NSEvent.mouseEvent(with:type,location:p,modifierFlags:[],timestamp:now,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1){
+                    // Deliver to this WebView even when another application owns the key window.
+                    if type == .leftMouseDown {page.mouseDown(with:e)} else {page.mouseUp(with:e)}
+                }
             }
         } else {
             if let data=try? JSONSerialization.data(withJSONObject:m),let line=String(data:data,encoding:.utf8){print(line)}
