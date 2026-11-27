@@ -22,6 +22,7 @@
 |---|---|---|
 | [T-001-bootstrap · 把本分支交给另一位开发者](tasks/T-001-bootstrap.md) | 本分支维护者 | 独立技术复核通过。已从 GitHub 全新克隆、创建任务分支并校验快测与两套风格媒体。[接手实测](evidence/bootstrap.md) |
 | [T-002-first-edit · 新用户从空工程到一次局部改稿](tasks/T-002-first-edit.md) | 项目发起人负责体验验收 | 已登记，待领取执行。使用隔离工程和已获授权的素材，由创作者审看首版与改稿。 |
+| [T-004-live-edit-review · 剪辑提交、文字比例和审片开关](tasks/T-004-live-edit-review.md) | Mac 工作台维护者 | 实现位于任务分支，已在本机质量验证版安装。共享开发分支的合入须经人工审阅。 |
 
 从[任务索引](tasks/README.md)进入同一份记录。既有的 Mac 与插件研发证据继续维护在[历史任务目录](../../docs/tasks/README.md)。新开并行任务时登记结果、分支和涉及模块，仅凭本机保留的旧 worktree 无法推断谁在工作。
 

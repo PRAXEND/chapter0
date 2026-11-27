@@ -1,5 +1,5 @@
 import path from 'node:path';
-import {motionCatalog,motionCues,defaultMotionGeometry} from './motion-components.mjs';
+import {motionCatalog,motionCues,motionGeometry} from './motion-components.mjs';
 import {graphicKeys,splitGraphicKeys} from './graphic-keys.mjs';
 import {reviewStage} from './review-stage.mjs';
 import {decodePixels} from './visual-review.mjs';
@@ -11,7 +11,7 @@ function samplesForClip(c,profile){
   let bounds,offsets;
   if(c.motion){
     const spec=motionCatalog.find(item=>item.id===c.motion.componentId);
-    const g=c.geometry??defaultMotionGeometry(spec,profile);
+    const g=motionGeometry(spec,profile,c);
     bounds={x:g.x-g.width/2,y:g.y-g.height/2,width:g.width,height:g.height};
     const cues=c.motion.cueFrames??motionCues(spec,c.duration,fps,c.motion.props);
     offsets=(cues.length?cues:[0]).map(f=>f+Math.max(1,Math.round(fps*.2)));

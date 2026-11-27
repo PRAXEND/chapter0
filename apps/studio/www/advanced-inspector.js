@@ -229,5 +229,5 @@ export function mountClipInspector({element,project,clip,frame=0,commit,seek,get
   body.addEventListener('click',click);body.addEventListener('change',change);body.addEventListener('pointerdown',pointer);
   body.addEventListener('pointermove',move);body.addEventListener('pointerup',end);body.addEventListener('pointercancel',end);
   if(host.open)draw();
-  return {setFrame,dispose(){removed=true;clearTimeout(timer);if(!pending)remember();host.remove();}};
+  return {setFrame,get dragging(){return Boolean(drag);},dispose(){removed=true;clearTimeout(timer);if(!pending)remember();host.remove();}};
 }

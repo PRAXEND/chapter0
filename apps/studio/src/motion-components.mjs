@@ -1,5 +1,5 @@
-import {motionCues,defaultMotionGeometry} from '../www/motion-clock.js';
-export {motionCues,defaultMotionGeometry};
+import {motionCues,defaultMotionGeometry,motionGeometry,hasMotionText,contentStage} from '../www/motion-clock.js';
+export {motionCues,defaultMotionGeometry,motionGeometry};
 import {motionSoundEvents,soundResources,supportsSound} from './style-sounds.mjs';
 import {motionSources} from './motion-source-files.mjs';
 import {readFileSync} from 'node:fs';
@@ -38,13 +38,33 @@ const byId = new Map(motionCatalog.map(c => [c.id,c]));
 const object = value => value && typeof value==='object' && !Array.isArray(value);
 const fail = message => {throw Object.assign(new Error(message),{status:422});};
 
-export function componentClip({id,componentId,start,duration,props={},cueFrames,geometry,soundDesign},profile) {
+export function componentClip({id,componentId,start,duration,props={},cueFrames,geometry,lockAspect,soundDesign},profile,axis='width') {
   const component=byId.get(componentId);
   if(!component) fail('该组件尚未注册。');
   const clip={id,track:'graphic',text:'',start,duration,sourceIn:0,speed:1,gain:1,
-    ...(soundDesign?{soundDesign}:{}),geometry:geometry??defaultMotionGeometry(component,profile),motion:{version:component.version,componentId,props,...(cueFrames?{cueFrames}:{})}};
+    ...(soundDesign?{soundDesign}:{}),geometry:geometry??defaultMotionGeometry(component,profile),motion:{version:component.version,componentId,props,...(lockAspect!==undefined?{lockAspect}:{}),...(cueFrames?{cueFrames}:{})}};
   validateMotionClip(clip,profile);
+  return sizeMotionClip(clip,profile,axis);
+}
+
+export function sizeMotionClip(clip,stage,axis='width'){
+  const spec=byId.get(clip.motion.componentId);
+  if(hasMotionText(spec)){
+    clip.motion={...clip.motion,lockAspect:clip.motion.lockAspect!==false};
+    clip.geometry=motionGeometry(spec,stage,clip,axis);
+  }
   return clip;
+}
+
+// A frozen export made before aspect locking can only serve live playback if its pixels still match.
+export function hasResizedText(project){
+  const stage=contentStage(project.profile,project.style);
+  return project.timeline.clips.some(clip=>{
+    const spec=byId.get(clip.motion?.componentId);
+    if(!spec||!clip.geometry||clip.hidden||clip.enabled===false)return false;
+    const g=motionGeometry(spec,stage,clip);
+    return ['width','height'].some(k=>Math.round(g[k]*stage[k])!==Math.round(clip.geometry[k]*stage[k]));
+  });
 }
 
 export function validateMotionClip(clip, profile) {
@@ -53,7 +73,8 @@ export function validateMotionClip(clip, profile) {
   if (!component || (m.version??1)!==component.version) fail('无法渲染这个动效组件或版本。');
   if (clip.track!=='graphic' || clip.shape || clip.text || (clip.speed??1)!==1 || (clip.sourceIn??0)!==0 || clip.keyframes?.length)
     fail('组件须放在独立动效层；请使用组件参数、位置和出场帧调整画面。');
-  if (!object(m) || Object.keys(m).some(k=>!['componentId','version','props','cueFrames'].includes(k))) fail('组件含未支持的字段。');
+  if (!object(m) || Object.keys(m).some(k=>!['componentId','version','props','cueFrames','lockAspect'].includes(k))) fail('组件含未支持的字段。');
+  if (m.lockAspect!==undefined && typeof m.lockAspect!=='boolean') fail('宽高比锁定状态无效。');
   if (!object(m.props??{})) fail('组件参数必须按名称提供。');
   for (const [key,value] of Object.entries(m.props??{})) {
     const field = component.fields.find(f=>f.key===key);

@@ -1,5 +1,5 @@
 import {actionGate,activeJob,formDrafts,syncControls} from './control-state.js';
-import {motionCues,defaultMotionGeometry,contentStage} from './motion-clock.js';
+import {motionCues,defaultMotionGeometry,motionGeometry,hasMotionText,contentStage} from './motion-clock.js';
 import {mountClipInspector} from './advanced-inspector.js';
 import {sourceAt,storyboardSourceRange} from './clip-automation.js';
 import {timelineView} from './timeline.js';
@@ -70,12 +70,12 @@ async function refreshList(){const token=++lastList,rows=await api('/api/project
 async function choose(id,tab='edit'){
   drafts.capture();if(!s.p)captureNew();
   const request=++openingProject;viewEpoch++;
-  if(s.p&&s.p.id!==id)releaseEditor();
+  if(s.p?.id!==id){stopRevisions();releaseEditor();}
   const [project,jobs]=await Promise.all([api('/api/projects/'+urlPart(id)),api('/api/projects/'+urlPart(id)+'/jobs')]);
   if(request!==openingProject)return;
   if(s.p?.id!==project.id||currentResult(project))s.p=project;
   s.jobs=jobs;s.tab=tab;s.clip=s.p.selection?.clipId||null;s.style=null;
-  await refreshList();if(request===openingProject)draw();
+  await refreshList();if(request===openingProject){draw();watchRevisions(id);}
 }
 async function reload(){if(s.p)await choose(s.p.id,s.tab);}
 const frameRate=()=>s.p.profile.fps;
@@ -84,7 +84,7 @@ function captureNew(){
   const fields={title:'new-title',brief:'brief',script:'script',style:'new-style',ratio:'ratio',targetDuration:'new-duration',captionDisplay:'new-captions',minimum:'new-min',maximum:'new-max',sourceScope:'new-source-scope',sourceUrls:'new-urls',factUrls:'new-facts',voice:'new-voice'};
   const switches={confirmSequence:'new-confirm-sequence',finalReview:'new-final-review',autoReview:'new-auto-review',shareFrames:'new-share-frames',shareTranscript:'new-share-text'};
   for(const [key,id] of Object.entries(fields))if(el(id))s.form[key]=el(id).value;
-  for(const [key,id] of Object.entries(switches))if(el(id))s.form[key]=el(id).checked;
+  for(const [key,id] of Object.entries(switches))if(el(id)&&!el(id).disabled)s.form[key]=el(id).checked;
   if(el('new-style'))styleByMode[s.mode]=el('new-style').value;
 }
 function leaveNewMode(mode){
@@ -95,7 +95,7 @@ function pageHeading(title,description,topic){
   return '<div class="page-heading"><div><h1>'+title+'</h1><p>'+description+'</p></div><button type="button" class="guide-link" data-guide="'+topic+'">操作说明</button></div>';
 }
 function newPage(fresh=true){
-  if(fresh){drafts.capture();captureNew();openingProject++;viewEpoch++;releaseEditor();editorProject=null;s.p=null;s.jobs=[];s.tab='new';}
+  if(fresh){drafts.capture();captureNew();openingProject++;viewEpoch++;stopRevisions();releaseEditor();editorProject=null;s.p=null;s.jobs=[];s.tab='new';}
   renderNav();el('current-title').textContent='新建工程';el('top-actions').innerHTML=btn('import-folder','打开工程文件夹');
   const f=s.form;
   el('content').innerHTML=`<section class="page new-page">${pageHeading('新建工程','选一种起点，再告诉 Codex 这条片要讲什么。','new')}
@@ -108,15 +108,27 @@ function newPage(fresh=true){
   <details class="fold"><summary>片长范围、旁白与字幕</summary><div class="form-grid">${field('最短片长（秒）',input('new-min',f.minimum||'','number','min=".01" step="any"'))}${field('最大片长（秒）',input('new-max',f.maximum||'','number','min=".01" step="any"'))}</div>
   ${s.voices.length?field('本期音色',select('new-voice',[['','跟随所选风格'],...s.voices.map(v=>[v.id,v.name])],f.voice||'')):''}
   ${field('字幕',select('new-captions',[['burned-in','画面字幕和 SRT'],['sidecar','只导出 SRT']],f.captionDisplay||'burned-in'))}</details><div class="outline">${field(s.mode==='interview'?'原片':'本地素材',fileInput('new-files'))}<small id="selected-files">${s.newFiles.length?esc(s.newFiles.map(f=>f.name).join('、')):'支持视频、音频和图片，可在工程中继续添加。'}</small></div>
-  <details class="fold"><summary>制作确认与画面分享</summary>${check('new-confirm-sequence','制作前由我确认正式分镜与台词',f.confirmSequence===true)}<fieldset><legend>给 Codex 的创作资料</legend>${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}${check('new-share-frames','分享选取的素材、风格、草稿与成片帧（含画面上的字幕）',f.shareFrames===true)}${check('new-auto-review','分享画面时自动回看首版，保留两版',f.autoReview!==false)}${check('new-final-review','允许独立终审使用 1 个 Codex 回合',f.finalReview!==false)}<p id="review-mode" class="help"></p></fieldset></details>
+  <details class="fold"><summary>分镜确认与转录文字</summary>${check('new-confirm-sequence','制作前由我确认正式分镜与台词',f.confirmSequence===true)}${check('new-share-text','分享语音转录文字',f.shareTranscript!==false)}</details>
+  <fieldset class="review-options"><legend>画面分享与审片</legend>${check('new-share-frames','与 Codex 分享选取的素材、风格和成片帧（含画面字幕）',f.shareFrames===true)}${check('new-auto-review','导演自动回看首版，保留首版与回看版',f.autoReview!==false)}${check('new-final-review','让独立审片人终审最终候选',f.finalReview!==false)}<p id="review-mode" role="status" aria-live="polite"></p></fieldset>
   <div class="actions">${btn('create','仅创建工程')}${btn('create-run','创建并开始制作','primary')}</div></div>
   </fieldset><input type="file" id="folder-picker" webkitdirectory multiple hidden></section>`;reviewMode();mounted();
 }
+function reviewSettings({shareFrames,autoReview,finalReview}){
+  const review=shareFrames===true&&autoReview===true;
+  return {shareFrames:shareFrames===true,autoReview:review,finalReviewMaxTurns:review&&finalReview?1:0};
+}
 function reviewMode(){
   const node=el('review-mode');if(!node)return;
-  node.textContent=!el('new-share-frames').checked?'本次只使用本地检测。开启分享画面后，可让 Codex 看素材与成片。':!el('new-auto-review').checked?'本次由主导演制作，可手动查看成片。':el('new-final-review').checked?'主导演可看图和修改首版。最终候选另交独立终审，最多 1 个 Codex 回合。':'主导演可看图和修改首版。独立终审已关闭。';
+  const plan=reviewSettings({shareFrames:el('new-share-frames').checked,autoReview:s.form.autoReview!==false,finalReview:s.form.finalReview!==false});
+  el('new-auto-review').checked=plan.autoReview;
+  el('new-final-review').checked=Boolean(plan.finalReviewMaxTurns);
+  node.textContent=plan.finalReviewMaxTurns?'本片已开启独立终审。Codex 自动制作完成并生成可播放的回看版后，终审最多使用 1 个额外回合。':
+    '本片未开启独立终审（0 个额外回合）。'+(!plan.shareFrames?'画面留在本机，成片执行本地检测。':!plan.autoReview?'已分享画面，导演自动回看已关闭。':'导演会自动回看首版。');
 }
-document.addEventListener('change', e=>{if(['new-share-frames','new-auto-review','new-final-review'].includes(e.target.id))reviewMode();});
+document.addEventListener('change', e=>{
+  const key={'new-share-frames':'shareFrames','new-auto-review':'autoReview','new-final-review':'finalReview'}[e.target.id];
+  if(key){s.form[key]=e.target.checked;reviewMode();sync();}
+});
 function styleOptions(){return s.styles.map(item=>[item.id+'@'+item.version,item.name+' · v'+item.version+(item.available===false?'（资源待恢复）':''),item.available===false]);}
 function styleSelector(value){
   const item=s.styles.find(st=>st.id+'@'+st.version===value);
@@ -159,7 +171,7 @@ async function uploadFiles(projectId,files){
 async function create(run){
   captureNew();const f=structuredClone(s.form),mode=s.mode,files=[...s.newFiles],epoch=viewEpoch;const ratio=f.ratio==='9:16'?[1080,1920]:f.ratio==='1:1'?[1080,1080]:[1920,1080];
   if(!f.title?.trim()&&!f.brief?.trim()&&!f.script?.trim()&&!s.newFiles.length)throw Error('请填写选题、脚本或选择原片。');
-  const p=await postIntent('/api/projects',{mode,title:f.title||f.brief?.slice(0,36)||s.newFiles[0]?.name||'新工程',brief:f.brief,script:mode==='script'?f.script:'',style:styleSelector(f.style),profile:{width:ratio[0],height:ratio[1],fps:30},settings:{captionDisplay:f.captionDisplay,confirmSequence:f.confirmSequence,autoReview:!!f.shareFrames&&f.autoReview,finalReviewMaxTurns:f.shareFrames&&f.autoReview&&f.finalReview?1:0,...(f.minimum&&{durationMinSeconds:Number(f.minimum)}),...(f.maximum&&{durationMaxSeconds:Number(f.maximum)}),sourceScope:f.sourceScope||'search',targetDuration:f.targetDuration?Number(f.targetDuration):null,shareFrames:f.shareFrames===true,shareTranscript:f.shareTranscript!==false,factUrls:(mode==='topic'&&f.sourceScope!=='project'?f.factUrls||'':'').split('\n').map(v=>v.trim()).filter(Boolean),sourceUrls:(mode==='topic'&&f.sourceScope!=='project'?f.sourceUrls||'':'').split('\n').map(v=>v.trim()).filter(Boolean)}});
+  const p=await postIntent('/api/projects',{mode,title:f.title||f.brief?.slice(0,36)||s.newFiles[0]?.name||'新工程',brief:f.brief,script:mode==='script'?f.script:'',style:styleSelector(f.style),profile:{width:ratio[0],height:ratio[1],fps:30},settings:{captionDisplay:f.captionDisplay,confirmSequence:f.confirmSequence,...reviewSettings(f),...(f.minimum&&{durationMinSeconds:Number(f.minimum)}),...(f.maximum&&{durationMaxSeconds:Number(f.maximum)}),sourceScope:f.sourceScope||'search',targetDuration:f.targetDuration?Number(f.targetDuration):null,shareTranscript:f.shareTranscript!==false,factUrls:(mode==='topic'&&f.sourceScope!=='project'?f.factUrls||'':'').split('\n').map(v=>v.trim()).filter(Boolean),sourceUrls:(mode==='topic'&&f.sourceScope!=='project'?f.sourceUrls||'':'').split('\n').map(v=>v.trim()).filter(Boolean)}});
   const entry={files,voice:f.voice||null,run,message:f.brief||''};pendingCreation.set(p.id,entry);
   let failed=false;
   try{await finishCreation(p.id,entry);}
@@ -170,10 +182,13 @@ async function create(run){
   }
 }
 
+function drawProjectActions(){
+  el('top-actions').innerHTML=(activeJob(s.jobs)?btn('draft','预览当前片段'):btn('preview','生成预览'))+btn('render','导出成片','accent');
+}
 function draw(){
   drafts.capture();releaseEditor();
   if(!s.p)return newPage(false);
-  const p=s.p;el('current-title').textContent=p.title;const making=s.jobs.some(j=>['queued','running','pausing'].includes(j.status));el('top-actions').innerHTML=(making?btn('draft','预览当前片段'):btn('preview','生成预览'))+btn('render','导出成片','accent');
+  const p=s.p;el('current-title').textContent=p.title;drawProjectActions();
   const tabs={edit:'剪辑台',assets:'素材与原句',style:'风格库',deliver:'交付',settings:'工程设置'};
   el('content').innerHTML=`<nav class="tabs" aria-label="工程分区">${Object.entries(tabs).map(([k,v])=>btn('tab',v,s.tab===k?'selected':'',k)).join('')}</nav><div id="view"></div>`;
   if(s.tab==='edit')drawEdit();else if(s.tab==='assets')drawAssets();else if(s.tab==='style')loadStyle().catch(e=>notice(e.message));else if(s.tab==='deliver')drawDeliver();else drawSettings();
@@ -204,7 +219,7 @@ function componentFields(c){
     if(f.type==='boolean')return check(key,f.label,value);
     return field(f.label,input(key,value,f.type==='number'?'number':'text'));
   }).join('');
-  const g=c.geometry??defaultMotionGeometry(spec,contentStage(s.p.profile,s.p.style));
+  const g=motionGeometry(spec,contentStage(s.p.profile,s.p.style),c);
   const sameStyle=spec.styleId===s.p.style?.id&&spec.styleVersion===s.p.style?.version;
   const design=c.soundDesign||{};
   const sound=sameStyle?'<details><summary>动作音效</summary>'+check('motion-sound-on','在动作落点加入音效',design.enabled??Boolean(spec.soundEvents?.length))+field('声音素材',select('motion-sound-id',[['','按风格事件'],...(spec.soundResources||[]).map(r=>[r.id,r.name])],design.resourceId||''))+
@@ -212,7 +227,7 @@ function componentFields(c){
   return sound+'<div class="form-grid">'+props+'</div>'+ (cues.length?'<fieldset><legend>出场时刻（片段内）</legend>'+cues.map((at,i)=>field((spec.id==='source-label'?'切换 ':'第 '+(i+1)+' 步 ')+(spec.id==='source-label'?(i+1):'')+' <output id="cue-read-'+i+'">'+at+' 帧</output>',
     input('cue-'+i,at,'range','data-cue="'+i+'" min="0" max="'+(c.duration-1)+'" step="1" '+(i===0?'disabled':'')))).join('')+
     (spec.id==='source-label'?btn('add-cue','增加切换')+(cues.length>1?btn('drop-cue','移除末次切换'):''):'')+'</fieldset>':'')+
-    '<details><summary>动效位置和尺寸</summary>'+rectFields('motion-rect',g,true)+'</details>';
+    '<details><summary>动效位置和尺寸</summary>'+(hasMotionText(spec)?check('motion-lock-aspect','锁定原稿宽高比（'+spec.width+' × '+spec.height+'）',c.motion.lockAspect!==false):'')+rectFields('motion-rect',g,true)+'</details>';
 }
 function shakeRow(effect,index){
   const fields=[['offsetFrames','动作落点（帧）',0],['duration','时长（帧）',7],['strength','强度',.35],['speed','频率（Hz）',6],
@@ -252,8 +267,26 @@ function mountAdvanced(p,clip){
   advanced?.dispose();advanced=null;
   if(!clip)return;
   advanced=mountClipInspector({element:el('clip-automation'),project:p,clip,frame:playhead(),
-    commit:commands=>{if(s.p?.id!==p.id||s.clip!==clip.id)throw Error('选区已改变，请重新选择要编辑的片段。');return edit(commands,p.revision);},
+    commit:commands=>{if(s.p?.id!==p.id||s.clip!==clip.id)throw Error('选区已改变，请重新选择要编辑的片段。');return edit(commands,JSON.stringify(s.p.timeline.clips.find(c=>c.id===clip.id))===JSON.stringify(clip)?s.p.revision:p.revision);},
     seek:frame=>transport?.seek(frame),getFrameSurface:f=>transport?.currentImage(f)});
+}
+function insertTools(p){
+  const clips=p.timeline.clips,fps=p.profile.fps;
+  return `<details><summary>插入素材、字幕与动效</summary><div class="actions">
+  ${select('insert-asset',p.assets.map(a=>[a.id,a.name]),undefined,'选择要插入的素材')}${btn('insert-asset','在播放头插入素材')}
+  ${btn('insert-caption','插入字幕')}${select('new-component',[...s.components].sort((a,b)=>Number(b.styleId===p.style?.id)-Number(a.styleId===p.style?.id)).map(c=>[c.id,(c.styleId==='henry-hot-news'?'热点 · ':'科普 · ')+c.name]),undefined,'选择动效组件')}${btn('add-component','插入动效')}
+  </div></details>${clips.length?field('选中片段',select('clip-picker',[['','选择时间线片段'],...clips.map(c=>[c.id,tracks[c.track]+' · '+clock(c.start/fps)+' · '+clipTitle(c)])],s.clip)):''}`;
+}
+function mountTimeline(p){
+  const onError=e=>{notice(e?.message||String(e));if(e?.status===409&&s.p?.id===p.id)reload().catch(e=>notice(e.message));};
+  const seek=(frame,scrub=false)=>{timeline?.frame(frame);return Promise.resolve(transport?.seek(frame,{scrub})).catch(onError);};
+  timeline=timelineView({root:document.querySelector('section.timeline'),p,view:editorView,title:clipTitle,
+    seek,select:(id,focus)=>pickClip(id,focus).catch(onError),commit:edit,action:timelineAction,player:()=>transport,
+    report:onError,history:()=>proj('/history')});
+}
+function directorActions(active,clips){
+  return `<div class="actions">${btn('direct',active?'告诉 Codex 新的方向':clips.length?'用 Codex 改稿':'用 Codex 剪辑','primary')}</div>
+  ${active?'':'<details><summary>本地粗剪</summary><p class="help">按素材与脚本生成草稿。需要按风格选镜、设计强调或检查画面时，请用 Codex 剪辑。</p>'+btn('local','生成本地草稿')+'</details>'}`;
 }
 function drawEdit(){
   const p=s.p,clips=p.timeline.clips,fps=p.profile.fps;
@@ -266,26 +299,18 @@ function drawEdit(){
   <div class="monitor-foot"><span id="monitor-status" role="status"></span><span class="mono">${p.profile.width} × ${p.profile.height} · ${fps} fps</span></div></div>
   <aside class="card director"><div class="hrow space"><h2>剪辑对话</h2></div>
   <div class="compose">${field('本次要求',area('instruction','',4,'例如，把选中镜头换成操作特写，旁白保留。'))}</div>
-  <div class="actions">${btn('direct',active?'告诉 Codex 新的方向':clips.length?'用 Codex 改稿':'用 Codex 剪辑','primary')}</div>
-  ${active?'':'<details><summary>本地粗剪</summary><p class="help">按素材与脚本生成草稿。需要按风格选镜、设计强调或检查画面时，请用 Codex 剪辑。</p>'+btn('local','生成本地草稿')+'</details>'}
+  <div id="director-actions">${directorActions(active,clips)}</div>
   <div id="activity">${activity(active||s.jobs[0])}</div></aside>
   <section class="timeline" aria-label="工程时间线"></section>
-  <div class="insert-tools"><details><summary>插入素材、字幕与动效</summary><div class="actions">
-  ${select('insert-asset',p.assets.map(a=>[a.id,a.name]),undefined,'选择要插入的素材')}${btn('insert-asset','在播放头插入素材')}
-  ${btn('insert-caption','插入字幕')}${select('new-component',[...s.components].sort((a,b)=>Number(b.styleId===p.style?.id)-Number(a.styleId===p.style?.id)).map(c=>[c.id,(c.styleId==='henry-hot-news'?'热点 · ':'科普 · ')+c.name]),undefined,'选择动效组件')}${btn('add-component','插入动效')}
-  </div></details>${clips.length?field('选中片段',select('clip-picker',[['','选择时间线片段'],...clips.map(c=>[c.id,tracks[c.track]+' · '+clock(c.start/fps)+' · '+clipTitle(c)])],s.clip)):''}</div>
+  <div class="insert-tools">${insertTools(p)}</div>
   <div id="inspect">${inspector(chosen)}</div></div>`;
-  const onError=e=>{notice(e?.message||String(e));if(e?.status===409&&s.p?.id===p.id)reload().catch(e=>notice(e.message));};
-  const seek=(frame,scrub=false)=>{timeline?.frame(frame);return Promise.resolve(transport?.seek(frame,{scrub})).catch(onError);};
-  timeline=timelineView({root:document.querySelector('section.timeline'),p,view:editorView,title:clipTitle,
-    seek,select:(id,focus)=>pickClip(id,focus).catch(onError),commit:edit,action:timelineAction,player:()=>transport,
-    report:onError,history:()=>proj('/history')});
+  mountTimeline(p);
   transport=createTimelinePlayer({project:p,jobs:s.jobs,video:el('player'),frame:editorView.frame,
     onFrame:f=>{timeline?.frame(f,true);advanced?.setFrame(f);const button=el('inspect')?.querySelector('[data-act="split-clip"]');if(button&&s.clip){const c=s.p?.timeline.clips.find(c=>c.id===s.clip);if(c){const disabled=c.locked||f<=c.start||f>=c.start+c.duration;if((button.getAttribute('aria-disabled')==='true')!==disabled)sync(button);}}},onState:state=>{
       timeline?.setPlaying(state.playing);
       if(state.displayedFrame!=null)advanced?.setFrame(state.displayedFrame);
       const node=el('monitor-status');
-      if(node)node.textContent=state.error?.message||state.error||(state.status==='loading'?'正在准备当前帧…':state.status==='buffering'?'正在准备下一段…':clips.length?'工程预览 · v'+p.revision:'工程预览');
+      if(node)node.textContent=state.error?.message||state.error||(state.status==='loading'?'正在准备当前帧…':state.status==='buffering'?'正在准备下一段…':s.p.timeline.clips.length?'工程预览 · v'+s.p.revision:'工程预览');
     }});
   mountAdvanced(p,chosen);
 }
@@ -347,6 +372,15 @@ async function pickClip(id,seek=true){
 }
 document.addEventListener('input',e=>{
   if(e.target.closest('#guide-dialog'))return;
+  if(['motion-rect-width','motion-rect-height','motion-lock-aspect'].includes(e.target.id)&&el('motion-lock-aspect')?.checked){
+    const spec=componentById(s.p.timeline.clips.find(c=>c.id===s.clip)?.motion?.componentId);
+    const axis=e.target.id==='motion-rect-height'?'height':'width',other=axis==='width'?'height':'width';
+    const geometry=readRect('motion-rect');
+    if(spec&&geometry[axis]>0&&geometry[axis]<=2){
+      const box=motionGeometry(spec,contentStage(s.p.profile,s.p.style),{geometry},axis);
+      el('motion-rect-'+other).value=box[other];
+    }
+  }
   if(e.target.dataset.cue!==undefined){
     s.cueFocus={id:s.clip,index:e.target.dataset.cue};
     el('cue-read-'+e.target.dataset.cue).value=e.target.value+' 帧';
@@ -543,7 +577,7 @@ async function runAction(act,id){
  case 'keep-draft':drafts.resolve(el('view'),true);return sync();
  case 'use-current':drafts.resolve(el('view'),false);return draw();
  case 'import-folder':return el('folder-picker').click();
- case 'tab':drafts.capture();viewEpoch++;s.tab=id;return draw();
+ case 'tab':drafts.capture();viewEpoch++;s.tab=id;draw();return flushRevision();
  case 'direct':return startJob(p.timeline.clips.length?'revise':'produce','codex');
  case 'local':return startJob(p.timeline.clips.length&&val('instruction').trim()?'revise':'produce','local');
  case 'draft':{
@@ -621,8 +655,9 @@ async function runAction(act,id){
       props[f.key]=f.type==='number'?Number(node.value):f.type==='boolean'?node.checked:node.value;
     }
     const cuesChanged=drafts.changed(el('cue-0')?.closest('fieldset'));
-    if(fields.length||cuesChanged){
-      changes.motion={...c.motion,...(fields.length&&{props})};
+    const lockChanged=changed('motion-lock-aspect');
+    if(fields.length||cuesChanged||lockChanged){
+      changes.motion={...c.motion,...(lockChanged&&{lockAspect:el('motion-lock-aspect').checked}),...(fields.length&&{props})};
       if(cuesChanged)changes.motion.cueFrames=Array.from(document.querySelectorAll('[data-cue]'),n=>Number(n.value));
     }
     if(rectKeys.some(key=>changed('motion-rect-'+key)))changes.geometry={...c.geometry,...readRect('motion-rect')};
@@ -728,7 +763,7 @@ async function runAction(act,id){
    await proj('/scene',{baseRevision:p.revision,template:val('scene-template'),clipId:c?.id,soundEnabled:el('scene-sound').checked,soundAssetId:val('scene-sound-asset')||undefined,start,duration,actionFrame:start+Math.round(Number(val('scene-action'))*frameRate()),text:val('scene-text'),sourceAssetId:c?.assetId});notice('已生成可编辑图层');return go(p.id,'edit');}
  case 'settings-save':{
    const accepted=drafts.submitted(formScope('settings'));
-   const changes={title:val('set-title'),brief:val('set-brief'),script:val('set-script'),publication:{title:val('pub-title'),emphasis:val('pub-emphasis'),body:val('pub-body'),tags:val('pub-tags').split(/\s+/).filter(Boolean)},settings:{captionDisplay:val('set-captions'),sourceScope:val('set-scope'),confirmSequence:el('confirm-plan').checked,autoReview:el('share-frames').checked&&el('auto-review').checked,finalReviewMaxTurns:el('share-frames').checked&&el('auto-review').checked&&el('final-review').checked?1:0,durationMinSeconds:val('set-min')?Number(val('set-min')):null,durationMaxSeconds:val('set-max')?Number(val('set-max')):null,voiceSelection:val('voice-selection'),musicSelection:val('music-selection'),targetDuration:val('target-length')?Number(val('target-length')):null,voiceMode:val('voice-mode'),narrationAssetId:val('narration'),voiceReferenceAssetId:val('voice-reference'),voiceReferenceText:val('reference-text'),voiceConsent:el('consent').checked,musicAssetId:val('bgm'),musicMode:val('music-mode'),musicEnabled:val('music-mode')!=='none',requireMusic:val('music-mode')==='asset'||val('music-mode')==='original',publishPackage:el('pack').checked,sceneSound:el('project-scene-sound').checked,shareTranscript:el('share-text').checked,shareFrames:el('share-frames').checked,cloudEnabled:el('cloud').checked,cloudBudget:Number(val('budget'))}};
+   const changes={title:val('set-title'),brief:val('set-brief'),script:val('set-script'),publication:{title:val('pub-title'),emphasis:val('pub-emphasis'),body:val('pub-body'),tags:val('pub-tags').split(/\s+/).filter(Boolean)},settings:{captionDisplay:val('set-captions'),sourceScope:val('set-scope'),confirmSequence:el('confirm-plan').checked,...reviewSettings({shareFrames:el('share-frames').checked,autoReview:el('auto-review').checked,finalReview:el('final-review').checked}),durationMinSeconds:val('set-min')?Number(val('set-min')):null,durationMaxSeconds:val('set-max')?Number(val('set-max')):null,voiceSelection:val('voice-selection'),musicSelection:val('music-selection'),targetDuration:val('target-length')?Number(val('target-length')):null,voiceMode:val('voice-mode'),narrationAssetId:val('narration'),voiceReferenceAssetId:val('voice-reference'),voiceReferenceText:val('reference-text'),voiceConsent:el('consent').checked,musicAssetId:val('bgm'),musicMode:val('music-mode'),musicEnabled:val('music-mode')!=='none',requireMusic:val('music-mode')==='asset'||val('music-mode')==='original',publishPackage:el('pack').checked,sceneSound:el('project-scene-sound').checked,shareTranscript:el('share-text').checked,cloudEnabled:el('cloud').checked,cloudBudget:Number(val('budget'))}};
    const applied=await proj('/configure',{baseRevision:p.revision,changes});accepted();if(storeResult(applied))notice('已保存工程设置');await refreshList();return;}
  case 'enroll-voice':{
     const r=await proj('/voices/enroll',{name:val('voice-label'),assetId:val('voice-reference'),referenceText:val('reference-text'),consent:el('consent').checked});
@@ -792,25 +827,110 @@ document.addEventListener('change',safeAction(async e=>{
 }));
 el('new').onclick=()=>newPage(true);el('legacy').onclick=safeAction(openLegacy);el('environment').onclick=safeAction(environment);el('dismiss').onclick=dismiss;
 el('dialog').addEventListener('close',()=>{dialogEpoch++;el('dialog-body').innerHTML='';});
+let subscription;
+function stopRevisions(){subscription?.stream.close();subscription=null;}
+function watchRevisions(id){
+  if(subscription?.id===id)return;
+  stopRevisions();
+  const stream=new EventSource('/api/projects/'+urlPart(id)+'/revisions');
+  const sub={id,stream,latest:0,reading:false};subscription=sub;
+  stream.onmessage=event=>{
+    const rev=Number(event.data);
+    if(sub===subscription&&Number.isSafeInteger(rev)){
+      sub.latest=Math.max(sub.latest,rev);flushRevision();
+    }
+  };
+}
+function editingGesture(){return timeline?.dragging||advanced?.dragging||timelineRequests.has(s.p?.id);}
+async function flushRevision(){
+  const sub=subscription;
+  if(!sub||sub.id!==s.p?.id||sub.reading||s.tab!=='edit'||editingGesture()||sub.latest<=s.p.revision)return;
+  sub.reading=true;
+  try{
+    while(sub===subscription&&sub.id===s.p?.id&&s.tab==='edit'&&!editingGesture()&&sub.latest>s.p.revision){
+      const project=await projectApi(sub.id);
+      if(sub!==subscription||!currentResult(project)||s.tab!=='edit'||editingGesture())return;
+      if(project.revision===s.p.revision)return;
+      updateEditingProject(project);
+    }
+  }catch{/* The next poll or reconnect retries the newest announced revision. */}
+  finally{sub.reading=false;}
+}
+// Only the revision-bound editor surfaces are replaced. Keep the user's conversation,
+// monitor element and advanced drafts mounted across unrelated director commits.
+function updateEditingProject(project){
+  const previous=s.p,playing=transport?.playing,position=playhead();
+  const selected=p=>p.timeline.clips.find(c=>c.id===s.clip);
+  const before=selected(previous),after=selected(project);
+  const inspect=el('inspect'),tools=document.querySelector('.insert-tools');
+  const inspectChanged=JSON.stringify(before)!==JSON.stringify(after)||JSON.stringify(previous.style)!==JSON.stringify(project.style)||
+    (after?.track==='video'&&previous.assets.length!==project.assets.length)||
+    (after?.track==='caption'&&previous.settings.captionDisplay!==project.settings.captionDisplay);
+  drafts.capture(tools);if(inspectChanged)drafts.capture(inspect);
+  const focused=document.activeElement;
+  let focusSelector;
+  if(focused.id)focusSelector='#'+CSS.escape(focused.id);
+  else if(focused.matches('.tl-time'))focusSelector='.tl-time';
+  else if(focused.dataset.tl)focusSelector='[data-tl="'+CSS.escape(focused.dataset.tl)+'"]';
+  else if(focused.dataset.clip)focusSelector='[data-clip="'+CSS.escape(focused.dataset.clip)+'"]';
+  const timeDraft=focused.matches('.tl-time')?focused.value:null,caret=focused.selectionStart,caretEnd=focused.selectionEnd;
+  const opened=[...inspect.querySelectorAll('details[open]')].map(n=>n.querySelector('summary')?.textContent);
+  const insertOpen=tools.querySelector('details')?.open;
+  s.p=project;if(!after)s.clip=null;editorView.selected=s.clip;
+  if(!activeJob(s.jobs)&&Boolean(previous.timeline.clips.length)!==Boolean(project.timeline.clips.length))
+    el('director-actions').innerHTML=directorActions(null,project.timeline.clips);
+  el('current-title').textContent=project.title;
+  timeline.destroy();mountTimeline(project);
+  const screen=el('player').closest('.screen');
+  if(project.timeline.clips.length)screen.querySelector('.empty')?.remove();
+  else if(!screen.querySelector('.empty'))screen.insertAdjacentHTML('beforeend','<div class="empty"><p>时间线为空</p>'+btn('tab','添加素材','','assets')+'</div>');
+  tools.innerHTML=insertTools(project);tools.querySelector('details').open=insertOpen;mounted(tools);
+  if(inspectChanged){
+    advanced?.dispose();advanced=null;inspect.innerHTML=inspector(after);
+    mountAdvanced(project,after);
+    for(const d of inspect.querySelectorAll('details'))if(opened.includes(d.querySelector('summary')?.textContent))d.open=true;
+    mounted(inspect);
+  }
+  if(focusSelector&&!focused.isConnected){
+    const n=document.querySelector(focusSelector);n?.focus({preventScroll:true});
+    if(n&&timeDraft!==null)n.value=timeDraft;
+    if(n&&caret!=null&&typeof n.setSelectionRange==='function')n.setSelectionRange(caret,caretEnd);
+  }
+  transport.setProject(project,s.jobs,position);
+  if(playing)transport.play();
+  sync();
+}
+document.addEventListener('pointerup',()=>queueMicrotask(flushRevision));
+document.addEventListener('pointercancel',()=>queueMicrotask(flushRevision));
 async function refreshJobs(){
- if(s.polling||!s.p||timeline?.dragging)return;s.polling=true;
+ void flushRevision();
+ if(s.polling||!s.p||editingGesture())return;s.polling=true;
  try{
   const id=s.p.id,previous=s.jobs,next=await proj('/jobs');
   if(s.p?.id!==id||timeline?.dragging)return;
+  const activeChanged=activeJob(previous)?.id!==activeJob(next)?.id;
   const changed=previous.some(a=>['queued','running','pausing'].includes(a.status)&&next.some(b=>a.id===b.id&&['done','paused','failed','awaiting-plan'].includes(b.status)));
   if(changed){
     const project=await proj();
-    if(s.p?.id!==id||timeline?.dragging)return;
+    if(s.p?.id!==id||editingGesture())return;
     s.jobs=next;
-    if(currentResult(project)){s.p=project;draw();}
+    if(currentResult(project)){
+      if(s.tab==='edit'&&transport){
+        if(project.revision>s.p.revision)updateEditingProject(project);
+        else{s.p=project;transport.setProject(project,next);}
+        drawProjectActions();el('director-actions').innerHTML=directorActions(activeJob(next),project.timeline.clips);
+        el('activity').innerHTML=activity(activeJob(next)||next[0]);sync();
+      }else{s.p=project;draw();}
+    }
     await refreshList();
   }else{
     s.jobs=next;
+    if(activeChanged){drawProjectActions();if(el('director-actions'))el('director-actions').innerHTML=directorActions(activeJob(next),s.p.timeline.clips);}
     if(el('activity')&&next.length)el('activity').innerHTML=activity(activeJob(next)||next[0]);sync();
   }
  }catch{}finally{s.polling=false;}
 }
 async function init(){const epoch=viewEpoch;[s.styles,s.voices,s.components]=await Promise.all([api('/api/styles'),api('/api/voices'),api('/api/motion-components')]);await refreshList();if(viewEpoch===epoch){if(s.projects.length)await choose(s.projects[0].id);else newPage();}setInterval(refreshJobs,1800);}
-window.addEventListener('pagehide',releaseEditor);
-window.addEventListener('pageshow',e=>{if(e.persisted&&s.p)draw();});
+window.addEventListener('pagehide',()=>{stopRevisions();releaseEditor();});
+window.addEventListener('pageshow',e=>{if(e.persisted&&s.p){draw();watchRevisions(s.p.id);}});
 safeAction(init)();

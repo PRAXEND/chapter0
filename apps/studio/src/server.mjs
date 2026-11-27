@@ -59,7 +59,13 @@ async function nativeOwner(root) {
 }
 export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependencies={},owner=true}={}) {
   const release=owner?await nativeOwner(root):async()=>{};
-  const store=createStore(root,{probeMedia:dependencies.probeMedia||media.probeMedia});
+  const subscribers=new Map();
+  function onRevision(id,revision){
+    for(const stream of subscribers.get(id)||[]){
+      if(!stream.writableEnded&&!stream.destroyed&&!stream.write('data: '+revision+'\n\n'))stream.end();
+    }
+  }
+  const store=createStore(root,{probeMedia:dependencies.probeMedia||media.probeMedia,onRevision});
   const styles=dependencies.styles||createStyleLibrary(root);
   const artwork=trackArtwork();
   const shortlist=sourceSelection(store,dependencies.sourceSelection);
@@ -182,6 +188,13 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
         if(!id&&method==='POST'){const b=await readJson(req);b.style=await pinnedStyle(styles,b.style);return json(res,disclose(store.create(b)),201);}
         if(!id)throw fault('缺少工程编号。');
         const p=store.get(id);
+        if(action==='revisions'&&method==='GET'){
+          const streams=subscribers.get(id)||new Set();
+          subscribers.set(id,streams);streams.add(res);
+          res.on('close',()=>{streams.delete(res);if(!streams.size)subscribers.delete(id);});
+          res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store'});
+          res.write('data: '+p.revision+'\n\n');return;
+        }
         if(!action&&method==='GET')return json(res,disclose(p));
         if(action==='configure'&&method==='POST'){const b=await readJson(req);if('style' in b.changes)b.changes.style=await pinnedStyle(styles,b.changes.style);return json(res,disclose(store.configure(id,b.baseRevision,b.changes)));}
         if(action==='edits'&&method==='POST'){const b=await readJson(req);return json(res,disclose(store.apply(id,b.baseRevision,b.commands,'user')));}
@@ -293,7 +306,7 @@ export async function startStudio({root=defaultRoot(),port=0,legacyRoot,dependen
   server.requestTimeout=0;
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
   authority='127.0.0.1:'+server.address().port;queue.recover();
-  return {url:'http://'+authority+'/open/'+token,store,queue,async close(){if(stopped)return;stopped=true;const done=new Promise(r=>server.close(r));server.closeIdleConnections();const installer=installChild;const settled=installer?once(installer,'close').catch(()=>{}):Promise.resolve();installer?.kill('SIGTERM');await Promise.all([settled,queue.close(),drafts.close()]);await director.close?.();await done;store.close();await release();}};
+  return {url:'http://'+authority+'/open/'+token,store,queue,async close(){if(stopped)return;stopped=true;const done=new Promise(r=>server.close(r));for(const streams of subscribers.values())for(const stream of streams)stream.end();server.closeIdleConnections();const installer=installChild;const settled=installer?once(installer,'close').catch(()=>{}):Promise.resolve();installer?.kill('SIGTERM');await Promise.all([settled,queue.close(),drafts.close()]);await director.close?.();await done;store.close();await release();}};
 }
 async function pinnedStyle(styles,selector){const pin=selectedStyle(selector);await styles.get(pin.id,pin.version);return pin;}
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){

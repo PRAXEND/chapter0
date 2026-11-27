@@ -50,7 +50,7 @@ const componentProperties = object(Object.fromEntries(motionCatalog.flatMap(c =>
   [f.key, f.type==='number' ? num : f.type==='boolean' ? {type:'boolean'} : str]))));
 const componentSelector = {type:'string', enum:motionCatalog.map(c=>c.id)};
 const soundDesign=object({enabled:{type:'boolean'},resourceId:{type:'string',enum:['tiny-pop','synthetic-pop','ui-pop','deep-whoosh','airy-whoosh','vine-boom']},assetId:str,gainDb:num});
-const componentFields = {soundDesign,componentId:componentSelector,props:componentProperties,
+const componentFields = {soundDesign,lockAspect:{type:'boolean',description:'Text defaults to its authored aspect ratio on the content stage. Width sets the scale if both dimensions change. Set false only for intentional stretching.'},componentId:componentSelector,props:componentProperties,
   cueFrames:{type:'array',items:int,description:'Clip-relative project frames, beginning at zero. Three-step components take exactly three increasing frames.'},
   geometry:{...region,description:'Normalized canvas centre x/y and size width/height for the overlay.'}};
 const sceneComponent=object({...componentFields,atSeconds:num,durationSeconds:num,
@@ -1523,7 +1523,8 @@ export function createDirector(deps) {
         const same=old?.motion.componentId===componentId;
         const clip=componentClip({id:old?.id||randomUUID(),componentId,start,duration,
           props:{...(same?old.motion.props:{}),...args.props},cueFrames:args.cueFrames??(same?old.motion.cueFrames:undefined),
-          geometry:args.geometry??(same?old.geometry:undefined)},contentStage(current.profile,current.style));
+          lockAspect:args.lockAspect??(same?old.motion.lockAspect:undefined),geometry:args.geometry??(same?old.geometry:undefined)},contentStage(current.profile,current.style),
+          same&&args.geometry&&old.geometry&&args.geometry.width===old.geometry.width&&args.geometry.height!==old.geometry.height?'height':'width');
         if(args.soundDesign!==undefined)clip.soundDesign=args.soundDesign;
         const command=old?{op:'update',id:old.id,changes:{motion:clip.motion,start,duration,geometry:clip.geometry,...(args.soundDesign!==undefined?{soundDesign:args.soundDesign}:{})}}:{op:'add',clip};
         const applied=await store.apply(id,current.revision,[command],'codex');

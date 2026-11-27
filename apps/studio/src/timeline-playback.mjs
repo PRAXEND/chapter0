@@ -1,6 +1,7 @@
 import path from 'node:path';
 import {realpath,stat} from 'node:fs/promises';
 import {fault} from './project.mjs';
+import {hasResizedText} from './motion-components.mjs';
 import {draftPrefix} from './draft-preview.mjs';
 import {playbackIdentity,pictureIdentity,timelineFrames} from './playback-identity.mjs';
 
@@ -21,6 +22,7 @@ export function timelinePlayback(store,media,drafts){
     const expectedHash=job.qa?.artifactSha256||job.renderedSha256;
     if(!/^[a-f0-9]{64}$/.test(expectedHash||''))return null;
     const snapshot=job.snapshot||store.revision(p.id,job.revision);
+    if(!job.textAspectVersion&&hasResizedText(snapshot))return null;
     if(snapshot.id!==p.id||snapshot.revision!==job.revision||playbackIdentity(snapshot)!==identity)return null;
     const target=await inside(job.files.video,store.paths(p.id).outputs).catch(()=>null);
     if(!target||path.extname(target)!=='.mp4')return null;

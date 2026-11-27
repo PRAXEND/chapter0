@@ -106,3 +106,7 @@ button[aria-busy="true"]{cursor:progress;box-shadow:inset 0 -2px #627eb3}
 
 #new-project-fields{border:0;margin:0;padding:0;min-width:0}
 #creation-progress{color:#354a81;font-weight:600}
+
+.new-page .review-options{margin:1rem 0;padding:.8rem 1rem;border:1px solid var(--edge);border-radius:12px}
+.review-options legend{padding:0 .35rem;font-weight:600}
+.review-options #review-mode{margin:.65rem 0 0;font-weight:600}
