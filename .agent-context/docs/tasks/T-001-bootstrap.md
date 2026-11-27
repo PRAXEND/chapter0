@@ -13,20 +13,56 @@
     "目标来自启动输入，实际链路由 Agent 核实",
     "明确下一步与未完成验收"
   ],
-  "status": "in_progress",
-  "updated": "2026-11-28T00:31:43+08:00",
+  "status": "implemented",
+  "updated": "2026-11-28T00:36:10+08:00",
   "modules": [
     "development-context"
   ],
   "dependencies": [],
   "handoff": {
-    "next": "在独立检出按 RUNBOOK 复核入口和快测，然后将下一项体验验证交给产品负责人。",
-    "blockers": "协作资料可本地验证。共享远端与人员审批另按实际进展登记。",
-    "failed_attempts": "用户指向的技能目录缺少 Python 实现与模板，已核对并使用同版的本机完整安装。"
+    "next": "领取 T-002-first-edit，使用隔离工程验证新用户从首版到局部改稿与交付的体验。共享远端采用此分支时再运行 PR 检查。",
+    "blockers": "本地技术交接已复核。人类代码审阅、远端 CI 执行和产品体验验收分别待相应成员开展。",
+    "failed_attempts": "初始技能副本缺实现，改用相同版本完整安装。本机 npm 损坏，改用 Node 内置 runner。首次无媒体检出快测为 12/13，已修正视觉夹具并独立复测 13/13。"
   },
   "validation": {
-    "claim": "unverified",
-    "records": []
+    "claim": "passed",
+    "records": [
+      {
+        "command": "python3 -m unittest discover -s .agent-context/tests -p test_context*.py -v",
+        "environment": "Python 3.11，独立临时 Git 仓库，34 项",
+        "result": "passed",
+        "evidence": ".agent-context/docs/evidence/bootstrap.md",
+        "at": "2026-11-28T00:36:10+08:00"
+      },
+      {
+        "command": "cd apps/studio && node --run test:quick",
+        "environment": "Node 24，独立检出与 42 个 LFS 指针，13 项",
+        "result": "passed",
+        "evidence": ".agent-context/docs/evidence/bootstrap.md",
+        "at": "2026-11-28T00:36:10+08:00"
+      },
+      {
+        "command": "node apps/studio/scripts/verify-control-states.mjs",
+        "environment": "Apple Silicon，实体 v8，WKWebView 与隔离 SQLite，十组",
+        "result": "passed",
+        "evidence": ".agent-context/docs/evidence/bootstrap.md",
+        "at": "2026-11-28T00:36:10+08:00"
+      },
+      {
+        "command": "python3 .agent-context/tools/check_context.py --config .agent-context/config.json --base 41e7e6fb640b5661fa9c2f67ba6cee627c036905 --task T-001-bootstrap",
+        "environment": "manifest 初始化基准；本地资料、链接和影响范围",
+        "result": "passed",
+        "evidence": ".agent-context/docs/evidence/bootstrap.md",
+        "at": "2026-11-28T00:36:10+08:00"
+      },
+      {
+        "command": "STUDIO_DATA_ROOT=\"$studio_data\" node apps/studio/src/server.mjs",
+        "environment": "同伴独立检出，空资料库、系统帮助页和本机会话入口",
+        "result": "passed",
+        "evidence": ".agent-context/docs/evidence/bootstrap.md",
+        "at": "2026-11-28T00:36:10+08:00"
+      }
+    ]
   },
   "doc_impact": {
     "standards": {
@@ -43,6 +79,10 @@
       "paths": [
         ".agent-context/docs/RUNBOOK.md"
       ]
+    },
+    "code": {
+      "action": "none",
+      "reason": "视觉分割夹具显式关闭其可选音效，快测可在只有 LFS 指针的环境运行。生产编辑、视觉断言及专门的音效回归保持原有行为。"
     }
   }
 }

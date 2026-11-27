@@ -7,7 +7,7 @@
 已经有集成分支的成员可以直接建立自己的工作目录。
 
 ```sh
-git worktree add -b codex/my-studio-task ../studio-my-task codex/standalone-mac-studio
+GIT_LFS_SKIP_SMUDGE=1 git worktree add -b codex/my-studio-task ../studio-my-task codex/standalone-mac-studio
 cd ../studio-my-task
 (cd apps/studio && node --run test:quick)
 ```
@@ -36,11 +36,14 @@ git bundle create ../video-studio-mac.bundle refs/heads/codex/standalone-mac-stu
 
 ```sh
 node --version
+python3 -c 'import sys,json,subprocess,unittest; assert sys.version_info >= (3,11)'
 (cd apps/studio && node --run test:quick)
 python3 -m unittest discover -s .agent-context/tests -p 'test_context*.py' -v
 base=$(python3 -c 'import json; print(json.load(open(".agent-context/manifest.json"))["base"])')
 python3 .agent-context/tools/check_context.py --config .agent-context/config.json --base "$base" --task T-001-bootstrap
 ```
+
+若 Python 自检提示标准库模块缺失，可将下面及后续的 python3 换成自检通过的 python3.11 或 python3.12，再运行同一组命令。
 
 上述基准用于复验初始化。开发新任务时以实际目标分支的分叉点运行，例如 `git merge-base HEAD refs/remotes/handoff/standalone-mac-studio`，再传入自己的任务 ID。看到 HUMAN_REVIEW 时到任务记录核对同伴确认。
 

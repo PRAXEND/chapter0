@@ -103,7 +103,9 @@
         "apps/studio/src/blind-routes.mjs",
         "plugins/video-studio/workbench/media.mjs",
         "apps/studio/www/clip-automation.js",
-        "apps/studio/src/style-catalog.mjs"
+        "apps/studio/src/style-catalog.mjs",
+        "apps/studio/src/voices.mjs",
+        "apps/studio/src/independent-review.mjs"
       ],
       "docs": [
         ".agent-context/docs/ARCHITECTURE.md",
