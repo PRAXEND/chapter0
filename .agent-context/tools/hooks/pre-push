@@ -3,7 +3,7 @@
 # Run: CONTEXT_BASE=<sha> CONTEXT_TASK=<id> git push ...
 set -eu
 if [ -z "${CONTEXT_BASE:-}" ]; then
-  echo 'context-check: 请提供 CONTEXT_BASE（目标分支基准 SHA）；详情见 docs/DEVELOPMENT.md' >&2
+  echo 'context-check: 请提供 CONTEXT_BASE（目标分支基准 SHA）；详情见 .agent-context/docs/DEVELOPMENT.md' >&2
   exit 1
 fi
 context_root=$(git rev-parse --show-toplevel)

@@ -32,7 +32,8 @@ test('atomic revisions, imported content identity, scene locks and concurrent ag
 test('a split inside a dissolve keeps the focus, source frame and opacity of both new pieces', async t=>{
   const {store,p,file}=await fixture(t);
   const a=await store.addAsset(p.id,file);
-  const c={id:'detail',track:'video',assetId:a.id,start:6,duration:31,sourceIn:10,speed:2,
+  // This case exercises visual interpolation. The scene-sound suite verifies archived audio.
+  const c={id:'detail',track:'video',assetId:a.id,start:6,duration:31,sourceIn:10,speed:2,soundDesign:{enabled:false},
     transition:{type:'dissolve',duration:18},framing:{from:{x:.2,y:.5,zoom:1},to:{x:.8,y:.5,zoom:4}}};
   let doc=store.apply(p.id,store.get(p.id).revision,[{op:'add',clip:c}]);
   doc=store.apply(p.id,doc.revision,[{op:'split',id:'detail',atFrame:16,newId:'tail'}]);
