@@ -1,0 +1,30 @@
+{
+  "manifests": [
+    "README.md",
+    "apps/studio/package.json",
+    "apps/studio/src-tauri/Cargo.toml"
+  ],
+  "scripts": [
+    "apps/studio: start",
+    "apps/studio: test:quick",
+    "apps/studio: test",
+    "apps/studio: bundle"
+  ],
+  "entries": [
+    "apps/studio/src-tauri/src/main.rs",
+    "apps/studio/src/server.mjs",
+    "apps/studio/www/app.js",
+    "apps/studio/src/production.mjs"
+  ],
+  "roots": [
+    "apps",
+    "docs",
+    "plugins",
+    "sites",
+    "tests",
+    "tools",
+    "user-packs"
+  ],
+  "file_count": 503,
+  "dirty": true
+}

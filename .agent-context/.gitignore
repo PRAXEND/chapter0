@@ -1,0 +1,3 @@
+# Merge these lines into the project's existing .gitignore.
+__pycache__/
+*.py[cod]

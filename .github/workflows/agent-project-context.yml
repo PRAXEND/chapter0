@@ -1,0 +1,33 @@
+name: Agent project context
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+jobs:
+  context-check:
+    env:
+      GIT_LFS_SKIP_SMUDGE: "1"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Checker regression tests
+        run: python3 -m unittest discover -s .agent-context/tests -p 'test_context*.py' -v
+      - name: Check repository context
+        env:
+          CONTEXT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          context_base=$(git merge-base "$CONTEXT_BASE_SHA" HEAD)
+          python3 .agent-context/tools/check_context.py --config .agent-context/config.json --base "$context_base"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Workbench offline smoke tests
+        working-directory: apps/studio
+        run: node --run test:quick

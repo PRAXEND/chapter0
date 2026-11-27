@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "standard_version": "1.0.0",
+  "required": [
+    ".agent-context/AGENTS.md",
+    ".agent-context/CLAUDE.md",
+    ".agent-context/docs/PROJECT.md",
+    ".agent-context/docs/ARCHITECTURE.md",
+    ".agent-context/docs/RUNBOOK.md",
+    ".agent-context/docs/tasks/README.md",
+    ".agent-context/docs/decisions/README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".agent-context/docs/DEVELOPMENT.md",
+    ".github/pull_request_template.md",
+    ".github/workflows/agent-project-context.yml"
+  ],
+  "task_dir": ".agent-context/docs/tasks",
+  "stale_days": 7,
+  "managed_paths": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    ".gitignore",
+    ".gitattributes",
+    ".agent-context/**",
+    ".github/**",
+    "apps/**",
+    "docs/**",
+    "plugins/**",
+    "user-packs/**",
+    "tools/**",
+    "tests/**",
+    "sites/**"
+  ],
+  "link_paths": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    ".github/pull_request_template.md",
+    ".agent-context/AGENTS.md",
+    ".agent-context/README.md",
+    ".agent-context/docs/**"
+  ],
+  "code_patterns": [
+    "*.py",
+    "*.ts",
+    "*.tsx",
+    "*.js",
+    "*.mjs",
+    "*.json",
+    "*.yaml",
+    "*.yml",
+    "*.toml",
+    "*.sql",
+    "*.css",
+    "*.sh",
+    "tools/hooks/*",
+    "*.go",
+    "*.rs",
+    "*.java",
+    "*.kt",
+    "*.swift",
+    "*.vue",
+    "*.svelte",
+    "*.cpp",
+    "*.c",
+    "*.cs",
+    "*.html",
+    "*.jsx",
+    "*.lock"
+  ],
+  "impact_rules": [
+    {
+      "id": "code",
+      "patterns": [
+        "apps/studio/src/**",
+        "apps/studio/www/**",
+        "apps/studio/src-tauri/src/**",
+        "apps/studio/test/**"
+      ],
+      "docs": [
+        ".agent-context/docs/ARCHITECTURE.md"
+      ],
+      "critical": false
+    },
+    {
+      "id": "contracts",
+      "patterns": [
+        "apps/studio/src/server.mjs",
+        "apps/studio/src/project.mjs",
+        "apps/studio/src/jobs.mjs",
+        "apps/studio/src/request-key.mjs",
+        "apps/studio/src/codex*.mjs",
+        "apps/studio/src/production.mjs",
+        "apps/studio/src/sequence-edit.mjs",
+        "apps/studio/src/clip-edit.mjs",
+        "apps/studio/src/edit-history.mjs",
+        "apps/studio/src/style-portable.mjs",
+        "apps/studio/src/music.mjs",
+        "apps/studio/src/library.mjs",
+        "apps/studio/src/sources.mjs",
+        "apps/studio/src/blind-routes.mjs",
+        "plugins/video-studio/workbench/media.mjs",
+        "apps/studio/www/clip-automation.js",
+        "apps/studio/src/style-catalog.mjs"
+      ],
+      "docs": [
+        ".agent-context/docs/ARCHITECTURE.md",
+        ".agent-context/docs/decisions/"
+      ],
+      "critical": true
+    },
+    {
+      "id": "runtime",
+      "patterns": [
+        "apps/studio/package*.json",
+        "apps/studio/src-tauri/**",
+        "apps/studio/scripts/build-mac.mjs",
+        "apps/studio/scripts/bundle-styles.mjs",
+        "apps/studio/scripts/prepare-*",
+        "apps/studio/src/media-runtime.mjs",
+        "user-packs/henry-video-styles/**",
+        ".gitattributes"
+      ],
+      "docs": [
+        ".agent-context/docs/RUNBOOK.md",
+        ".agent-context/README.md"
+      ],
+      "critical": true
+    },
+    {
+      "id": "standards",
+      "patterns": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".github/**",
+        ".agent-context/AGENTS.md",
+        ".agent-context/CLAUDE.md",
+        ".agent-context/config.json",
+        ".agent-context/manifest.json",
+        ".agent-context/tools/**",
+        ".agent-context/tests/**",
+        ".agent-context/templates/**",
+        ".agent-context/docs/DEVELOPMENT.md"
+      ],
+      "docs": [
+        ".agent-context/docs/DEVELOPMENT.md"
+      ],
+      "critical": true
+    }
+  ],
+  "change_note_dir": ".agent-context/docs/changes"
+}

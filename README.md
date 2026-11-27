@@ -1,6 +1,14 @@
 # Video Studio · Video Generation Workbench
 
-独立 Apple Silicon Mac 剪辑工作台提供 Codex 对话、可编辑时间线和本地成片交付。使用及构建见 [独立工作台](apps/studio/README.md)。
+## 当前开发分支 · 独立 Mac 工作台
+
+这里开发 `codex/standalone-mac-studio`。工作台在本机完成 Codex 对话、可编辑剪辑与成片交付。团队从[项目首页](.agent-context/docs/PROJECT.md)领取任务，按[接手与自检](.agent-context/docs/RUNBOOK.md)准备自己的检出。产品操作和构建见 [Mac 工作台使用说明](apps/studio/README.md)。
+
+已有本分支代码时，在仓库根目录运行 `(cd apps/studio && node --run test:quick)`。这组检查使用 Node 24，覆盖工程版本与锁、控件状态和时间线操作，使用临时工程。历史工程记录和风格验证见[已有研发记录](docs/tasks/README.md)。
+
+## web.39 插件发行与升级
+
+以下安装命令和 ChatCut 说明适用于维护旧插件的成员。
 
 **0.3.0-web.39 · macOS · 发布分支 `video-generation-workbench`**
 

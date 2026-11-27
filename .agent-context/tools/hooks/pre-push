@@ -1,0 +1,14 @@
+#!/bin/sh
+# Optional convenience hook. Never install over an existing hook automatically.
+# Run: CONTEXT_BASE=<sha> CONTEXT_TASK=<id> git push ...
+set -eu
+if [ -z "${CONTEXT_BASE:-}" ]; then
+  echo 'context-check: 请提供 CONTEXT_BASE（目标分支基准 SHA）；详情见 docs/DEVELOPMENT.md' >&2
+  exit 1
+fi
+context_root=$(git rev-parse --show-toplevel)
+if [ -n "${CONTEXT_TASK:-}" ]; then
+  python3 "$context_root/.agent-context/tools/check_context.py" --config .agent-context/config.json --repo "$context_root" --base "$CONTEXT_BASE" --task "$CONTEXT_TASK"
+else
+  python3 "$context_root/.agent-context/tools/check_context.py" --config .agent-context/config.json --repo "$context_root" --base "$CONTEXT_BASE"
+fi

@@ -1,0 +1,16 @@
+{
+  "installer": "agent-project-init",
+  "version": "1.1.0",
+  "base": "41e7e6fb640b5661fa9c2f67ba6cee627c036905",
+  "branch": "codex/standalone-mac-studio",
+  "created_at": "2026-11-28T00:26:22+08:00",
+  "human_inputs": [
+    "goal",
+    "deliverables",
+    "acceptance"
+  ],
+  "warnings": [
+    "初始化不等于业务测试、客户验收、远端 CI 或人工批准；远端门禁需对应平台权限",
+    "初始化前已有未提交内容，已保留；不将这些内容认定为已审阅或已合并能力"
+  ]
+}

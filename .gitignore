@@ -33,3 +33,9 @@ auth.json
 config.toml
 desktop-session.json
 voices.json
+
+
+# agent-project-init:v1
+__pycache__/
+*.py[cod]
+# /agent-project-init:v1

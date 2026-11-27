@@ -4,5 +4,5 @@
   "private": true,
   "type": "module",
   "engines": {"node": ">=24"},
-  "scripts": {"start":"node src/server.mjs","test":"node --test test/*.test.mjs","bundle":"node scripts/build-mac.mjs"}
+  "scripts": {"start":"node src/server.mjs","test":"node --test test/*.test.mjs","test:quick":"node --test test/project.test.mjs test/control-states.test.mjs test/timeline-ui.test.mjs","bundle":"node scripts/build-mac.mjs"}
 }
